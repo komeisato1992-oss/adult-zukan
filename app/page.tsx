@@ -1,65 +1,119 @@
-import Image from "next/image";
+import { PageLayout } from "@/components/layout/PageLayout";
+import { HeroCarousel } from "@/components/home/HeroCarousel";
+import { WorkScrollSection } from "@/components/home/WorkScrollSection";
+import { ActressCarousel } from "@/components/home/ActressCarousel";
+import { MakerRankingSection } from "@/components/home/MakerRankingSection";
+import { SeriesRankingSection } from "@/components/home/SeriesRankingSection";
+import { PopularGenreSection } from "@/components/home/PopularGenreSection";
+import { JsonLd } from "@/components/seo/JsonLd";
+import { UpdatedDate } from "@/components/ui/UpdatedDate";
+import {
+  getAllWorks,
+  getFeaturedWorks,
+  getLatestWorks,
+  getRankedWorks,
+  getSaleWorks,
+  getWeeklyRankedWorks,
+  getMonthlyRankedWorks,
+} from "@/lib/works/repository";
+import { getRankedActresses } from "@/data/actresses";
+import { siteConfig } from "@/lib/site-config";
+import { createPageMetadata } from "@/lib/seo/metadata";
+import { createItemListJsonLd } from "@/lib/seo/json-ld";
 
-export default function Home() {
+export const revalidate = 3600;
+
+export const metadata = createPageMetadata({
+  title: siteConfig.name,
+  description: siteConfig.description,
+});
+
+export default async function HomePage() {
+  const [
+    featuredWorks,
+    popularWorks,
+    latestWorks,
+    saleWorks,
+    weeklyWorks,
+    monthlyWorks,
+    allWorks,
+  ] = await Promise.all([
+    getFeaturedWorks(5),
+    getRankedWorks(10),
+    getLatestWorks(10),
+    getSaleWorks(),
+    getWeeklyRankedWorks(10),
+    getMonthlyRankedWorks(10),
+    getAllWorks(),
+  ]);
+
+  const rankedActresses = getRankedActresses(10);
+  const updatedDate = new Date().toISOString().split("T")[0];
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <>
+      <JsonLd
+        data={createItemListJsonLd(
+          "おすすめ作品",
+          featuredWorks.map((work) => ({
+            name: work.title,
+            url: `${siteConfig.url}/works/${work.slug}`,
+          })),
+        )}
+      />
+
+      <HeroCarousel works={featuredWorks} />
+
+      <PageLayout>
+        <UpdatedDate date={updatedDate} className="mb-6 text-xs text-muted" />
+
+        <WorkScrollSection
+          id="popular-works"
+          title="人気作品"
+          works={popularWorks}
+          href="/ranking/works"
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+
+        <WorkScrollSection
+          id="new-works"
+          title="新着作品"
+          works={latestWorks}
+          href="/works?sort=new"
+        />
+
+        <WorkScrollSection
+          id="sale-works"
+          title="セール作品"
+          works={saleWorks.slice(0, 10)}
+          href="/works?sale=1"
+        />
+
+        <ActressCarousel
+          actresses={rankedActresses}
+          works={allWorks}
+          id="popular-actresses"
+        />
+
+        <MakerRankingSection id="popular-makers" />
+
+        <SeriesRankingSection id="popular-series" />
+
+        <PopularGenreSection id="popular-genres" />
+
+        <WorkScrollSection
+          id="weekly-ranking"
+          title="週間ランキング"
+          works={weeklyWorks}
+          href="/ranking/weekly"
+        />
+
+        <WorkScrollSection
+          id="monthly-ranking"
+          title="月間ランキング"
+          works={monthlyWorks}
+          href="/ranking/monthly"
+        />
+      </PageLayout>
+    </>
   );
 }

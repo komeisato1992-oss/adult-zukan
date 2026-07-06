@@ -1,30 +1,35 @@
 import { PageLayout } from "@/components/layout/PageLayout";
-import { WorkCard } from "@/components/ui/WorkCard";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { JsonLd } from "@/components/seo/JsonLd";
-import {
-  getAllWorks,
-  getSaleWorks,
-  searchWorks,
-  getLatestWorks,
-  getRankedWorks,
-} from "@/lib/works/repository";
-import { siteConfig, pageIntros } from "@/lib/site-config";
+import { DmmWorkListCard } from "@/components/works/DmmWorkListCard";
 import { PageIntro } from "@/components/ui/PageIntro";
+import { getWorksPageItems } from "@/lib/dmm/list-items";
+import { siteConfig, pageIntros } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import {
   createBreadcrumbJsonLd,
   createItemListJsonLd,
 } from "@/lib/seo/json-ld";
+import { filterItemsWithValidImage } from "@/lib/works";
 
-export const revalidate = 3600;
+export const revalidate = 86400;
 
 type WorksPageProps = {
-  searchParams: Promise<{ q?: string; sale?: string; sort?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    sale?: string;
+    filter?: string;
+    sort?: string;
+  }>;
 };
 
+function isSaleFilter(params: { sale?: string; filter?: string }): boolean {
+  return params.sale === "1" || params.filter === "sale";
+}
+
 export async function generateMetadata({ searchParams }: WorksPageProps) {
-  const { q, sale } = await searchParams;
+  const params = await searchParams;
+  const { q } = params;
 
   if (q) {
     return createPageMetadata({
@@ -35,12 +40,12 @@ export async function generateMetadata({ searchParams }: WorksPageProps) {
     });
   }
 
-  if (sale === "1") {
+  if (isSaleFilter(params)) {
     return createPageMetadata({
       title: "セール作品一覧",
       description:
         "セール中のアダルト作品一覧。お得な価格の作品をチェックできます。",
-      path: "/works?sale=1",
+      path: "/works?filter=sale",
     });
   }
 
@@ -51,21 +56,14 @@ export async function generateMetadata({ searchParams }: WorksPageProps) {
   });
 }
 
-async function getFilteredWorks(params: {
+function getPageTitle(params: {
   q?: string;
   sale?: string;
+  filter?: string;
   sort?: string;
 }) {
-  if (params.q) return searchWorks(params.q);
-  if (params.sale === "1") return getSaleWorks();
-  if (params.sort === "new") return getLatestWorks();
-  if (params.sort === "rank") return getRankedWorks();
-  return getAllWorks();
-}
-
-function getPageTitle(params: { q?: string; sale?: string; sort?: string }) {
   if (params.q) return `「${params.q}」の検索結果`;
-  if (params.sale === "1") return "セール作品一覧";
+  if (isSaleFilter(params)) return "セール作品一覧";
   if (params.sort === "new") return "最新作品一覧";
   if (params.sort === "rank") return "ランキング順 作品一覧";
   return "作品一覧";
@@ -73,26 +71,31 @@ function getPageTitle(params: { q?: string; sale?: string; sort?: string }) {
 
 export default async function WorksPage({ searchParams }: WorksPageProps) {
   const params = await searchParams;
-  const works = await getFilteredWorks(params);
   const pageTitle = getPageTitle(params);
+  const result = await getWorksPageItems(params);
+  const items = result.success
+    ? filterItemsWithValidImage(result.items)
+    : [];
 
   return (
     <>
-      <JsonLd
-        data={[
-          createBreadcrumbJsonLd([
-            { name: "トップ", path: "/" },
-            { name: pageTitle, path: "/works" },
-          ]),
-          createItemListJsonLd(
-            pageTitle,
-            works.map((work) => ({
-              name: work.title,
-              url: `${siteConfig.url}/works/${work.slug}`,
-            })),
-          ),
-        ]}
-      />
+      {result.success && items.length > 0 && (
+        <JsonLd
+          data={[
+            createBreadcrumbJsonLd([
+              { name: "トップ", path: "/" },
+              { name: pageTitle, path: "/works" },
+            ]),
+            createItemListJsonLd(
+              pageTitle,
+              items.map((item) => ({
+                name: item.title,
+                url: `${siteConfig.url}/works/${item.content_id}`,
+              })),
+            ),
+          ]}
+        />
+      )}
       <PageLayout>
         <Breadcrumb
           items={[{ label: "トップ", href: "/" }, { label: pageTitle }]}
@@ -102,15 +105,21 @@ export default async function WorksPage({ searchParams }: WorksPageProps) {
             {pageTitle}
           </h1>
           <PageIntro text={pageIntros.works} />
-          <p className="mt-2 text-sm text-muted">
-            {works.length}件の作品が見つかりました。
-          </p>
+          {result.success ? (
+            <p className="mt-2 text-sm text-muted">
+              {items.length}件の作品が見つかりました。
+            </p>
+          ) : null}
         </header>
 
-        {works.length > 0 ? (
+        {!result.success ? (
+          <p className="rounded border border-border bg-surface p-8 text-center text-sm text-accent">
+            {result.message}
+          </p>
+        ) : items.length > 0 ? (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {works.map((work) => (
-              <WorkCard key={work.slug} work={work} />
+            {items.map((item) => (
+              <DmmWorkListCard key={item.content_id} item={item} />
             ))}
           </div>
         ) : (

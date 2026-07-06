@@ -1,11 +1,40 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { navItems } from "@/lib/site-config";
 
+function isNavItemActive(
+  href: string,
+  pathname: string,
+  searchParams: URLSearchParams,
+): boolean {
+  if (href === "/") {
+    return pathname === "/";
+  }
+
+  if (href === "/works") {
+    return (
+      pathname === "/works" &&
+      !searchParams.get("q") &&
+      !searchParams.get("sale") &&
+      !searchParams.get("sort")
+    );
+  }
+
+  if (href === "/works?sale=1") {
+    return pathname === "/works" && searchParams.get("sale") === "1";
+  }
+
+  const baseHref = href.split("?")[0];
+  return pathname === baseHref || pathname.startsWith(`${baseHref}/`);
+}
+
 export function MobileNav() {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   return (
     <div className="relative md:hidden">
@@ -40,16 +69,25 @@ export function MobileNav() {
           aria-label="モバイルナビゲーション"
           className="absolute right-0 top-full z-50 mt-2 w-48 rounded border border-border bg-white py-2 shadow-lg"
         >
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setOpen(false)}
-              className="block px-4 py-2.5 text-sm text-foreground hover:bg-accent-light hover:text-accent"
-            >
-              {item.label}
-            </Link>
-          ))}
+          {navItems.map((item) => {
+            const active = isNavItemActive(item.href, pathname, searchParams);
+
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setOpen(false)}
+                aria-current={active ? "page" : undefined}
+                className={
+                  active
+                    ? "block bg-accent-light px-4 py-2.5 text-sm font-medium text-accent"
+                    : "block px-4 py-2.5 text-sm text-foreground hover:bg-accent-light hover:text-accent"
+                }
+              >
+                {item.label}
+              </Link>
+            );
+          })}
         </nav>
       )}
     </div>

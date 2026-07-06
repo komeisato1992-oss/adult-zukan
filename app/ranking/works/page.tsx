@@ -1,22 +1,30 @@
 import { PageLayout } from "@/components/layout/PageLayout";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { PageIntro } from "@/components/ui/PageIntro";
-import { RankedWorkList } from "@/components/ranking/RankingList";
+import { DmmRankedWorkList } from "@/components/ranking/RankingList";
 import { RankingNav } from "@/components/ranking/RankingNav";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import { createBreadcrumbJsonLd, createItemListJsonLd } from "@/lib/seo/json-ld";
 import { siteConfig } from "@/lib/site-config";
-import { getRankedWorks } from "@/lib/works/repository";
+import {
+  getPopularWorks,
+  getSharedCatalogWorks,
+} from "@/lib/works/catalog";
+import { DMM_STATIC_WORKS_COUNT } from "@/lib/dmm/static-works";
+import { filterItemsWithValidImage } from "@/lib/works";
 
 export const metadata = createPageMetadata({
   title: "人気作品ランキング",
-  description: "アダルト図鑑の人気作品ランキングTOP100。",
+  description: "アダルト図鑑の人気作品ランキング。",
   path: "/ranking/works",
 });
 
 export default async function RankingWorksPage() {
-  const works = await getRankedWorks(100);
+  const catalog = await getSharedCatalogWorks();
+  const items = filterItemsWithValidImage(
+    getPopularWorks(catalog, DMM_STATIC_WORKS_COUNT),
+  );
 
   return (
     <>
@@ -29,9 +37,9 @@ export default async function RankingWorksPage() {
           ]),
           createItemListJsonLd(
             "人気作品ランキング",
-            works.map((work) => ({
-              name: work.title,
-              url: `${siteConfig.url}/works/${work.slug}`,
+            items.map((item) => ({
+              name: item.title,
+              url: `${siteConfig.url}/works/${item.content_id}`,
             })),
           ),
         ]}
@@ -51,7 +59,7 @@ export default async function RankingWorksPage() {
           <PageIntro text="視聴者の評価とアクセス数をもとに集計した人気作品ランキングです。" />
         </header>
         <RankingNav current="/ranking/works" />
-        <RankedWorkList works={works} />
+        <DmmRankedWorkList items={items} />
       </PageLayout>
     </>
   );

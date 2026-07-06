@@ -2,11 +2,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
-import { WorkCard } from "@/components/ui/WorkCard";
 import { SectionHeader } from "@/components/ui/SectionHeader";
+import { DmmCatalogWorksGrid } from "@/components/works/DmmCatalogWorksGrid";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { getAllLabels, getLabelBySlug } from "@/data/labels";
-import { getWorksByLabel } from "@/lib/works/repository";
+import {
+  getCatalogItems,
+  getCatalogLabelStaticParams,
+  getCatalogLabels,
+  getCatalogWorksByLabelSlug,
+} from "@/lib/dmm/catalog-entities";
 import { siteConfig } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import {
@@ -14,19 +18,20 @@ import {
   createItemListJsonLd,
 } from "@/lib/seo/json-ld";
 
-export const revalidate = 3600;
+export const revalidate = 86400;
 
 type LabelDetailPageProps = {
   params: Promise<{ slug: string }>;
 };
 
 export async function generateStaticParams() {
-  return getAllLabels().map((label) => ({ slug: label.slug }));
+  return getCatalogLabelStaticParams();
 }
 
 export async function generateMetadata({ params }: LabelDetailPageProps) {
   const { slug } = await params;
-  const label = getLabelBySlug(slug);
+  const items = await getCatalogItems();
+  const label = getCatalogLabels(items).find((entry) => entry.slug === slug);
 
   if (!label) {
     return createPageMetadata({
@@ -39,23 +44,21 @@ export async function generateMetadata({ params }: LabelDetailPageProps) {
 
   return createPageMetadata({
     title: `${label.name}レーベルの作品一覧`,
-    description: label.longDescription.slice(0, 120),
+    description: `${label.name}レーベルの作品一覧。${label.workCount}件の作品を掲載しています。`,
     path: `/labels/${label.slug}`,
   });
 }
 
 export default async function LabelDetailPage({ params }: LabelDetailPageProps) {
   const { slug } = await params;
-  const label = getLabelBySlug(slug);
+  const items = await getCatalogItems();
+  const label = getCatalogLabels(items).find((entry) => entry.slug === slug);
 
   if (!label) {
     notFound();
   }
 
-  const works = await getWorksByLabel(label.slug);
-  const popularWorks = [...works]
-    .sort((a, b) => b.rankingScore - a.rankingScore)
-    .slice(0, 8);
+  const works = getCatalogWorksByLabelSlug(items, slug);
 
   return (
     <>
@@ -70,7 +73,7 @@ export default async function LabelDetailPage({ params }: LabelDetailPageProps) 
             `${label.name}レーベルの作品一覧`,
             works.map((work) => ({
               name: work.title,
-              url: `${siteConfig.url}/works/${work.slug}`,
+              url: `${siteConfig.url}/works/${work.content_id}`,
             })),
           ),
         ]}
@@ -84,45 +87,26 @@ export default async function LabelDetailPage({ params }: LabelDetailPageProps) 
           ]}
         />
         <header className="mt-4 mb-6">
-          <p className="text-sm text-muted">
-            メーカー:{" "}
-            <Link href={`/makers/${label.makerSlug}`} className="text-accent hover:underline">
-              {label.makerName}
-            </Link>
-          </p>
+          {label.makerName && label.makerSlug && (
+            <p className="text-sm text-muted">
+              メーカー:{" "}
+              <Link
+                href={`/makers/${label.makerSlug}`}
+                className="text-accent hover:underline"
+              >
+                {label.makerName}
+              </Link>
+            </p>
+          )}
           <h1 className="mt-2 border-l-4 border-accent pl-3 text-2xl font-bold text-foreground">
             {label.name}
           </h1>
-          <p className="mt-3 max-w-3xl text-sm leading-relaxed text-muted">
-            {label.longDescription}
-          </p>
           <p className="mt-2 text-sm text-muted">{works.length}件の作品</p>
         </header>
 
-        {popularWorks.length > 0 && (
-          <section aria-labelledby="label-popular" className="mb-10">
-            <SectionHeader title="人気作品" id="label-popular" />
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              {popularWorks.map((work) => (
-                <WorkCard key={work.slug} work={work} />
-              ))}
-            </div>
-          </section>
-        )}
-
         <section aria-labelledby="label-all">
           <SectionHeader title="全作品" id="label-all" />
-          {works.length > 0 ? (
-            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-              {works.map((work) => (
-                <WorkCard key={work.slug} work={work} />
-              ))}
-            </div>
-          ) : (
-            <p className="rounded border border-border bg-surface p-8 text-center text-sm text-muted">
-              現在、このレーベルの作品はありません。
-            </p>
-          )}
+          <DmmCatalogWorksGrid items={works} />
         </section>
       </PageLayout>
     </>

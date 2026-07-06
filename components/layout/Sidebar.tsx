@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import { SidebarNavLink } from "@/components/layout/MainNav";
 import { sidebarSections, legalLinks } from "@/lib/site-config";
 
 export function Sidebar() {
@@ -19,12 +21,9 @@ export function Sidebar() {
             <ul className="space-y-1">
               {section.links.map((link) => (
                 <li key={link.href}>
-                  <Link
-                    href={link.href}
-                    className="block rounded px-2 py-1.5 text-sm text-muted transition-colors hover:bg-accent-light hover:text-accent"
-                  >
-                    {link.label}
-                  </Link>
+                  <Suspense fallback={null}>
+                    <SidebarNavLink href={link.href} label={link.label} />
+                  </Suspense>
                 </li>
               ))}
             </ul>

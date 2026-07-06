@@ -3,23 +3,25 @@ import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { PageIntro } from "@/components/ui/PageIntro";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import {
-  RankedActressList,
+  DmmRankedWorkList,
   RankedEntityList,
-  RankedWorkList,
 } from "@/components/ranking/RankingList";
+import { DmmActressCarousel } from "@/components/home/DmmActressCarousel";
 import { RankingNav } from "@/components/ranking/RankingNav";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { getRankedActresses } from "@/data/actresses";
 import { siteConfig } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import { createBreadcrumbJsonLd } from "@/lib/seo/json-ld";
 import {
-  getMonthlyRankedWorks,
-  getRankedMakersWithCounts,
-  getRankedSeriesWithCounts,
-  getRankedWorks,
-  getWeeklyRankedWorks,
-} from "@/lib/works/repository";
+  getMonthlyRankingWorks,
+  getPopularWorks,
+  getRankedActresses,
+  getRankedMakers,
+  getRankedSeries,
+  getSharedCatalogWorks,
+  getWeeklyRankingWorks,
+} from "@/lib/works/catalog";
+import { filterItemsWithValidImage } from "@/lib/works";
 
 export const metadata = createPageMetadata({
   title: "ランキング",
@@ -29,21 +31,13 @@ export const metadata = createPageMetadata({
 });
 
 export default async function RankingPage() {
-  const [
-    popularWorks,
-    weeklyWorks,
-    monthlyWorks,
-    popularActresses,
-    rankedMakers,
-    rankedSeries,
-  ] = await Promise.all([
-    getRankedWorks(10),
-    getWeeklyRankedWorks(10),
-    getMonthlyRankedWorks(10),
-    Promise.resolve(getRankedActresses(10)),
-    getRankedMakersWithCounts(10),
-    getRankedSeriesWithCounts(10),
-  ]);
+  const catalog = await getSharedCatalogWorks();
+  const popularWorks = filterItemsWithValidImage(getPopularWorks(catalog, 10));
+  const weeklyWorks = filterItemsWithValidImage(getWeeklyRankingWorks(catalog, 10));
+  const monthlyWorks = filterItemsWithValidImage(getMonthlyRankingWorks(catalog, 10));
+  const rankedMakers = getRankedMakers(catalog, 10);
+  const rankedSeries = getRankedSeries(catalog, 10);
+  const popularActresses = getRankedActresses(catalog, 10);
 
   return (
     <>
@@ -77,7 +71,7 @@ export default async function RankingPage() {
             id="rank-works"
             href="/ranking/works"
           />
-          <RankedWorkList works={popularWorks} />
+          <DmmRankedWorkList items={popularWorks} />
         </section>
 
         <section aria-labelledby="rank-weekly" className="mb-12">
@@ -86,7 +80,7 @@ export default async function RankingPage() {
             id="rank-weekly"
             href="/ranking/weekly"
           />
-          <RankedWorkList works={weeklyWorks} />
+          <DmmRankedWorkList items={weeklyWorks} />
         </section>
 
         <section aria-labelledby="rank-monthly" className="mb-12">
@@ -95,7 +89,7 @@ export default async function RankingPage() {
             id="rank-monthly"
             href="/ranking/monthly"
           />
-          <RankedWorkList works={monthlyWorks} />
+          <DmmRankedWorkList items={monthlyWorks} />
         </section>
 
         <section aria-labelledby="rank-actresses" className="mb-12">
@@ -104,7 +98,10 @@ export default async function RankingPage() {
             id="rank-actresses"
             href="/ranking/actresses"
           />
-          <RankedActressList actresses={popularActresses} />
+          <DmmActressCarousel
+            actresses={popularActresses}
+            id="rank-actresses-list"
+          />
         </section>
 
         <div className="grid gap-8 lg:grid-cols-2">
@@ -115,10 +112,10 @@ export default async function RankingPage() {
               href="/ranking/makers"
             />
             <RankedEntityList
-              items={rankedMakers.map(({ maker, workCount }) => ({
+              items={rankedMakers.map((maker) => ({
                 name: maker.name,
                 href: `/makers/${maker.slug}`,
-                meta: `${workCount}作品`,
+                meta: `${maker.workCount}作品`,
               }))}
             />
           </section>
@@ -130,10 +127,10 @@ export default async function RankingPage() {
               href="/ranking/series"
             />
             <RankedEntityList
-              items={rankedSeries.map(({ series, workCount }) => ({
+              items={rankedSeries.map((series) => ({
                 name: series.name,
                 href: `/series/${series.slug}`,
-                meta: `${workCount}作品`,
+                meta: `${series.workCount}作品`,
               }))}
             />
           </section>

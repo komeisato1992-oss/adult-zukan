@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { navItems, siteConfig } from "@/lib/site-config";
+import { Suspense } from "react";
+import { siteConfig } from "@/lib/site-config";
 import { SearchBar } from "@/components/ui/SearchBar";
 import { MobileNav } from "@/components/layout/MobileNav";
+import { MainNav } from "@/components/layout/MainNav";
 
 export function Header() {
   return (
@@ -29,27 +31,18 @@ export function Header() {
             <SearchBar compact className="max-w-xl" />
           </div>
 
+        <Suspense fallback={null}>
           <MobileNav />
+        </Suspense>
         </div>
 
         <div className="mt-3 md:hidden">
           <SearchBar compact />
         </div>
 
-        <nav
-          aria-label="グローバルナビゲーション"
-          className="mt-3 hidden items-center gap-1 overflow-x-auto md:flex"
-        >
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="whitespace-nowrap rounded px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent-light hover:text-accent"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+        <Suspense fallback={null}>
+          <MainNav />
+        </Suspense>
       </div>
     </header>
   );

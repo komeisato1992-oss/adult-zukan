@@ -2,8 +2,10 @@ import Link from "next/link";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { getAllMakers } from "@/data/makers";
-import { getAllWorks } from "@/lib/works/repository";
+import {
+  getCatalogItems,
+  getCatalogMakers,
+} from "@/lib/dmm/catalog-entities";
 import { siteConfig, pageIntros } from "@/lib/site-config";
 import { PageIntro } from "@/components/ui/PageIntro";
 import { createPageMetadata } from "@/lib/seo/metadata";
@@ -12,7 +14,7 @@ import {
   createItemListJsonLd,
 } from "@/lib/seo/json-ld";
 
-export const revalidate = 3600;
+export const revalidate = 86400;
 
 export const metadata = createPageMetadata({
   title: "メーカー一覧",
@@ -21,8 +23,11 @@ export const metadata = createPageMetadata({
 });
 
 export default async function MakersPage() {
-  const makers = getAllMakers();
-  const allWorks = await getAllWorks();
+  const items = await getCatalogItems();
+  const makers = getCatalogMakers(items).sort(
+    (a, b) =>
+      b.workCount - a.workCount || a.name.localeCompare(b.name, "ja"),
+  );
 
   return (
     <>
@@ -53,37 +58,30 @@ export default async function MakersPage() {
         </header>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          {makers.map((maker) => {
-            const workCount = allWorks.filter(
-              (work) => work.makerSlug === maker.slug,
-            ).length;
-
-            return (
-              <article
-                key={maker.slug}
-                className="rounded border border-border bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
-              >
-                <h2 className="text-base font-bold text-foreground">
-                  <Link
-                    href={`/makers/${maker.slug}`}
-                    className="hover:text-accent"
-                  >
-                    {maker.name}
-                  </Link>
-                </h2>
-                <p className="mt-1 text-xs text-muted">掲載作品 {workCount}件</p>
-                <p className="mt-2 text-sm leading-relaxed text-muted">
-                  {maker.description}
-                </p>
+          {makers.map((maker) => (
+            <article
+              key={maker.slug}
+              className="rounded border border-border bg-white p-5 shadow-sm transition-shadow hover:shadow-md"
+            >
+              <h2 className="text-base font-bold text-foreground">
                 <Link
                   href={`/makers/${maker.slug}`}
-                  className="mt-3 inline-block text-sm font-medium text-accent hover:underline"
+                  className="hover:text-accent"
                 >
-                  詳細を見る →
+                  {maker.name}
                 </Link>
-              </article>
-            );
-          })}
+              </h2>
+              <p className="mt-1 text-xs text-muted">
+                掲載作品 {maker.workCount}件
+              </p>
+              <Link
+                href={`/makers/${maker.slug}`}
+                className="mt-3 inline-block text-sm font-medium text-accent hover:underline"
+              >
+                詳細を見る →
+              </Link>
+            </article>
+          ))}
         </div>
       </PageLayout>
     </>

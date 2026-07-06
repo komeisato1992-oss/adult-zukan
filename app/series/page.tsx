@@ -1,18 +1,20 @@
+import Link from "next/link";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { PageIntro } from "@/components/ui/PageIntro";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { getAllSeries } from "@/data/series";
-import { getAllWorks } from "@/lib/works/repository";
+import {
+  getCatalogItems,
+  getCatalogSeries,
+} from "@/lib/dmm/catalog-entities";
 import { siteConfig, pageIntros } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import {
   createBreadcrumbJsonLd,
   createItemListJsonLd,
 } from "@/lib/seo/json-ld";
-import Link from "next/link";
 
-export const revalidate = 3600;
+export const revalidate = 86400;
 
 export const metadata = createPageMetadata({
   title: "シリーズ一覧",
@@ -21,8 +23,11 @@ export const metadata = createPageMetadata({
 });
 
 export default async function SeriesPage() {
-  const series = getAllSeries();
-  const allWorks = await getAllWorks();
+  const items = await getCatalogItems();
+  const series = getCatalogSeries(items).sort(
+    (a, b) =>
+      b.workCount - a.workCount || a.name.localeCompare(b.name, "ja"),
+  );
 
   return (
     <>
@@ -34,9 +39,9 @@ export default async function SeriesPage() {
           ]),
           createItemListJsonLd(
             "シリーズ一覧",
-            series.map((s) => ({
-              name: s.name,
-              url: `${siteConfig.url}/series/${s.slug}`,
+            series.map((entry) => ({
+              name: entry.name,
+              url: `${siteConfig.url}/series/${entry.slug}`,
             })),
           ),
         ]}
@@ -53,22 +58,18 @@ export default async function SeriesPage() {
         </header>
 
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {series.map((s) => {
-            const count = allWorks.filter((w) => w.seriesSlug === s.slug).length;
-            return (
-              <Link
-                key={s.slug}
-                href={`/series/${s.slug}`}
-                className="rounded-lg border border-border bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/20 hover:shadow-md"
-              >
-                <h2 className="text-base font-bold text-foreground">{s.name}</h2>
-                <p className="mt-1 text-xs text-muted">{count}作品</p>
-                <p className="mt-2 line-clamp-3 text-sm text-muted">
-                  {s.description}
-                </p>
-              </Link>
-            );
-          })}
+          {series.map((entry) => (
+            <Link
+              key={entry.slug}
+              href={`/series/${entry.slug}`}
+              className="rounded-lg border border-border bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/20 hover:shadow-md"
+            >
+              <h2 className="text-base font-bold text-foreground">
+                {entry.name}
+              </h2>
+              <p className="mt-1 text-xs text-muted">{entry.workCount}作品</p>
+            </Link>
+          ))}
         </div>
       </PageLayout>
     </>

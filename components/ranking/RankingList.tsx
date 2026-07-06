@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { WorkCard } from "@/components/ui/WorkCard";
+import { DmmWorkCard } from "@/components/works/DmmWorkCard";
 import { ActressCard } from "@/components/ui/ActressCard";
 import type { Work } from "@/data/types";
 import type { Actress } from "@/data/types";
+import type { DmmItem } from "@/lib/dmm/types";
+import { filterItemsWithValidImage } from "@/lib/works";
 
 type RankedWorkListProps = {
   works: Work[];
@@ -20,6 +23,37 @@ export function RankedWorkList({ works, showRank = true }: RankedWorkListProps) 
             </span>
           )}
           <WorkCard work={work} />
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+type DmmRankedWorkListProps = {
+  items: DmmItem[];
+  showRank?: boolean;
+};
+
+export function DmmRankedWorkList({
+  items,
+  showRank = true,
+}: DmmRankedWorkListProps) {
+  const visibleItems = filterItemsWithValidImage(items);
+
+  if (visibleItems.length === 0) {
+    return null;
+  }
+
+  return (
+    <ol className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+      {visibleItems.map((item, index) => (
+        <li key={item.content_id} className="relative">
+          {showRank && (
+            <span className="absolute -left-1 -top-1 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-accent text-xs font-bold text-white shadow">
+              {index + 1}
+            </span>
+          )}
+          <DmmWorkCard item={item} />
         </li>
       ))}
     </ol>

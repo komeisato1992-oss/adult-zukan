@@ -1,13 +1,17 @@
 import { PageLayout } from "@/components/layout/PageLayout";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { PageIntro } from "@/components/ui/PageIntro";
-import { RankedWorkList } from "@/components/ranking/RankingList";
+import { DmmRankedWorkList } from "@/components/ranking/RankingList";
 import { RankingNav } from "@/components/ranking/RankingNav";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import { createBreadcrumbJsonLd, createItemListJsonLd } from "@/lib/seo/json-ld";
 import { siteConfig } from "@/lib/site-config";
-import { getMonthlyRankedWorks } from "@/lib/works/repository";
+import {
+  getMonthlyRankingWorks,
+  getSharedCatalogWorks,
+} from "@/lib/works/catalog";
+import { filterItemsWithValidImage } from "@/lib/works";
 
 export const metadata = createPageMetadata({
   title: "月間ランキング",
@@ -16,7 +20,8 @@ export const metadata = createPageMetadata({
 });
 
 export default async function RankingMonthlyPage() {
-  const works = await getMonthlyRankedWorks(20);
+  const catalog = await getSharedCatalogWorks();
+  const items = filterItemsWithValidImage(getMonthlyRankingWorks(catalog, 20));
 
   return (
     <>
@@ -29,9 +34,9 @@ export default async function RankingMonthlyPage() {
           ]),
           createItemListJsonLd(
             "月間ランキング",
-            works.map((work) => ({
-              name: work.title,
-              url: `${siteConfig.url}/works/${work.slug}`,
+            items.map((item) => ({
+              name: item.title,
+              url: `${siteConfig.url}/works/${item.content_id}`,
             })),
           ),
         ]}
@@ -51,7 +56,7 @@ export default async function RankingMonthlyPage() {
           <PageIntro text="直近1ヶ月のアクセスと評価をもとに集計した月間人気作品ランキングです。" />
         </header>
         <RankingNav current="/ranking/monthly" />
-        <RankedWorkList works={works} />
+        <DmmRankedWorkList items={items} />
       </PageLayout>
     </>
   );

@@ -2,8 +2,10 @@ import Link from "next/link";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { getAllGenres } from "@/data/genres";
-import { getAllWorks } from "@/lib/works/repository";
+import {
+  getCatalogGenres,
+  getCatalogItems,
+} from "@/lib/dmm/catalog-entities";
 import { siteConfig, pageIntros } from "@/lib/site-config";
 import { PageIntro } from "@/components/ui/PageIntro";
 import { createPageMetadata } from "@/lib/seo/metadata";
@@ -12,7 +14,7 @@ import {
   createItemListJsonLd,
 } from "@/lib/seo/json-ld";
 
-export const revalidate = 3600;
+export const revalidate = 86400;
 
 export const metadata = createPageMetadata({
   title: "ジャンル一覧",
@@ -21,8 +23,8 @@ export const metadata = createPageMetadata({
 });
 
 export default async function GenresPage() {
-  const genres = getAllGenres();
-  const allWorks = await getAllWorks();
+  const items = await getCatalogItems();
+  const genres = getCatalogGenres(items);
 
   return (
     <>
@@ -53,27 +55,18 @@ export default async function GenresPage() {
         </header>
 
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-          {genres.map((genre) => {
-            const workCount = allWorks.filter(
-              (work) =>
-                work.genreSlugs.includes(genre.slug) ||
-                work.genreNames.includes(genre.name),
-            ).length;
-
-            return (
-              <Link
-                key={genre.slug}
-                href={`/genres/${genre.slug}`}
-                className="rounded border border-border bg-white p-5 text-center shadow-sm transition-shadow hover:border-accent/30 hover:shadow-md"
-              >
-                <h2 className="text-base font-bold text-foreground">
-                  {genre.name}
-                </h2>
-                <p className="mt-2 text-xs text-muted">{workCount}作品</p>
-                <p className="mt-2 text-sm text-muted">{genre.description}</p>
-              </Link>
-            );
-          })}
+          {genres.map((genre) => (
+            <Link
+              key={genre.slug}
+              href={`/genres/${genre.slug}`}
+              className="rounded border border-border bg-white p-5 text-center shadow-sm transition-shadow hover:border-accent/30 hover:shadow-md"
+            >
+              <h2 className="text-base font-bold text-foreground">
+                {genre.name}
+              </h2>
+              <p className="mt-2 text-xs text-muted">{genre.workCount}作品</p>
+            </Link>
+          ))}
         </div>
       </PageLayout>
     </>

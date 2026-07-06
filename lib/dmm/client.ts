@@ -29,6 +29,7 @@ export async function fetchDmmItemList(
   url.searchParams.set("offset", String(options.offset ?? 1));
 
   if (options.sort) {
+    // DMM API: sort=rank がFANZAランキング順（人気順）
     url.searchParams.set("sort", options.sort);
   }
 
@@ -36,8 +37,14 @@ export async function fetchDmmItemList(
     url.searchParams.set("keyword", options.keyword);
   }
 
+  if (options.cid) {
+    url.searchParams.set("cid", options.cid);
+  }
+
   const response = await fetch(url.toString(), {
-    next: { revalidate: 3600 },
+    ...(options.cache
+      ? { cache: options.cache }
+      : { next: { revalidate: options.revalidate ?? 3600 } }),
   });
 
   if (!response.ok) {
@@ -51,4 +58,26 @@ export async function fetchDmmItemList(
   }
 
   return data;
+}
+
+/** 一般動画作品をキーワード検索で取得（接続テスト用） */
+export async function fetchItem(): Promise<DmmItemListResponse> {
+  return fetchDmmItemList({
+    keyword: "IPZZ",
+    hits: 20,
+    sort: "date",
+    offset: 1,
+    cache: "no-store",
+  });
+}
+
+/** content_id で作品を1件取得 */
+export async function fetchDmmItemByContentId(
+  contentId: string,
+): Promise<DmmItemListResponse> {
+  return fetchDmmItemList({
+    cid: contentId,
+    hits: 1,
+    revalidate: 86400,
+  });
 }

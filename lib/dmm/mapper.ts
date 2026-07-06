@@ -1,5 +1,6 @@
 import type { Work } from "@/data/types";
 import type { DmmItem } from "@/lib/dmm/types";
+import { getDmmFanzaUrl } from "@/lib/dmm/fanza-url";
 import {
   formatReleaseDate,
   parseDmmPrice,
@@ -69,7 +70,7 @@ export function mapDmmItemToWork(item: DmmItem, index = 0): Work {
     actressNames,
     relatedWorkSlugs: [],
     imageUrl,
-    affiliateUrl: item.affiliateURL || item.URL,
+    affiliateUrl: getDmmFanzaUrl(item),
     affiliateProvider: "fanza",
     rankingScore,
     weeklyScore: rankingScore,

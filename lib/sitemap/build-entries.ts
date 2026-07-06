@@ -1,10 +1,12 @@
 import { legalLinks } from "@/lib/site-config";
-import { getAllWorks } from "@/lib/works/repository";
-import { getAllActresses } from "@/data/actresses";
-import { getAllGenres } from "@/data/genres";
-import { getAllMakers } from "@/data/makers";
-import { getAllSeries } from "@/data/series";
-import { getAllLabels } from "@/data/labels";
+import {
+  getCatalogActresses,
+  getCatalogGenres,
+  getCatalogItems,
+  getCatalogLabels,
+  getCatalogMakers,
+  getCatalogSeries,
+} from "@/lib/dmm/catalog-entities";
 import {
   buildSitemapUrl,
   dedupeUrls,
@@ -16,12 +18,12 @@ function isIncludedPath(path: string): boolean {
 }
 
 export async function getSitemapUrls(): Promise<string[]> {
-  const works = await getAllWorks();
-  const actresses = getAllActresses();
-  const genres = getAllGenres();
-  const makers = getAllMakers();
-  const series = getAllSeries();
-  const labels = getAllLabels();
+  const items = await getCatalogItems();
+  const actresses = getCatalogActresses(items);
+  const makers = getCatalogMakers(items);
+  const series = getCatalogSeries(items);
+  const labels = getCatalogLabels(items);
+  const genres = getCatalogGenres(items);
 
   const staticPaths = [
     "",
@@ -47,12 +49,12 @@ export async function getSitemapUrls(): Promise<string[]> {
 
   const paths = [
     ...staticPaths.filter(isIncludedPath),
-    ...works.map((work) => `/works/${work.slug}`),
+    ...items.map((item) => `/works/${item.content_id}`),
     ...actresses.map((actress) => `/actresses/${actress.slug}`),
-    ...genres.map((genre) => `/genres/${genre.slug}`),
     ...makers.map((maker) => `/makers/${maker.slug}`),
-    ...series.map((s) => `/series/${s.slug}`),
+    ...series.map((entry) => `/series/${entry.slug}`),
     ...labels.map((label) => `/labels/${label.slug}`),
+    ...genres.map((genre) => `/genres/${genre.slug}`),
   ];
 
   return dedupeUrls(paths.map((path) => buildSitemapUrl(path)));

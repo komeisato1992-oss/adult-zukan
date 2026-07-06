@@ -8,14 +8,20 @@ import { AffiliateButton } from "@/components/ui/AffiliateButton";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { WorkThumbnail } from "@/components/ui/WorkThumbnail";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { DmmWorkDetailView } from "@/components/works/DmmWorkDetailView";
 import {
   getWorkBySlug,
   getRelatedWorks,
-  getWorkSlugs,
   getRelatedActressesForWork,
 } from "@/lib/works/repository";
+import { getDmmWorkByContentId } from "@/lib/dmm/get-work";
+import { getDmmStaticWorkContentIds } from "@/lib/dmm/static-works";
 import { getGenreBySlug } from "@/data/genres";
-import { getActressBySlug } from "@/data/actresses";
+import { getActressDetailPath } from "@/lib/actresses/slug";
+import {
+  getCatalogActresses,
+  getCatalogItems,
+} from "@/lib/dmm/catalog-entities";
 import { getMakerBySlug } from "@/data/makers";
 import { FavoriteButton } from "@/components/user/FavoriteButton";
 import { HistoryTracker } from "@/components/user/HistoryTracker";
@@ -28,50 +34,71 @@ import {
 import { formatPrice, getDisplayPrice } from "@/lib/format";
 import { AFFILIATE_LINK_REL, slugify } from "@/lib/utils";
 
-export const revalidate = 3600;
+export const revalidate = 86400;
 
 type WorkDetailPageProps = {
   params: Promise<{ slug: string }>;
 };
 
 export async function generateStaticParams() {
-  const slugs = await getWorkSlugs();
-  return slugs.map((slug) => ({ slug }));
+  const contentIds = await getDmmStaticWorkContentIds();
+  return contentIds.map((slug) => ({ slug }));
 }
 
 export async function generateMetadata({ params }: WorkDetailPageProps) {
   const { slug } = await params;
+  const dmmItem = await getDmmWorkByContentId(slug);
+
+  if (dmmItem) {
+    return createPageMetadata({
+      title: dmmItem.title,
+      description: `${dmmItem.title}の作品情報。品番 ${dmmItem.content_id}`,
+      path: `/works/${dmmItem.content_id}`,
+      ogType: "article",
+    });
+  }
+
   const work = await getWorkBySlug(slug);
 
-  if (!work) {
+  if (work) {
     return createPageMetadata({
-      title: "作品が見つかりません",
-      description: "指定された作品は見つかりませんでした。",
-      path: `/works/${slug}`,
-      noIndex: true,
+      title: work.title,
+      description: work.longDescription.slice(0, 120),
+      path: `/works/${work.slug}`,
+      ogType: "article",
     });
   }
 
   return createPageMetadata({
-    title: work.title,
-    description: work.longDescription.slice(0, 120),
-    path: `/works/${work.slug}`,
-    ogType: "article",
+    title: "作品が見つかりません",
+    description: "指定された作品は見つかりませんでした。",
+    path: `/works/${slug}`,
+    noIndex: true,
   });
 }
 
 export default async function WorkDetailPage({ params }: WorkDetailPageProps) {
   const { slug } = await params;
+  const dmmItem = await getDmmWorkByContentId(slug);
+
+  if (dmmItem) {
+    return <DmmWorkDetailView item={dmmItem} />;
+  }
+
   const work = await getWorkBySlug(slug);
 
   if (!work) {
     notFound();
   }
 
-  const [relatedWorks, relatedActresses] = await Promise.all([
+  const [relatedWorks, relatedActresses, catalogItems] = await Promise.all([
     getRelatedWorks(work),
     getRelatedActressesForWork(work),
+    getCatalogItems(),
   ]);
+  const catalogActressNames = new Set(
+    getCatalogActresses(catalogItems).map((actress) => actress.name),
+  );
   const maker = getMakerBySlug(work.makerSlug);
   const { current, original, isOnSale } = getDisplayPrice(work);
 
@@ -187,9 +214,8 @@ export default async function WorkDetailPage({ params }: WorkDetailPageProps) {
                     <dt className="font-medium text-muted">出演</dt>
                     <dd className="flex flex-wrap gap-2">
                       {work.actressNames.map((name) => {
-                        const actress = getActressBySlug(slugify(name));
-                        const href = actress
-                          ? `/actresses/${actress.slug}`
+                        const href = catalogActressNames.has(name)
+                          ? getActressDetailPath(name)
                           : `/search?q=${encodeURIComponent(name)}`;
                         return (
                           <Link

@@ -1,0 +1,21 @@
+{
+  "name": "アダルト図鑑",
+  "short_name": "アダルト図鑑",
+  "description": "アダルト作品の情報をわかりやすく紹介するポータルサイト",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#BF0000",
+  "theme_color": "#BF0000",
+  "icons": [
+    {
+      "src": "/android-chrome-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/android-chrome-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

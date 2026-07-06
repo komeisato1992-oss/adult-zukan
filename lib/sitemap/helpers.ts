@@ -35,10 +35,11 @@ export function dedupeSitemapEntries(
   return result;
 }
 
-/** サイトマップに含めない noindex ページ */
+/** サイトマップに含めない noindex ページ・クエリ付きURL */
 export const SITEMAP_EXCLUDED_PATHS = new Set([
   "/favorites",
   "/history",
   "/age-denied",
   "/feed.xml",
+  "/works?sale=1",
 ]);

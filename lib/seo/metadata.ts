@@ -93,5 +93,20 @@ export function createRootMetadata(): Metadata {
     verification: {
       google: "B5wZE-ISkVIdM4c3JglNJJoZgKFt7wXlK4dASgA_YTQ",
     },
+    icons: {
+      icon: [
+        { url: "/favicon.ico" },
+        { url: "/icon.png", type: "image/png", sizes: "32x32" },
+      ],
+      shortcut: "/favicon.ico",
+      apple: "/apple-touch-icon.png",
+    },
+    manifest: "/site.webmanifest",
+    appleWebApp: {
+      capable: true,
+      title: siteConfig.name,
+      statusBarStyle: "black-translucent",
+    },
+    themeColor: siteConfig.accentColor,
   };
 }

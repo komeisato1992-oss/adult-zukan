@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { Noto_Sans_JP } from "next/font/google";
+import { GoogleAnalytics } from "@next/third-parties/google";
 import { AgeGateProvider } from "@/components/age-gate/AgeGateProvider";
 import { SiteShell } from "@/components/layout/SiteShell";
-import { GoogleAnalytics } from "@/components/analytics/GoogleAnalytics";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { createRootMetadata } from "@/lib/seo/metadata";
 import {
@@ -28,11 +28,11 @@ export default function RootLayout({
   return (
     <html lang="ja" className={notoSansJP.variable}>
       <body className="flex min-h-screen flex-col bg-white text-foreground antialiased">
+        <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID!} />
         <JsonLd data={[createWebsiteJsonLd(), createOrganizationJsonLd()]} />
         <AgeGateProvider>
           <SiteShell>{children}</SiteShell>
         </AgeGateProvider>
-        <GoogleAnalytics />
       </body>
     </html>
   );

@@ -89,5 +89,8 @@ export function createRootMetadata(): Metadata {
         "application/rss+xml": `${siteConfig.url}/feed.xml`,
       },
     },
+    verification: {
+      google: "B5wZE-ISkVIdM4c3JglNJJoZgKFt7wXlK4dASgA_YTQ",
+    },
   };
 }

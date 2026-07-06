@@ -1,5 +1,4 @@
 import type { MetadataRoute } from "next";
-import { SITE_URL } from "@/lib/constants";
 import { legalLinks } from "@/lib/site-config";
 import { getAllWorks } from "@/lib/works/repository";
 import { getAllActresses } from "@/data/actresses";
@@ -7,6 +6,30 @@ import { getAllGenres } from "@/data/genres";
 import { getAllMakers } from "@/data/makers";
 import { getAllSeries } from "@/data/series";
 import { getAllLabels } from "@/data/labels";
+import {
+  buildSitemapUrl,
+  dedupeSitemapEntries,
+  safeLastModified,
+  SITEMAP_EXCLUDED_PATHS,
+} from "@/lib/sitemap/helpers";
+
+export const revalidate = 3600;
+
+type SitemapEntry = MetadataRoute.Sitemap[number];
+
+function entry(
+  path: string,
+  lastModified: Date,
+  changeFrequency: SitemapEntry["changeFrequency"],
+  priority: number,
+): SitemapEntry {
+  return {
+    url: buildSitemapUrl(path),
+    lastModified,
+    changeFrequency,
+    priority,
+  };
+}
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const works = await getAllWorks();
@@ -17,80 +40,73 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const labels = getAllLabels();
   const now = new Date();
 
-  const staticPages: MetadataRoute.Sitemap = [
-    { url: SITE_URL, lastModified: now, changeFrequency: "daily", priority: 1 },
-    { url: `${SITE_URL}/works`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
-    { url: `${SITE_URL}/works?sale=1`, lastModified: now, changeFrequency: "daily", priority: 0.85 },
-    { url: `${SITE_URL}/ranking`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
-    { url: `${SITE_URL}/ranking/works`, lastModified: now, changeFrequency: "daily", priority: 0.85 },
-    { url: `${SITE_URL}/ranking/actresses`, lastModified: now, changeFrequency: "daily", priority: 0.85 },
-    { url: `${SITE_URL}/ranking/makers`, lastModified: now, changeFrequency: "daily", priority: 0.85 },
-    { url: `${SITE_URL}/ranking/series`, lastModified: now, changeFrequency: "daily", priority: 0.85 },
-    { url: `${SITE_URL}/ranking/weekly`, lastModified: now, changeFrequency: "daily", priority: 0.85 },
-    { url: `${SITE_URL}/ranking/monthly`, lastModified: now, changeFrequency: "daily", priority: 0.85 },
-    { url: `${SITE_URL}/search`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
-    { url: `${SITE_URL}/actresses`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
-    { url: `${SITE_URL}/makers`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
-    { url: `${SITE_URL}/labels`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
-    { url: `${SITE_URL}/series`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
-    { url: `${SITE_URL}/genres`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
-    { url: `${SITE_URL}/sitemap`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
-    { url: `${SITE_URL}/about`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
-    { url: `${SITE_URL}/faq`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
-    { url: `${SITE_URL}/favorites`, lastModified: now, changeFrequency: "weekly", priority: 0.4 },
-    { url: `${SITE_URL}/history`, lastModified: now, changeFrequency: "weekly", priority: 0.4 },
-    { url: `${SITE_URL}/feed.xml`, lastModified: now, changeFrequency: "daily", priority: 0.5 },
+  const staticPaths: {
+    path: string;
+    changeFrequency: SitemapEntry["changeFrequency"];
+    priority: number;
+  }[] = [
+    { path: "", changeFrequency: "daily", priority: 1 },
+    { path: "/works", changeFrequency: "daily", priority: 0.9 },
+    { path: "/works?sale=1", changeFrequency: "daily", priority: 0.85 },
+    { path: "/ranking", changeFrequency: "daily", priority: 0.9 },
+    { path: "/ranking/works", changeFrequency: "daily", priority: 0.85 },
+    { path: "/ranking/actresses", changeFrequency: "daily", priority: 0.85 },
+    { path: "/ranking/makers", changeFrequency: "daily", priority: 0.85 },
+    { path: "/ranking/series", changeFrequency: "daily", priority: 0.85 },
+    { path: "/ranking/weekly", changeFrequency: "daily", priority: 0.85 },
+    { path: "/ranking/monthly", changeFrequency: "daily", priority: 0.85 },
+    { path: "/search", changeFrequency: "weekly", priority: 0.8 },
+    { path: "/actresses", changeFrequency: "weekly", priority: 0.8 },
+    { path: "/makers", changeFrequency: "weekly", priority: 0.8 },
+    { path: "/labels", changeFrequency: "weekly", priority: 0.8 },
+    { path: "/series", changeFrequency: "weekly", priority: 0.8 },
+    { path: "/genres", changeFrequency: "weekly", priority: 0.8 },
+    { path: "/sitemap", changeFrequency: "monthly", priority: 0.5 },
+    { path: "/about", changeFrequency: "monthly", priority: 0.6 },
+    { path: "/faq", changeFrequency: "monthly", priority: 0.6 },
     ...legalLinks.map((link) => ({
-      url: `${SITE_URL}${link.href}`,
-      lastModified: now,
+      path: link.href,
       changeFrequency: "monthly" as const,
       priority: 0.4,
     })),
   ];
 
-  const workPages = works.map((work) => ({
-    url: `${SITE_URL}/works/${work.slug}`,
-    lastModified: new Date(work.releaseDate || now),
-    changeFrequency: "monthly" as const,
-    priority: 0.7,
-  }));
+  const staticPages = staticPaths
+    .filter(({ path }) => !SITEMAP_EXCLUDED_PATHS.has(path))
+    .map(({ path, changeFrequency, priority }) =>
+      entry(path, now, changeFrequency, priority),
+    );
 
-  const actressPages = actresses.map((actress) => ({
-    url: `${SITE_URL}/actresses/${actress.slug}`,
-    lastModified: now,
-    changeFrequency: "weekly" as const,
-    priority: 0.65,
-  }));
+  const workPages = works.map((work) =>
+    entry(
+      `/works/${work.slug}`,
+      safeLastModified(work.releaseDate, now),
+      "monthly",
+      0.7,
+    ),
+  );
 
-  const genrePages = genres.map((genre) => ({
-    url: `${SITE_URL}/genres/${genre.slug}`,
-    lastModified: now,
-    changeFrequency: "weekly" as const,
-    priority: 0.65,
-  }));
+  const actressPages = actresses.map((actress) =>
+    entry(`/actresses/${actress.slug}`, now, "weekly", 0.65),
+  );
 
-  const makerPages = makers.map((maker) => ({
-    url: `${SITE_URL}/makers/${maker.slug}`,
-    lastModified: now,
-    changeFrequency: "weekly" as const,
-    priority: 0.65,
-  }));
+  const genrePages = genres.map((genre) =>
+    entry(`/genres/${genre.slug}`, now, "weekly", 0.65),
+  );
 
-  const seriesPages = series.map((s) => ({
-    url: `${SITE_URL}/series/${s.slug}`,
-    lastModified: now,
-    changeFrequency: "weekly" as const,
-    priority: 0.65,
-  }));
+  const makerPages = makers.map((maker) =>
+    entry(`/makers/${maker.slug}`, now, "weekly", 0.65),
+  );
 
-  const labelPages = labels.map((label) => ({
-    url: `${SITE_URL}/labels/${label.slug}`,
-    lastModified: now,
-    changeFrequency: "weekly" as const,
-    priority: 0.6,
-  }));
+  const seriesPages = series.map((s) =>
+    entry(`/series/${s.slug}`, now, "weekly", 0.65),
+  );
 
-  return [
+  const labelPages = labels.map((label) =>
+    entry(`/labels/${label.slug}`, now, "weekly", 0.6),
+  );
+
+  return dedupeSitemapEntries([
     ...staticPages,
     ...workPages,
     ...actressPages,
@@ -98,5 +114,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     ...makerPages,
     ...seriesPages,
     ...labelPages,
-  ];
+  ]);
 }

@@ -1,8 +1,11 @@
+export const SITE_URL =
+  process.env.NEXT_PUBLIC_SITE_URL ?? "https://adult-zukan.vercel.app";
+
 export const siteConfig = {
   name: "アダルト図鑑",
   description:
     "アダルト作品の情報をわかりやすく紹介するポータルサイト。作品ランキング・女優検索・ジャンル別一覧・セール情報から、お好みの作品を見つけられます。",
-  url: process.env.NEXT_PUBLIC_SITE_URL ?? "https://adult-zukan.example.com",
+  url: SITE_URL,
   ogImage: "/og-default.svg",
   locale: "ja_JP",
   twitterHandle: process.env.NEXT_PUBLIC_TWITTER_HANDLE,

@@ -1,5 +1,6 @@
-export const SITE_URL =
-  process.env.NEXT_PUBLIC_SITE_URL ?? "https://adult-zukan.vercel.app";
+import { SITE_URL } from "@/lib/constants";
+
+export { SITE_URL } from "@/lib/constants";
 
 export const siteConfig = {
   name: "アダルト図鑑",

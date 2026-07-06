@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { LegalPageLayout } from "@/components/layout/LegalPageLayout";
 import { siteConfig } from "@/lib/site-config";
+import { SITE_URL } from "@/lib/constants";
 import { createPageMetadata } from "@/lib/seo/metadata";
 
 export const metadata = createPageMetadata({
@@ -29,10 +30,10 @@ export default function ContactPage() {
         <p className="mt-4">
           メールアドレス：
           <a
-            href="mailto:info@adult-zukan.example.com"
+            href={`mailto:info@${new URL(SITE_URL).hostname}`}
             className="text-accent hover:underline"
           >
-            info@adult-zukan.example.com
+            info@{new URL(SITE_URL).hostname}
           </a>
         </p>
       </section>

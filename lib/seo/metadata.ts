@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SITE_URL } from "@/lib/constants";
 import { siteConfig } from "@/lib/site-config";
 
 type PageMetadataOptions = {
@@ -16,13 +17,13 @@ export function createPageMetadata({
   ogType = "website",
   noIndex = false,
 }: PageMetadataOptions): Metadata {
-  const url = `${siteConfig.url}${path}`;
+  const url = `${SITE_URL}${path}`;
   const fullTitle = path === "" ? title : `${title} | ${siteConfig.name}`;
 
   return {
     title: fullTitle,
     description,
-    metadataBase: new URL(siteConfig.url),
+    metadataBase: new URL(SITE_URL),
     alternates: {
       canonical: url,
     },
@@ -86,7 +87,7 @@ export function createRootMetadata(): Metadata {
     },
     alternates: {
       types: {
-        "application/rss+xml": `${siteConfig.url}/feed.xml`,
+        "application/rss+xml": `${SITE_URL}/feed.xml`,
       },
     },
     verification: {

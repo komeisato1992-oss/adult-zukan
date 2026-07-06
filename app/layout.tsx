@@ -4,6 +4,7 @@ import { GoogleAnalytics } from "@next/third-parties/google";
 import { AgeGateProvider } from "@/components/age-gate/AgeGateProvider";
 import { SiteShell } from "@/components/layout/SiteShell";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { SITE_URL } from "@/lib/constants";
 import { createRootMetadata } from "@/lib/seo/metadata";
 import {
   createOrganizationJsonLd,
@@ -18,7 +19,10 @@ const notoSansJP = Noto_Sans_JP({
   weight: ["400", "500", "700"],
 });
 
-export const metadata: Metadata = createRootMetadata();
+export const metadata: Metadata = {
+  ...createRootMetadata(),
+  metadataBase: new URL(SITE_URL),
+};
 
 export default function RootLayout({
   children,

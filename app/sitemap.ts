@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
-import { siteConfig, legalLinks } from "@/lib/site-config";
+import { SITE_URL } from "@/lib/constants";
+import { legalLinks } from "@/lib/site-config";
 import { getAllWorks } from "@/lib/works/repository";
 import { getAllActresses } from "@/data/actresses";
 import { getAllGenres } from "@/data/genres";
@@ -17,30 +18,30 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
 
   const staticPages: MetadataRoute.Sitemap = [
-    { url: siteConfig.url, lastModified: now, changeFrequency: "daily", priority: 1 },
-    { url: `${siteConfig.url}/works`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
-    { url: `${siteConfig.url}/works?sale=1`, lastModified: now, changeFrequency: "daily", priority: 0.85 },
-    { url: `${siteConfig.url}/ranking`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
-    { url: `${siteConfig.url}/ranking/works`, lastModified: now, changeFrequency: "daily", priority: 0.85 },
-    { url: `${siteConfig.url}/ranking/actresses`, lastModified: now, changeFrequency: "daily", priority: 0.85 },
-    { url: `${siteConfig.url}/ranking/makers`, lastModified: now, changeFrequency: "daily", priority: 0.85 },
-    { url: `${siteConfig.url}/ranking/series`, lastModified: now, changeFrequency: "daily", priority: 0.85 },
-    { url: `${siteConfig.url}/ranking/weekly`, lastModified: now, changeFrequency: "daily", priority: 0.85 },
-    { url: `${siteConfig.url}/ranking/monthly`, lastModified: now, changeFrequency: "daily", priority: 0.85 },
-    { url: `${siteConfig.url}/search`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
-    { url: `${siteConfig.url}/actresses`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
-    { url: `${siteConfig.url}/makers`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
-    { url: `${siteConfig.url}/labels`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
-    { url: `${siteConfig.url}/series`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
-    { url: `${siteConfig.url}/genres`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
-    { url: `${siteConfig.url}/sitemap`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
-    { url: `${siteConfig.url}/about`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
-    { url: `${siteConfig.url}/faq`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
-    { url: `${siteConfig.url}/favorites`, lastModified: now, changeFrequency: "weekly", priority: 0.4 },
-    { url: `${siteConfig.url}/history`, lastModified: now, changeFrequency: "weekly", priority: 0.4 },
-    { url: `${siteConfig.url}/feed.xml`, lastModified: now, changeFrequency: "daily", priority: 0.5 },
+    { url: SITE_URL, lastModified: now, changeFrequency: "daily", priority: 1 },
+    { url: `${SITE_URL}/works`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
+    { url: `${SITE_URL}/works?sale=1`, lastModified: now, changeFrequency: "daily", priority: 0.85 },
+    { url: `${SITE_URL}/ranking`, lastModified: now, changeFrequency: "daily", priority: 0.9 },
+    { url: `${SITE_URL}/ranking/works`, lastModified: now, changeFrequency: "daily", priority: 0.85 },
+    { url: `${SITE_URL}/ranking/actresses`, lastModified: now, changeFrequency: "daily", priority: 0.85 },
+    { url: `${SITE_URL}/ranking/makers`, lastModified: now, changeFrequency: "daily", priority: 0.85 },
+    { url: `${SITE_URL}/ranking/series`, lastModified: now, changeFrequency: "daily", priority: 0.85 },
+    { url: `${SITE_URL}/ranking/weekly`, lastModified: now, changeFrequency: "daily", priority: 0.85 },
+    { url: `${SITE_URL}/ranking/monthly`, lastModified: now, changeFrequency: "daily", priority: 0.85 },
+    { url: `${SITE_URL}/search`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
+    { url: `${SITE_URL}/actresses`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
+    { url: `${SITE_URL}/makers`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
+    { url: `${SITE_URL}/labels`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
+    { url: `${SITE_URL}/series`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
+    { url: `${SITE_URL}/genres`, lastModified: now, changeFrequency: "weekly", priority: 0.8 },
+    { url: `${SITE_URL}/sitemap`, lastModified: now, changeFrequency: "monthly", priority: 0.5 },
+    { url: `${SITE_URL}/about`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${SITE_URL}/faq`, lastModified: now, changeFrequency: "monthly", priority: 0.6 },
+    { url: `${SITE_URL}/favorites`, lastModified: now, changeFrequency: "weekly", priority: 0.4 },
+    { url: `${SITE_URL}/history`, lastModified: now, changeFrequency: "weekly", priority: 0.4 },
+    { url: `${SITE_URL}/feed.xml`, lastModified: now, changeFrequency: "daily", priority: 0.5 },
     ...legalLinks.map((link) => ({
-      url: `${siteConfig.url}${link.href}`,
+      url: `${SITE_URL}${link.href}`,
       lastModified: now,
       changeFrequency: "monthly" as const,
       priority: 0.4,
@@ -48,42 +49,42 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   ];
 
   const workPages = works.map((work) => ({
-    url: `${siteConfig.url}/works/${work.slug}`,
+    url: `${SITE_URL}/works/${work.slug}`,
     lastModified: new Date(work.releaseDate || now),
     changeFrequency: "monthly" as const,
     priority: 0.7,
   }));
 
   const actressPages = actresses.map((actress) => ({
-    url: `${siteConfig.url}/actresses/${actress.slug}`,
+    url: `${SITE_URL}/actresses/${actress.slug}`,
     lastModified: now,
     changeFrequency: "weekly" as const,
     priority: 0.65,
   }));
 
   const genrePages = genres.map((genre) => ({
-    url: `${siteConfig.url}/genres/${genre.slug}`,
+    url: `${SITE_URL}/genres/${genre.slug}`,
     lastModified: now,
     changeFrequency: "weekly" as const,
     priority: 0.65,
   }));
 
   const makerPages = makers.map((maker) => ({
-    url: `${siteConfig.url}/makers/${maker.slug}`,
+    url: `${SITE_URL}/makers/${maker.slug}`,
     lastModified: now,
     changeFrequency: "weekly" as const,
     priority: 0.65,
   }));
 
   const seriesPages = series.map((s) => ({
-    url: `${siteConfig.url}/series/${s.slug}`,
+    url: `${SITE_URL}/series/${s.slug}`,
     lastModified: now,
     changeFrequency: "weekly" as const,
     priority: 0.65,
   }));
 
   const labelPages = labels.map((label) => ({
-    url: `${siteConfig.url}/labels/${label.slug}`,
+    url: `${SITE_URL}/labels/${label.slug}`,
     lastModified: now,
     changeFrequency: "weekly" as const,
     priority: 0.6,

@@ -1,4 +1,5 @@
 import { siteConfig } from "@/lib/site-config";
+import { SITE_URL } from "@/lib/constants";
 import type { Work } from "@/data/types";
 
 type BreadcrumbItem = {
@@ -12,13 +13,13 @@ export function createWebsiteJsonLd() {
     "@type": "WebSite",
     name: siteConfig.name,
     description: siteConfig.description,
-    url: siteConfig.url,
+    url: SITE_URL,
     inLanguage: "ja",
     potentialAction: {
       "@type": "SearchAction",
       target: {
         "@type": "EntryPoint",
-        urlTemplate: `${siteConfig.url}/search?q={search_term_string}`,
+        urlTemplate: `${SITE_URL}/search?q={search_term_string}`,
       },
       "query-input": "required name=search_term_string",
     },
@@ -30,9 +31,9 @@ export function createOrganizationJsonLd() {
     "@context": "https://schema.org",
     "@type": "Organization",
     name: siteConfig.name,
-    url: siteConfig.url,
+    url: SITE_URL,
     description: siteConfig.description,
-    logo: `${siteConfig.url}/og-default.svg`,
+    logo: `${SITE_URL}/og-default.svg`,
   };
 }
 
@@ -44,7 +45,7 @@ export function createBreadcrumbJsonLd(items: BreadcrumbItem[]) {
       "@type": "ListItem",
       position: index + 1,
       name: item.name,
-      item: `${siteConfig.url}${item.path}`,
+      item: `${SITE_URL}${item.path}`,
     })),
   };
 }
@@ -62,13 +63,13 @@ export function createWorkJsonLd(
     name: work.title,
     description: work.description,
     sku: work.productCode,
-    image: `${siteConfig.url}${work.imageUrl}`,
+    image: `${SITE_URL}${work.imageUrl}`,
     brand: {
       "@type": "Brand",
       name: makerName,
     },
     releaseDate: work.releaseDate,
-    url: `${siteConfig.url}/works/${work.slug}`,
+    url: `${SITE_URL}/works/${work.slug}`,
     offers: {
       "@type": "Offer",
       price: price,

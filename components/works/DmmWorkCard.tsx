@@ -13,6 +13,7 @@ type DmmWorkCardProps = {
   item: DmmItem;
   className?: string;
   size?: "default" | "large";
+  releaseDate?: string;
 };
 
 function getDmmCardPrice(item: DmmItem) {
@@ -36,6 +37,7 @@ export function DmmWorkCard({
   item,
   className = "",
   size = "default",
+  releaseDate,
 }: DmmWorkCardProps) {
   const imageUrl = getDmmListItemImageUrl(item);
   const makerName = getDmmItemMakerName(item);
@@ -66,6 +68,9 @@ export function DmmWorkCard({
           >
             {item.title}
           </h3>
+          {releaseDate ? (
+            <p className="mt-1.5 text-xs text-muted">{releaseDate}</p>
+          ) : null}
           <p className="mt-1.5 text-xs text-muted">{item.content_id}</p>
           {makerName && <p className="mt-1 text-xs text-muted">{makerName}</p>}
           {current && (

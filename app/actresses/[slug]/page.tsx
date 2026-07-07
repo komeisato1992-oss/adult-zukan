@@ -1,9 +1,12 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
+import { ActressGenreLinks } from "@/components/actresses/ActressGenreLinks";
+import { ActressLatestWork } from "@/components/actresses/ActressLatestWork";
+import { ActressPopularWorks } from "@/components/actresses/ActressPopularWorks";
+import { ActressSeriesLinks } from "@/components/actresses/ActressSeriesLinks";
+import { ActressWorksSection } from "@/components/actresses/ActressWorksSection";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
-import { SectionHeader } from "@/components/ui/SectionHeader";
-import { DmmCatalogWorksGrid } from "@/components/works/DmmCatalogWorksGrid";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { getCatalogActressStaticParams } from "@/lib/dmm/catalog-entities";
 import {
@@ -11,6 +14,8 @@ import {
   getActressWorksBySlug,
 } from "@/lib/catalog";
 import { getActressDetailPath } from "@/lib/actresses/slug";
+import { buildActressPageSections } from "@/lib/dmm/actress-page";
+import { filterDisplayableItems } from "@/lib/dmm/filter";
 import { parsePageParam } from "@/lib/pagination";
 import { siteConfig } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/seo/metadata";
@@ -21,8 +26,6 @@ import {
   createCollectionPageJsonLd,
   createPersonJsonLd,
 } from "@/lib/seo/json-ld";
-import { getActressInternalLinks } from "@/lib/dmm/internal-links";
-import { DmmRelatedWorks } from "@/components/works/DmmRelatedWorks";
 import { isValidImageUrl } from "@/lib/works";
 
 export const revalidate = 86400;
@@ -75,9 +78,10 @@ export default async function ActressDetailPage({
   }
 
   const works = await getActressWorksBySlug(slug);
-  const { popularWorks, sameMakerWorks } = await getActressInternalLinks(slug);
+  const displayableWorks = filterDisplayableItems(works);
+  const sections = buildActressPageSections(works);
 
-  if (works.length === 0) {
+  if (displayableWorks.length === 0) {
     notFound();
   }
 
@@ -132,34 +136,29 @@ export default async function ActressDetailPage({
             <h1 className="text-2xl font-bold text-foreground sm:text-3xl">
               {actress.name}
             </h1>
-            <p className="mt-2 text-sm text-muted">出演作品 {works.length}件</p>
+            <p className="mt-3 text-sm text-muted">当サイト掲載作品数</p>
+            <p className="mt-1 text-lg font-bold text-foreground">
+              {sections.catalogWorkCount}作品
+            </p>
           </div>
         </header>
 
-        <section aria-labelledby="actress-works" className="mb-10">
-          <SectionHeader title="出演作品" id="actress-works" />
-          <DmmCatalogWorksGrid
-            items={works}
-            currentPage={currentPage}
-            paginationBasePath={`/actresses/${slug}`}
-          />
-        </section>
-
-        {popularWorks.length > 0 ? (
-          <DmmRelatedWorks
-            items={popularWorks}
-            title="人気作品"
-            sectionId="actress-popular"
-          />
+        {sections.latestWork ? (
+          <ActressLatestWork item={sections.latestWork} />
         ) : null}
 
-        {sameMakerWorks.length > 0 ? (
-          <DmmRelatedWorks
-            items={sameMakerWorks}
-            title="同メーカー作品"
-            sectionId="actress-same-maker"
-          />
-        ) : null}
+        <ActressPopularWorks items={sections.popularWorks} />
+
+        <ActressWorksSection
+          items={displayableWorks}
+          makers={sections.makers}
+          slug={slug}
+          initialPage={currentPage}
+        />
+
+        <ActressGenreLinks genres={sections.genres} />
+
+        <ActressSeriesLinks series={sections.series} />
       </PageLayout>
     </>
   );

@@ -8,9 +8,9 @@ import {
 } from "@/lib/dmm/catalog-filter-stats";
 import type { DmmItem } from "@/lib/dmm/types";
 
-export const CATALOG_TARGET_VALID = 1000;
+export const CATALOG_TARGET_VALID = 2000;
 export const CATALOG_MIN_VALID = 300;
-export const CATALOG_MAX_API_ITEMS = 5000;
+export const CATALOG_MAX_API_ITEMS = 10000;
 export const DMM_CATALOG_SORT = "rank" as const;
 const FETCH_BATCH_SIZE = 100;
 const MAX_OFFSET = 5001;

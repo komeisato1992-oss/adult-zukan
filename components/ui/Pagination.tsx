@@ -6,6 +6,7 @@ type PaginationProps = {
   totalPages: number;
   basePath: string;
   query?: Record<string, string | undefined>;
+  onPageChange?: (page: number) => void;
 };
 
 function getVisiblePages(currentPage: number, totalPages: number): number[] {
@@ -22,10 +23,19 @@ export function Pagination({
   totalPages,
   basePath,
   query = {},
+  onPageChange,
 }: PaginationProps) {
   if (totalPages <= 1) return null;
 
   const pages = getVisiblePages(currentPage, totalPages);
+  const pageClassName = (page: number) =>
+    `flex h-9 min-w-9 items-center justify-center rounded border px-3 text-sm transition-colors ${
+      page === currentPage
+        ? "border-accent bg-accent text-white"
+        : "border-border text-foreground hover:border-accent hover:text-accent"
+    }`;
+  const navButtonClassName =
+    "rounded border border-border px-3 py-2 text-sm text-foreground transition-colors hover:border-accent hover:text-accent";
 
   return (
     <nav
@@ -33,12 +43,22 @@ export function Pagination({
       className="mt-8 flex flex-wrap items-center justify-center gap-2"
     >
       {currentPage > 1 ? (
-        <Link
-          href={buildPaginationHref(basePath, currentPage - 1, query)}
-          className="rounded border border-border px-3 py-2 text-sm text-foreground transition-colors hover:border-accent hover:text-accent"
-        >
-          前へ
-        </Link>
+        onPageChange ? (
+          <button
+            type="button"
+            onClick={() => onPageChange(currentPage - 1)}
+            className={navButtonClassName}
+          >
+            前へ
+          </button>
+        ) : (
+          <Link
+            href={buildPaginationHref(basePath, currentPage - 1, query)}
+            className={navButtonClassName}
+          >
+            前へ
+          </Link>
+        )
       ) : null}
 
       {pages.map((page, index) => {
@@ -50,28 +70,45 @@ export function Pagination({
             {showEllipsis ? (
               <span className="px-1 text-sm text-muted">…</span>
             ) : null}
-            <Link
-              href={buildPaginationHref(basePath, page, query)}
-              aria-current={page === currentPage ? "page" : undefined}
-              className={`flex h-9 min-w-9 items-center justify-center rounded border px-3 text-sm transition-colors ${
-                page === currentPage
-                  ? "border-accent bg-accent text-white"
-                  : "border-border text-foreground hover:border-accent hover:text-accent"
-              }`}
-            >
-              {page}
-            </Link>
+            {onPageChange ? (
+              <button
+                type="button"
+                onClick={() => onPageChange(page)}
+                aria-current={page === currentPage ? "page" : undefined}
+                className={pageClassName(page)}
+              >
+                {page}
+              </button>
+            ) : (
+              <Link
+                href={buildPaginationHref(basePath, page, query)}
+                aria-current={page === currentPage ? "page" : undefined}
+                className={pageClassName(page)}
+              >
+                {page}
+              </Link>
+            )}
           </span>
         );
       })}
 
       {currentPage < totalPages ? (
-        <Link
-          href={buildPaginationHref(basePath, currentPage + 1, query)}
-          className="rounded border border-border px-3 py-2 text-sm text-foreground transition-colors hover:border-accent hover:text-accent"
-        >
-          次へ
-        </Link>
+        onPageChange ? (
+          <button
+            type="button"
+            onClick={() => onPageChange(currentPage + 1)}
+            className={navButtonClassName}
+          >
+            次へ
+          </button>
+        ) : (
+          <Link
+            href={buildPaginationHref(basePath, currentPage + 1, query)}
+            className={navButtonClassName}
+          >
+            次へ
+          </Link>
+        )
       ) : null}
     </nav>
   );

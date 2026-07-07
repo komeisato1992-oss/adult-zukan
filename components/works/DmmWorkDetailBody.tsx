@@ -4,7 +4,6 @@ import { DmmSampleGallery } from "@/components/works/DmmSampleGallery";
 import { DmmWorkHero } from "@/components/works/DmmWorkHero";
 import { DmmWorkInfoTable } from "@/components/works/DmmWorkInfoTable";
 import { FanzaLinkButton } from "@/components/works/FanzaLinkButton";
-import { AffiliateDisclosureNote } from "@/components/ui/AffiliateDisclosureNote";
 import type { DmmInfoRow } from "@/lib/dmm/display";
 import type { DmmItem } from "@/lib/dmm/types";
 import type { DmmReleaseDateInfo } from "@/lib/dmm/release-date";
@@ -12,6 +11,7 @@ import type { DmmReleaseDateInfo } from "@/lib/dmm/release-date";
 type DmmWorkDetailBodyProps = {
   item: DmmItem;
   fanzaUrl: string;
+  descriptionTeaser?: string;
   imageUrl?: string;
   sampleImages: string[];
   sampleMovie?: string;
@@ -27,6 +27,7 @@ type DmmWorkDetailBodyProps = {
 export function DmmWorkDetailBody({
   item,
   fanzaUrl,
+  descriptionTeaser,
   imageUrl,
   sampleImages,
   sampleMovie,
@@ -43,6 +44,7 @@ export function DmmWorkDetailBody({
       <DmmWorkHero
         title={item.title}
         contentId={item.content_id}
+        descriptionTeaser={descriptionTeaser}
         actressNameList={actressNameList}
         makerName={makerName}
         labelName={labelName}
@@ -60,7 +62,6 @@ export function DmmWorkDetailBody({
 
       <div className="mt-8 flex flex-col items-center">
         <FanzaLinkButton href={fanzaUrl} />
-        <AffiliateDisclosureNote className="mt-2 text-center" />
       </div>
 
       <p className="mt-4 text-center text-xs leading-relaxed text-muted">

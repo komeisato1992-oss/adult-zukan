@@ -11,6 +11,7 @@ import { siteConfig, pageIntros } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import { truncateDescription } from "@/lib/seo/descriptions";
 import { seoTitles } from "@/lib/seo/titles";
+import { getSeriesDetailPath } from "@/lib/entities/paths";
 import {
   createBreadcrumbJsonLd,
   createCollectionPageJsonLd,
@@ -62,7 +63,7 @@ export default async function SeriesPage() {
           {series.map((entry) => (
             <Link
               key={entry.slug}
-              href={`/series/${entry.slug}`}
+              href={getSeriesDetailPath(entry.slug)}
               className="rounded-lg border border-border bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/20 hover:shadow-md"
             >
               <h2 className="text-base font-bold text-foreground">

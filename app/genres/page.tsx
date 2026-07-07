@@ -11,6 +11,7 @@ import { PageIntro } from "@/components/ui/PageIntro";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import { truncateDescription } from "@/lib/seo/descriptions";
 import { seoTitles } from "@/lib/seo/titles";
+import { getGenreDetailPath } from "@/lib/entities/paths";
 import {
   createBreadcrumbJsonLd,
   createCollectionPageJsonLd,
@@ -59,7 +60,7 @@ export default async function GenresPage() {
           {genres.map((genre) => (
             <Link
               key={genre.slug}
-              href={`/genres/${genre.slug}`}
+              href={getGenreDetailPath(genre.slug)}
               className="rounded border border-border bg-white p-5 text-center shadow-sm transition-shadow hover:border-accent/30 hover:shadow-md"
             >
               <h2 className="text-base font-bold text-foreground">

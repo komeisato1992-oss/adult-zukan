@@ -7,9 +7,10 @@ import {
 import { isValidDmmListItem } from "@/lib/dmm/filter";
 import type { DmmItem } from "@/lib/dmm/types";
 import { encodeActressSlug } from "@/lib/actresses/slug";
+import { buildActressRepresentativeImageMap } from "@/lib/dmm/actress-representative-image";
 import { parseDmmPrice, slugify } from "@/lib/utils";
 import { parseWorkSortParam, sortWorks } from "@/lib/works/sort";
-import { getValidImageUrl, hasValidImage, isValidImageUrl } from "@/lib/works";
+import { getValidImageUrl, hasValidImage } from "@/lib/works";
 
 export const HOME_SECTION_LIMIT = 6;
 export const HERO_CAROUSEL_LIMIT = 5;
@@ -185,39 +186,41 @@ export function getRankedActresses(
   items: DmmItem[],
   limit = 10,
 ): RankedActress[] {
-  const map = new Map<string, { count: number; imageUrl?: string }>();
+  const valid = filterDisplayableItems(items);
+  const map = new Map<string, { count: number }>();
 
-  for (const item of filterDisplayableItems(items)) {
+  for (const item of valid) {
     const actresses = item.actress ?? item.iteminfo?.actress ?? [];
-    const imageUrl = getValidImageUrl(item, ["large", "list"]);
 
     for (const actress of actresses) {
       if (!actress.name) continue;
 
       const existing = map.get(actress.name);
-      const nextImageUrl =
-        existing?.imageUrl ??
-        (isValidImageUrl(imageUrl) ? imageUrl : undefined);
-
       map.set(actress.name, {
         count: (existing?.count ?? 0) + 1,
-        imageUrl: nextImageUrl,
       });
     }
   }
 
-  return [...map.entries()]
-    .map(([name, { count, imageUrl }]) => ({
+  const actresses = [...map.entries()]
+    .map(([name, { count }]) => ({
       name,
       slug: encodeActressSlug(name),
       workCount: count,
-      imageUrl,
     }))
     .filter((actress) => actress.workCount >= 1)
     .sort(
       (a, b) =>
         b.workCount - a.workCount || a.name.localeCompare(b.name, "ja"),
-    )
+    );
+
+  const imageByActress = buildActressRepresentativeImageMap(valid, actresses);
+
+  return actresses
+    .map((actress) => ({
+      ...actress,
+      imageUrl: imageByActress.get(actress.name),
+    }))
     .slice(0, limit);
 }
 

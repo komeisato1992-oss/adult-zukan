@@ -12,6 +12,7 @@ import { PageIntro } from "@/components/ui/PageIntro";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import { createListDescription } from "@/lib/seo/descriptions";
 import { createGenreTitle } from "@/lib/seo/titles";
+import { decodeEntitySlug, getGenreDetailPath } from "@/lib/entities/paths";
 import {
   createBreadcrumbJsonLd,
   createCollectionPageJsonLd,
@@ -29,14 +30,15 @@ export async function generateStaticParams() {
 }
 
 export async function generateMetadata({ params }: GenreDetailPageProps) {
-  const { slug } = await params;
+  const { slug: rawSlug } = await params;
+  const slug = decodeEntitySlug(rawSlug);
   const genre = await getGenreSummaryBySlug(slug);
 
   if (!genre) {
     return createPageMetadata({
       title: "ジャンルが見つかりません",
       description: "指定されたジャンルは見つかりませんでした。",
-      path: `/genres/${slug}`,
+      path: getGenreDetailPath(rawSlug),
       noIndex: true,
     });
   }
@@ -48,7 +50,7 @@ export async function generateMetadata({ params }: GenreDetailPageProps) {
       count: genre.workCount,
       context: "ジャンルの人気作品一覧",
     }),
-    path: `/genres/${genre.slug}`,
+    path: getGenreDetailPath(genre.slug),
     absoluteTitle: true,
   });
 }
@@ -57,7 +59,8 @@ export default async function GenreDetailPage({
   params,
   searchParams,
 }: GenreDetailPageProps) {
-  const { slug } = await params;
+  const { slug: rawSlug } = await params;
+  const slug = decodeEntitySlug(rawSlug);
   const { page } = await searchParams;
   const genre = await getGenreSummaryBySlug(slug);
 
@@ -75,12 +78,12 @@ export default async function GenreDetailPage({
           createBreadcrumbJsonLd([
             { name: "トップ", path: "/" },
             { name: "ジャンル一覧", path: "/genres" },
-            { name: genre.name, path: `/genres/${genre.slug}` },
+            { name: genre.name, path: getGenreDetailPath(genre.slug) },
           ]),
           createCollectionPageJsonLd(
             `${genre.name}の作品一覧`,
             `${genre.name}ジャンルの作品一覧`,
-            `${siteConfig.url}/genres/${genre.slug}`,
+            `${siteConfig.url}${getGenreDetailPath(genre.slug)}`,
           ),
         ]}
       />
@@ -107,7 +110,7 @@ export default async function GenreDetailPage({
           <DmmCatalogWorksGrid
             items={works}
             currentPage={currentPage}
-            paginationBasePath={`/genres/${slug}`}
+            paginationBasePath={getGenreDetailPath(slug)}
           />
         </section>
       </PageLayout>

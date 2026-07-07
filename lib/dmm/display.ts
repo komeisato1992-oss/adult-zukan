@@ -85,9 +85,13 @@ export function getDmmReleaseDate(item: DmmItem): string | undefined {
 export type DmmInfoRow = {
   label: string;
   value: string;
+  multiline?: boolean;
 };
 
-export function getDmmInfoRows(item: DmmItem): DmmInfoRow[] {
+export function getDmmInfoRows(
+  item: DmmItem,
+  description?: string,
+): DmmInfoRow[] {
   const releaseDate = getDmmReleaseDateInfo(item);
 
   const rows: Array<DmmInfoRow | null> = [
@@ -103,6 +107,9 @@ export function getDmmInfoRows(item: DmmItem): DmmInfoRow[] {
       : null,
     getDmmItemActressNames(item)
       ? { label: "女優", value: getDmmItemActressNames(item)! }
+      : null,
+    description
+      ? { label: "作品説明", value: description, multiline: true }
       : null,
     getDmmItemPrice(item)
       ? { label: "価格", value: getDmmItemPrice(item)! }

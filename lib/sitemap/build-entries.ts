@@ -1,4 +1,10 @@
 import { legalLinks } from "@/lib/site-config";
+import {
+  getMakerDetailPath,
+  getSeriesDetailPath,
+  getGenreDetailPath,
+  getLabelDetailPath,
+} from "@/lib/entities/paths";
 import { getAllArticles } from "@/data/articles";
 import {
   getActressSummaries,
@@ -65,19 +71,19 @@ export async function getSitemapEntries(): Promise<SitemapEntry[]> {
       lastmod: STATIC_LASTMOD,
     })),
     ...makers.map((maker) => ({
-      loc: buildSitemapUrl(`/makers/${maker.slug}`),
+      loc: buildSitemapUrl(getMakerDetailPath(maker.slug)),
       lastmod: STATIC_LASTMOD,
     })),
     ...series.map((entry) => ({
-      loc: buildSitemapUrl(`/series/${entry.slug}`),
+      loc: buildSitemapUrl(getSeriesDetailPath(entry.slug)),
       lastmod: STATIC_LASTMOD,
     })),
     ...labels.map((label) => ({
-      loc: buildSitemapUrl(`/labels/${label.slug}`),
+      loc: buildSitemapUrl(getLabelDetailPath(label.slug)),
       lastmod: STATIC_LASTMOD,
     })),
     ...genres.map((genre) => ({
-      loc: buildSitemapUrl(`/genres/${genre.slug}`),
+      loc: buildSitemapUrl(getGenreDetailPath(genre.slug)),
       lastmod: STATIC_LASTMOD,
     })),
     ...getAllArticles().map((article) => ({

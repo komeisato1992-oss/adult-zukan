@@ -116,19 +116,23 @@ export function createWorkJsonLd(
   };
 }
 
-export function createDmmProductJsonLd(item: DmmItem) {
+export function createDmmProductJsonLd(
+  item: DmmItem,
+  description?: string,
+) {
   const makerName = getDmmItemMakerName(item);
   const actressNames = getDmmItemActressNameList(item);
   const imageUrl = getDmmItemImageUrl(item);
   const price = parseDmmPrice(item.prices?.price);
   const listPrice = parseDmmPrice(item.prices?.list_price);
   const formattedPrice = formatDmmItemPrice(item);
+  const productDescription = description?.trim() || item.title;
 
   return {
     "@context": "https://schema.org",
     "@type": "Product",
     name: item.title,
-    description: item.title,
+    description: productDescription,
     sku: item.content_id,
     ...(imageUrl ? { image: imageUrl } : {}),
     ...(makerName

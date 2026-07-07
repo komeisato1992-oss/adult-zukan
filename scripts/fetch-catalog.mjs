@@ -13,10 +13,118 @@ const ROOT = process.cwd();
 const ENV_FILES = [".env.local", ".env"];
 const SNAPSHOT_FILE = path.join(ROOT, "data", "dmm", "catalog-snapshot.json");
 const API_AFFILIATE_FALLBACK = "zukanjp-990";
+const FANZA_GRAPHQL_URL = "https://api.video.dmm.co.jp/graphql";
 const TARGET_VALID = 1000;
 const MIN_VALID = 300;
 const FETCH_BATCH_SIZE = 100;
 const MAX_OFFSET = 5001;
+const DESCRIPTION_CONCURRENCY = 8;
+
+const HTML_ENTITY_MAP = {
+  "&nbsp;": " ",
+  "&amp;": "&",
+  "&lt;": "<",
+  "&gt;": ">",
+  "&quot;": '"',
+  "&#39;": "'",
+};
+
+function stripHtmlTags(text) {
+  return text
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&[a-z#0-9]+;/gi, (entity) => HTML_ENTITY_MAP[entity] ?? entity)
+    .replace(/\r\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+function pickDescription(value) {
+  if (typeof value !== "string") return undefined;
+  const normalized = stripHtmlTags(value);
+  return normalized || undefined;
+}
+
+function extractDescriptionFromItem(item) {
+  const sampleComment = item.sampleImageURL?.sampleImageComment;
+  return (
+    pickDescription(item.description) ??
+    pickDescription(item.comment) ??
+    pickDescription(sampleComment) ??
+    pickDescription(item.iteminfo?.comment) ??
+    pickDescription(item.iteminfo?.description) ??
+    undefined
+  );
+}
+
+async function fetchFanzaPpvDescription(contentId) {
+  const query =
+    "query PpvDescription($id: ID!) { ppvProduct(id: $id) { content { description } } }";
+
+  try {
+    const response = await fetch(FANZA_GRAPHQL_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        query,
+        variables: { id: contentId },
+      }),
+    });
+
+    if (!response.ok) return undefined;
+
+    const data = await response.json();
+    const description = data.data?.ppvProduct?.content?.description;
+    return pickDescription(description);
+  } catch {
+    return undefined;
+  }
+}
+
+async function enrichDescriptions(items, previousById) {
+  let fetched = 0;
+  let preserved = 0;
+  let missing = 0;
+
+  const queue = [...items];
+  const workers = Array.from(
+    { length: DESCRIPTION_CONCURRENCY },
+    async () => {
+      while (queue.length > 0) {
+        const item = queue.shift();
+        if (!item) break;
+
+        const existing =
+          extractDescriptionFromItem(item) ??
+          pickDescription(previousById.get(item.content_id)?.description);
+
+        if (existing) {
+          item.description = existing;
+          preserved += 1;
+          continue;
+        }
+
+        const description = await fetchFanzaPpvDescription(item.content_id);
+        if (description) {
+          item.description = description;
+          fetched += 1;
+        } else {
+          delete item.description;
+          missing += 1;
+        }
+      }
+    },
+  );
+
+  await Promise.all(workers);
+
+  console.log(
+    `説明文: 既存=${preserved} 新規取得=${fetched} 未取得=${missing}`,
+  );
+
+  return items;
+}
 
 function loadEnvFiles() {
   for (const file of ENV_FILES) {
@@ -138,6 +246,23 @@ async function main() {
     );
     process.exit(1);
   }
+
+  let previousById = new Map();
+  if (existsSync(SNAPSHOT_FILE)) {
+    try {
+      const previous = JSON.parse(readFileSync(SNAPSHOT_FILE, "utf-8"));
+      if (Array.isArray(previous)) {
+        previousById = new Map(
+          previous.map((item) => [item.content_id, item]),
+        );
+      }
+    } catch {
+      previousById = new Map();
+    }
+  }
+
+  console.log("説明文を取得中...");
+  await enrichDescriptions(valid, previousById);
 
   mkdirSync(path.dirname(SNAPSHOT_FILE), { recursive: true });
   writeFileSync(SNAPSHOT_FILE, JSON.stringify(valid, null, 2), "utf-8");

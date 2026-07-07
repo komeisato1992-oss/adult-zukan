@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import type { RankedNameCount } from "@/lib/works/catalog";
+import { getMakerDetailPath } from "@/lib/entities/paths";
 
 type DmmMakerRankingSectionProps = {
   makers: RankedNameCount[];
@@ -20,7 +21,7 @@ export function DmmMakerRankingSection({
         {makers.map((maker, index) => (
           <Link
             key={maker.slug}
-            href={`/makers/${maker.slug}`}
+            href={getMakerDetailPath(maker.slug)}
             className="group rounded-lg border border-border/80 bg-white p-5 shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/20 hover:shadow-md"
           >
             <div className="flex items-center gap-3">

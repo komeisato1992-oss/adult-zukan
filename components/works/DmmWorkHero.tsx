@@ -5,13 +5,13 @@ import { useState } from "react";
 import { DmmSampleMovieThumbnail } from "@/components/works/DmmSampleMovieThumbnail";
 import { DmmActressLinks } from "@/components/works/DmmActressLinks";
 import { FanzaLinkButton } from "@/components/works/FanzaLinkButton";
-import { AffiliateDisclosureNote } from "@/components/ui/AffiliateDisclosureNote";
 import { ImageLightboxModal } from "@/components/works/ImageLightboxModal";
 import type { DmmReleaseDateInfo } from "@/lib/dmm/release-date";
 
 type DmmWorkHeroProps = {
   title: string;
   contentId: string;
+  descriptionTeaser?: string;
   actressNameList?: string[];
   makerName?: string;
   labelName?: string;
@@ -26,6 +26,7 @@ type DmmWorkHeroProps = {
 export function DmmWorkHero({
   title,
   contentId,
+  descriptionTeaser,
   actressNameList,
   makerName,
   labelName,
@@ -86,6 +87,12 @@ export function DmmWorkHero({
               {title}
             </h1>
 
+            {descriptionTeaser && (
+              <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-muted">
+                {descriptionTeaser}
+              </p>
+            )}
+
             <dl className="mt-6 space-y-3 text-sm">
               <div>
                 <dt className="text-muted">品番</dt>
@@ -131,7 +138,6 @@ export function DmmWorkHero({
 
             <div className="mt-6">
               <FanzaLinkButton href={fanzaUrl} />
-              <AffiliateDisclosureNote className="mt-2" />
             </div>
           </div>
         </div>

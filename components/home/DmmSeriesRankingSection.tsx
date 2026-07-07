@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import type { RankedNameCount } from "@/lib/works/catalog";
+import { getSeriesDetailPath } from "@/lib/entities/paths";
 
 type DmmSeriesRankingSectionProps = {
   series: RankedNameCount[];
@@ -20,7 +21,7 @@ export function DmmSeriesRankingSection({
         {series.map((entry, index) => (
           <Link
             key={entry.slug}
-            href={`/series/${entry.slug}`}
+            href={getSeriesDetailPath(entry.slug)}
             className="group flex items-center gap-3 rounded-lg border border-border/80 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/20 hover:shadow-md"
           >
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-bold text-white">

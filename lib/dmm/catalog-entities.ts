@@ -9,8 +9,9 @@ import { isValidDmmListItem } from "@/lib/dmm/filter";
 import { getDmmFanzaUrl } from "@/lib/dmm/fanza-url";
 import type { DmmItem } from "@/lib/dmm/types";
 import { encodeActressSlug, decodeActressSlug, matchesActressSlug } from "@/lib/actresses/slug";
+import { buildActressRepresentativeImageMap } from "@/lib/dmm/actress-representative-image";
+import { encodeEntitySlug } from "@/lib/entities/paths";
 import { slugify } from "@/lib/utils";
-import { getValidImageUrl, isValidImageUrl } from "@/lib/works";
 
 export type CatalogEntity = {
   name: string;
@@ -138,32 +139,34 @@ export function getCatalogActresses(items: DmmItem[]): CatalogActressEntity[] {
 
   for (const item of valid) {
     const actresses = item.actress ?? item.iteminfo?.actress ?? [];
-    const imageUrl = getValidImageUrl(item, ["large", "list"]);
 
     for (const actress of actresses) {
       if (!actress.name) continue;
 
       const slug = encodeActressSlug(actress.name);
       const existing = map.get(actress.name);
-      const nextImageUrl =
-        existing?.imageUrl ??
-        (isValidImageUrl(imageUrl) ? imageUrl : undefined);
 
       map.set(actress.name, {
         name: actress.name,
         slug,
         workCount: (existing?.workCount ?? 0) + 1,
-        imageUrl: nextImageUrl,
       });
     }
   }
 
-  return [...map.values()]
+  const actresses = [...map.values()]
     .filter((actress) => actress.workCount >= 1)
     .sort(
       (a, b) =>
         b.workCount - a.workCount || a.name.localeCompare(b.name, "ja"),
     );
+
+  const imageByActress = buildActressRepresentativeImageMap(valid, actresses);
+
+  return actresses.map((actress) => ({
+    ...actress,
+    imageUrl: imageByActress.get(actress.name),
+  }));
 }
 
 export function getCatalogActressBySlug(
@@ -293,17 +296,23 @@ function sortByCatalogOrder(
 
 export async function getCatalogMakerStaticParams(): Promise<{ slug: string }[]> {
   const items = await getCatalogItems();
-  return getCatalogMakers(items).map((maker) => ({ slug: maker.slug }));
+  return getCatalogMakers(items).map((maker) => ({
+    slug: encodeEntitySlug(maker.slug),
+  }));
 }
 
 export async function getCatalogLabelStaticParams(): Promise<{ slug: string }[]> {
   const items = await getCatalogItems();
-  return getCatalogLabels(items).map((label) => ({ slug: label.slug }));
+  return getCatalogLabels(items).map((label) => ({
+    slug: encodeEntitySlug(label.slug),
+  }));
 }
 
 export async function getCatalogSeriesStaticParams(): Promise<{ slug: string }[]> {
   const items = await getCatalogItems();
-  return getCatalogSeries(items).map((series) => ({ slug: series.slug }));
+  return getCatalogSeries(items).map((series) => ({
+    slug: encodeEntitySlug(series.slug),
+  }));
 }
 
 export async function getCatalogActressStaticParams(): Promise<{ slug: string }[]> {
@@ -318,5 +327,7 @@ export async function getCatalogActressStaticParams(): Promise<{ slug: string }[
 
 export async function getCatalogGenreStaticParams(): Promise<{ slug: string }[]> {
   const items = await getCatalogItems();
-  return getCatalogGenres(items).map((genre) => ({ slug: genre.slug }));
+  return getCatalogGenres(items).map((genre) => ({
+    slug: encodeEntitySlug(genre.slug),
+  }));
 }

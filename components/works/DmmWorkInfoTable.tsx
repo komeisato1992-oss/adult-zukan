@@ -29,7 +29,11 @@ export function DmmWorkInfoTable({ rows }: DmmWorkInfoTableProps) {
                 >
                   {row.label}
                 </th>
-                <td className="bg-white px-4 py-3 text-foreground">
+                <td
+                  className={`bg-white px-4 py-3 text-foreground ${
+                    row.multiline ? "whitespace-pre-wrap leading-relaxed" : ""
+                  }`}
+                >
                   {row.value}
                 </td>
               </tr>

@@ -23,13 +23,13 @@ import {
   getCatalogItems,
 } from "@/lib/dmm/catalog-entities";
 import { getMakerBySlug } from "@/data/makers";
-import { AffiliateDisclosureNote } from "@/components/ui/AffiliateDisclosureNote";
 import { FavoriteButton } from "@/components/user/FavoriteButton";
 import { HistoryTracker } from "@/components/user/HistoryTracker";
 import { UpdatedDate } from "@/components/ui/UpdatedDate";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import { createWorkDescription } from "@/lib/seo/descriptions";
 import { createWorkTitle } from "@/lib/seo/titles";
+import { resolveDmmItemDescription } from "@/lib/dmm/resolve-description";
 import {
   getDmmItemActressNameList,
   getDmmItemImageUrl,
@@ -65,11 +65,13 @@ export async function generateMetadata({ params }: WorkDetailPageProps) {
     const makerName = getDmmItemMakerName(dmmItem);
     const price = getDmmItemPrice(dmmItem);
     const imageUrl = getDmmItemImageUrl(dmmItem);
+    const description = await resolveDmmItemDescription(dmmItem);
 
     return createPageMetadata({
       title: createWorkTitle(dmmItem.title),
       description: createWorkDescription({
         title: dmmItem.title,
+        description,
         actressNames,
         makerName,
         price,
@@ -292,7 +294,6 @@ export default async function WorkDetailPage({ params }: WorkDetailPageProps) {
                   size="lg"
                   className="w-full sm:w-auto"
                 />
-                <AffiliateDisclosureNote className="mt-2" />
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                   <FavoriteButton slug={work.slug} title={work.title} />
                   <UpdatedDate date={work.releaseDate} label="発売日" />

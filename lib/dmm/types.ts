@@ -52,6 +52,7 @@ export type DmmSampleImageUrl = {
   sample?: DmmSampleImageSet;
   sample_s?: DmmSampleImageSet;
   sample_l?: DmmSampleImageSet;
+  sampleImageComment?: string;
 };
 
 export type DmmSampleMovieUrl = {
@@ -75,6 +76,10 @@ export type DmmItem = {
   content_id: string;
   product_id: string;
   title: string;
+  /** FANZA商品説明（スナップショット保存用） */
+  description?: string;
+  /** DMM Affiliate API の comment フィールド */
+  comment?: string;
   URL: string;
   affiliateURL: string;
   imageURL?: DmmImageUrl;

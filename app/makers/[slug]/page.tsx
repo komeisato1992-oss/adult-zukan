@@ -13,6 +13,11 @@ import {
   getMakerSummaryBySlug,
   getMakerWorksBySlug,
 } from "@/lib/catalog";
+import {
+  decodeEntitySlug,
+  getMakerDetailPath,
+  getSeriesDetailPath,
+} from "@/lib/entities/paths";
 import { getActressDetailPath } from "@/lib/actresses/slug";
 import { getMakerInternalLinks } from "@/lib/dmm/internal-links";
 import { parsePageParam } from "@/lib/pagination";
@@ -37,14 +42,15 @@ export async function generateStaticParams() {
 }
 
 export async function generateMetadata({ params }: MakerDetailPageProps) {
-  const { slug } = await params;
+  const { slug: rawSlug } = await params;
+  const slug = decodeEntitySlug(rawSlug);
   const maker = await getMakerSummaryBySlug(slug);
 
   if (!maker) {
     return createPageMetadata({
       title: "メーカーが見つかりません",
       description: "指定されたメーカーは見つかりませんでした。",
-      path: `/makers/${slug}`,
+      path: getMakerDetailPath(rawSlug),
       noIndex: true,
     });
   }
@@ -56,7 +62,7 @@ export async function generateMetadata({ params }: MakerDetailPageProps) {
       count: maker.workCount,
       context: "の人気作品一覧",
     }),
-    path: `/makers/${maker.slug}`,
+    path: getMakerDetailPath(maker.slug),
     absoluteTitle: true,
   });
 }
@@ -65,7 +71,8 @@ export default async function MakerDetailPage({
   params,
   searchParams,
 }: MakerDetailPageProps) {
-  const { slug } = await params;
+  const { slug: rawSlug } = await params;
+  const slug = decodeEntitySlug(rawSlug);
   const { page } = await searchParams;
   const maker = await getMakerSummaryBySlug(slug);
 
@@ -77,7 +84,7 @@ export default async function MakerDetailPage({
   const { popularWorks, topSeries, topActresses } =
     await getMakerInternalLinks(slug);
   const currentPage = parsePageParam(page);
-  const makerUrl = `${siteConfig.url}/makers/${maker.slug}`;
+  const makerUrl = `${siteConfig.url}${getMakerDetailPath(maker.slug)}`;
 
   return (
     <>
@@ -86,7 +93,7 @@ export default async function MakerDetailPage({
           createBreadcrumbJsonLd([
             { name: "トップ", path: "/" },
             { name: "メーカー一覧", path: "/makers" },
-            { name: maker.name, path: `/makers/${maker.slug}` },
+            { name: maker.name, path: getMakerDetailPath(maker.slug) },
           ]),
           createCollectionPageJsonLd(
             `${maker.name}の作品一覧`,
@@ -125,7 +132,7 @@ export default async function MakerDetailPage({
               {topSeries.map((series) => (
                 <Link
                   key={series.slug}
-                  href={`/series/${series.slug}`}
+                  href={getSeriesDetailPath(series.slug)}
                   className="rounded border border-border bg-white p-4 transition-shadow hover:shadow-md"
                 >
                   <h3 className="text-sm font-bold text-foreground">
@@ -163,7 +170,7 @@ export default async function MakerDetailPage({
             <DmmCatalogWorksGrid
               items={works}
               currentPage={currentPage}
-              paginationBasePath={`/makers/${slug}`}
+              paginationBasePath={getMakerDetailPath(slug)}
             />
           ) : (
             <p className="rounded border border-border bg-surface p-8 text-center text-sm text-muted">

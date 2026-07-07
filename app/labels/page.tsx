@@ -11,6 +11,7 @@ import { siteConfig, pageIntros } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import { truncateDescription } from "@/lib/seo/descriptions";
 import { seoTitles } from "@/lib/seo/titles";
+import { getLabelDetailPath } from "@/lib/entities/paths";
 import {
   createBreadcrumbJsonLd,
   createCollectionPageJsonLd,
@@ -67,7 +68,7 @@ export default async function LabelsPage() {
               key={label.slug}
               className="rounded-lg border border-border bg-white p-5 transition-shadow hover:shadow-md"
             >
-              <Link href={`/labels/${label.slug}`} className="block">
+              <Link href={getLabelDetailPath(label.slug)} className="block">
                 {label.makerName && (
                   <p className="text-xs text-muted">{label.makerName}</p>
                 )}

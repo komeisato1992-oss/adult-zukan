@@ -12,6 +12,7 @@ import { siteConfig } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import { createListDescription } from "@/lib/seo/descriptions";
 import { createLabelTitle } from "@/lib/seo/titles";
+import { decodeEntitySlug, getLabelDetailPath, getMakerDetailPath } from "@/lib/entities/paths";
 import {
   createBreadcrumbJsonLd,
   createCollectionPageJsonLd,
@@ -29,14 +30,15 @@ export async function generateStaticParams() {
 }
 
 export async function generateMetadata({ params }: LabelDetailPageProps) {
-  const { slug } = await params;
+  const { slug: rawSlug } = await params;
+  const slug = decodeEntitySlug(rawSlug);
   const label = await getLabelSummaryBySlug(slug);
 
   if (!label) {
     return createPageMetadata({
       title: "レーベルが見つかりません",
       description: "指定されたレーベルは見つかりませんでした。",
-      path: `/labels/${slug}`,
+      path: getLabelDetailPath(rawSlug),
       noIndex: true,
     });
   }
@@ -48,7 +50,7 @@ export async function generateMetadata({ params }: LabelDetailPageProps) {
       count: label.workCount,
       context: "レーベルの作品一覧",
     }),
-    path: `/labels/${label.slug}`,
+    path: getLabelDetailPath(label.slug),
     absoluteTitle: true,
   });
 }
@@ -57,7 +59,8 @@ export default async function LabelDetailPage({
   params,
   searchParams,
 }: LabelDetailPageProps) {
-  const { slug } = await params;
+  const { slug: rawSlug } = await params;
+  const slug = decodeEntitySlug(rawSlug);
   const { page } = await searchParams;
   const label = await getLabelSummaryBySlug(slug);
 
@@ -75,12 +78,12 @@ export default async function LabelDetailPage({
           createBreadcrumbJsonLd([
             { name: "トップ", path: "/" },
             { name: "レーベル一覧", path: "/labels" },
-            { name: label.name, path: `/labels/${label.slug}` },
+            { name: label.name, path: getLabelDetailPath(label.slug) },
           ]),
           createCollectionPageJsonLd(
             `${label.name}レーベルの作品一覧`,
             `${label.name}レーベルの作品一覧`,
-            `${siteConfig.url}/labels/${label.slug}`,
+            `${siteConfig.url}${getLabelDetailPath(label.slug)}`,
           ),
         ]}
       />
@@ -97,7 +100,7 @@ export default async function LabelDetailPage({
             <p className="text-sm text-muted">
               メーカー:{" "}
               <Link
-                href={`/makers/${label.makerSlug}`}
+                href={getMakerDetailPath(label.makerSlug)}
                 className="text-accent hover:underline"
               >
                 {label.makerName}
@@ -115,7 +118,7 @@ export default async function LabelDetailPage({
           <DmmCatalogWorksGrid
             items={works}
             currentPage={currentPage}
-            paginationBasePath={`/labels/${slug}`}
+            paginationBasePath={getLabelDetailPath(slug)}
           />
         </section>
       </PageLayout>

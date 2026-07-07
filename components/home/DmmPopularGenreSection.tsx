@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import type { RankedNameCount } from "@/lib/works/catalog";
+import { getGenreDetailPath } from "@/lib/entities/paths";
 
 type DmmPopularGenreSectionProps = {
   genres: RankedNameCount[];
@@ -20,7 +21,7 @@ export function DmmPopularGenreSection({
         {genres.map((genre) => (
           <Link
             key={genre.slug}
-            href={`/genres/${genre.slug}`}
+            href={getGenreDetailPath(genre.slug)}
             className="group rounded-lg border border-border/80 bg-white p-5 text-center shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/20 hover:shadow-md"
           >
             <span className="text-sm font-semibold text-foreground group-hover:text-accent">

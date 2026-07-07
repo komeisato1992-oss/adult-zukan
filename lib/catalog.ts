@@ -48,7 +48,7 @@ function createSummariesLoader<T>(
 }
 
 export const getActressSummaries = createSummariesLoader(
-  "catalog-actress-summaries-v1",
+  "catalog-actress-summaries-v2",
   getCatalogActresses,
 );
 

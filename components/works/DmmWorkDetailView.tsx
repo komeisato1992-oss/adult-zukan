@@ -14,8 +14,10 @@ import {
   getDmmSampleImages,
   getDmmSampleMovieUrl,
 } from "@/lib/dmm/display";
+import { getDmmDescriptionTeaser } from "@/lib/dmm/description";
 import { getDmmFanzaUrl } from "@/lib/dmm/fanza-url";
 import { getDmmWorkInternalLinks } from "@/lib/dmm/internal-links";
+import { resolveDmmItemDescription } from "@/lib/dmm/resolve-description";
 import {
   getDmmReleaseDateInfo,
 } from "@/lib/dmm/release-date";
@@ -36,7 +38,11 @@ export async function DmmWorkDetailView({ item }: DmmWorkDetailViewProps) {
     ? (sampleImages[0] ?? imageUrl)
     : undefined;
   const fanzaUrl = getDmmFanzaUrl(item);
-  const infoRows = getDmmInfoRows(item);
+  const description = await resolveDmmItemDescription(item);
+  const descriptionTeaser = description
+    ? getDmmDescriptionTeaser(description)
+    : undefined;
+  const infoRows = getDmmInfoRows(item, description);
   const internalLinkSections = await getDmmWorkInternalLinks(item);
 
   return (
@@ -48,7 +54,7 @@ export async function DmmWorkDetailView({ item }: DmmWorkDetailViewProps) {
             { name: "作品一覧", path: "/works" },
             { name: item.title, path: `/works/${item.content_id}` },
           ]),
-          createDmmProductJsonLd(item),
+          createDmmProductJsonLd(item, description),
         ]}
       />
       <PageLayout>
@@ -64,6 +70,7 @@ export async function DmmWorkDetailView({ item }: DmmWorkDetailViewProps) {
           <DmmWorkDetailBody
             item={item}
             fanzaUrl={fanzaUrl}
+            descriptionTeaser={descriptionTeaser}
             imageUrl={imageUrl}
             sampleImages={sampleImages}
             sampleMovie={sampleMovie}

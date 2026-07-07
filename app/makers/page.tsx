@@ -11,6 +11,7 @@ import { PageIntro } from "@/components/ui/PageIntro";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import { truncateDescription } from "@/lib/seo/descriptions";
 import { seoTitles } from "@/lib/seo/titles";
+import { getMakerDetailPath } from "@/lib/entities/paths";
 import {
   createBreadcrumbJsonLd,
   createCollectionPageJsonLd,
@@ -66,7 +67,7 @@ export default async function MakersPage() {
             >
               <h2 className="text-base font-bold text-foreground">
                 <Link
-                  href={`/makers/${maker.slug}`}
+                  href={getMakerDetailPath(maker.slug)}
                   className="hover:text-accent"
                 >
                   {maker.name}
@@ -76,7 +77,7 @@ export default async function MakersPage() {
                 掲載作品 {maker.workCount}件
               </p>
               <Link
-                href={`/makers/${maker.slug}`}
+                href={getMakerDetailPath(maker.slug)}
                 className="mt-3 inline-block text-sm font-medium text-accent hover:underline"
               >
                 詳細を見る →

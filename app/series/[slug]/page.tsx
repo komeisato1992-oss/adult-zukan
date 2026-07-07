@@ -13,6 +13,11 @@ import { createPageMetadata } from "@/lib/seo/metadata";
 import { createListDescription } from "@/lib/seo/descriptions";
 import { createSeriesTitle } from "@/lib/seo/titles";
 import {
+  decodeEntitySlug,
+  getMakerDetailPath,
+  getSeriesDetailPath,
+} from "@/lib/entities/paths";
+import {
   createBreadcrumbJsonLd,
   createCollectionPageJsonLd,
 } from "@/lib/seo/json-ld";
@@ -29,14 +34,15 @@ export async function generateStaticParams() {
 }
 
 export async function generateMetadata({ params }: SeriesDetailPageProps) {
-  const { slug } = await params;
+  const { slug: rawSlug } = await params;
+  const slug = decodeEntitySlug(rawSlug);
   const series = await getSeriesSummaryBySlug(slug);
 
   if (!series) {
     return createPageMetadata({
       title: "シリーズが見つかりません",
       description: "指定されたシリーズは見つかりませんでした。",
-      path: `/series/${slug}`,
+      path: getSeriesDetailPath(rawSlug),
       noIndex: true,
     });
   }
@@ -48,7 +54,7 @@ export async function generateMetadata({ params }: SeriesDetailPageProps) {
       count: series.workCount,
       context: "シリーズの作品一覧",
     }),
-    path: `/series/${series.slug}`,
+    path: getSeriesDetailPath(series.slug),
     absoluteTitle: true,
   });
 }
@@ -57,7 +63,8 @@ export default async function SeriesDetailPage({
   params,
   searchParams,
 }: SeriesDetailPageProps) {
-  const { slug } = await params;
+  const { slug: rawSlug } = await params;
+  const slug = decodeEntitySlug(rawSlug);
   const { page } = await searchParams;
   const series = await getSeriesSummaryBySlug(slug);
 
@@ -75,12 +82,12 @@ export default async function SeriesDetailPage({
           createBreadcrumbJsonLd([
             { name: "トップ", path: "/" },
             { name: "シリーズ一覧", path: "/series" },
-            { name: series.name, path: `/series/${series.slug}` },
+            { name: series.name, path: getSeriesDetailPath(series.slug) },
           ]),
           createCollectionPageJsonLd(
             `${series.name}シリーズ`,
             `${series.name}シリーズの作品一覧`,
-            `${siteConfig.url}/series/${series.slug}`,
+            `${siteConfig.url}${getSeriesDetailPath(series.slug)}`,
           ),
         ]}
       />
@@ -97,7 +104,7 @@ export default async function SeriesDetailPage({
             <p className="text-sm text-muted">
               メーカー:{" "}
               <Link
-                href={`/makers/${series.makerSlug}`}
+                href={getMakerDetailPath(series.makerSlug)}
                 className="text-accent hover:underline"
               >
                 {series.makerName}
@@ -115,7 +122,7 @@ export default async function SeriesDetailPage({
           <DmmCatalogWorksGrid
             items={works}
             currentPage={currentPage}
-            paginationBasePath={`/series/${slug}`}
+            paginationBasePath={getSeriesDetailPath(slug)}
           />
         </section>
 
@@ -123,7 +130,7 @@ export default async function SeriesDetailPage({
           <section aria-labelledby="series-maker" className="mb-10">
             <SectionHeader title="関連メーカー" id="series-maker" />
             <Link
-              href={`/makers/${series.makerSlug}`}
+              href={getMakerDetailPath(series.makerSlug)}
               className="inline-flex rounded-lg border border-border bg-white px-6 py-4 transition-shadow hover:shadow-md"
             >
               <div>

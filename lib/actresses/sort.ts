@@ -12,6 +12,15 @@ export const ACTRESS_SORT_OPTIONS: Array<{
   { key: "name", label: "五十音順" },
 ];
 
+export const ACTRESS_SORT_SELECT_OPTIONS: Array<{
+  key: ActressSortKey;
+  label: string;
+}> = [
+  { key: "popular", label: "人気順" },
+  { key: "works", label: "作品数が多い順" },
+  { key: "name", label: "名前順" },
+];
+
 export const ACTRESS_LIMIT_OPTIONS = [20, 50, 100] as const;
 export type ActressLimit = (typeof ACTRESS_LIMIT_OPTIONS)[number];
 export const DEFAULT_ACTRESS_LIMIT: ActressLimit = 20;

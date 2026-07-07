@@ -1,4 +1,5 @@
-import Link from "next/link";
+import { Suspense } from "react";
+import { GenreListSection } from "@/components/genres/GenreListSection";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { JsonLd } from "@/components/seo/JsonLd";
@@ -6,12 +7,12 @@ import {
   getCatalogGenres,
   getCatalogItems,
 } from "@/lib/dmm/catalog-entities";
+import { getGenreReading } from "@/lib/genres/readings";
 import { siteConfig, pageIntros } from "@/lib/site-config";
 import { PageIntro } from "@/components/ui/PageIntro";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import { truncateDescription } from "@/lib/seo/descriptions";
 import { seoTitles } from "@/lib/seo/titles";
-import { getGenreDetailPath } from "@/lib/entities/paths";
 import {
   createBreadcrumbJsonLd,
   createCollectionPageJsonLd,
@@ -26,9 +27,28 @@ export const metadata = createPageMetadata({
   absoluteTitle: true,
 });
 
+function GenreListFallback() {
+  return (
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+      {Array.from({ length: 6 }).map((_, index) => (
+        <div
+          key={index}
+          className="rounded border border-border bg-white p-5 text-center shadow-sm"
+        >
+          <div className="mx-auto h-5 w-24 animate-pulse rounded bg-surface" />
+          <div className="mx-auto mt-2 h-3 w-12 animate-pulse rounded bg-surface" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default async function GenresPage() {
   const items = await getCatalogItems();
-  const genres = getCatalogGenres(items);
+  const genres = getCatalogGenres(items).map((genre) => ({
+    ...genre,
+    reading: getGenreReading(genre.name),
+  }));
 
   return (
     <>
@@ -56,20 +76,9 @@ export default async function GenresPage() {
           <PageIntro text={pageIntros.genres} />
         </header>
 
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-          {genres.map((genre) => (
-            <Link
-              key={genre.slug}
-              href={getGenreDetailPath(genre.slug)}
-              className="rounded border border-border bg-white p-5 text-center shadow-sm transition-shadow hover:border-accent/30 hover:shadow-md"
-            >
-              <h2 className="text-base font-bold text-foreground">
-                {genre.name}
-              </h2>
-              <p className="mt-2 text-xs text-muted">{genre.workCount}作品</p>
-            </Link>
-          ))}
-        </div>
+        <Suspense fallback={<GenreListFallback />}>
+          <GenreListSection genres={genres} />
+        </Suspense>
       </PageLayout>
     </>
   );

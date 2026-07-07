@@ -109,10 +109,10 @@ export function createRootMetadata(): Metadata {
     },
     icons: {
       icon: [
-        { url: "/favicon.ico" },
+        { url: siteConfig.logoIcon, type: "image/png" },
         { url: "/icon.png", type: "image/png", sizes: "32x32" },
       ],
-      shortcut: "/favicon.ico",
+      shortcut: siteConfig.logoIcon,
       apple: "/apple-touch-icon.png",
     },
     manifest: "/site.webmanifest",

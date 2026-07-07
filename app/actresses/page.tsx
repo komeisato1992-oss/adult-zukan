@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { ActressListSection } from "@/components/actresses/ActressListSection";
+import { ActressSortSelect } from "@/components/actresses/ActressSortSelect";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { JsonLd } from "@/components/seo/JsonLd";
@@ -70,6 +71,10 @@ export default async function ActressesPage() {
           </h1>
           <PageIntro text={pageIntros.actresses} />
         </header>
+
+        <Suspense fallback={null}>
+          <ActressSortSelect />
+        </Suspense>
 
         <Suspense fallback={<ActressListFallback />}>
           <ActressListSection actresses={actresses} />

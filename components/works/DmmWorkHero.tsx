@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
+import { CompareToggleButton } from "@/components/compare/CompareToggleButton";
 import { DmmSampleMovieThumbnail } from "@/components/works/DmmSampleMovieThumbnail";
 import { DmmActressLinks } from "@/components/works/DmmActressLinks";
 import { FanzaLinkButton } from "@/components/works/FanzaLinkButton";
@@ -138,6 +139,9 @@ export function DmmWorkHero({
 
             <div className="mt-6">
               <FanzaLinkButton href={fanzaUrl} />
+              <div className="mt-3">
+                <CompareToggleButton contentId={contentId} />
+              </div>
             </div>
           </div>
         </div>

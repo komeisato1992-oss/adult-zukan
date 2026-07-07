@@ -9,9 +9,12 @@
   --foreground: #1a1a1a;
   --muted: #737373;
   --border: #e8e8e8;
-  --accent: #bf0000;
-  --accent-hover: #990000;
-  --accent-light: #fef2f2;
+  --brand-primary: #e60012;
+  --brand-primary-hover: #c40010;
+  --brand-primary-light: #fff0f0;
+  --accent: var(--brand-primary);
+  --accent-hover: var(--brand-primary-hover);
+  --accent-light: var(--brand-primary-light);
   --surface: #f7f7f7;
 }
 
@@ -24,6 +27,9 @@
   --color-accent-hover: var(--accent-hover);
   --color-accent-light: var(--accent-light);
   --color-surface: var(--surface);
+  --color-brand: var(--brand-primary);
+  --color-brand-hover: var(--brand-primary-hover);
+  --color-brand-light: var(--brand-primary-light);
   --font-sans: var(--font-noto-sans-jp);
 }
 

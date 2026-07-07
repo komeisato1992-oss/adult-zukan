@@ -6,7 +6,6 @@ import { ActressGridCard } from "@/components/actresses/ActressGridCard";
 import { Pagination } from "@/components/ui/Pagination";
 import {
   ACTRESS_LIMIT_OPTIONS,
-  ACTRESS_SORT_OPTIONS,
   buildActressListUrl,
   parseActressLimitParam,
   parseActressSortParam,
@@ -89,13 +88,6 @@ export function ActressListSection({ actresses }: ActressListSectionProps) {
     [searchInput, updateParams],
   );
 
-  const handleSortChange = useCallback(
-    (sort: ActressSortKey) => {
-      updateParams({ sort }, true);
-    },
-    [updateParams],
-  );
-
   const handleLimitChange = useCallback(
     (event: React.ChangeEvent<HTMLSelectElement>) => {
       updateParams(
@@ -162,46 +154,22 @@ export function ActressListSection({ actresses }: ActressListSectionProps) {
           </button>
         </form>
 
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-          <nav aria-label="並び替え" className="flex flex-wrap gap-2">
-            {ACTRESS_SORT_OPTIONS.map(({ key, label }) => {
-              const isActive = key === params.sort;
-
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => handleSortChange(key)}
-                  aria-pressed={isActive}
-                  className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
-                    isActive
-                      ? "border-accent bg-accent text-white"
-                      : "border-border bg-white text-foreground hover:border-accent hover:text-accent"
-                  }`}
-                >
-                  {label}
-                </button>
-              );
-            })}
-          </nav>
-
-          <div className="flex items-center gap-2 text-sm">
-            <label htmlFor="actress-limit" className="shrink-0 text-muted">
-              表示件数
-            </label>
-            <select
-              id="actress-limit"
-              value={params.limit}
-              onChange={handleLimitChange}
-              className="h-10 min-w-[88px] rounded border border-border bg-white px-3 text-sm text-foreground"
-            >
-              {ACTRESS_LIMIT_OPTIONS.map((limit) => (
-                <option key={limit} value={limit}>
-                  {limit}件
-                </option>
-              ))}
-            </select>
-          </div>
+        <div className="flex items-center gap-2 text-sm">
+          <label htmlFor="actress-limit" className="shrink-0 text-muted">
+            表示件数
+          </label>
+          <select
+            id="actress-limit"
+            value={params.limit}
+            onChange={handleLimitChange}
+            className="h-10 min-w-[88px] rounded border border-border bg-white px-3 text-sm text-foreground"
+          >
+            {ACTRESS_LIMIT_OPTIONS.map((limit) => (
+              <option key={limit} value={limit}>
+                {limit}件
+              </option>
+            ))}
+          </select>
         </div>
       </div>
 

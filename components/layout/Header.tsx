@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 import { siteConfig } from "@/lib/site-config";
@@ -12,19 +13,26 @@ export function Header() {
         <div className="flex items-center gap-4">
           <Link
             href="/"
-            className="shrink-0 text-xl font-bold text-accent"
+            className="shrink-0"
             aria-label={`${siteConfig.name} トップページ`}
           >
-            {siteConfig.name}
+            <Image
+              src={siteConfig.logo}
+              alt={siteConfig.name}
+              width={240}
+              height={64}
+              className="h-8 w-auto max-w-[160px] sm:h-10 sm:max-w-[220px]"
+              priority
+            />
           </Link>
 
           <div className="hidden flex-1 md:block">
             <SearchBar compact className="max-w-xl" />
           </div>
 
-        <Suspense fallback={null}>
-          <MobileNav />
-        </Suspense>
+          <Suspense fallback={null}>
+            <MobileNav />
+          </Suspense>
         </div>
 
         <div className="mt-3 md:hidden">

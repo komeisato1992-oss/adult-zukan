@@ -22,7 +22,9 @@ export function ActressGridCard({ actress }: ActressGridCardProps) {
           sizes="200px"
         />
       ) : (
-        <div className="relative aspect-[3/4] bg-surface" />
+        <div className="relative flex aspect-[3/4] items-center justify-center bg-surface text-xs text-muted">
+          画像なし
+        </div>
       )}
       <div className="p-3">
         <p className="text-sm font-semibold text-foreground group-hover:text-accent">

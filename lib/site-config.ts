@@ -1,4 +1,5 @@
 import { SITE_URL } from "@/lib/constants";
+import { brand } from "@/lib/brand";
 
 export { SITE_URL, buildSiteUrl } from "@/lib/constants";
 
@@ -7,10 +8,12 @@ export const siteConfig = {
   description:
     "アダルト作品の情報をわかりやすく紹介するポータルサイト。作品ランキング・女優検索・ジャンル別一覧・セール情報から、お好みの作品を見つけられます。",
   url: SITE_URL,
-  ogImage: "/og-default.svg",
+  ogImage: "/og.png",
   locale: "ja_JP",
   twitterHandle: process.env.NEXT_PUBLIC_TWITTER_HANDLE,
-  accentColor: "#BF0000",
+  accentColor: brand.primary,
+  logo: "/logo.png",
+  logoIcon: "/logo-icon.png",
 } as const;
 
 export const pageIntros = {

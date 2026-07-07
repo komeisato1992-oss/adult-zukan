@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { CompareToggleButton } from "@/components/compare/CompareToggleButton";
 import type { Work } from "@/data/types";
 import { AFFILIATE_LINK_REL } from "@/lib/utils";
 import { formatPrice, getDisplayPrice } from "@/lib/format";
+import { CompactNameList } from "@/components/ui/CompactNameList";
 import { WorkThumbnail } from "@/components/ui/WorkThumbnail";
 
 type WorkCardProps = {
@@ -19,11 +21,11 @@ export function WorkCard({
 }: WorkCardProps) {
   const { current, original, isOnSale } = getDisplayPrice(work);
 
-  const padding = size === "large" ? "p-4" : "p-3";
+  const paddingX = size === "large" ? "px-4" : "px-3";
   const titleSize = size === "large" ? "text-base" : "text-sm";
   const priceSize = size === "large" ? "text-base" : "text-sm";
 
-  const inner = (
+  const linkedContent = (
     <>
       <div className="relative">
         <WorkThumbnail
@@ -38,24 +40,12 @@ export function WorkCard({
           </span>
         )}
       </div>
-      <div className={padding}>
+      <div className={`${paddingX} pt-3 pb-0`}>
         <h3
           className={`line-clamp-2 font-semibold leading-snug text-foreground transition-colors group-hover:text-accent ${titleSize}`}
         >
           {work.title}
         </h3>
-        <p className="mt-1.5 text-xs text-muted">{work.productCode}</p>
-        <p className="mt-1 text-xs text-muted">{work.makerName}</p>
-        <div className="mt-2.5 flex items-baseline gap-2">
-          <span className={`font-bold text-accent ${priceSize}`}>
-            {formatPrice(current)}
-          </span>
-          {original && (
-            <span className="text-xs text-muted line-through">
-              {formatPrice(original)}
-            </span>
-          )}
-        </div>
       </div>
     </>
   );
@@ -66,7 +56,7 @@ export function WorkCard({
     >
       {linkToDetail ? (
         <Link href={`/works/${work.slug}`} className="block">
-          {inner}
+          {linkedContent}
         </Link>
       ) : (
         <a
@@ -75,9 +65,28 @@ export function WorkCard({
           rel={AFFILIATE_LINK_REL}
           className="block"
         >
-          {inner}
+          {linkedContent}
         </a>
       )}
+      <div className={`${paddingX} pt-1.5`}>
+        <CompactNameList names={work.actressNames} />
+        <div className="mt-2.5 flex items-baseline gap-2">
+          <span className={`font-bold text-accent ${priceSize}`}>
+            {formatPrice(current)}
+          </span>
+          {original && (
+            <span className="text-xs text-muted line-through">
+              {formatPrice(original)}
+            </span>
+          )}
+        </div>
+        <p className="mt-1 text-[11px] text-muted/90">{work.productCode}</p>
+      </div>
+      {work.contentId ? (
+        <div className={`${paddingX} pb-3`}>
+          <CompareToggleButton contentId={work.contentId} />
+        </div>
+      ) : null}
     </article>
   );
 }

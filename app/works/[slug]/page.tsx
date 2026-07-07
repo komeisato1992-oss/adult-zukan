@@ -26,6 +26,7 @@ import { getMakerBySlug } from "@/data/makers";
 import { FavoriteButton } from "@/components/user/FavoriteButton";
 import { HistoryTracker } from "@/components/user/HistoryTracker";
 import { UpdatedDate } from "@/components/ui/UpdatedDate";
+import { CompareToggleButton } from "@/components/compare/CompareToggleButton";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import { createWorkDescription } from "@/lib/seo/descriptions";
 import { createWorkTitle } from "@/lib/seo/titles";
@@ -295,6 +296,7 @@ export default async function WorkDetailPage({ params }: WorkDetailPageProps) {
                   className="w-full sm:w-auto"
                 />
                 <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <CompareToggleButton contentId={work.contentId} />
                   <FavoriteButton slug={work.slug} title={work.title} />
                   <UpdatedDate date={work.releaseDate} label="発売日" />
                 </div>

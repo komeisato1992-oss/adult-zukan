@@ -1,8 +1,9 @@
+import Image from "next/image";
 import Link from "next/link";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { createPageMetadata } from "@/lib/seo/metadata";
-import { navItems, legalLinks } from "@/lib/site-config";
+import { navItems, legalLinks, siteConfig } from "@/lib/site-config";
 
 export const metadata = createPageMetadata({
   title: "ページが見つかりません",
@@ -24,7 +25,15 @@ export default function NotFound() {
       />
       <PageLayout showSidebar={false}>
         <div className="flex flex-col items-center py-16 text-center">
-          <p className="text-7xl font-bold text-border">404</p>
+          <Image
+            src={siteConfig.logoIcon}
+            alt={siteConfig.name}
+            width={120}
+            height={120}
+            className="h-24 w-24"
+            priority
+          />
+          <p className="mt-6 text-7xl font-bold text-border">404</p>
           <h1 className="mt-4 text-xl font-bold text-foreground">
             ページが見つかりません
           </h1>

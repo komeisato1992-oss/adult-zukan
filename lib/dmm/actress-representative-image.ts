@@ -1,41 +1,17 @@
 import type { DmmItem } from "@/lib/dmm/types";
 import { getValidImageUrl, isValidImageUrl } from "@/lib/works";
 
-/** 代表画像として極力避けるキーワード */
-export const REPRESENTATIVE_IMAGE_AVOID_KEYWORDS = [
-  "BEST",
-  "ベスト",
-  "総集編",
-  "Collection",
-  "コレクション",
-  "Complete",
-  "コンプリート",
-  "永久保存版",
-  "240分",
-  "300分",
-  "480分",
-  "10時間",
-  "12時間",
-] as const;
-
-export const REPRESENTATIVE_IMAGE_TIER = {
-  solo: 0,
-  regular: 1,
-  planning: 2,
-  compilation: 3,
-  best: 4,
-  avoided: 5,
-} as const;
-
-export type RepresentativeImageTier =
-  (typeof REPRESENTATIVE_IMAGE_TIER)[keyof typeof REPRESENTATIVE_IMAGE_TIER];
-
 type WorkCandidate = {
   imageUrl: string;
   contentId: string;
-  tier: RepresentativeImageTier;
+  isSolo: boolean;
   catalogIndex: number;
   releaseTimestamp: number;
+};
+
+type ActressImageSelectionInput = {
+  name: string;
+  workCount: number;
 };
 
 function parseReleaseTimestamp(item: DmmItem): number {
@@ -46,86 +22,10 @@ function parseReleaseTimestamp(item: DmmItem): number {
   return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
 }
 
-function getGenreNames(item: DmmItem): string[] {
-  return (item.iteminfo?.genre ?? [])
-    .map((genre) => genre.name)
-    .filter(Boolean);
-}
-
 function getActressNames(item: DmmItem): string[] {
   return (item.actress ?? item.iteminfo?.actress ?? [])
     .map((actress) => actress.name)
     .filter(Boolean);
-}
-
-function containsAvoidKeyword(text: string): boolean {
-  const normalized = text.toLowerCase();
-  return REPRESENTATIVE_IMAGE_AVOID_KEYWORDS.some((keyword) =>
-    normalized.includes(keyword.toLowerCase()),
-  );
-}
-
-function isCompilationWork(item: DmmItem): boolean {
-  const genres = getGenreNames(item);
-  if (genres.some((name) => name.includes("総集編"))) return true;
-  return /総集編/.test(item.title);
-}
-
-function isBestWork(item: DmmItem): boolean {
-  const genres = getGenreNames(item);
-  if (genres.some((name) => name.includes("ベスト"))) return true;
-
-  const title = item.title;
-  return (
-    /ベスト/i.test(title) ||
-    /\bBEST\b/i.test(title) ||
-    /コレクション/i.test(title) ||
-    /Collection/i.test(title) ||
-    /コンプリート/i.test(title) ||
-    /Complete/i.test(title) ||
-    /永久保存版/.test(title)
-  );
-}
-
-function isPlanningWork(item: DmmItem): boolean {
-  return getGenreNames(item).some((name) => name.includes("企画"));
-}
-
-function isSoloWork(item: DmmItem): boolean {
-  if (getGenreNames(item).some((name) => name === "単体作品")) return true;
-
-  const actresses = getActressNames(item);
-  return (
-    actresses.length === 1 &&
-    !isCompilationWork(item) &&
-    !isBestWork(item) &&
-    !containsAvoidKeyword(item.title)
-  );
-}
-
-export function getRepresentativeImageTier(item: DmmItem): RepresentativeImageTier {
-  if (containsAvoidKeyword(item.title)) {
-    return REPRESENTATIVE_IMAGE_TIER.avoided;
-  }
-  if (isSoloWork(item)) {
-    return REPRESENTATIVE_IMAGE_TIER.solo;
-  }
-  if (isBestWork(item)) {
-    return REPRESENTATIVE_IMAGE_TIER.best;
-  }
-  if (isCompilationWork(item)) {
-    return REPRESENTATIVE_IMAGE_TIER.compilation;
-  }
-  if (isPlanningWork(item)) {
-    return REPRESENTATIVE_IMAGE_TIER.planning;
-  }
-  return REPRESENTATIVE_IMAGE_TIER.regular;
-}
-
-function compareCandidates(a: WorkCandidate, b: WorkCandidate): number {
-  if (a.tier !== b.tier) return a.tier - b.tier;
-  if (a.catalogIndex !== b.catalogIndex) return a.catalogIndex - b.catalogIndex;
-  return b.releaseTimestamp - a.releaseTimestamp;
 }
 
 function buildCatalogIndexMap(items: DmmItem[]): Map<string, number> {
@@ -139,51 +39,58 @@ function buildWorkCandidate(
   const imageUrl = getValidImageUrl(item, ["large", "list"]);
   if (!isValidImageUrl(imageUrl) || !imageUrl) return null;
 
+  const actressCount = getActressNames(item).length;
+
   return {
     imageUrl,
     contentId: item.content_id,
-    tier: getRepresentativeImageTier(item),
+    isSolo: actressCount === 1,
     catalogIndex,
     releaseTimestamp: parseReleaseTimestamp(item),
   };
 }
 
-function filterCandidatesForActress(
-  candidates: WorkCandidate[],
-): WorkCandidate[] {
-  const hasSolo = candidates.some(
-    (candidate) => candidate.tier === REPRESENTATIVE_IMAGE_TIER.solo,
-  );
-
-  let filtered = candidates;
-  if (hasSolo) {
-    filtered = filtered.filter(
-      (candidate) =>
-        candidate.tier !== REPRESENTATIVE_IMAGE_TIER.compilation &&
-        candidate.tier !== REPRESENTATIVE_IMAGE_TIER.best,
-    );
+/**
+ * 代表画像の優先順位:
+ * ① 単体作品（出演女優1人）
+ * ② 画像あり（候補構築時に除外済み）
+ * ③ 人気作品（カタログ順位）
+ * ④ 新しい作品（発売日）
+ * ⑤ 複数人作品
+ */
+function compareRepresentativeCandidates(
+  a: WorkCandidate,
+  b: WorkCandidate,
+): number {
+  if (a.isSolo !== b.isSolo) {
+    return a.isSolo ? -1 : 1;
   }
-
-  const hasPreferred = filtered.some(
-    (candidate) => candidate.tier !== REPRESENTATIVE_IMAGE_TIER.avoided,
-  );
-  if (hasPreferred) {
-    filtered = filtered.filter(
-      (candidate) => candidate.tier !== REPRESENTATIVE_IMAGE_TIER.avoided,
-    );
+  if (a.catalogIndex !== b.catalogIndex) {
+    return a.catalogIndex - b.catalogIndex;
   }
-
-  return [...filtered].sort(compareCandidates);
+  if (a.releaseTimestamp !== b.releaseTimestamp) {
+    return b.releaseTimestamp - a.releaseTimestamp;
+  }
+  return a.contentId.localeCompare(b.contentId, "ja");
 }
 
-type ActressImageSelectionInput = {
-  name: string;
-  workCount: number;
-};
+function selectRepresentativeImage(
+  candidates: WorkCandidate[],
+): string | undefined {
+  if (candidates.length === 0) return undefined;
+
+  const sorted = [...candidates].sort(compareRepresentativeCandidates);
+  const soloCandidate = sorted.find((candidate) => candidate.isSolo);
+  if (soloCandidate) {
+    return soloCandidate.imageUrl;
+  }
+
+  return sorted[0]?.imageUrl;
+}
 
 /**
  * 女優ごとの代表画像を選定する。
- * 人気順（作品数）で先に割り当て、同じ画像の重複を避ける。
+ * 女優単位で独立して選び、単体作品の画像を最優先する。
  */
 export function buildActressRepresentativeImageMap(
   items: DmmItem[],
@@ -206,26 +113,14 @@ export function buildActressRepresentativeImageMap(
     }
   }
 
-  const usedImageUrls = new Set<string>();
   const imageByActress = new Map<string, string>();
 
-  const orderedActresses = [...actresses].sort(
-    (a, b) =>
-      b.workCount - a.workCount || a.name.localeCompare(b.name, "ja"),
-  );
-
-  for (const actress of orderedActresses) {
-    const candidates = filterCandidatesForActress(
+  for (const actress of actresses) {
+    const imageUrl = selectRepresentativeImage(
       candidatesByActress.get(actress.name) ?? [],
     );
-
-    const selected = candidates.find(
-      (candidate) => !usedImageUrls.has(candidate.imageUrl),
-    );
-
-    if (selected) {
-      imageByActress.set(actress.name, selected.imageUrl);
-      usedImageUrls.add(selected.imageUrl);
+    if (imageUrl) {
+      imageByActress.set(actress.name, imageUrl);
     }
   }
 

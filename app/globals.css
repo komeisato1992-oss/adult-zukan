@@ -23,12 +23,61 @@
   --font-sans: var(--font-noto-sans-jp);
 }
 
+@layer base {
+  img {
+    max-width: 100%;
+    height: auto;
+  }
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-noto-sans-jp), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+.work-image-frame {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.work-image-frame--landscape {
+  aspect-ratio: 3 / 2;
+}
+
+.work-image-frame--portrait {
+  aspect-ratio: 2 / 3;
+}
+
+.work-image-frame--video {
+  aspect-ratio: 16 / 9;
+}
+
+.work-image-frame--hero {
+  aspect-ratio: 16 / 7;
+  max-height: 520px;
+}
+
+.catalog-work-image {
+  object-fit: cover;
+  object-position: right center;
+}
+
+.portrait-image-frame {
+  position: relative;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  aspect-ratio: 3 / 4;
+}
+
+.portrait-image {
+  object-fit: cover;
+  object-position: center;
 }
 
 .sr-only {

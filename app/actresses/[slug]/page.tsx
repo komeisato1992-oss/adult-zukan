@@ -5,13 +5,13 @@ import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { DmmCatalogWorksGrid } from "@/components/works/DmmCatalogWorksGrid";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { getCatalogActressStaticParams } from "@/lib/dmm/catalog-entities";
 import {
-  getCatalogActressBySlug,
-  getCatalogActressStaticParams,
-  getCatalogItems,
-  getCatalogWorksByActressSlug,
-} from "@/lib/dmm/catalog-entities";
+  getActressSummaryBySlug,
+  getActressWorksBySlug,
+} from "@/lib/catalog";
 import { getActressDetailPath } from "@/lib/actresses/slug";
+import { parsePageParam } from "@/lib/pagination";
 import { siteConfig } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import {
@@ -25,6 +25,7 @@ export const revalidate = 86400;
 
 type ActressDetailPageProps = {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ page?: string }>;
 };
 
 export async function generateStaticParams() {
@@ -33,8 +34,7 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: ActressDetailPageProps) {
   const { slug } = await params;
-  const items = await getCatalogItems();
-  const actress = getCatalogActressBySlug(items, slug);
+  const actress = await getActressSummaryBySlug(slug);
 
   if (!actress) {
     return createPageMetadata({
@@ -54,21 +54,23 @@ export async function generateMetadata({ params }: ActressDetailPageProps) {
 
 export default async function ActressDetailPage({
   params,
+  searchParams,
 }: ActressDetailPageProps) {
   const { slug } = await params;
-  const items = await getCatalogItems();
-  const actress = getCatalogActressBySlug(items, slug);
+  const { page } = await searchParams;
+  const actress = await getActressSummaryBySlug(slug);
 
   if (!actress) {
     notFound();
   }
 
-  const works = getCatalogWorksByActressSlug(items, slug);
+  const works = await getActressWorksBySlug(slug);
 
   if (works.length === 0) {
     notFound();
   }
 
+  const currentPage = parsePageParam(page);
   const actressUrl = `${siteConfig.url}${getActressDetailPath(actress.name)}`;
 
   return (
@@ -87,7 +89,7 @@ export default async function ActressDetailPage({
           ),
           createItemListJsonLd(
             `${actress.name}の出演作品`,
-            works.map((work) => ({
+            works.slice(0, 24).map((work) => ({
               name: work.title,
               url: `${siteConfig.url}/works/${work.content_id}`,
             })),
@@ -112,6 +114,7 @@ export default async function ActressDetailPage({
                 fill
                 className="object-cover object-center"
                 sizes="144px"
+                loading="lazy"
                 unoptimized
               />
             ) : null}
@@ -126,7 +129,11 @@ export default async function ActressDetailPage({
 
         <section aria-labelledby="actress-works" className="mb-10">
           <SectionHeader title="出演作品一覧" id="actress-works" />
-          <DmmCatalogWorksGrid items={works} />
+          <DmmCatalogWorksGrid
+            items={works}
+            currentPage={currentPage}
+            paginationBasePath={`/actresses/${slug}`}
+          />
         </section>
       </PageLayout>
     </>

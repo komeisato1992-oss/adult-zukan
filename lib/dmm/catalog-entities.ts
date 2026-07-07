@@ -7,7 +7,6 @@ import {
 } from "@/lib/dmm/display";
 import { isValidDmmListItem } from "@/lib/dmm/filter";
 import { getDmmFanzaUrl } from "@/lib/dmm/fanza-url";
-import { getDmmStaticWorks } from "@/lib/dmm/static-works";
 import type { DmmItem } from "@/lib/dmm/types";
 import { encodeActressSlug, decodeActressSlug, matchesActressSlug } from "@/lib/actresses/slug";
 import { slugify } from "@/lib/utils";
@@ -42,8 +41,8 @@ export function filterValidCatalogItems(items: DmmItem[]): DmmItem[] {
 }
 
 export async function getCatalogItems(): Promise<DmmItem[]> {
-  const items = await getDmmStaticWorks();
-  return filterValidCatalogItems(items);
+  const { getCatalogWorks } = await import("@/lib/catalog");
+  return getCatalogWorks();
 }
 
 function countBySlug(

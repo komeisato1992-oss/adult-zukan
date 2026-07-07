@@ -1,18 +1,23 @@
 import "server-only";
 
+import { DMM_API_AFFILIATE_ID_FALLBACK } from "@/lib/dmm/constants";
 import type { DmmFetchOptions, DmmItemListResponse } from "@/lib/dmm/types";
 
 const DMM_API_BASE = "https://api.dmm.com/affiliate/v3/ItemList";
 
+function getDmmAffiliateId(): string | undefined {
+  return process.env.DMM_AFFILIATE_ID ?? DMM_API_AFFILIATE_ID_FALLBACK;
+}
+
 export function isDmmConfigured(): boolean {
-  return Boolean(process.env.DMM_API_ID && process.env.DMM_AFFILIATE_ID);
+  return Boolean(process.env.DMM_API_ID && getDmmAffiliateId());
 }
 
 export async function fetchDmmItemList(
   options: DmmFetchOptions = {},
 ): Promise<DmmItemListResponse> {
   const apiId = process.env.DMM_API_ID;
-  const affiliateId = process.env.DMM_AFFILIATE_ID;
+  const affiliateId = getDmmAffiliateId();
 
   if (!apiId || !affiliateId) {
     throw new Error("DMM API credentials are not configured");

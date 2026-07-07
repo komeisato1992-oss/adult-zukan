@@ -5,12 +5,9 @@ import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { DmmCatalogWorksGrid } from "@/components/works/DmmCatalogWorksGrid";
 import { JsonLd } from "@/components/seo/JsonLd";
-import {
-  getCatalogItems,
-  getCatalogLabelStaticParams,
-  getCatalogLabels,
-  getCatalogWorksByLabelSlug,
-} from "@/lib/dmm/catalog-entities";
+import { getCatalogLabelStaticParams } from "@/lib/dmm/catalog-entities";
+import { getLabelSummaryBySlug, getLabelWorksBySlug } from "@/lib/catalog";
+import { parsePageParam } from "@/lib/pagination";
 import { siteConfig } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import {
@@ -22,6 +19,7 @@ export const revalidate = 86400;
 
 type LabelDetailPageProps = {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ page?: string }>;
 };
 
 export async function generateStaticParams() {
@@ -30,8 +28,7 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: LabelDetailPageProps) {
   const { slug } = await params;
-  const items = await getCatalogItems();
-  const label = getCatalogLabels(items).find((entry) => entry.slug === slug);
+  const label = await getLabelSummaryBySlug(slug);
 
   if (!label) {
     return createPageMetadata({
@@ -49,16 +46,20 @@ export async function generateMetadata({ params }: LabelDetailPageProps) {
   });
 }
 
-export default async function LabelDetailPage({ params }: LabelDetailPageProps) {
+export default async function LabelDetailPage({
+  params,
+  searchParams,
+}: LabelDetailPageProps) {
   const { slug } = await params;
-  const items = await getCatalogItems();
-  const label = getCatalogLabels(items).find((entry) => entry.slug === slug);
+  const { page } = await searchParams;
+  const label = await getLabelSummaryBySlug(slug);
 
   if (!label) {
     notFound();
   }
 
-  const works = getCatalogWorksByLabelSlug(items, slug);
+  const works = await getLabelWorksBySlug(slug);
+  const currentPage = parsePageParam(page);
 
   return (
     <>
@@ -71,7 +72,7 @@ export default async function LabelDetailPage({ params }: LabelDetailPageProps) 
           ]),
           createItemListJsonLd(
             `${label.name}レーベルの作品一覧`,
-            works.map((work) => ({
+            works.slice(0, 24).map((work) => ({
               name: work.title,
               url: `${siteConfig.url}/works/${work.content_id}`,
             })),
@@ -106,7 +107,11 @@ export default async function LabelDetailPage({ params }: LabelDetailPageProps) 
 
         <section aria-labelledby="label-all">
           <SectionHeader title="全作品" id="label-all" />
-          <DmmCatalogWorksGrid items={works} />
+          <DmmCatalogWorksGrid
+            items={works}
+            currentPage={currentPage}
+            paginationBasePath={`/labels/${slug}`}
+          />
         </section>
       </PageLayout>
     </>

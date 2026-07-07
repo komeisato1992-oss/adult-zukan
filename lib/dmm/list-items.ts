@@ -145,10 +145,10 @@ export async function getWorksPageItems(params: {
   filter?: string;
   sort?: string;
 }): Promise<DmmListItemsResult> {
-  const { getDmmStaticWorks } = await import("@/lib/dmm/static-works");
+  const { getCatalogWorks } = await import("@/lib/catalog");
   const { filterCatalogWorks } = await import("@/lib/dmm/home-sections");
 
-  const fallback = await getDmmStaticWorks();
+  const fallback = await getCatalogWorks();
 
   if (fallback.length > 0) {
     if (!hasWorksListFilters(params)) {
@@ -158,12 +158,7 @@ export async function getWorksPageItems(params: {
     const items = filterCatalogWorks(fallback, {
       q: params.q,
       sale: isSaleFilter(params),
-      sort:
-        params.sort === "new"
-          ? "new"
-          : params.sort === "rank"
-            ? "rank"
-            : undefined,
+      sort: params.sort,
     });
 
     return { success: true, items };
@@ -189,7 +184,12 @@ export async function getWorksPageItems(params: {
 
   const items = await getDmmListItemsWithFallback({
     keyword: params.q?.trim() || undefined,
-    sort: params.sort === "rank" ? "rank" : params.sort === "new" ? "date" : undefined,
+    sort:
+      params.sort === "new"
+        ? "date"
+        : params.sort === "rank" || params.sort === "popular"
+          ? "rank"
+          : undefined,
     saleOnly: isSaleFilter(params),
   });
 

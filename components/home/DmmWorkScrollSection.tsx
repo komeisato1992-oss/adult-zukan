@@ -1,6 +1,7 @@
 import { DmmWorkCard } from "@/components/works/DmmWorkCard";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import type { DmmItem } from "@/lib/dmm/types";
+import { HOME_SECTION_DISPLAY_LIMIT } from "@/lib/pagination";
 import { filterItemsWithValidImage } from "@/lib/works";
 
 type DmmWorkScrollSectionProps = {
@@ -16,7 +17,10 @@ export function DmmWorkScrollSection({
   href,
   id,
 }: DmmWorkScrollSectionProps) {
-  const visibleItems = filterItemsWithValidImage(items);
+  const visibleItems = filterItemsWithValidImage(items).slice(
+    0,
+    HOME_SECTION_DISPLAY_LIMIT,
+  );
 
   if (visibleItems.length === 0) return null;
 

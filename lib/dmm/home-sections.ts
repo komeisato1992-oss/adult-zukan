@@ -5,13 +5,13 @@ import {
   getDmmItemSeriesName,
 } from "@/lib/dmm/display";
 import { isValidDmmListItem } from "@/lib/dmm/filter";
-import { getDmmStaticWorks } from "@/lib/dmm/static-works";
 import type { DmmItem } from "@/lib/dmm/types";
 import { encodeActressSlug } from "@/lib/actresses/slug";
 import { parseDmmPrice, slugify } from "@/lib/utils";
+import { parseWorkSortParam, sortWorks } from "@/lib/works/sort";
 import { getValidImageUrl, hasValidImage, isValidImageUrl } from "@/lib/works";
 
-export const HOME_SECTION_LIMIT = 10;
+export const HOME_SECTION_LIMIT = 8;
 
 export type RankedNameCount = {
   name: string;
@@ -46,7 +46,8 @@ function filterDisplayableItems(items: DmmItem[]): DmmItem[] {
 
 /** TOP・作品一覧で共有するカタログ作品リスト */
 export async function getSharedCatalogWorks(): Promise<DmmItem[]> {
-  return getDmmStaticWorks();
+  const { getCatalogWorks } = await import("@/lib/catalog");
+  return getCatalogWorks();
 }
 
 export function getHeroWorks(items: DmmItem[], limit = 1): DmmItem[] {
@@ -221,7 +222,7 @@ export function getRankedActresses(
 
 export function filterCatalogWorks(
   items: DmmItem[],
-  params: { q?: string; sale?: boolean; sort?: "new" | "rank" },
+  params: { q?: string; sale?: boolean; sort?: string },
 ): DmmItem[] {
   let filtered = filterDisplayableItems(items);
 
@@ -241,13 +242,5 @@ export function filterCatalogWorks(
     filtered = filtered.filter(isDmmItemOnSale);
   }
 
-  if (params.sort === "new") {
-    filtered = [...filtered].sort(
-      (a, b) => parseReleaseTimestamp(b) - parseReleaseTimestamp(a),
-    );
-  }
-
-  // sort=rank または未指定時はカタログ（ランキング）順を維持
-
-  return filtered;
+  return sortWorks(filtered, parseWorkSortParam(params.sort));
 }

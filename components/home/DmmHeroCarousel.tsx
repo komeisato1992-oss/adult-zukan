@@ -73,7 +73,7 @@ export function DmmHeroCarousel({ items }: DmmHeroCarouselProps) {
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
     >
-      <div className="relative mx-auto aspect-[16/7] max-h-[520px] w-full max-w-[1400px] sm:aspect-[21/8]">
+      <div className="work-image-frame work-image-frame--hero relative mx-auto aspect-[16/7] max-h-[520px] w-full max-w-[1400px] overflow-hidden sm:aspect-[21/8]">
         {visibleItems.map((slide, index) => {
           const slideImage = getDmmListItemImageUrl(slide);
           if (!slideImage) return null;
@@ -92,7 +92,12 @@ export function DmmHeroCarousel({ items }: DmmHeroCarouselProps) {
                 src={slideImage}
                 alt={slide.title}
                 fill
-                className="object-cover object-center"
+                className="catalog-work-image object-cover object-[right_center]"
+                style={{
+                  objectFit: "cover",
+                  objectPosition: "right center",
+                  maxWidth: "100%",
+                }}
                 sizes="100vw"
                 priority={index === 0}
                 unoptimized

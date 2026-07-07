@@ -19,7 +19,7 @@ export async function GET(_request: Request, context: RouteContext) {
       {
         success: false,
         message: "DMM API credentials are not configured",
-        error: "DMM_API_ID and DMM_AFFILIATE_ID must be set in .env.local",
+        error: "DMM_API_ID must be set in .env.local (DMM_AFFILIATE_ID is optional; defaults to zukanjp-990 for API)",
       },
       { status: 500 },
     );

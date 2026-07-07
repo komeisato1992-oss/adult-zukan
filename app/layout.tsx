@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import "./globals.css";
 import { Noto_Sans_JP } from "next/font/google";
 import { GoogleAnalytics } from "@next/third-parties/google";
 import { AgeGateProvider } from "@/components/age-gate/AgeGateProvider";
@@ -10,7 +11,6 @@ import {
   createOrganizationJsonLd,
   createWebsiteJsonLd,
 } from "@/lib/seo/json-ld";
-import "./globals.css";
 
 const notoSansJP = Noto_Sans_JP({
   subsets: ["latin"],

@@ -1,5 +1,5 @@
-import Image from "next/image";
 import Link from "next/link";
+import { CatalogWorkImage } from "@/components/ui/CatalogWorkImage";
 import {
   getDmmItemMakerName,
   getDmmListItemImageUrl,
@@ -49,18 +49,11 @@ export function DmmWorkCard({
 
   return (
     <article
-      className={`group overflow-hidden rounded-lg border border-border/80 bg-white shadow-sm transition-all duration-300 ease-out hover:-translate-y-1.5 hover:border-accent/20 hover:shadow-xl ${className}`}
+      className={`group max-w-full overflow-hidden rounded-lg border border-border/80 bg-white shadow-sm transition-all duration-300 ease-out hover:-translate-y-1.5 hover:border-accent/20 hover:shadow-xl ${className}`}
     >
-      <Link href={`/works/${item.content_id}`} className="block">
-        <div className="relative aspect-[2/3] w-full overflow-hidden bg-surface">
-          <Image
-            src={imageUrl}
-            alt={item.title}
-            fill
-            className="object-cover object-center transition-transform group-hover:scale-[1.02]"
-            sizes="(max-width: 640px) 50vw, 25vw"
-            unoptimized
-          />
+      <Link href={`/works/${item.content_id}`} prefetch className="block max-w-full">
+        <div className="relative">
+          <CatalogWorkImage src={imageUrl} alt={item.title} variant="portrait" />
           {isOnSale && (
             <span className="absolute left-2.5 top-2.5 z-10 rounded-sm bg-accent px-2 py-0.5 text-xs font-bold text-white shadow-sm">
               SALE
@@ -77,13 +70,9 @@ export function DmmWorkCard({
           {makerName && <p className="mt-1 text-xs text-muted">{makerName}</p>}
           {current && (
             <div className="mt-2.5 flex items-baseline gap-2">
-              <span className={`font-bold text-accent ${priceSize}`}>
-                {current}
-              </span>
+              <span className={`font-bold text-accent ${priceSize}`}>{current}</span>
               {original && (
-                <span className="text-xs text-muted line-through">
-                  {original}
-                </span>
+                <span className="text-xs text-muted line-through">{original}</span>
               )}
             </div>
           )}

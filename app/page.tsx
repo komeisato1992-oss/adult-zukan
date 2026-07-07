@@ -5,6 +5,7 @@ import { DmmActressCarousel } from "@/components/home/DmmActressCarousel";
 import { DmmMakerRankingSection } from "@/components/home/DmmMakerRankingSection";
 import { DmmSeriesRankingSection } from "@/components/home/DmmSeriesRankingSection";
 import { DmmPopularGenreSection } from "@/components/home/DmmPopularGenreSection";
+import { WorksDiscoverSection } from "@/components/home/WorksDiscoverSection";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { UpdatedDate } from "@/components/ui/UpdatedDate";
 import { siteConfig } from "@/lib/site-config";
@@ -66,11 +67,13 @@ export default async function HomePage() {
       <PageLayout>
         <UpdatedDate date={updatedDate} className="mb-6 text-xs text-muted" />
 
+        <WorksDiscoverSection />
+
         <DmmWorkScrollSection
           id="popular-works"
           title="人気作品"
           items={popularWorks}
-          href="/works"
+          href="/works?sort=popular"
         />
 
         <DmmWorkScrollSection

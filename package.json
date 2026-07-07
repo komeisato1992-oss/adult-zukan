@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "prebuild": "node scripts/fetch-catalog.mjs || true",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "fetch-catalog": "node scripts/fetch-catalog.mjs"
   },
   "dependencies": {
     "@next/third-parties": "^16.2.10",

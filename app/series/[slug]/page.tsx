@@ -5,12 +5,9 @@ import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { DmmCatalogWorksGrid } from "@/components/works/DmmCatalogWorksGrid";
 import { JsonLd } from "@/components/seo/JsonLd";
-import {
-  getCatalogItems,
-  getCatalogSeries,
-  getCatalogSeriesStaticParams,
-  getCatalogWorksBySeriesSlug,
-} from "@/lib/dmm/catalog-entities";
+import { getCatalogSeriesStaticParams } from "@/lib/dmm/catalog-entities";
+import { getSeriesSummaryBySlug, getSeriesWorksBySlug } from "@/lib/catalog";
+import { parsePageParam } from "@/lib/pagination";
 import { siteConfig } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import {
@@ -22,6 +19,7 @@ export const revalidate = 86400;
 
 type SeriesDetailPageProps = {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ page?: string }>;
 };
 
 export async function generateStaticParams() {
@@ -30,8 +28,7 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: SeriesDetailPageProps) {
   const { slug } = await params;
-  const items = await getCatalogItems();
-  const series = getCatalogSeries(items).find((entry) => entry.slug === slug);
+  const series = await getSeriesSummaryBySlug(slug);
 
   if (!series) {
     return createPageMetadata({
@@ -49,16 +46,20 @@ export async function generateMetadata({ params }: SeriesDetailPageProps) {
   });
 }
 
-export default async function SeriesDetailPage({ params }: SeriesDetailPageProps) {
+export default async function SeriesDetailPage({
+  params,
+  searchParams,
+}: SeriesDetailPageProps) {
   const { slug } = await params;
-  const items = await getCatalogItems();
-  const series = getCatalogSeries(items).find((entry) => entry.slug === slug);
+  const { page } = await searchParams;
+  const series = await getSeriesSummaryBySlug(slug);
 
   if (!series) {
     notFound();
   }
 
-  const works = getCatalogWorksBySeriesSlug(items, slug);
+  const works = await getSeriesWorksBySlug(slug);
+  const currentPage = parsePageParam(page);
 
   return (
     <>
@@ -71,7 +72,7 @@ export default async function SeriesDetailPage({ params }: SeriesDetailPageProps
           ]),
           createItemListJsonLd(
             `${series.name}シリーズ`,
-            works.map((work) => ({
+            works.slice(0, 24).map((work) => ({
               name: work.title,
               url: `${siteConfig.url}/works/${work.content_id}`,
             })),
@@ -106,7 +107,11 @@ export default async function SeriesDetailPage({ params }: SeriesDetailPageProps
 
         <section aria-labelledby="series-all" className="mb-10">
           <SectionHeader title="全作品" id="series-all" />
-          <DmmCatalogWorksGrid items={works} />
+          <DmmCatalogWorksGrid
+            items={works}
+            currentPage={currentPage}
+            paginationBasePath={`/series/${slug}`}
+          />
         </section>
 
         {series.makerName && series.makerSlug && (

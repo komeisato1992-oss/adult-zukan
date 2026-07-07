@@ -6,11 +6,13 @@ import { SectionHeader } from "@/components/ui/SectionHeader";
 import { DmmCatalogWorksGrid } from "@/components/works/DmmCatalogWorksGrid";
 import { JsonLd } from "@/components/seo/JsonLd";
 import {
-  getCatalogItems,
   getCatalogMakerStaticParams,
-  getCatalogMakers,
-  getCatalogWorksByMakerSlug,
 } from "@/lib/dmm/catalog-entities";
+import {
+  getMakerSummaryBySlug,
+  getMakerWorksBySlug,
+} from "@/lib/catalog";
+import { parsePageParam } from "@/lib/pagination";
 import { siteConfig } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import {
@@ -22,6 +24,7 @@ export const revalidate = 86400;
 
 type MakerDetailPageProps = {
   params: Promise<{ slug: string }>;
+  searchParams: Promise<{ page?: string }>;
 };
 
 export async function generateStaticParams() {
@@ -30,8 +33,7 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: MakerDetailPageProps) {
   const { slug } = await params;
-  const items = await getCatalogItems();
-  const maker = getCatalogMakers(items).find((entry) => entry.slug === slug);
+  const maker = await getMakerSummaryBySlug(slug);
 
   if (!maker) {
     return createPageMetadata({
@@ -49,16 +51,20 @@ export async function generateMetadata({ params }: MakerDetailPageProps) {
   });
 }
 
-export default async function MakerDetailPage({ params }: MakerDetailPageProps) {
+export default async function MakerDetailPage({
+  params,
+  searchParams,
+}: MakerDetailPageProps) {
   const { slug } = await params;
-  const items = await getCatalogItems();
-  const maker = getCatalogMakers(items).find((entry) => entry.slug === slug);
+  const { page } = await searchParams;
+  const maker = await getMakerSummaryBySlug(slug);
 
   if (!maker) {
     notFound();
   }
 
-  const works = getCatalogWorksByMakerSlug(items, slug);
+  const works = await getMakerWorksBySlug(slug);
+  const currentPage = parsePageParam(page);
 
   return (
     <>
@@ -71,7 +77,7 @@ export default async function MakerDetailPage({ params }: MakerDetailPageProps) 
           ]),
           createItemListJsonLd(
             `${maker.name}の作品一覧`,
-            works.map((work) => ({
+            works.slice(0, 24).map((work) => ({
               name: work.title,
               url: `${siteConfig.url}/works/${work.content_id}`,
             })),
@@ -96,7 +102,11 @@ export default async function MakerDetailPage({ params }: MakerDetailPageProps) 
         <section aria-labelledby="maker-all">
           <SectionHeader title="全作品" id="maker-all" />
           {works.length > 0 ? (
-            <DmmCatalogWorksGrid items={works} />
+            <DmmCatalogWorksGrid
+              items={works}
+              currentPage={currentPage}
+              paginationBasePath={`/makers/${slug}`}
+            />
           ) : (
             <p className="rounded border border-border bg-surface p-8 text-center text-sm text-muted">
               現在、このメーカーの作品はありません。

@@ -1,12 +1,12 @@
 import { legalLinks } from "@/lib/site-config";
 import {
-  getCatalogActresses,
-  getCatalogGenres,
-  getCatalogItems,
-  getCatalogLabels,
-  getCatalogMakers,
-  getCatalogSeries,
-} from "@/lib/dmm/catalog-entities";
+  getActressSummaries,
+  getCatalogWorks,
+  getGenreSummaries,
+  getLabelSummaries,
+  getMakerSummaries,
+  getSeriesSummaries,
+} from "@/lib/catalog";
 import {
   buildSitemapUrl,
   dedupeUrls,
@@ -18,12 +18,15 @@ function isIncludedPath(path: string): boolean {
 }
 
 export async function getSitemapUrls(): Promise<string[]> {
-  const items = await getCatalogItems();
-  const actresses = getCatalogActresses(items);
-  const makers = getCatalogMakers(items);
-  const series = getCatalogSeries(items);
-  const labels = getCatalogLabels(items);
-  const genres = getCatalogGenres(items);
+  const [items, actresses, makers, series, labels, genres] =
+    await Promise.all([
+      getCatalogWorks(),
+      getActressSummaries(),
+      getMakerSummaries(),
+      getSeriesSummaries(),
+      getLabelSummaries(),
+      getGenreSummaries(),
+    ]);
 
   const staticPaths = [
     "",

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { unstable_cache } from "next/cache";
+import { cache } from "react";
 import { analyzeCatalogItems } from "@/lib/dmm/catalog-filter-stats";
 import { logCatalogBuildStats } from "@/lib/dmm/catalog-build-log";
 import {
@@ -42,10 +42,14 @@ async function fetchDmmStaticWorksUncached(): Promise<DmmItem[]> {
 
     if (items.length > 0) {
       writeCatalogSnapshot(items);
+      const validItems = filterValidCatalogItems(
+        items.slice(0, DMM_STATIC_WORKS_COUNT),
+      );
+      stats.validCount = validItems.length;
       logCatalogBuildStats(stats, {
-        worksListCount: items.length,
+        worksListCount: validItems.length,
       });
-      return items;
+      return validItems;
     }
   }
 
@@ -73,11 +77,8 @@ async function fetchDmmStaticWorksUncached(): Promise<DmmItem[]> {
   return [];
 }
 
-export const getDmmStaticWorks = unstable_cache(
-  fetchDmmStaticWorksUncached,
-  ["dmm-static-works-v6", "1000", "rank"],
-  { revalidate: DMM_WORKS_REVALIDATE },
-);
+/** 834件超の配列は unstable_cache 2MB 制限を超えるため React cache のみ使用 */
+export const getDmmStaticWorks = cache(fetchDmmStaticWorksUncached);
 
 export async function getDmmStaticWorkContentIds(): Promise<string[]> {
   const items = await getDmmStaticWorks();

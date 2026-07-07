@@ -70,12 +70,20 @@ function getTotalViewCount(item: DmmItem): number | null {
 export function parseWorkSortParam(value?: string | null): WorkSortKey {
   switch (value) {
     case "new":
+      return "new";
     case "price-desc":
+    case "price_desc":
+      return "price-desc";
     case "price-asc":
+    case "price_asc":
+      return "price-asc";
     case "today-views":
+      return "today-views";
     case "total-views":
+      return "total-views";
     case "duration-desc":
-      return value;
+    case "duration_desc":
+      return "duration-desc";
     case "rank":
     case "popular":
     default:

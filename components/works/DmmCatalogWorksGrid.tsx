@@ -6,7 +6,7 @@ import {
   paginateItems,
   parsePageParam,
 } from "@/lib/pagination";
-import { filterItemsWithValidImage } from "@/lib/works";
+import { filterDisplayableItems } from "@/lib/dmm/filter";
 
 type DmmCatalogWorksGridProps = {
   items: DmmItem[];
@@ -25,12 +25,12 @@ export function DmmCatalogWorksGrid({
   paginationBasePath,
   paginationQuery,
 }: DmmCatalogWorksGridProps) {
-  const validItems = filterItemsWithValidImage(items);
+  const displayableItems = filterDisplayableItems(items);
   const shouldPaginate = Boolean(paginationBasePath);
   const pagination = shouldPaginate
-    ? paginateItems(validItems, parsePageParam(currentPage), pageSize)
+    ? paginateItems(displayableItems, parsePageParam(currentPage), pageSize)
     : null;
-  const displayItems = pagination?.items ?? validItems;
+  const displayItems = pagination?.items ?? displayableItems;
 
   if (displayItems.length === 0) {
     return (

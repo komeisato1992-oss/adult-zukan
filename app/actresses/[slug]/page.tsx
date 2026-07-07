@@ -14,11 +14,15 @@ import { getActressDetailPath } from "@/lib/actresses/slug";
 import { parsePageParam } from "@/lib/pagination";
 import { siteConfig } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/seo/metadata";
+import { createListDescription } from "@/lib/seo/descriptions";
+import { createActressTitle } from "@/lib/seo/titles";
 import {
   createBreadcrumbJsonLd,
-  createItemListJsonLd,
+  createCollectionPageJsonLd,
   createPersonJsonLd,
 } from "@/lib/seo/json-ld";
+import { getActressInternalLinks } from "@/lib/dmm/internal-links";
+import { DmmRelatedWorks } from "@/components/works/DmmRelatedWorks";
 import { isValidImageUrl } from "@/lib/works";
 
 export const revalidate = 86400;
@@ -46,9 +50,15 @@ export async function generateMetadata({ params }: ActressDetailPageProps) {
   }
 
   return createPageMetadata({
-    title: `${actress.name}の出演作品一覧`,
-    description: `${actress.name}の出演作品を一覧で掲載。品番、メーカー、レーベル、価格、サンプル画像を確認できます。`,
+    title: createActressTitle(actress.name),
+    description: createListDescription({
+      name: actress.name,
+      count: actress.workCount,
+      context: "の出演作品一覧",
+    }),
     path: getActressDetailPath(actress.name),
+    absoluteTitle: true,
+    ogImage: actress.imageUrl,
   });
 }
 
@@ -65,6 +75,7 @@ export default async function ActressDetailPage({
   }
 
   const works = await getActressWorksBySlug(slug);
+  const { popularWorks, sameMakerWorks } = await getActressInternalLinks(slug);
 
   if (works.length === 0) {
     notFound();
@@ -87,12 +98,10 @@ export default async function ActressDetailPage({
             `${actress.name}の出演作品一覧`,
             actressUrl,
           ),
-          createItemListJsonLd(
-            `${actress.name}の出演作品`,
-            works.slice(0, 24).map((work) => ({
-              name: work.title,
-              url: `${siteConfig.url}/works/${work.content_id}`,
-            })),
+          createCollectionPageJsonLd(
+            `${actress.name}の出演作品一覧`,
+            `${actress.name}の出演作品を一覧掲載`,
+            actressUrl,
           ),
         ]}
       />
@@ -106,13 +115,13 @@ export default async function ActressDetailPage({
         />
 
         <header className="mt-6 mb-8 flex flex-col items-center gap-6 sm:flex-row sm:items-start">
-          <div className="relative h-40 w-32 shrink-0 overflow-hidden rounded-lg border border-border sm:h-48 sm:w-36">
+          <div className="relative h-40 w-32 shrink-0 overflow-hidden rounded-lg border border-border bg-surface sm:h-48 sm:w-36">
             {isValidImageUrl(actress.imageUrl) && actress.imageUrl ? (
               <Image
                 src={actress.imageUrl}
                 alt={actress.name}
                 fill
-                className="object-cover object-center"
+                className="object-cover object-[right_center]"
                 sizes="144px"
                 loading="lazy"
                 unoptimized
@@ -128,13 +137,29 @@ export default async function ActressDetailPage({
         </header>
 
         <section aria-labelledby="actress-works" className="mb-10">
-          <SectionHeader title="出演作品一覧" id="actress-works" />
+          <SectionHeader title="出演作品" id="actress-works" />
           <DmmCatalogWorksGrid
             items={works}
             currentPage={currentPage}
             paginationBasePath={`/actresses/${slug}`}
           />
         </section>
+
+        {popularWorks.length > 0 ? (
+          <DmmRelatedWorks
+            items={popularWorks}
+            title="人気作品"
+            sectionId="actress-popular"
+          />
+        ) : null}
+
+        {sameMakerWorks.length > 0 ? (
+          <DmmRelatedWorks
+            items={sameMakerWorks}
+            title="同メーカー作品"
+            sectionId="actress-same-maker"
+          />
+        ) : null}
       </PageLayout>
     </>
   );

@@ -7,7 +7,7 @@ import { WorksSortNav } from "@/components/works/WorksSortNav";
 import { PageIntro } from "@/components/ui/PageIntro";
 import { getCatalogWorks } from "@/lib/catalog";
 import { getWorksPageItems } from "@/lib/dmm/list-items";
-import { filterValidListItems } from "@/lib/dmm/filter";
+import { filterDisplayableItems } from "@/lib/dmm/filter";
 import {
   paginateItems,
   parsePageParam,
@@ -15,9 +15,11 @@ import {
 } from "@/lib/pagination";
 import { siteConfig, pageIntros } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/seo/metadata";
+import { truncateDescription } from "@/lib/seo/descriptions";
+import { seoTitles } from "@/lib/seo/titles";
 import {
   createBreadcrumbJsonLd,
-  createItemListJsonLd,
+  createCollectionPageJsonLd,
 } from "@/lib/seo/json-ld";
 import {
   DEFAULT_WORK_SORT,
@@ -39,7 +41,11 @@ type WorksPageProps = {
 };
 
 function isSaleFilter(params: { sale?: string; filter?: string }): boolean {
-  return params.sale === "1" || params.filter === "sale";
+  return (
+    params.sale === "1" ||
+    params.sale === "true" ||
+    params.filter === "sale"
+  );
 }
 
 function getWorksQueryParams(params: {
@@ -64,34 +70,41 @@ export async function generateMetadata({ searchParams }: WorksPageProps) {
   if (q) {
     return createPageMetadata({
       title: `「${q}」の検索結果`,
-      description: `「${q}」に一致するアダルト作品の検索結果一覧。${siteConfig.name}で作品情報を確認できます。`,
+      description: truncateDescription(
+        `「${q}」に一致するアダルト作品の検索結果一覧。`,
+      ),
       path: `/works?q=${encodeURIComponent(q)}`,
       noIndex: true,
+      absoluteTitle: true,
     });
   }
 
   if (isSaleFilter(params)) {
     return createPageMetadata({
-      title: "セール作品一覧",
-      description:
+      title: "セール作品一覧｜人気・新作・セール作品",
+      description: truncateDescription(
         "セール中のアダルト作品一覧。お得な価格の作品をチェックできます。",
+      ),
       path: "/works?filter=sale",
+      absoluteTitle: true,
     });
   }
 
   const sortTitle = getWorksSortPageTitle(parseWorkSortParam(params.sort));
   if (sortTitle) {
     return createPageMetadata({
-      title: sortTitle,
-      description: pageIntros.works,
+      title: `${sortTitle}｜AV作品一覧`,
+      description: truncateDescription(pageIntros.works),
       path: `/works?sort=${parseWorkSortParam(params.sort)}`,
+      absoluteTitle: true,
     });
   }
 
   return createPageMetadata({
-    title: "作品一覧",
-    description: pageIntros.works,
+    title: seoTitles.works,
+    description: truncateDescription(pageIntros.works),
     path: "/works",
+    absoluteTitle: true,
   });
 }
 
@@ -119,7 +132,7 @@ export default async function WorksPage({ searchParams }: WorksPageProps) {
     getCatalogWorks(),
   ]);
   const sortOptions = getWorksSortOptions(catalog);
-  const allItems = result.success ? filterValidListItems(result.items) : [];
+  const allItems = result.success ? filterDisplayableItems(result.items) : [];
   const pagination = paginateItems(allItems, currentPage, WORKS_LIST_PAGE_SIZE);
   const items = pagination.items;
 
@@ -132,12 +145,10 @@ export default async function WorksPage({ searchParams }: WorksPageProps) {
               { name: "トップ", path: "/" },
               { name: pageTitle, path: "/works" },
             ]),
-            createItemListJsonLd(
+            createCollectionPageJsonLd(
               pageTitle,
-              items.map((item) => ({
-                name: item.title,
-                url: `${siteConfig.url}/works/${item.content_id}`,
-              })),
+              pageIntros.works,
+              `${siteConfig.url}/works`,
             ),
           ]}
         />

@@ -1,4 +1,5 @@
 import { legalLinks } from "@/lib/site-config";
+import { getAllArticles } from "@/data/articles";
 import {
   getActressSummaries,
   getCatalogWorks,
@@ -9,15 +10,20 @@ import {
 } from "@/lib/catalog";
 import {
   buildSitemapUrl,
-  dedupeUrls,
+  dedupeSitemapEntries,
+  formatSitemapLastmod,
+  getItemLastmod,
   SITEMAP_EXCLUDED_PATHS,
 } from "@/lib/sitemap/helpers";
+import type { SitemapEntry } from "@/lib/sitemap/types";
 
 function isIncludedPath(path: string): boolean {
   return !path.includes("?") && !SITEMAP_EXCLUDED_PATHS.has(path);
 }
 
-export async function getSitemapUrls(): Promise<string[]> {
+const STATIC_LASTMOD = formatSitemapLastmod(new Date());
+
+export async function getSitemapEntries(): Promise<SitemapEntry[]> {
   const [items, actresses, makers, series, labels, genres] =
     await Promise.all([
       getCatalogWorks(),
@@ -31,34 +37,60 @@ export async function getSitemapUrls(): Promise<string[]> {
   const staticPaths = [
     "",
     "/works",
-    "/ranking",
-    "/ranking/works",
-    "/ranking/actresses",
-    "/ranking/makers",
-    "/ranking/series",
-    "/ranking/weekly",
-    "/ranking/monthly",
-    "/search",
     "/actresses",
     "/makers",
     "/labels",
     "/series",
     "/genres",
-    "/sitemap",
+    "/search",
+    "/articles",
     "/about",
     "/faq",
-    ...legalLinks.map((link) => link.href),
+    ...legalLinks
+      .map((link) => link.href)
+      .filter((href) => !SITEMAP_EXCLUDED_PATHS.has(href)),
   ];
 
-  const paths = [
-    ...staticPaths.filter(isIncludedPath),
-    ...items.map((item) => `/works/${item.content_id}`),
-    ...actresses.map((actress) => `/actresses/${actress.slug}`),
-    ...makers.map((maker) => `/makers/${maker.slug}`),
-    ...series.map((entry) => `/series/${entry.slug}`),
-    ...labels.map((label) => `/labels/${label.slug}`),
-    ...genres.map((genre) => `/genres/${genre.slug}`),
+  const entries: SitemapEntry[] = [
+    ...staticPaths.filter(isIncludedPath).map((path) => ({
+      loc: buildSitemapUrl(path),
+      lastmod: STATIC_LASTMOD,
+    })),
+    ...items.map((item) => ({
+      loc: buildSitemapUrl(`/works/${item.content_id}`),
+      lastmod: getItemLastmod(item.date),
+    })),
+    ...actresses.map((actress) => ({
+      loc: buildSitemapUrl(`/actresses/${actress.slug}`),
+      lastmod: STATIC_LASTMOD,
+    })),
+    ...makers.map((maker) => ({
+      loc: buildSitemapUrl(`/makers/${maker.slug}`),
+      lastmod: STATIC_LASTMOD,
+    })),
+    ...series.map((entry) => ({
+      loc: buildSitemapUrl(`/series/${entry.slug}`),
+      lastmod: STATIC_LASTMOD,
+    })),
+    ...labels.map((label) => ({
+      loc: buildSitemapUrl(`/labels/${label.slug}`),
+      lastmod: STATIC_LASTMOD,
+    })),
+    ...genres.map((genre) => ({
+      loc: buildSitemapUrl(`/genres/${genre.slug}`),
+      lastmod: STATIC_LASTMOD,
+    })),
+    ...getAllArticles().map((article) => ({
+      loc: buildSitemapUrl(`/articles/${article.slug}`),
+      lastmod: article.updatedAt ?? article.publishedAt,
+    })),
   ];
 
-  return dedupeUrls(paths.map((path) => buildSitemapUrl(path)));
+  return dedupeSitemapEntries(entries);
+}
+
+/** @deprecated getSitemapEntries を使用してください */
+export async function getSitemapUrls(): Promise<string[]> {
+  const entries = await getSitemapEntries();
+  return entries.map((entry) => entry.loc);
 }

@@ -14,7 +14,7 @@ import {
   getRelatedWorks,
   getRelatedActressesForWork,
 } from "@/lib/works/repository";
-import { getDmmWorkByContentId } from "@/lib/dmm/get-work";
+import { getCatalogWorkByContentId } from "@/lib/catalog";
 import { getDmmStaticWorkContentIds } from "@/lib/dmm/static-works";
 import { getGenreBySlug } from "@/data/genres";
 import { getActressDetailPath } from "@/lib/actresses/slug";
@@ -23,10 +23,19 @@ import {
   getCatalogItems,
 } from "@/lib/dmm/catalog-entities";
 import { getMakerBySlug } from "@/data/makers";
+import { AffiliateDisclosureNote } from "@/components/ui/AffiliateDisclosureNote";
 import { FavoriteButton } from "@/components/user/FavoriteButton";
 import { HistoryTracker } from "@/components/user/HistoryTracker";
 import { UpdatedDate } from "@/components/ui/UpdatedDate";
 import { createPageMetadata } from "@/lib/seo/metadata";
+import { createWorkDescription } from "@/lib/seo/descriptions";
+import { createWorkTitle } from "@/lib/seo/titles";
+import {
+  getDmmItemActressNameList,
+  getDmmItemImageUrl,
+  getDmmItemMakerName,
+  getDmmItemPrice,
+} from "@/lib/dmm/display";
 import {
   createBreadcrumbJsonLd,
   createWorkJsonLd,
@@ -35,6 +44,8 @@ import { formatPrice, getDisplayPrice } from "@/lib/format";
 import { AFFILIATE_LINK_REL, slugify } from "@/lib/utils";
 
 export const revalidate = 86400;
+
+export const dynamicParams = true;
 
 type WorkDetailPageProps = {
   params: Promise<{ slug: string }>;
@@ -47,14 +58,26 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: WorkDetailPageProps) {
   const { slug } = await params;
-  const dmmItem = await getDmmWorkByContentId(slug);
+  const dmmItem = await getCatalogWorkByContentId(slug);
 
   if (dmmItem) {
+    const actressNames = getDmmItemActressNameList(dmmItem);
+    const makerName = getDmmItemMakerName(dmmItem);
+    const price = getDmmItemPrice(dmmItem);
+    const imageUrl = getDmmItemImageUrl(dmmItem);
+
     return createPageMetadata({
-      title: dmmItem.title,
-      description: `${dmmItem.title}の作品情報。品番 ${dmmItem.content_id}`,
+      title: createWorkTitle(dmmItem.title),
+      description: createWorkDescription({
+        title: dmmItem.title,
+        actressNames,
+        makerName,
+        price,
+      }),
       path: `/works/${dmmItem.content_id}`,
       ogType: "article",
+      absoluteTitle: true,
+      ogImage: imageUrl,
     });
   }
 
@@ -62,10 +85,18 @@ export async function generateMetadata({ params }: WorkDetailPageProps) {
 
   if (work) {
     return createPageMetadata({
-      title: work.title,
-      description: work.longDescription.slice(0, 120),
+      title: createWorkTitle(work.title),
+      description: createWorkDescription({
+        title: work.title,
+        description: work.longDescription,
+        actressNames: work.actressNames,
+        makerName: work.makerName,
+        price: formatPrice(getDisplayPrice(work).current),
+      }),
       path: `/works/${work.slug}`,
       ogType: "article",
+      absoluteTitle: true,
+      ogImage: work.imageUrl,
     });
   }
 
@@ -79,7 +110,7 @@ export async function generateMetadata({ params }: WorkDetailPageProps) {
 
 export default async function WorkDetailPage({ params }: WorkDetailPageProps) {
   const { slug } = await params;
-  const dmmItem = await getDmmWorkByContentId(slug);
+  const dmmItem = await getCatalogWorkByContentId(slug);
 
   if (dmmItem) {
     return <DmmWorkDetailView item={dmmItem} />;
@@ -261,9 +292,7 @@ export default async function WorkDetailPage({ params }: WorkDetailPageProps) {
                   size="lg"
                   className="w-full sm:w-auto"
                 />
-                <p className="mt-3 text-xs text-muted">
-                  ※ 外部サイトへ移動します。当サイトはアフィリエイトリンクを含みます。
-                </p>
+                <AffiliateDisclosureNote className="mt-2" />
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                   <FavoriteButton slug={work.slug} title={work.title} />
                   <UpdatedDate date={work.releaseDate} label="発売日" />

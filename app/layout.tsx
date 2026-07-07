@@ -19,6 +19,8 @@ const notoSansJP = Noto_Sans_JP({
   weight: ["400", "500", "700"],
 });
 
+const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID?.trim();
+
 export const metadata: Metadata = {
   ...createRootMetadata(),
   metadataBase: new URL(SITE_URL),
@@ -30,9 +32,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ja" className={notoSansJP.variable}>
-      <body className="flex min-h-screen flex-col bg-white text-foreground antialiased">
-        <GoogleAnalytics gaId={process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID!} />
+    <html lang="ja" className={notoSansJP.variable} suppressHydrationWarning>
+      <body
+        className="flex min-h-screen flex-col bg-white text-foreground antialiased"
+        suppressHydrationWarning
+      >
+        {gaMeasurementId ? <GoogleAnalytics gaId={gaMeasurementId} /> : null}
         <JsonLd data={[createWebsiteJsonLd(), createOrganizationJsonLd()]} />
         <AgeGateProvider>
           <SiteShell>{children}</SiteShell>

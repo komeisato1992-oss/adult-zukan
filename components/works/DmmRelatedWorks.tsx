@@ -4,22 +4,30 @@ import { filterItemsWithValidImage } from "@/lib/works";
 
 type DmmRelatedWorksProps = {
   items: DmmItem[];
+  title?: string;
+  sectionId?: string;
 };
 
-export function DmmRelatedWorks({ items }: DmmRelatedWorksProps) {
+export function DmmRelatedWorks({
+  items,
+  title = "関連作品",
+  sectionId = "related-works",
+}: DmmRelatedWorksProps) {
   const visibleItems = filterItemsWithValidImage(items);
 
   if (visibleItems.length === 0) {
     return null;
   }
 
+  const headingId = `${sectionId}-title`;
+
   return (
-    <section aria-labelledby="related-works-title" className="mt-12">
+    <section aria-labelledby={headingId} className="mt-12">
       <h2
-        id="related-works-title"
+        id={headingId}
         className="mb-4 border-l-4 border-accent pl-3 text-lg font-bold text-foreground"
       >
-        関連作品
+        {title}
       </h2>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {visibleItems.map((item) => (

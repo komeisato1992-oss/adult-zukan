@@ -1,4 +1,4 @@
-export const DEFAULT_SITE_URL = "https://adult-zukan.vercel.app";
+export const DEFAULT_SITE_URL = "https://adult-zukan.com";
 
 /**
  * サイトの正規URLを返す。

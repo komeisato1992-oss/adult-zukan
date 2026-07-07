@@ -2,7 +2,18 @@ import Link from "next/link";
 import {
   HOME_WORK_SORT_KEYS,
   WORK_SORT_LABELS,
+  type WorkSortKey,
 } from "@/lib/works/sort";
+
+const HOME_SORT_HREFS: Record<WorkSortKey, string> = {
+  popular: "/works?sort=popular",
+  new: "/works?sort=new",
+  "price-desc": "/works?sort=price_desc",
+  "price-asc": "/works?sort=price_asc",
+  "today-views": "/works?sort=today-views",
+  "total-views": "/works?sort=total-views",
+  "duration-desc": "/works?sort=duration_desc",
+};
 
 export function WorksDiscoverSection() {
   return (
@@ -17,7 +28,7 @@ export function WorksDiscoverSection() {
         {HOME_WORK_SORT_KEYS.map((key) => (
           <Link
             key={key}
-            href={`/works?sort=${key}`}
+            href={HOME_SORT_HREFS[key]}
             prefetch
             className="rounded-full border border-border bg-white px-4 py-2 text-sm text-foreground transition-colors hover:border-accent hover:text-accent"
           >

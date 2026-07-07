@@ -1,7 +1,7 @@
 import Link from "next/link";
-import Image from "next/image";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
+import { PortraitImage } from "@/components/ui/PortraitImage";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { getActressDetailPath } from "@/lib/actresses/slug";
 import {
@@ -11,18 +11,21 @@ import {
 import { siteConfig, pageIntros } from "@/lib/site-config";
 import { PageIntro } from "@/components/ui/PageIntro";
 import { createPageMetadata } from "@/lib/seo/metadata";
+import { truncateDescription } from "@/lib/seo/descriptions";
+import { seoTitles } from "@/lib/seo/titles";
 import {
   createBreadcrumbJsonLd,
-  createItemListJsonLd,
+  createCollectionPageJsonLd,
 } from "@/lib/seo/json-ld";
 import { isValidImageUrl } from "@/lib/works";
 
 export const revalidate = 86400;
 
 export const metadata = createPageMetadata({
-  title: "女優一覧",
-  description: pageIntros.actresses,
+  title: seoTitles.actresses,
+  description: truncateDescription(pageIntros.actresses),
   path: "/actresses",
+  absoluteTitle: true,
 });
 
 export default async function ActressesPage() {
@@ -41,12 +44,10 @@ export default async function ActressesPage() {
             { name: "トップ", path: "/" },
             { name: "女優一覧", path: "/actresses" },
           ]),
-          createItemListJsonLd(
+          createCollectionPageJsonLd(
             "女優一覧",
-            actresses.map((actress) => ({
-              name: actress.name,
-              url: `${siteConfig.url}${getActressDetailPath(actress.name)}`,
-            })),
+            pageIntros.actresses,
+            `${siteConfig.url}/actresses`,
           ),
         ]}
       />
@@ -76,21 +77,23 @@ export default async function ActressesPage() {
                   href={getActressDetailPath(actress.name)}
                   className="group block overflow-hidden rounded-lg border border-border/80 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
                 >
-                  <div className="relative aspect-[3/4] bg-surface">
-                    {isValidImageUrl(actress.imageUrl) && actress.imageUrl ? (
-                      <Image
-                        src={actress.imageUrl}
-                        alt={actress.name}
-                        fill
-                        className="object-cover object-center"
-                        sizes="200px"
-                        unoptimized
-                      />
-                    ) : null}
-                    <span className="absolute left-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-accent text-xs font-bold text-white">
-                      {index + 1}
-                    </span>
-                  </div>
+                  {isValidImageUrl(actress.imageUrl) && actress.imageUrl ? (
+                    <PortraitImage
+                      src={actress.imageUrl}
+                      alt={actress.name}
+                      sizes="200px"
+                    >
+                      <span className="absolute left-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-accent text-xs font-bold text-white">
+                        {index + 1}
+                      </span>
+                    </PortraitImage>
+                  ) : (
+                    <div className="relative aspect-[3/4] bg-surface">
+                      <span className="absolute left-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-accent text-xs font-bold text-white">
+                        {index + 1}
+                      </span>
+                    </div>
+                  )}
                   <div className="p-3">
                     <p className="text-sm font-semibold text-foreground group-hover:text-accent">
                       {actress.name}
@@ -112,18 +115,15 @@ export default async function ActressesPage() {
               href={getActressDetailPath(actress.name)}
               className="group block overflow-hidden rounded-lg border border-border/80 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
             >
-              <div className="relative aspect-[3/4] bg-surface">
-                {isValidImageUrl(actress.imageUrl) && actress.imageUrl ? (
-                  <Image
-                    src={actress.imageUrl}
-                    alt={actress.name}
-                    fill
-                    className="object-cover object-center"
-                    sizes="200px"
-                    unoptimized
-                  />
-                ) : null}
-              </div>
+              {isValidImageUrl(actress.imageUrl) && actress.imageUrl ? (
+                <PortraitImage
+                  src={actress.imageUrl}
+                  alt={actress.name}
+                  sizes="200px"
+                />
+              ) : (
+                <div className="relative aspect-[3/4] bg-surface" />
+              )}
               <div className="p-3">
                 <p className="text-sm font-semibold text-foreground group-hover:text-accent">
                   {actress.name}

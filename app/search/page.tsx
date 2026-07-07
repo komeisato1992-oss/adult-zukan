@@ -9,10 +9,12 @@ import { unifiedSearch } from "@/lib/search/unified";
 import { parsePageParam } from "@/lib/pagination";
 import { siteConfig, pageIntros } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/seo/metadata";
+import { createSearchDescription, truncateDescription } from "@/lib/seo/descriptions";
+import { createSearchResultTitle, seoTitles } from "@/lib/seo/titles";
 import {
   createBreadcrumbJsonLd,
+  createCollectionPageJsonLd,
   createItemListJsonLd,
-  createWebsiteJsonLd,
 } from "@/lib/seo/json-ld";
 
 export const revalidate = 3600;
@@ -27,17 +29,19 @@ export async function generateMetadata({ searchParams }: SearchPageProps) {
 
   if (trimmed) {
     return createPageMetadata({
-      title: `${trimmed}の検索結果`,
-      description: `${trimmed}に関連する作品をアダルト図鑑で検索できます。`,
+      title: createSearchResultTitle(trimmed),
+      description: createSearchDescription(trimmed),
       path: `/search?q=${encodeURIComponent(trimmed)}`,
       noIndex: true,
+      absoluteTitle: true,
     });
   }
 
   return createPageMetadata({
-    title: "作品検索",
-    description: pageIntros.search,
+    title: seoTitles.search,
+    description: truncateDescription(pageIntros.search),
     path: "/search",
+    absoluteTitle: true,
   });
 }
 
@@ -52,11 +56,19 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
     <>
       <JsonLd
         data={[
-          createWebsiteJsonLd(),
           createBreadcrumbJsonLd([
             { name: "トップ", path: "/" },
-            { name: "検索", path: "/search" },
+            { name: trimmed ? `「${trimmed}」の検索結果` : "検索", path: "/search" },
           ]),
+          ...(trimmed
+            ? []
+            : [
+                createCollectionPageJsonLd(
+                  "作品検索",
+                  pageIntros.search,
+                  `${siteConfig.url}/search`,
+                ),
+              ]),
           ...(results && items.length > 0
             ? [
                 createItemListJsonLd(

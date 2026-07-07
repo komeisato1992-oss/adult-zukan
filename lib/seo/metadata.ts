@@ -8,7 +8,19 @@ type PageMetadataOptions = {
   path?: string;
   ogType?: "website" | "article";
   noIndex?: boolean;
+  /** true の場合 title をそのまま使用（サイト名を付与しない） */
+  absoluteTitle?: boolean;
+  /** OG/Twitter 用画像（相対パスまたは絶対URL） */
+  ogImage?: string;
 };
+
+function resolveOgImageUrl(ogImage?: string): string {
+  if (!ogImage) return siteConfig.ogImage;
+  if (ogImage.startsWith("http://") || ogImage.startsWith("https://")) {
+    return ogImage;
+  }
+  return `${SITE_URL}${ogImage.startsWith("/") ? ogImage : `/${ogImage}`}`;
+}
 
 export function createPageMetadata({
   title,
@@ -16,12 +28,16 @@ export function createPageMetadata({
   path = "",
   ogType = "website",
   noIndex = false,
+  absoluteTitle = false,
+  ogImage,
 }: PageMetadataOptions): Metadata {
   const url = `${SITE_URL}${path}`;
-  const fullTitle = path === "" ? title : `${title} | ${siteConfig.name}`;
+  const resolvedTitle =
+    absoluteTitle || path === "" ? title : `${title} | ${siteConfig.name}`;
+  const imageUrl = resolveOgImageUrl(ogImage);
 
   return {
-    title: fullTitle,
+    title: absoluteTitle ? { absolute: resolvedTitle } : resolvedTitle,
     description,
     metadataBase: new URL(SITE_URL),
     alternates: {
@@ -32,22 +48,22 @@ export function createPageMetadata({
       locale: siteConfig.locale,
       url,
       siteName: siteConfig.name,
-      title: fullTitle,
+      title: resolvedTitle,
       description,
       images: [
         {
-          url: siteConfig.ogImage,
+          url: imageUrl,
           width: 1200,
           height: 630,
-          alt: siteConfig.name,
+          alt: title,
         },
       ],
     },
     twitter: {
       card: "summary_large_image",
-      title: fullTitle,
+      title: resolvedTitle,
       description,
-      images: [siteConfig.ogImage],
+      images: [imageUrl],
       ...(siteConfig.twitterHandle
         ? { creator: `@${siteConfig.twitterHandle}` }
         : {}),
@@ -63,6 +79,7 @@ export function createRootMetadata(): Metadata {
     ...createPageMetadata({
       title: siteConfig.name,
       description: siteConfig.description,
+      absoluteTitle: true,
     }),
     title: {
       default: siteConfig.name,
@@ -109,4 +126,20 @@ export function createRootMetadata(): Metadata {
     },
     themeColor: siteConfig.accentColor,
   };
+}
+
+/** ページネーション付き canonical path を生成 */
+export function buildCanonicalPath(
+  basePath: string,
+  params?: Record<string, string | undefined>,
+): string {
+  if (!params) return basePath;
+
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value) search.set(key, value);
+  }
+
+  const query = search.toString();
+  return query ? `${basePath}?${query}` : basePath;
 }

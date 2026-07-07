@@ -10,9 +10,11 @@ import { getLabelSummaryBySlug, getLabelWorksBySlug } from "@/lib/catalog";
 import { parsePageParam } from "@/lib/pagination";
 import { siteConfig } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/seo/metadata";
+import { createListDescription } from "@/lib/seo/descriptions";
+import { createLabelTitle } from "@/lib/seo/titles";
 import {
   createBreadcrumbJsonLd,
-  createItemListJsonLd,
+  createCollectionPageJsonLd,
 } from "@/lib/seo/json-ld";
 
 export const revalidate = 86400;
@@ -40,9 +42,14 @@ export async function generateMetadata({ params }: LabelDetailPageProps) {
   }
 
   return createPageMetadata({
-    title: `${label.name}レーベルの作品一覧`,
-    description: `${label.name}レーベルの作品一覧。${label.workCount}件の作品を掲載しています。`,
+    title: createLabelTitle(label.name),
+    description: createListDescription({
+      name: label.name,
+      count: label.workCount,
+      context: "レーベルの作品一覧",
+    }),
     path: `/labels/${label.slug}`,
+    absoluteTitle: true,
   });
 }
 
@@ -70,12 +77,10 @@ export default async function LabelDetailPage({
             { name: "レーベル一覧", path: "/labels" },
             { name: label.name, path: `/labels/${label.slug}` },
           ]),
-          createItemListJsonLd(
+          createCollectionPageJsonLd(
             `${label.name}レーベルの作品一覧`,
-            works.slice(0, 24).map((work) => ({
-              name: work.title,
-              url: `${siteConfig.url}/works/${work.content_id}`,
-            })),
+            `${label.name}レーベルの作品一覧`,
+            `${siteConfig.url}/labels/${label.slug}`,
           ),
         ]}
       />

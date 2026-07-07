@@ -9,17 +9,20 @@ import {
 } from "@/lib/dmm/catalog-entities";
 import { siteConfig, pageIntros } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/seo/metadata";
+import { truncateDescription } from "@/lib/seo/descriptions";
+import { seoTitles } from "@/lib/seo/titles";
 import {
   createBreadcrumbJsonLd,
-  createItemListJsonLd,
+  createCollectionPageJsonLd,
 } from "@/lib/seo/json-ld";
 
 export const revalidate = 86400;
 
 export const metadata = createPageMetadata({
-  title: "シリーズ一覧",
-  description: pageIntros.series,
+  title: seoTitles.series,
+  description: truncateDescription(pageIntros.series),
   path: "/series",
+  absoluteTitle: true,
 });
 
 export default async function SeriesPage() {
@@ -37,12 +40,10 @@ export default async function SeriesPage() {
             { name: "トップ", path: "/" },
             { name: "シリーズ一覧", path: "/series" },
           ]),
-          createItemListJsonLd(
+          createCollectionPageJsonLd(
             "シリーズ一覧",
-            series.map((entry) => ({
-              name: entry.name,
-              url: `${siteConfig.url}/series/${entry.slug}`,
-            })),
+            pageIntros.series,
+            `${siteConfig.url}/series`,
           ),
         ]}
       />

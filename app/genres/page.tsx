@@ -9,17 +9,20 @@ import {
 import { siteConfig, pageIntros } from "@/lib/site-config";
 import { PageIntro } from "@/components/ui/PageIntro";
 import { createPageMetadata } from "@/lib/seo/metadata";
+import { truncateDescription } from "@/lib/seo/descriptions";
+import { seoTitles } from "@/lib/seo/titles";
 import {
   createBreadcrumbJsonLd,
-  createItemListJsonLd,
+  createCollectionPageJsonLd,
 } from "@/lib/seo/json-ld";
 
 export const revalidate = 86400;
 
 export const metadata = createPageMetadata({
-  title: "ジャンル一覧",
-  description: pageIntros.genres,
+  title: seoTitles.genres,
+  description: truncateDescription(pageIntros.genres),
   path: "/genres",
+  absoluteTitle: true,
 });
 
 export default async function GenresPage() {
@@ -34,12 +37,10 @@ export default async function GenresPage() {
             { name: "トップ", path: "/" },
             { name: "ジャンル一覧", path: "/genres" },
           ]),
-          createItemListJsonLd(
+          createCollectionPageJsonLd(
             "ジャンル一覧",
-            genres.map((genre) => ({
-              name: genre.name,
-              url: `${siteConfig.url}/genres/${genre.slug}`,
-            })),
+            pageIntros.genres,
+            `${siteConfig.url}/genres`,
           ),
         ]}
       />

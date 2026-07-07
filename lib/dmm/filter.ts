@@ -1,8 +1,7 @@
 import type { DmmItem } from "@/lib/dmm/types";
-import { hasValidImage, getValidImageUrl } from "@/lib/works";
+import { getDmmListItemImageUrl } from "@/lib/dmm/display";
 import { getDmmFanzaUrl } from "@/lib/dmm/fanza-url";
-
-const IMAGE_EXTENSIONS = /\.(jpe?g|webp)(\?|$)/i;
+import { getValidImageUrl, hasValidImage } from "@/lib/works";
 
 function isVrItem(item: DmmItem): boolean {
   if (item.content_id?.toLowerCase().startsWith("vr")) return true;
@@ -18,18 +17,23 @@ export function isValidDmmListItem(item: DmmItem): boolean {
   if (!item.title?.trim()) return false;
   if (!item.affiliateURL?.trim() && !item.URL?.trim()) return false;
   if (isVrItem(item)) return false;
-
   if (!hasValidImage(item)) return false;
   if (!getDmmFanzaUrl(item)) return false;
 
-  const image = getValidImageUrl(item, ["large", "list"]);
-  if (!image) return false;
+  return Boolean(getValidImageUrl(item, ["large", "list"]));
+}
 
-  return IMAGE_EXTENSIONS.test(image);
+/** カード描画可能な作品か（件数表示と表示内容を一致させる） */
+export function isDisplayableListItem(item: DmmItem): boolean {
+  return isValidDmmListItem(item) && Boolean(getDmmListItemImageUrl(item));
 }
 
 export function filterValidListItems(items: DmmItem[]): DmmItem[] {
   return items.filter(isValidDmmListItem);
+}
+
+export function filterDisplayableItems(items: DmmItem[]): DmmItem[] {
+  return items.filter(isDisplayableListItem);
 }
 
 /** @deprecated filterValidListItems を使用 */

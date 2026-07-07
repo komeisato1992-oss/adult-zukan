@@ -123,7 +123,11 @@ export type DmmListItemsResult =
   | { success: false; message: string };
 
 function isSaleFilter(params: { sale?: string; filter?: string }): boolean {
-  return params.sale === "1" || params.filter === "sale";
+  return (
+    params.sale === "1" ||
+    params.sale === "true" ||
+    params.filter === "sale"
+  );
 }
 
 function hasWorksListFilters(params: {

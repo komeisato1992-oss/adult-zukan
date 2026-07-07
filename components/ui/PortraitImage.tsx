@@ -2,7 +2,7 @@ import Image from "next/image";
 
 const PORTRAIT_STYLE = {
   objectFit: "cover" as const,
-  objectPosition: "center" as const,
+  objectPosition: "right center" as const,
   maxWidth: "100%",
 };
 
@@ -33,7 +33,7 @@ export function PortraitImage({
         src={src}
         alt={alt}
         fill
-        className="portrait-image object-cover object-center"
+        className="portrait-image object-cover object-[right_center]"
         style={PORTRAIT_STYLE}
         sizes={sizes}
         loading={priority ? undefined : loading}

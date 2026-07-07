@@ -49,7 +49,16 @@ export default function PrivacyPage() {
       </section>
 
       <section>
-        <h2 className="text-base font-bold text-foreground">6. お問い合わせ</h2>
+        <h2 className="text-base font-bold text-foreground">アフィリエイトプログラムについて</h2>
+        <ul className="mt-2 list-disc space-y-2 pl-5">
+          <li>当サイトではDMMアフィリエイト等のアフィリエイトプログラムを利用しています。</li>
+          <li>商品・サービスの購入等に応じて紹介料を受け取る場合があります。</li>
+          <li>掲載内容は運営者の判断で紹介しています。</li>
+        </ul>
+      </section>
+
+      <section>
+        <h2 className="text-base font-bold text-foreground">7. お問い合わせ</h2>
         <p>
           個人情報の取り扱いに関するお問い合わせは、当サイトのお問い合わせページよりご連絡ください。
         </p>

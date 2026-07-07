@@ -11,7 +11,8 @@ import { parseDmmPrice, slugify } from "@/lib/utils";
 import { parseWorkSortParam, sortWorks } from "@/lib/works/sort";
 import { getValidImageUrl, hasValidImage, isValidImageUrl } from "@/lib/works";
 
-export const HOME_SECTION_LIMIT = 8;
+export const HOME_SECTION_LIMIT = 6;
+export const HERO_CAROUSEL_LIMIT = 5;
 
 export type RankedNameCount = {
   name: string;

@@ -41,6 +41,7 @@ export {
   getSharedCatalogWorks,
   getWeeklyRankingWorks,
   HOME_SECTION_LIMIT,
+  HERO_CAROUSEL_LIMIT,
   type RankedActress,
   type RankedNameCount,
 } from "@/lib/dmm/home-sections";
@@ -52,6 +53,11 @@ export {
   getCatalogWorksByGenreSlug,
   isValidCatalogItem,
 } from "@/lib/dmm/catalog-entities";
+
+export {
+  filterDisplayableItems,
+  filterValidListItems,
+} from "@/lib/dmm/filter";
 
 export {
   filterItemsWithValidImage,

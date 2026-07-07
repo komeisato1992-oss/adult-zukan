@@ -19,7 +19,7 @@ const loadSearchIndex = unstable_cache(
       searchText: buildSearchText(item),
     }));
   },
-  ["catalog-search-index-v1"],
+  ["catalog-search-index-v2"],
   { revalidate: DMM_WORKS_REVALIDATE },
 );
 

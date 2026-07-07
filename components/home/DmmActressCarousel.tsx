@@ -8,18 +8,23 @@ import { isValidImageUrl } from "@/lib/works";
 type DmmActressCarouselProps = {
   actresses: RankedActress[];
   id?: string;
+  title?: string;
 };
 
-export function DmmActressCarousel({ actresses, id }: DmmActressCarouselProps) {
-  const visibleActresses = actresses.filter((actress) =>
-    isValidImageUrl(actress.imageUrl),
-  );
+export function DmmActressCarousel({
+  actresses,
+  id,
+  title = "人気女優",
+}: DmmActressCarouselProps) {
+  const visibleActresses = actresses
+    .filter((actress) => isValidImageUrl(actress.imageUrl))
+    .slice(0, 6);
 
   if (visibleActresses.length === 0) return null;
 
   return (
     <section aria-labelledby={id} className="mb-12">
-      <SectionHeader title="人気女優" href="/actresses" id={id} />
+      <SectionHeader title={title} href="/actresses" id={id} />
       <div className="scrollbar-hide -mx-4 flex gap-5 overflow-x-auto px-4 pb-3 pt-1 snap-x snap-mandatory sm:-mx-0 sm:px-0">
         {visibleActresses.map((actress, index) => (
           <article
@@ -33,8 +38,9 @@ export function DmmActressCarousel({ actresses, id }: DmmActressCarouselProps) {
                     src={actress.imageUrl}
                     alt={actress.name}
                     fill
-                    className="object-cover object-center"
+                    className="object-cover object-[right_center]"
                     sizes="160px"
+                    loading="lazy"
                     unoptimized
                   />
                 )}

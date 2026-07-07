@@ -1,7 +1,7 @@
 import "server-only";
 
 import { getCatalogWorks } from "@/lib/catalog";
-import { filterValidListItems } from "@/lib/dmm/filter";
+import { filterDisplayableItems } from "@/lib/dmm/filter";
 import type { DmmItem } from "@/lib/dmm/types";
 import {
   paginateItems,
@@ -51,8 +51,8 @@ export async function searchCatalog(
     if (item) matchedWorks.push(item);
   }
 
-  const validWorks = filterValidListItems(matchedWorks);
-  const total = validWorks.length;
+  const displayableWorks = filterDisplayableItems(matchedWorks);
+  const total = displayableWorks.length;
 
   if (total === 0) {
     return {
@@ -65,7 +65,11 @@ export async function searchCatalog(
   }
 
   const currentPage = parsePageParam(page);
-  const pagination = paginateItems(validWorks, currentPage, WORKS_LIST_PAGE_SIZE);
+  const pagination = paginateItems(
+    displayableWorks,
+    currentPage,
+    WORKS_LIST_PAGE_SIZE,
+  );
 
   return {
     items: pagination.items,

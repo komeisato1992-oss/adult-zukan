@@ -151,29 +151,6 @@ const ACTRESS_DATA: {
   { name: "山岸逢花", debutYear: 2017, specialtyGenres: [0, 1, 2] },
 ];
 
-const MAKER_PREFIXES = [
-  "SSIS",
-  "MIDE",
-  "ABP",
-  "IPX",
-  "CAWD",
-  "JUL",
-  "FSDSS",
-  "EBOD",
-  "HND",
-  "MUM",
-  "SHKD",
-  "DASD",
-  "SDDE",
-  "STARS",
-  "BF",
-  "DOCP",
-  "NHDTB",
-  "GVG",
-  "WAAA",
-  "HUNTB",
-];
-
 const WORK_TITLE_TEMPLATES = [
   "{actress} {series} 完全版",
   "{series} {actress} SPECIAL",
@@ -302,7 +279,7 @@ export function generateGenres(): Genre[] {
 }
 
 export function generateMakers(labels: Label[]): Maker[] {
-  return MAKER_NAMES.map((name, index) => ({
+  return MAKER_NAMES.map((name) => ({
     slug: slugify(name),
     name,
     description: `${name}の作品一覧。`,

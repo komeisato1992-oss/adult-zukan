@@ -1,10 +1,10 @@
 "use client";
 
-import { DmmRelatedWorks } from "@/components/works/DmmRelatedWorks";
 import { DmmSampleGallery } from "@/components/works/DmmSampleGallery";
 import { DmmWorkHero } from "@/components/works/DmmWorkHero";
 import { DmmWorkInfoTable } from "@/components/works/DmmWorkInfoTable";
 import { FanzaLinkButton } from "@/components/works/FanzaLinkButton";
+import { AffiliateDisclosureNote } from "@/components/ui/AffiliateDisclosureNote";
 import type { DmmInfoRow } from "@/lib/dmm/display";
 import type { DmmItem } from "@/lib/dmm/types";
 import type { DmmReleaseDateInfo } from "@/lib/dmm/release-date";
@@ -22,7 +22,6 @@ type DmmWorkDetailBodyProps = {
   actressNameList?: string[];
   price?: string;
   releaseDate?: DmmReleaseDateInfo;
-  relatedItems: DmmItem[];
 };
 
 export function DmmWorkDetailBody({
@@ -38,7 +37,6 @@ export function DmmWorkDetailBody({
   actressNameList,
   price,
   releaseDate,
-  relatedItems,
 }: DmmWorkDetailBodyProps) {
   return (
     <article>
@@ -60,15 +58,14 @@ export function DmmWorkDetailBody({
 
       <DmmWorkInfoTable rows={infoRows} />
 
-      <div className="mt-8 flex justify-center">
+      <div className="mt-8 flex flex-col items-center">
         <FanzaLinkButton href={fanzaUrl} />
+        <AffiliateDisclosureNote className="mt-2 text-center" />
       </div>
 
       <p className="mt-4 text-center text-xs leading-relaxed text-muted">
         ※ 18歳未満の方の閲覧は固くお断りします。外部サイト（FANZA）へ移動します。
       </p>
-
-      <DmmRelatedWorks items={relatedItems} />
     </article>
   );
 }

@@ -22,13 +22,13 @@ import {
 } from "@/lib/dmm/display";
 import { DMM_WORKS_REVALIDATE } from "@/lib/dmm/static-works";
 import { getDmmStaticWorks } from "@/lib/dmm/static-works";
+import { readCatalogSnapshot } from "@/lib/dmm/catalog-snapshot";
 import type { DmmItem } from "@/lib/dmm/types";
 import { RELATED_WORKS_DISPLAY_LIMIT } from "@/lib/pagination";
 
 /** リクエスト内で1回だけ読み込むカタログ作品一覧 */
 export const getCatalogWorks = cache(async (): Promise<DmmItem[]> => {
-  const items = await getDmmStaticWorks();
-  return filterValidCatalogItems(items);
+  return getDmmStaticWorks();
 });
 
 function createSummariesLoader<T>(
@@ -37,8 +37,8 @@ function createSummariesLoader<T>(
 ): () => Promise<T> {
   const loadSummaries = unstable_cache(
     async () => {
-      const items = await getDmmStaticWorks();
-      return compute(filterValidCatalogItems(items));
+      const items = await getCatalogWorks();
+      return compute(items);
     },
     [cacheKey],
     { revalidate: DMM_WORKS_REVALIDATE },
@@ -74,8 +74,11 @@ export const getLabelSummaries = createSummariesLoader(
 
 export const getCatalogWorkByContentId = cache(
   async (contentId: string): Promise<DmmItem | null> => {
-    const items = await getCatalogWorks();
-    return items.find((item) => item.content_id === contentId) ?? null;
+    const snapshot = readCatalogSnapshot();
+    const item = snapshot.find((entry) => entry.content_id === contentId);
+    if (!item) return null;
+    const [valid] = filterValidCatalogItems([item]);
+    return valid ?? null;
   },
 );
 

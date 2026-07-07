@@ -7,13 +7,17 @@ import { DmmSeriesRankingSection } from "@/components/home/DmmSeriesRankingSecti
 import { DmmPopularGenreSection } from "@/components/home/DmmPopularGenreSection";
 import { WorksDiscoverSection } from "@/components/home/WorksDiscoverSection";
 import { JsonLd } from "@/components/seo/JsonLd";
+import { LazySection } from "@/components/ui/LazySection";
 import { UpdatedDate } from "@/components/ui/UpdatedDate";
 import { siteConfig } from "@/lib/site-config";
+import { seoTitles } from "@/lib/seo/titles";
+import { truncateDescription } from "@/lib/seo/descriptions";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import { createItemListJsonLd } from "@/lib/seo/json-ld";
 import {
+  HERO_CAROUSEL_LIMIT,
+  HOME_SECTION_LIMIT,
   getHeroWorks,
-  getMonthlyRankingWorks,
   getNewWorks,
   getPopularWorks,
   getRankedActresses,
@@ -22,29 +26,27 @@ import {
   getRankedSeries,
   getSaleWorks,
   getSharedCatalogWorks,
-  getWeeklyRankingWorks,
 } from "@/lib/works/catalog";
 
 export const revalidate = 86400;
 
 export const metadata = createPageMetadata({
-  title: siteConfig.name,
-  description: siteConfig.description,
+  title: seoTitles.home,
+  description: truncateDescription(siteConfig.description),
+  absoluteTitle: true,
 });
 
 export default async function HomePage() {
   const catalog = await getSharedCatalogWorks();
 
-  const heroWorks = getHeroWorks(catalog, 1);
-  const popularWorks = getPopularWorks(catalog);
-  const newWorks = getNewWorks(catalog);
-  const saleWorks = getSaleWorks(catalog);
-  const rankedActresses = getRankedActresses(catalog);
+  const heroWorks = getHeroWorks(catalog, HERO_CAROUSEL_LIMIT);
+  const popularWorks = getPopularWorks(catalog, HOME_SECTION_LIMIT);
+  const newWorks = getNewWorks(catalog, HOME_SECTION_LIMIT);
+  const saleWorks = getSaleWorks(catalog, HOME_SECTION_LIMIT);
+  const rankedActresses = getRankedActresses(catalog, HOME_SECTION_LIMIT);
   const rankedMakers = getRankedMakers(catalog);
   const rankedSeries = getRankedSeries(catalog);
   const rankedGenres = getRankedGenres(catalog);
-  const weeklyWorks = getWeeklyRankingWorks(catalog);
-  const monthlyWorks = getMonthlyRankingWorks(catalog);
 
   const updatedDate = new Date().toISOString().split("T")[0];
 
@@ -65,55 +67,48 @@ export default async function HomePage() {
       <DmmHeroCarousel items={heroWorks} />
 
       <PageLayout>
-        <UpdatedDate date={updatedDate} className="mb-6 text-xs text-muted" />
-
         <WorksDiscoverSection />
+
+        <UpdatedDate date={updatedDate} className="mb-6 text-xs text-muted" />
 
         <DmmWorkScrollSection
           id="popular-works"
-          title="人気作品"
+          title="🔥 人気作品"
           items={popularWorks}
           href="/works?sort=popular"
         />
 
-        <DmmWorkScrollSection
-          id="new-works"
-          title="新着作品"
-          items={newWorks}
-          href="/works?sort=new"
-        />
+        <LazySection minHeight={320}>
+          <DmmWorkScrollSection
+            id="new-works"
+            title="🆕 新着作品"
+            items={newWorks}
+            href="/works?sort=new"
+          />
+        </LazySection>
 
-        <DmmWorkScrollSection
-          id="sale-works"
-          title="セール作品"
-          items={saleWorks}
-          href="/works?filter=sale"
-        />
+        <LazySection minHeight={320}>
+          <DmmWorkScrollSection
+            id="sale-works"
+            title="💰 セール作品"
+            items={saleWorks}
+            href="/works?sale=true"
+          />
+        </LazySection>
 
-        <DmmActressCarousel
-          actresses={rankedActresses}
-          id="popular-actresses"
-        />
+        <LazySection minHeight={280}>
+          <DmmActressCarousel
+            actresses={rankedActresses}
+            id="popular-actresses"
+            title="🏆 人気女優"
+          />
+        </LazySection>
 
-        <DmmMakerRankingSection makers={rankedMakers} id="popular-makers" />
-
-        <DmmSeriesRankingSection series={rankedSeries} id="popular-series" />
-
-        <DmmPopularGenreSection genres={rankedGenres} id="popular-genres" />
-
-        <DmmWorkScrollSection
-          id="weekly-ranking"
-          title="週間ランキング"
-          items={weeklyWorks}
-          href="/ranking/weekly"
-        />
-
-        <DmmWorkScrollSection
-          id="monthly-ranking"
-          title="月間ランキング"
-          items={monthlyWorks}
-          href="/ranking/monthly"
-        />
+        <LazySection minHeight={200}>
+          <DmmMakerRankingSection makers={rankedMakers} id="popular-makers" />
+          <DmmSeriesRankingSection series={rankedSeries} id="popular-series" />
+          <DmmPopularGenreSection genres={rankedGenres} id="popular-genres" />
+        </LazySection>
       </PageLayout>
     </>
   );

@@ -1,3 +1,5 @@
+import type { SitemapEntry } from "@/lib/sitemap/types";
+
 function escapeXml(value: string): string {
   return value
     .replace(/&/g, "&amp;")
@@ -7,11 +9,12 @@ function escapeXml(value: string): string {
     .replace(/'/g, "&apos;");
 }
 
-export function serializeSitemapToXml(urls: string[]): string {
-  const body = urls
+export function serializeSitemapToXml(entries: SitemapEntry[]): string {
+  const body = entries
     .map(
-      (url) => `<url>
-<loc>${escapeXml(url)}</loc>
+      (entry) => `<url>
+<loc>${escapeXml(entry.loc)}</loc>
+<lastmod>${escapeXml(entry.lastmod)}</lastmod>
 </url>`,
     )
     .join("\n");

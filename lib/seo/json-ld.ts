@@ -1,6 +1,15 @@
 import { siteConfig } from "@/lib/site-config";
 import { SITE_URL } from "@/lib/constants";
 import type { Work } from "@/data/types";
+import type { DmmItem } from "@/lib/dmm/types";
+import {
+  getDmmItemActressNameList,
+  getDmmItemImageUrl,
+  getDmmItemMakerName,
+} from "@/lib/dmm/display";
+import { getDmmFanzaUrl } from "@/lib/dmm/fanza-url";
+import { formatDmmItemPrice } from "@/lib/dmm/release-date";
+import { parseDmmPrice } from "@/lib/utils";
 
 type BreadcrumbItem = {
   name: string;
@@ -50,6 +59,25 @@ export function createBreadcrumbJsonLd(items: BreadcrumbItem[]) {
   };
 }
 
+export function createCollectionPageJsonLd(
+  name: string,
+  description: string,
+  url: string,
+) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name,
+    description,
+    url,
+    isPartOf: {
+      "@type": "WebSite",
+      name: siteConfig.name,
+      url: SITE_URL,
+    },
+  };
+}
+
 export function createWorkJsonLd(
   work: Work,
   makerName: string,
@@ -77,6 +105,53 @@ export function createWorkJsonLd(
       availability: "https://schema.org/InStock",
       url: work.affiliateUrl,
     },
+    ...(actressNames.length > 0
+      ? {
+          actor: actressNames.map((name) => ({
+            "@type": "Person",
+            name,
+          })),
+        }
+      : {}),
+  };
+}
+
+export function createDmmProductJsonLd(item: DmmItem) {
+  const makerName = getDmmItemMakerName(item);
+  const actressNames = getDmmItemActressNameList(item);
+  const imageUrl = getDmmItemImageUrl(item);
+  const price = parseDmmPrice(item.prices?.price);
+  const listPrice = parseDmmPrice(item.prices?.list_price);
+  const formattedPrice = formatDmmItemPrice(item);
+
+  return {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: item.title,
+    description: item.title,
+    sku: item.content_id,
+    ...(imageUrl ? { image: imageUrl } : {}),
+    ...(makerName
+      ? {
+          brand: {
+            "@type": "Brand",
+            name: makerName,
+          },
+        }
+      : {}),
+    ...(item.date ? { releaseDate: item.date.split(" ")[0] } : {}),
+    url: `${SITE_URL}/works/${item.content_id}`,
+    ...(formattedPrice
+      ? {
+          offers: {
+            "@type": "Offer",
+            price: price || listPrice,
+            priceCurrency: "JPY",
+            availability: "https://schema.org/InStock",
+            url: getDmmFanzaUrl(item),
+          },
+        }
+      : {}),
     ...(actressNames.length > 0
       ? {
           actor: actressNames.map((name) => ({
@@ -134,5 +209,37 @@ export function createFaqJsonLd(
         text: item.answer,
       },
     })),
+  };
+}
+
+export function createArticleJsonLd(article: {
+  title: string;
+  description: string;
+  path: string;
+  publishedAt: string;
+  updatedAt?: string;
+}) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: article.title,
+    description: article.description,
+    datePublished: article.publishedAt,
+    dateModified: article.updatedAt ?? article.publishedAt,
+    url: `${SITE_URL}${article.path}`,
+    author: {
+      "@type": "Organization",
+      name: siteConfig.name,
+      url: SITE_URL,
+    },
+    publisher: {
+      "@type": "Organization",
+      name: siteConfig.name,
+      logo: {
+        "@type": "ImageObject",
+        url: `${SITE_URL}/og-default.svg`,
+      },
+    },
+    mainEntityOfPage: `${SITE_URL}${article.path}`,
   };
 }

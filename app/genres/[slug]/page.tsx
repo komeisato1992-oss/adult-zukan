@@ -8,10 +8,13 @@ import { getCatalogGenreStaticParams } from "@/lib/dmm/catalog-entities";
 import { getGenreSummaryBySlug, getGenreWorksBySlug } from "@/lib/catalog";
 import { parsePageParam } from "@/lib/pagination";
 import { siteConfig } from "@/lib/site-config";
+import { PageIntro } from "@/components/ui/PageIntro";
 import { createPageMetadata } from "@/lib/seo/metadata";
+import { createListDescription } from "@/lib/seo/descriptions";
+import { createGenreTitle } from "@/lib/seo/titles";
 import {
   createBreadcrumbJsonLd,
-  createItemListJsonLd,
+  createCollectionPageJsonLd,
 } from "@/lib/seo/json-ld";
 
 export const revalidate = 86400;
@@ -39,9 +42,14 @@ export async function generateMetadata({ params }: GenreDetailPageProps) {
   }
 
   return createPageMetadata({
-    title: `${genre.name}の作品一覧`,
-    description: `${genre.name}の作品一覧。${genre.workCount}件の作品を掲載しています。`,
+    title: createGenreTitle(genre.name),
+    description: createListDescription({
+      name: genre.name,
+      count: genre.workCount,
+      context: "ジャンルの人気作品一覧",
+    }),
     path: `/genres/${genre.slug}`,
+    absoluteTitle: true,
   });
 }
 
@@ -69,12 +77,10 @@ export default async function GenreDetailPage({
             { name: "ジャンル一覧", path: "/genres" },
             { name: genre.name, path: `/genres/${genre.slug}` },
           ]),
-          createItemListJsonLd(
+          createCollectionPageJsonLd(
             `${genre.name}の作品一覧`,
-            works.slice(0, 24).map((work) => ({
-              name: work.title,
-              url: `${siteConfig.url}/works/${work.content_id}`,
-            })),
+            `${genre.name}ジャンルの作品一覧`,
+            `${siteConfig.url}/genres/${genre.slug}`,
           ),
         ]}
       />
@@ -91,6 +97,9 @@ export default async function GenreDetailPage({
             {genre.name}
           </h1>
           <p className="mt-2 text-sm text-muted">{works.length}件の作品</p>
+          <PageIntro
+            text={`${genre.name}ジャンルの作品を一覧掲載。人気作品からお好みの作品を探せます。`}
+          />
         </header>
 
         <section aria-labelledby="genre-all">

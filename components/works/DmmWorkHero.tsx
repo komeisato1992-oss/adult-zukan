@@ -5,6 +5,7 @@ import { useState } from "react";
 import { DmmSampleMovieThumbnail } from "@/components/works/DmmSampleMovieThumbnail";
 import { DmmActressLinks } from "@/components/works/DmmActressLinks";
 import { FanzaLinkButton } from "@/components/works/FanzaLinkButton";
+import { AffiliateDisclosureNote } from "@/components/ui/AffiliateDisclosureNote";
 import { ImageLightboxModal } from "@/components/works/ImageLightboxModal";
 import type { DmmReleaseDateInfo } from "@/lib/dmm/release-date";
 
@@ -130,6 +131,7 @@ export function DmmWorkHero({
 
             <div className="mt-6">
               <FanzaLinkButton href={fanzaUrl} />
+              <AffiliateDisclosureNote className="mt-2" />
             </div>
           </div>
         </div>

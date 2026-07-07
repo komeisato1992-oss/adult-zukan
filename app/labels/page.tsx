@@ -7,16 +7,22 @@ import {
   getCatalogItems,
   getCatalogLabels,
 } from "@/lib/dmm/catalog-entities";
-import { pageIntros } from "@/lib/site-config";
+import { siteConfig, pageIntros } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/seo/metadata";
-import { createBreadcrumbJsonLd } from "@/lib/seo/json-ld";
+import { truncateDescription } from "@/lib/seo/descriptions";
+import { seoTitles } from "@/lib/seo/titles";
+import {
+  createBreadcrumbJsonLd,
+  createCollectionPageJsonLd,
+} from "@/lib/seo/json-ld";
 
 export const revalidate = 86400;
 
 export const metadata = createPageMetadata({
-  title: "レーベル一覧",
-  description: pageIntros.labels,
+  title: seoTitles.labels,
+  description: truncateDescription(pageIntros.labels),
   path: "/labels",
+  absoluteTitle: true,
 });
 
 export default async function LabelsPage() {
@@ -34,6 +40,11 @@ export default async function LabelsPage() {
             { name: "トップ", path: "/" },
             { name: "レーベル一覧", path: "/labels" },
           ]),
+          createCollectionPageJsonLd(
+            "レーベル一覧",
+            pageIntros.labels,
+            `${siteConfig.url}/labels`,
+          ),
         ]}
       />
       <PageLayout>

@@ -4,6 +4,7 @@ import { PageLayout } from "@/components/layout/PageLayout";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { DmmCatalogWorksGrid } from "@/components/works/DmmCatalogWorksGrid";
+import { DmmRelatedWorks } from "@/components/works/DmmRelatedWorks";
 import { JsonLd } from "@/components/seo/JsonLd";
 import {
   getCatalogMakerStaticParams,
@@ -12,12 +13,16 @@ import {
   getMakerSummaryBySlug,
   getMakerWorksBySlug,
 } from "@/lib/catalog";
+import { getActressDetailPath } from "@/lib/actresses/slug";
+import { getMakerInternalLinks } from "@/lib/dmm/internal-links";
 import { parsePageParam } from "@/lib/pagination";
 import { siteConfig } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/seo/metadata";
+import { createListDescription } from "@/lib/seo/descriptions";
+import { createMakerTitle } from "@/lib/seo/titles";
 import {
   createBreadcrumbJsonLd,
-  createItemListJsonLd,
+  createCollectionPageJsonLd,
 } from "@/lib/seo/json-ld";
 
 export const revalidate = 86400;
@@ -45,9 +50,14 @@ export async function generateMetadata({ params }: MakerDetailPageProps) {
   }
 
   return createPageMetadata({
-    title: `${maker.name}の作品一覧`,
-    description: `${maker.name}の作品一覧。${maker.workCount}件の作品を掲載しています。`,
+    title: createMakerTitle(maker.name),
+    description: createListDescription({
+      name: maker.name,
+      count: maker.workCount,
+      context: "の人気作品一覧",
+    }),
     path: `/makers/${maker.slug}`,
+    absoluteTitle: true,
   });
 }
 
@@ -64,7 +74,10 @@ export default async function MakerDetailPage({
   }
 
   const works = await getMakerWorksBySlug(slug);
+  const { popularWorks, topSeries, topActresses } =
+    await getMakerInternalLinks(slug);
   const currentPage = parsePageParam(page);
+  const makerUrl = `${siteConfig.url}/makers/${maker.slug}`;
 
   return (
     <>
@@ -75,12 +88,10 @@ export default async function MakerDetailPage({
             { name: "メーカー一覧", path: "/makers" },
             { name: maker.name, path: `/makers/${maker.slug}` },
           ]),
-          createItemListJsonLd(
+          createCollectionPageJsonLd(
             `${maker.name}の作品一覧`,
-            works.slice(0, 24).map((work) => ({
-              name: work.title,
-              url: `${siteConfig.url}/works/${work.content_id}`,
-            })),
+            `${maker.name}の作品を一覧掲載`,
+            makerUrl,
           ),
         ]}
       />
@@ -99,7 +110,54 @@ export default async function MakerDetailPage({
           <p className="mt-2 text-sm text-muted">{works.length}件の作品</p>
         </header>
 
-        <section aria-labelledby="maker-all">
+        {popularWorks.length > 0 ? (
+          <DmmRelatedWorks
+            items={popularWorks}
+            title="人気作品"
+            sectionId="maker-popular"
+          />
+        ) : null}
+
+        {topSeries.length > 0 ? (
+          <section aria-labelledby="maker-series" className="mt-12">
+            <SectionHeader title="代表シリーズ" id="maker-series" />
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {topSeries.map((series) => (
+                <Link
+                  key={series.slug}
+                  href={`/series/${series.slug}`}
+                  className="rounded border border-border bg-white p-4 transition-shadow hover:shadow-md"
+                >
+                  <h3 className="text-sm font-bold text-foreground">
+                    {series.name}
+                  </h3>
+                  <p className="mt-1 text-xs text-muted">
+                    {series.workCount}作品
+                  </p>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {topActresses.length > 0 ? (
+          <section aria-labelledby="maker-actresses" className="mt-12">
+            <SectionHeader title="人気女優" id="maker-actresses" />
+            <div className="flex flex-wrap gap-2">
+              {topActresses.map((actress) => (
+                <Link
+                  key={actress.slug}
+                  href={getActressDetailPath(actress.name)}
+                  className="rounded-full border border-border px-3 py-1 text-xs hover:border-accent hover:text-accent"
+                >
+                  {actress.name}（{actress.workCount}）
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        <section aria-labelledby="maker-all" className="mt-12">
           <SectionHeader title="全作品" id="maker-all" />
           {works.length > 0 ? (
             <DmmCatalogWorksGrid

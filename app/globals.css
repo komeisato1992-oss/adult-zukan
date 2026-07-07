@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+@source "../components/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../app/**/*.{js,ts,jsx,tsx,mdx}";
+@source "../lib/**/*.{js,ts,jsx,tsx,mdx}";
+
 :root {
   --background: #ffffff;
   --foreground: #1a1a1a;
@@ -23,10 +27,18 @@
   --font-sans: var(--font-noto-sans-jp);
 }
 
+/* CSS未読込時の保険 */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
 @layer base {
-  img {
-    max-width: 100%;
-    height: auto;
+  .work-image-frame img,
+  .portrait-image-frame img {
+    max-width: none;
+    width: 100%;
+    height: 100%;
   }
 }
 
@@ -58,8 +70,8 @@ body {
 }
 
 .work-image-frame--hero {
-  aspect-ratio: 16 / 7;
-  max-height: 520px;
+  height: 280px;
+  max-height: 280px;
 }
 
 .catalog-work-image {
@@ -77,7 +89,7 @@ body {
 
 .portrait-image {
   object-fit: cover;
-  object-position: center;
+  object-position: right center;
 }
 
 .sr-only {

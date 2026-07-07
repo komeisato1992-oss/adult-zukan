@@ -69,12 +69,14 @@ export function Footer() {
                 </li>
               ))}
             </ul>
+            <p className="mt-4 text-xs leading-relaxed text-muted/90">
+              当サイトはアフィリエイト広告（DMMアフィリエイト等）を利用しています。
+            </p>
           </nav>
         </div>
 
         <p className="mt-8 border-t border-border pt-6 text-center text-xs text-muted">
-          © {currentYear} {siteConfig.name}. All rights reserved. |
-          当サイトはアフィリエイトプログラムにより商品を紹介しています。 |
+          © {currentYear} {siteConfig.name}. All rights reserved.{" "}
           <Link href="/feed.xml" className="hover:text-accent">
             RSS
           </Link>

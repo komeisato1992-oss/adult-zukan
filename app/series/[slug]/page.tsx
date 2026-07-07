@@ -10,9 +10,11 @@ import { getSeriesSummaryBySlug, getSeriesWorksBySlug } from "@/lib/catalog";
 import { parsePageParam } from "@/lib/pagination";
 import { siteConfig } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/seo/metadata";
+import { createListDescription } from "@/lib/seo/descriptions";
+import { createSeriesTitle } from "@/lib/seo/titles";
 import {
   createBreadcrumbJsonLd,
-  createItemListJsonLd,
+  createCollectionPageJsonLd,
 } from "@/lib/seo/json-ld";
 
 export const revalidate = 86400;
@@ -40,9 +42,14 @@ export async function generateMetadata({ params }: SeriesDetailPageProps) {
   }
 
   return createPageMetadata({
-    title: `${series.name}シリーズ`,
-    description: `${series.name}シリーズの作品一覧。${series.workCount}件の作品を掲載しています。`,
+    title: createSeriesTitle(series.name),
+    description: createListDescription({
+      name: series.name,
+      count: series.workCount,
+      context: "シリーズの作品一覧",
+    }),
     path: `/series/${series.slug}`,
+    absoluteTitle: true,
   });
 }
 
@@ -70,12 +77,10 @@ export default async function SeriesDetailPage({
             { name: "シリーズ一覧", path: "/series" },
             { name: series.name, path: `/series/${series.slug}` },
           ]),
-          createItemListJsonLd(
+          createCollectionPageJsonLd(
             `${series.name}シリーズ`,
-            works.slice(0, 24).map((work) => ({
-              name: work.title,
-              url: `${siteConfig.url}/works/${work.content_id}`,
-            })),
+            `${series.name}シリーズの作品一覧`,
+            `${siteConfig.url}/series/${series.slug}`,
           ),
         ]}
       />

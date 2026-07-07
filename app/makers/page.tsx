@@ -9,17 +9,20 @@ import {
 import { siteConfig, pageIntros } from "@/lib/site-config";
 import { PageIntro } from "@/components/ui/PageIntro";
 import { createPageMetadata } from "@/lib/seo/metadata";
+import { truncateDescription } from "@/lib/seo/descriptions";
+import { seoTitles } from "@/lib/seo/titles";
 import {
   createBreadcrumbJsonLd,
-  createItemListJsonLd,
+  createCollectionPageJsonLd,
 } from "@/lib/seo/json-ld";
 
 export const revalidate = 86400;
 
 export const metadata = createPageMetadata({
-  title: "メーカー一覧",
-  description: pageIntros.makers,
+  title: seoTitles.makers,
+  description: truncateDescription(pageIntros.makers),
   path: "/makers",
+  absoluteTitle: true,
 });
 
 export default async function MakersPage() {
@@ -37,12 +40,10 @@ export default async function MakersPage() {
             { name: "トップ", path: "/" },
             { name: "メーカー一覧", path: "/makers" },
           ]),
-          createItemListJsonLd(
+          createCollectionPageJsonLd(
             "メーカー一覧",
-            makers.map((maker) => ({
-              name: maker.name,
-              url: `${siteConfig.url}/makers/${maker.slug}`,
-            })),
+            pageIntros.makers,
+            `${siteConfig.url}/makers`,
           ),
         ]}
       />

@@ -8,6 +8,7 @@ import {
   pageIntros,
   navItems,
   legalLinks,
+  buildSiteUrl,
 } from "@/lib/site-config";
 import { getAllGenres } from "@/data/genres";
 import { getAllMakers } from "@/data/makers";
@@ -184,7 +185,7 @@ export default function SitemapPage() {
         <p className="mt-10 text-xs text-muted">
           XMLサイトマップ:{" "}
           <a href="/sitemap.xml" className="text-accent hover:underline">
-            {siteConfig.url}/sitemap.xml
+            {buildSiteUrl("/sitemap.xml")}
           </a>
         </p>
       </PageLayout>

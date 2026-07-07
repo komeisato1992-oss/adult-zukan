@@ -107,9 +107,6 @@ export function createRootMetadata(): Metadata {
         "application/rss+xml": `${SITE_URL}/feed.xml`,
       },
     },
-    verification: {
-      google: "B5wZE-ISkVIdM4c3JglNJJoZgKFt7wXlK4dASgA_YTQ",
-    },
     icons: {
       icon: [
         { url: "/favicon.ico" },

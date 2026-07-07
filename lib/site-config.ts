@@ -1,6 +1,6 @@
 import { SITE_URL } from "@/lib/constants";
 
-export { SITE_URL } from "@/lib/constants";
+export { SITE_URL, buildSiteUrl } from "@/lib/constants";
 
 export const siteConfig = {
   name: "アダルト図鑑",

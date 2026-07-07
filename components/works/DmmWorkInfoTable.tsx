@@ -1,8 +1,30 @@
+import Link from "next/link";
 import type { DmmInfoRow } from "@/lib/dmm/display";
 
 type DmmWorkInfoTableProps = {
   rows: DmmInfoRow[];
 };
+
+const INFO_LINK_CLASS = "text-accent hover:underline";
+
+function DmmInfoTableCell({ row }: { row: DmmInfoRow }) {
+  if (row.links && row.links.length > 0) {
+    return (
+      <>
+        {row.links.map((link, index) => (
+          <span key={`${link.href}-${link.label}`}>
+            {index > 0 && "、"}
+            <Link href={link.href} className={INFO_LINK_CLASS}>
+              {link.label}
+            </Link>
+          </span>
+        ))}
+      </>
+    );
+  }
+
+  return row.value;
+}
 
 export function DmmWorkInfoTable({ rows }: DmmWorkInfoTableProps) {
   if (rows.length === 0) {
@@ -34,7 +56,7 @@ export function DmmWorkInfoTable({ rows }: DmmWorkInfoTableProps) {
                     row.multiline ? "whitespace-pre-wrap leading-relaxed" : ""
                   }`}
                 >
-                  {row.value}
+                  <DmmInfoTableCell row={row} />
                 </td>
               </tr>
             ))}

@@ -1,9 +1,17 @@
 import type { DmmItem } from "@/lib/dmm/types";
+import { getActressDetailPath } from "@/lib/actresses/slug";
+import {
+  getGenreDetailPath,
+  getLabelDetailPath,
+  getMakerDetailPath,
+  getSeriesDetailPath,
+} from "@/lib/entities/paths";
 import { formatDmmPriceString } from "@/lib/dmm/format-price";
 import {
   formatDmmItemPrice,
   getDmmReleaseDateInfo,
 } from "@/lib/dmm/release-date";
+import { slugify } from "@/lib/utils";
 import { getValidImageUrl } from "@/lib/works";
 
 export { getDmmSampleMovieUrl } from "@/lib/dmm/sample-movie";
@@ -82,31 +90,91 @@ export function getDmmReleaseDate(item: DmmItem): string | undefined {
   return getDmmReleaseDateInfo(item)?.value;
 }
 
+export function getDmmItemGenreNameList(item: DmmItem): string[] {
+  const genres = item.iteminfo?.genre ?? [];
+  return genres.map((genre) => genre.name).filter(Boolean);
+}
+
+export function getDmmItemGenreNames(item: DmmItem): string | undefined {
+  const names = getDmmItemGenreNameList(item);
+  return names.length > 0 ? names.join("、") : undefined;
+}
+
+export type DmmInfoLink = {
+  label: string;
+  href: string;
+};
+
 export type DmmInfoRow = {
   label: string;
-  value: string;
+  value?: string;
+  links?: DmmInfoLink[];
   multiline?: boolean;
 };
+
+function createEntityLink(
+  name: string,
+  getPath: (slug: string) => string,
+): DmmInfoLink | null {
+  const slug = slugify(name);
+  if (!slug) return null;
+  return { label: name, href: getPath(slug) };
+}
+
+function createEntityRow(
+  label: string,
+  name: string,
+  getPath: (slug: string) => string,
+): DmmInfoRow {
+  const link = createEntityLink(name, getPath);
+  return link ? { label, links: [link] } : { label, value: name };
+}
+
+function createEntityListRow(
+  label: string,
+  names: string[],
+  getPath: (slug: string) => string,
+): DmmInfoRow | null {
+  if (names.length === 0) return null;
+
+  const links = names
+    .map((name) => createEntityLink(name, getPath))
+    .filter((link): link is DmmInfoLink => link !== null);
+
+  if (links.length === 0) {
+    return { label, value: names.join("、") };
+  }
+
+  return { label, links };
+}
 
 export function getDmmInfoRows(
   item: DmmItem,
   description?: string,
 ): DmmInfoRow[] {
   const releaseDate = getDmmReleaseDateInfo(item);
+  const makerName = getDmmItemMakerName(item);
+  const labelName = getDmmItemLabelName(item);
+  const seriesName = getDmmItemSeriesName(item);
+  const actressNames = getDmmItemActressNameList(item);
+  const genreNames = getDmmItemGenreNameList(item);
 
   const rows: Array<DmmInfoRow | null> = [
     { label: "品番", value: item.content_id },
-    getDmmItemMakerName(item)
-      ? { label: "メーカー", value: getDmmItemMakerName(item)! }
+    makerName ? createEntityRow("メーカー", makerName, getMakerDetailPath) : null,
+    labelName ? createEntityRow("レーベル", labelName, getLabelDetailPath) : null,
+    seriesName
+      ? createEntityRow("シリーズ", seriesName, getSeriesDetailPath)
       : null,
-    getDmmItemLabelName(item)
-      ? { label: "レーベル", value: getDmmItemLabelName(item)! }
-      : null,
-    getDmmItemSeriesName(item)
-      ? { label: "シリーズ", value: getDmmItemSeriesName(item)! }
-      : null,
-    getDmmItemActressNames(item)
-      ? { label: "女優", value: getDmmItemActressNames(item)! }
+    createEntityListRow("ジャンル", genreNames, getGenreDetailPath),
+    actressNames.length > 0
+      ? {
+          label: "女優",
+          links: actressNames.map((name) => ({
+            label: name,
+            href: getActressDetailPath(name),
+          })),
+        }
       : null,
     description
       ? { label: "作品説明", value: description, multiline: true }

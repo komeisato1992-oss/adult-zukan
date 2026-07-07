@@ -33,6 +33,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ja" className={notoSansJP.variable} suppressHydrationWarning>
+      <head>
+        <meta
+          name="google-site-verification"
+          content="cVXEr1brLhEAvSq23o5NynHnRLFvED0cCC2Vk7ulRsg"
+        />
+      </head>
       <body
         className="flex min-h-screen flex-col bg-white text-foreground antialiased"
         suppressHydrationWarning

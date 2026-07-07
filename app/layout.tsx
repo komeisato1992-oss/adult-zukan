@@ -19,7 +19,10 @@ const notoSansJP = Noto_Sans_JP({
   weight: ["400", "500", "700"],
 });
 
-const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID?.trim();
+const gaMeasurementId =
+  process.env.NODE_ENV === "production"
+    ? process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID?.trim()
+    : undefined;
 
 export const metadata: Metadata = {
   ...createRootMetadata(),

@@ -34,3 +34,32 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Google Analytics (GA4)
+
+This project uses the official Next.js integration via [`@next/third-parties/google`](https://nextjs.org/docs/app/building-your-application/optimizing/third-party-libraries#google-analytics). `GoogleAnalytics` is loaded in `app/layout.tsx` and sends page views on all routes.
+
+Analytics runs **only in production** (`NODE_ENV=production`). Local `npm run dev` does not load GA even if the env var is set.
+
+### Environment variables
+
+| Variable | Description |
+| --- | --- |
+| `NEXT_PUBLIC_GA_MEASUREMENT_ID` | GA4 measurement ID (e.g. `G-XXXXXXXXXX`) |
+
+### Local setup
+
+Add to `.env.local`:
+
+```bash
+NEXT_PUBLIC_GA_MEASUREMENT_ID=G-KR3DQVXBHZ
+```
+
+### Vercel setup
+
+1. Open the project on Vercel → **Settings** → **Environment Variables**
+2. Add `NEXT_PUBLIC_GA_MEASUREMENT_ID` with value `G-KR3DQVXBHZ`
+3. Scope it to **Production** only (Preview/Development are optional and usually left unset)
+4. Redeploy after saving
+
+Google Search Console verification uses a separate `<meta name="google-site-verification">` tag in the same layout and does not conflict with GA4.

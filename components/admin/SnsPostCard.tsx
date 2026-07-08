@@ -18,8 +18,11 @@ function getCharCountClass(length: number): string {
   return "text-muted";
 }
 
-export function SnsPostCard({ post }: SnsPostCardProps) {
+export function SnsPostCard({ post: initialPost }: SnsPostCardProps) {
+  const [post, setPost] = useState(initialPost);
   const [copied, setCopied] = useState(false);
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [regenerateError, setRegenerateError] = useState<string | null>(null);
   const charCount = post.body.length;
 
   async function handleCopy() {
@@ -29,6 +32,46 @@ export function SnsPostCard({ post }: SnsPostCardProps) {
       window.setTimeout(() => setCopied(false), 2000);
     } catch {
       setCopied(false);
+    }
+  }
+
+  async function handleRegenerate() {
+    setIsRegenerating(true);
+    setRegenerateError(null);
+
+    try {
+      const response = await fetch("/api/admin/sns/regenerate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type: post.type,
+          meta: post.meta,
+        }),
+      });
+
+      const payload = (await response.json()) as Partial<SnsScheduledPost> & {
+        error?: string;
+      };
+
+      if (!response.ok) {
+        setRegenerateError(payload.error ?? "別案の更新に失敗しました。");
+        return;
+      }
+
+      setPost((current) => ({
+        ...current,
+        body: payload.body ?? current.body,
+        compareWorks:
+          post.type === "compare" ? payload.compareWorks : undefined,
+        compareUrl: post.type === "compare" ? payload.compareUrl : undefined,
+        meta: payload.meta ?? current.meta,
+      }));
+    } catch {
+      setRegenerateError("別案の更新に失敗しました。");
+    } finally {
+      setIsRegenerating(false);
     }
   }
 
@@ -77,6 +120,12 @@ export function SnsPostCard({ post }: SnsPostCardProps) {
         </div>
       ) : null}
 
+      {regenerateError ? (
+        <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {regenerateError}
+        </p>
+      ) : null}
+
       <div className="mt-5 flex flex-wrap gap-2">
         <button
           type="button"
@@ -93,6 +142,14 @@ export function SnsPostCard({ post }: SnsPostCardProps) {
         >
           Xで開く
         </a>
+        <button
+          type="button"
+          onClick={handleRegenerate}
+          disabled={isRegenerating}
+          className="rounded-lg border border-border bg-white px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isRegenerating ? "更新中..." : "別案に更新"}
+        </button>
       </div>
     </article>
   );

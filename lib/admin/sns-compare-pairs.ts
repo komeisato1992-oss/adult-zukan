@@ -197,6 +197,64 @@ function trySelectPairs(
   }
 }
 
+function pairKey(contentIdA: string, contentIdB: string): string {
+  return [contentIdA, contentIdB].sort().join(",");
+}
+
+function collectUniquePairs(candidates: WorkCandidate[]): ScoredPair[] {
+  const pairs: ScoredPair[] = [];
+
+  for (const batch of [
+    buildScoredPairs(candidates, scorePair, 2),
+    buildScoredPairs(candidates, scorePairRelaxed, 1),
+  ]) {
+    for (const pair of batch) {
+      if (pairs.some((existing) => samePair(existing, pair))) continue;
+      pairs.push(pair);
+    }
+  }
+
+  for (let i = 0; i < candidates.length; i += 1) {
+    for (let j = i + 1; j < candidates.length; j += 1) {
+      const pair: ScoredPair = {
+        workA: candidates[i],
+        workB: candidates[j],
+        score: 0,
+        minCommonGenres: 0,
+      };
+      if (pairs.some((existing) => samePair(existing, pair))) continue;
+      pairs.push(pair);
+    }
+  }
+
+  return pairs.sort((a, b) => b.score - a.score);
+}
+
+export function pickAlternativeComparePair(
+  items: DmmItem[],
+  excludeContentIds?: [string, string],
+): [SnsCompareWorkMini, SnsCompareWorkMini] | null {
+  const candidates = getCompareCandidates(items);
+  if (candidates.length < 2) return null;
+
+  const excludeKey =
+    excludeContentIds?.length === 2
+      ? pairKey(excludeContentIds[0], excludeContentIds[1])
+      : null;
+
+  const available = collectUniquePairs(candidates).filter((pair) => {
+    if (!excludeKey) return true;
+    return pairKey(pair.workA.contentId, pair.workB.contentId) !== excludeKey;
+  });
+
+  if (available.length === 0) return null;
+
+  const pool = available.slice(0, Math.min(10, available.length));
+  const picked = pool[Math.floor(Math.random() * pool.length)];
+
+  return [toCompareWorkMini(picked.workA), toCompareWorkMini(picked.workB)];
+}
+
 export function pickComparePairs(
   items: DmmItem[],
 ): Array<[SnsCompareWorkMini, SnsCompareWorkMini]> {

@@ -1,19 +1,27 @@
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin/auth";
-import { getImportCandidates } from "@/lib/admin/import-candidates";
+import { getImportCandidatesList } from "@/lib/admin/import-candidates-query";
+import { isDmmConfigured } from "@/lib/dmm/client";
+import { isGitHubCatalogConfigured } from "@/lib/admin/github-config";
 
+/** @deprecated /api/admin/import/get-candidates を使用してください */
 export async function GET() {
   if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  try {
-    const result = await getImportCandidates();
-    return NextResponse.json(result);
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "候補作品の取得に失敗しました。";
+  const result = await getImportCandidatesList({ page: 1 });
 
-    return NextResponse.json({ error: message }, { status: 500 });
-  }
+  return NextResponse.json({
+    newWorks: [],
+    randomWorks: result.candidates.map((candidate) => ({
+      source: candidate.source,
+      sourceLabel: candidate.source,
+      item: candidate.item,
+    })),
+    totalCount: result.pagination.totalCount,
+    configured: isGitHubCatalogConfigured() && isDmmConfigured(),
+    message:
+      "この API は非推奨です。/api/admin/import/get-candidates を使用してください。",
+  });
 }

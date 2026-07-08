@@ -1,15 +1,16 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { ImportGeneratedPost } from "@/components/admin/ImportGeneratedPost";
 import { ImportImageLightbox } from "@/components/admin/ImportImageLightbox";
 import type { ImportCandidateSource } from "@/lib/admin/import-candidates";
 import {
   buildImportActressPost,
+  buildImportComparePost,
   buildImportRecommendedWorkPost,
-  formatImportCatalogJson,
   IMPORT_SNS_POST_TYPE_LABELS,
+  pickImportComparePair,
   type ImportSnsPostType,
 } from "@/lib/admin/import-sns-posts";
 import { getDmmItemDescription } from "@/lib/dmm/description";
@@ -23,14 +24,26 @@ import {
   getDmmItemSeriesName,
 } from "@/lib/dmm/display";
 import { getDmmFanzaUrl } from "@/lib/dmm/fanza-url";
+import { SnsCompareImagePreview } from "@/components/admin/SnsCompareImagePreview";
+import type { SnsCompareWorkMini } from "@/lib/admin/sns-types";
 import { getDmmReleaseDateInfo } from "@/lib/dmm/release-date";
 import type { DmmItem } from "@/lib/dmm/types";
 
 type ImportCandidateCardProps = {
   item: DmmItem;
-  source: ImportCandidateSource;
+  source: ImportCandidateSource | string;
   sourceLabel: string;
-  onExclude: (contentId: string) => void;
+  selected: boolean;
+  isAdded: boolean;
+  comparePool?: DmmItem[];
+  onSelectedChange: (contentId: string, selected: boolean) => void;
+  onExclude: (contentId: string) => void | Promise<void>;
+  onMarkAdded: (contentId: string) => void;
+};
+
+type AddMessage = {
+  type: "success" | "duplicate" | "error";
+  text: string;
 };
 
 const ACTION_BUTTON_CLASS =
@@ -63,18 +76,26 @@ export function ImportCandidateCard({
   item,
   source,
   sourceLabel,
+  selected,
+  isAdded,
+  comparePool = [],
+  onSelectedChange,
   onExclude,
+  onMarkAdded,
 }: ImportCandidateCardProps) {
-  const [showJson, setShowJson] = useState(false);
   const [showSnsPanel, setShowSnsPanel] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [showLightbox, setShowLightbox] = useState(false);
-  const [jsonCopied, setJsonCopied] = useState(false);
+  const [isAdding, setIsAdding] = useState(false);
+  const [emphasizeSns, setEmphasizeSns] = useState(false);
+  const [addMessage, setAddMessage] = useState<AddMessage | null>(null);
   const [snsType, setSnsType] = useState<ImportSnsPostType | "">("");
   const [selectedActress, setSelectedActress] = useState("");
   const [generatedPost, setGeneratedPost] = useState<{
     typeLabel: string;
     body: string;
+    compareWorks?: [SnsCompareWorkMini, SnsCompareWorkMini];
+    compareUrl?: string;
   } | null>(null);
 
   const imageUrl = getDmmItemImageUrl(item);
@@ -83,20 +104,71 @@ export function ImportCandidateCard({
   const duration = item.volume?.trim() ? `${item.volume}分` : "-";
   const description = getDmmItemDescription(item);
   const fanzaUrl = getDmmFanzaUrl(item);
-  const importJson = useMemo(() => formatImportCatalogJson(item), [item]);
 
   const sourceBadgeClass =
-    source === "new"
+    source === "new" || source.startsWith("fanza-new")
       ? "bg-accent-light text-accent"
       : "bg-surface text-foreground";
 
-  async function handleCopyJson() {
+  async function handleAddWork() {
+    if (isAdding || isAdded) return;
+
+    if (!window.confirm("この作品をサイトに追加しますか？")) {
+      return;
+    }
+
+    setIsAdding(true);
+    setAddMessage(null);
+
     try {
-      await navigator.clipboard.writeText(importJson);
-      setJsonCopied(true);
-      window.setTimeout(() => setJsonCopied(false), 2000);
+      const response = await fetch("/api/admin/import/add-work", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contentId: item.content_id,
+          item,
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        error?: string;
+        message?: string;
+      };
+
+      if (response.status === 409) {
+        onMarkAdded(item.content_id);
+        setAddMessage({
+          type: "duplicate",
+          text: payload.error ?? "この作品はすでに追加済みです。",
+        });
+        return;
+      }
+
+      if (!response.ok) {
+        setAddMessage({
+          type: "error",
+          text: payload.error ?? "追加に失敗しました。",
+        });
+        return;
+      }
+
+      onMarkAdded(item.content_id);
+      setEmphasizeSns(true);
+      setAddMessage({
+        type: "success",
+        text:
+          payload.message ??
+          "追加しました。Vercelの反映まで数分かかります。",
+      });
     } catch {
-      setJsonCopied(false);
+      setAddMessage({
+        type: "error",
+        text: "追加に失敗しました。",
+      });
+    } finally {
+      setIsAdding(false);
     }
   }
 
@@ -107,6 +179,19 @@ export function ImportCandidateCard({
       setGeneratedPost({
         typeLabel: IMPORT_SNS_POST_TYPE_LABELS["recommended-work"],
         body: buildImportRecommendedWorkPost(item),
+      });
+      return;
+    }
+
+    if (snsType === "compare") {
+      const pair = pickImportComparePair(comparePool.length > 0 ? comparePool : [item]);
+      if (!pair) return;
+      const result = buildImportComparePost(pair[0], pair[1]);
+      setGeneratedPost({
+        typeLabel: IMPORT_SNS_POST_TYPE_LABELS.compare,
+        body: result.body,
+        compareWorks: result.compareWorks,
+        compareUrl: result.compareUrl,
       });
       return;
     }
@@ -132,16 +217,11 @@ export function ImportCandidateCard({
   }
 
   function openSnsPanel() {
-    setShowJson(false);
     setShowSnsPanel(true);
     setSnsType("");
     setGeneratedPost(null);
     setSelectedActress("");
-  }
-
-  function openJsonPanel() {
-    setShowJson(true);
-    setShowSnsPanel(false);
+    setEmphasizeSns(false);
   }
 
   const actressText =
@@ -150,14 +230,41 @@ export function ImportCandidateCard({
   const priceText = getDmmItemPrice(item) ?? "-";
   const releaseText = release?.value ?? "-";
 
+  const addMessageClass =
+    addMessage?.type === "success"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+      : addMessage?.type === "duplicate"
+        ? "border-amber-200 bg-amber-50 text-amber-900"
+        : "border-red-200 bg-red-50 text-red-700";
+
   return (
     <article className="rounded-xl border border-border bg-white p-4 shadow-sm sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-2">
-        <span
-          className={`rounded-full px-3 py-1 text-xs font-semibold ${sourceBadgeClass}`}
-        >
-          {sourceLabel}
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          {!isAdded ? (
+            <label className="inline-flex items-center gap-2 text-xs text-muted">
+              <input
+                type="checkbox"
+                checked={selected}
+                onChange={(event) =>
+                  onSelectedChange(item.content_id, event.target.checked)
+                }
+                className="h-4 w-4 rounded border-border text-accent"
+              />
+              選択
+            </label>
+          ) : null}
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-semibold ${sourceBadgeClass}`}
+          >
+            {sourceLabel}
+          </span>
+          {isAdded ? (
+            <span className="rounded-full bg-accent px-3 py-1 text-xs font-semibold text-white">
+              追加済み
+            </span>
+          ) : null}
+        </div>
         <p className="text-xs text-muted">{item.content_id}</p>
       </div>
 
@@ -276,48 +383,47 @@ export function ImportCandidateCard({
         </div>
       </div>
 
+      {addMessage ? (
+        <p className={`mt-4 rounded-lg border px-3 py-2 text-sm ${addMessageClass}`}>
+          {addMessage.text}
+        </p>
+      ) : null}
+
+      {isAdded && emphasizeSns ? (
+        <p className="mt-3 text-sm font-medium text-accent">
+          追加が完了しました。続けて SNS 投稿文を作成できます。
+        </p>
+      ) : null}
+
       <div className="mt-4 flex gap-2 border-t border-border pt-4">
         <button
           type="button"
-          onClick={openJsonPanel}
-          className={`${ACTION_BUTTON_CLASS} bg-accent text-white hover:bg-accent-hover`}
+          onClick={handleAddWork}
+          disabled={isAdding || isAdded}
+          className={`${ACTION_BUTTON_CLASS} bg-accent text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60`}
         >
-          追加
+          {isAdding ? "追加中..." : isAdded ? "追加済み" : "追加"}
         </button>
         <button
           type="button"
           onClick={openSnsPanel}
-          className={`${ACTION_BUTTON_CLASS} border border-accent bg-white text-accent hover:bg-[#FFF2F2]`}
+          className={`${ACTION_BUTTON_CLASS} ${
+            emphasizeSns
+              ? "border-accent bg-accent text-white shadow-md ring-2 ring-accent/30 hover:bg-accent-hover"
+              : "border border-accent bg-white text-accent hover:bg-[#FFF2F2]"
+          }`}
         >
           SNS作成
         </button>
         <button
           type="button"
           onClick={() => onExclude(item.content_id)}
-          className={`${ACTION_BUTTON_CLASS} border border-border text-foreground hover:border-accent hover:text-accent`}
+          disabled={isAdding}
+          className={`${ACTION_BUTTON_CLASS} border border-border text-foreground hover:border-accent hover:text-accent disabled:opacity-60`}
         >
           除外
         </button>
       </div>
-
-      {showJson ? (
-        <div className="mt-4 rounded-lg border border-border bg-surface p-4">
-          <p className="text-sm font-bold text-foreground">追加用JSON</p>
-          <p className="mt-1 text-xs text-muted">
-            `data/dmm/catalog-snapshot.json` の配列末尾に追加するJSONです。コピーして手動で反映してください。
-          </p>
-          <pre className="mt-3 max-h-64 overflow-auto rounded border border-border bg-white p-3 text-xs leading-relaxed text-foreground">
-            {importJson}
-          </pre>
-          <button
-            type="button"
-            onClick={handleCopyJson}
-            className="mt-3 inline-flex h-11 min-h-[44px] items-center rounded-lg border border-border px-4 text-sm text-foreground transition-colors hover:border-accent hover:text-accent"
-          >
-            {jsonCopied ? "コピーしました" : "JSONをコピー"}
-          </button>
-        </div>
-      ) : null}
 
       {showSnsPanel && snsType === "" ? (
         <div className="mt-4 rounded-lg border border-dashed border-border bg-surface p-4">
@@ -341,6 +447,14 @@ export function ImportCandidateCard({
             </button>
             <button
               type="button"
+              onClick={() => handleSnsTypeChange("compare")}
+              disabled={comparePool.length < 2}
+              className="inline-flex h-11 min-h-[44px] items-center rounded-lg border border-border bg-white px-4 text-sm transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {IMPORT_SNS_POST_TYPE_LABELS.compare}
+            </button>
+            <button
+              type="button"
               disabled={actressNames.length === 0}
               onClick={() => handleSnsTypeChange("actress")}
               className="inline-flex h-11 min-h-[44px] items-center rounded-lg border border-border bg-white px-4 text-sm transition-colors hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50"
@@ -348,6 +462,11 @@ export function ImportCandidateCard({
               {IMPORT_SNS_POST_TYPE_LABELS.actress}
             </button>
           </div>
+          {comparePool.length < 2 ? (
+            <p className="mt-2 text-xs text-muted">
+              比較投稿には候補が2件以上必要です。
+            </p>
+          ) : null}
           {actressNames.length === 0 ? (
             <p className="mt-2 text-xs text-muted">
               女優情報がないため「人気女優紹介」は選択できません。
@@ -400,10 +519,18 @@ export function ImportCandidateCard({
           </button>
 
           {generatedPost ? (
-            <ImportGeneratedPost
-              typeLabel={generatedPost.typeLabel}
-              body={generatedPost.body}
-            />
+            <>
+              {generatedPost.compareWorks && generatedPost.compareUrl ? (
+                <SnsCompareImagePreview
+                  works={generatedPost.compareWorks}
+                  compareUrl={generatedPost.compareUrl}
+                />
+              ) : null}
+              <ImportGeneratedPost
+                typeLabel={generatedPost.typeLabel}
+                body={generatedPost.body}
+              />
+            </>
           ) : null}
         </div>
       ) : null}

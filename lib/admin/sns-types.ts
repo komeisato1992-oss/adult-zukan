@@ -32,6 +32,17 @@ export type SnsScheduledPost = {
   body: string;
   compareWorks?: [SnsCompareWorkMini, SnsCompareWorkMini];
   compareUrl?: string;
+  meta?: SnsPostMeta;
+};
+
+export type SnsRankingVariant = "popular" | "new" | "sale" | "random";
+
+export type SnsPostMeta = {
+  contentId?: string;
+  compareContentIds?: [string, string];
+  actressName?: string;
+  genreSlug?: string;
+  rankingVariant?: SnsRankingVariant;
 };
 
 export type SnsScheduleEntry = {

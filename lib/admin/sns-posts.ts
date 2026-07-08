@@ -13,6 +13,7 @@ import {
 import {
   SNS_DAILY_SCHEDULE,
   type SnsCompareWorkMini,
+  type SnsRankingVariant,
   type SnsScheduledPost,
 } from "@/lib/admin/sns-types";
 import { buildSiteUrl } from "@/lib/constants";
@@ -23,7 +24,13 @@ import {
   getDmmItemPrice,
 } from "@/lib/dmm/display";
 import { filterDisplayableItems } from "@/lib/dmm/filter";
-import { getRankedActresses, getRankedGenres } from "@/lib/dmm/home-sections";
+import {
+  getNewWorks,
+  getPopularWorks,
+  getRankedActresses,
+  getRankedGenres,
+  getSaleWorks,
+} from "@/lib/dmm/home-sections";
 import type { DmmItem } from "@/lib/dmm/types";
 
 const RANKING_URL = "https://adult-zukan.jp/ranking";
@@ -44,7 +51,7 @@ function buildCompareUrl(workA: SnsCompareWorkMini, workB: SnsCompareWorkMini): 
   return `${buildSiteUrl("/compare")}?ids=${workA.contentId},${workB.contentId}`;
 }
 
-function buildRecommendedWorkPost(item: DmmItem): string {
+export function buildRecommendedWorkPost(item: DmmItem): string {
   const actressLine = getDmmItemActressNameList(item).join("、");
   const price = getDmmItemPrice(item);
   const workUrl = buildSiteUrl(`/works/${item.content_id}`);
@@ -68,7 +75,7 @@ function buildRecommendedWorkPost(item: DmmItem): string {
   ].join("\n");
 }
 
-function buildComparePost(
+export function buildComparePost(
   workA: SnsCompareWorkMini,
   workB: SnsCompareWorkMini,
 ): { body: string; compareUrl: string } {
@@ -101,7 +108,7 @@ function buildComparePost(
   return { body, compareUrl };
 }
 
-function buildActressPost(name: string, workCount: number): string {
+export function buildActressPost(name: string, workCount: number): string {
   const actressUrl = buildSiteUrl(getActressDetailPath(name));
   const actressTag = nameToHashtag(name);
   const hashtags = buildHashtagLine([
@@ -123,7 +130,7 @@ function buildActressPost(name: string, workCount: number): string {
   ].join("\n");
 }
 
-function buildGenrePost(name: string, slug: string, workCount: number): string {
+export function buildGenrePost(name: string, slug: string, workCount: number): string {
   const genreUrl = buildSiteUrl(getGenreDetailPath(slug));
   const genreTag = nameToHashtag(name);
   const hashtags = buildHashtagLine([
@@ -145,6 +152,39 @@ function buildGenrePost(name: string, slug: string, workCount: number): string {
   ].join("\n");
 }
 
+const RANKING_HEADINGS: Record<SnsRankingVariant, string> = {
+  popular: "【人気作品ランキング】🏆",
+  new: "【新着作品ランキング】🆕",
+  sale: "【セール作品ランキング】💰",
+  random: "【ランダムおすすめ】🎲",
+};
+
+function shuffleItems<T>(items: T[]): T[] {
+  const shuffled = [...items];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
+  }
+  return shuffled;
+}
+
+function getRankingItems(
+  items: DmmItem[],
+  variant: SnsRankingVariant,
+): DmmItem[] {
+  switch (variant) {
+    case "new":
+      return getNewWorks(items, 100);
+    case "sale":
+      return getSaleWorks(items, 100);
+    case "random":
+      return shuffleItems(filterDisplayableItems(items));
+    case "popular":
+    default:
+      return getPopularWorks(items, 100);
+  }
+}
+
 function collectRankingActressHashtags(items: DmmItem[]): string[] {
   const tags: string[] = [];
 
@@ -155,15 +195,21 @@ function collectRankingActressHashtags(items: DmmItem[]): string[] {
   return tags;
 }
 
-function buildRankingPost(items: DmmItem[]): string {
-  const topWorks = filterDisplayableItems(items).slice(0, 3);
+export function buildRankingPost(
+  items: DmmItem[],
+  variant: SnsRankingVariant = "popular",
+): string {
+  const topWorks = filterDisplayableItems(getRankingItems(items, variant)).slice(
+    0,
+    3,
+  );
   const hashtags = buildHashtagLine([
     ...SNS_RANKING_HASHTAGS,
     ...collectRankingActressHashtags(topWorks),
   ]);
 
   return [
-    "【人気作品ランキング】🏆",
+    RANKING_HEADINGS[variant],
     "",
     "注目作品をランキングで確認できます✅",
     "",
@@ -201,6 +247,7 @@ export async function getSnsScheduledPosts(): Promise<SnsScheduledPost[]> {
         type: entry.type,
         typeLabel: entry.typeLabel,
         body: buildRecommendedWorkPost(recommendedWork),
+        meta: { contentId: recommendedWork.content_id },
       };
     }
 
@@ -217,6 +264,9 @@ export async function getSnsScheduledPosts(): Promise<SnsScheduledPost[]> {
           body,
           compareWorks: pair,
           compareUrl,
+          meta: {
+            compareContentIds: [pair[0].contentId, pair[1].contentId],
+          },
         };
       }
 
@@ -243,6 +293,7 @@ export async function getSnsScheduledPosts(): Promise<SnsScheduledPost[]> {
         type: entry.type,
         typeLabel: entry.typeLabel,
         body: buildActressPost(actress.name, actress.workCount),
+        meta: { actressName: actress.name },
       };
     }
 
@@ -252,6 +303,7 @@ export async function getSnsScheduledPosts(): Promise<SnsScheduledPost[]> {
         type: entry.type,
         typeLabel: entry.typeLabel,
         body: buildGenrePost(genre.name, genre.slug, genre.workCount),
+        meta: { genreSlug: genre.slug },
       };
     }
 
@@ -260,7 +312,8 @@ export async function getSnsScheduledPosts(): Promise<SnsScheduledPost[]> {
         slot: entry.slot,
         type: entry.type,
         typeLabel: entry.typeLabel,
-        body: buildRankingPost(items),
+        body: buildRankingPost(items, "popular"),
+        meta: { rankingVariant: "popular" },
       };
     }
 

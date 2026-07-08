@@ -63,3 +63,35 @@ NEXT_PUBLIC_GA_MEASUREMENT_ID=G-KR3DQVXBHZ
 4. Redeploy after saving
 
 Google Search Console verification uses a separate `<meta name="google-site-verification">` tag in the same layout and does not conflict with GA4.
+
+## Admin CMS (作品追加)
+
+The admin import page (`/admin/import`) can add works directly to `data/dmm/catalog-snapshot.json` via the GitHub Contents API. After a successful add, Vercel redeploys from `main` and production updates within a few minutes.
+
+### Required environment variables
+
+Set these in **`.env.local`** for local admin use and in **Vercel → Settings → Environment Variables** for production.
+
+| Variable | Description |
+| --- | --- |
+| `ADMIN_PASSWORD` | Admin login password (existing) |
+| `GITHUB_TOKEN` | GitHub personal access token with `contents:write` on the repo (**server only**) |
+| `GITHUB_OWNER` | GitHub username or organization |
+| `GITHUB_REPO` | Repository name (default: `adult-zukan`) |
+| `GITHUB_BRANCH` | Target branch (default: `main`) |
+
+### Local setup example
+
+```bash
+ADMIN_PASSWORD=your-admin-password
+GITHUB_TOKEN=ghp_xxxxxxxx
+GITHUB_OWNER=your-github-owner
+GITHUB_REPO=adult-zukan
+GITHUB_BRANCH=main
+```
+
+**Security notes**
+
+- Never expose `GITHUB_TOKEN` to the client or commit it to git.
+- The token is only used in server-side API routes such as `POST /api/admin/import/add-work`.
+- Admin APIs require an authenticated admin session cookie.

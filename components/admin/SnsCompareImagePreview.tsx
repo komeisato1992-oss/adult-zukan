@@ -1,9 +1,9 @@
 "use client";
 
-import Image from "next/image";
 import { useRef, useState } from "react";
 import { toPng } from "html-to-image";
 import type { SnsCompareWorkMini } from "@/lib/admin/sns-types";
+import { buildImageProxyUrl } from "@/lib/image-proxy";
 import { siteConfig } from "@/lib/site-config";
 import { isValidImageUrl } from "@/lib/works";
 
@@ -12,6 +12,43 @@ type SnsCompareImagePreviewProps = {
   compareUrl: string;
 };
 
+function waitForImages(container: HTMLElement): Promise<void> {
+  const images = Array.from(container.querySelectorAll("img"));
+
+  if (images.length === 0) {
+    return Promise.resolve();
+  }
+
+  return Promise.all(
+    images.map(
+      (img) =>
+        new Promise<void>((resolve, reject) => {
+          const finish = () => {
+            if (img.naturalWidth > 0) {
+              resolve();
+              return;
+            }
+            reject(new Error("画像の読み込みに失敗しました。"));
+          };
+
+          if (img.complete) {
+            finish();
+            return;
+          }
+
+          img.addEventListener("load", finish, { once: true });
+          img.addEventListener(
+            "error",
+            () => {
+              reject(new Error("画像の読み込みに失敗しました。"));
+            },
+            { once: true },
+          );
+        }),
+    ),
+  ).then(() => undefined);
+}
+
 function CompareImageWorkColumn({
   label,
   work,
@@ -19,8 +56,10 @@ function CompareImageWorkColumn({
   label: string;
   work: SnsCompareWorkMini;
 }) {
-  const imageUrl =
+  const [imageError, setImageError] = useState(false);
+  const originalUrl =
     isValidImageUrl(work.imageUrl) && work.imageUrl ? work.imageUrl : undefined;
+  const proxyUrl = originalUrl ? buildImageProxyUrl(originalUrl) : undefined;
 
   return (
     <div className="flex min-w-0 w-full flex-1 flex-col border border-border bg-white">
@@ -29,14 +68,18 @@ function CompareImageWorkColumn({
       </div>
       <div className="flex min-w-0 flex-1 flex-col p-3">
         <div className="relative mx-auto aspect-[3/4] w-full max-w-[140px] overflow-hidden rounded-md border border-border bg-surface">
-          {imageUrl ? (
+          {proxyUrl && !imageError ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={imageUrl}
+              src={proxyUrl}
               alt={work.title}
-              crossOrigin="anonymous"
+              onError={() => setImageError(true)}
               className="h-full w-full object-cover object-[right_center]"
             />
+          ) : imageError ? (
+            <div className="flex h-full items-center justify-center px-2 text-center text-[10px] leading-relaxed text-red-600">
+              画像の読み込みに失敗しました
+            </div>
           ) : (
             <div className="flex h-full items-center justify-center text-[10px] text-muted">
               画像なし
@@ -86,6 +129,8 @@ export function SnsCompareImagePreview({
     setExportError("");
 
     try {
+      await waitForImages(previewRef.current);
+
       const dataUrl = await toPng(previewRef.current, {
         cacheBust: true,
         pixelRatio: 2,
@@ -96,8 +141,19 @@ export function SnsCompareImagePreview({
       link.download = `compare-${works[0].contentId}-${works[1].contentId}.png`;
       link.href = dataUrl;
       link.click();
-    } catch {
-      setExportError("画像の書き出しに失敗しました。ブラウザで再試行してください。");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "画像の書き出しに失敗しました。";
+
+      if (message.includes("読み込み")) {
+        setExportError(
+          "画像の読み込みに失敗しました。プレビュー内の画像を確認して再試行してください。",
+        );
+      } else {
+        setExportError(
+          "画像の書き出しに失敗しました。CORSの可能性があります。再試行してください。",
+        );
+      }
     } finally {
       setExporting(false);
     }
@@ -114,13 +170,13 @@ export function SnsCompareImagePreview({
         >
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-white px-3 py-3 sm:px-4">
             <div className="flex min-w-0 items-center gap-2">
-              <Image
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
                 src={siteConfig.logoIcon}
                 alt={siteConfig.name}
                 width={28}
                 height={28}
                 className="h-7 w-7 shrink-0"
-                unoptimized
               />
               <span className="truncate text-sm font-bold text-foreground">
                 {siteConfig.name}
@@ -161,9 +217,17 @@ export function SnsCompareImagePreview({
       </div>
 
       {exportError ? (
-        <p className="text-xs text-red-600" role="alert">
-          {exportError}
-        </p>
+        <div className="flex flex-wrap items-center gap-3" role="alert">
+          <p className="text-xs text-red-600">{exportError}</p>
+          <button
+            type="button"
+            onClick={handleExport}
+            disabled={exporting}
+            className="inline-flex h-9 items-center rounded-lg border border-red-200 bg-white px-3 text-xs font-medium text-red-700 transition-colors hover:bg-red-50 disabled:opacity-60"
+          >
+            再試行
+          </button>
+        </div>
       ) : null}
     </div>
   );

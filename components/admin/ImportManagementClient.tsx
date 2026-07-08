@@ -109,6 +109,10 @@ export function ImportManagementClient({
       }
 
       const payload = (await response.json()) as ImportManagementInitialData;
+
+      console.log("loaded candidates:", payload.candidates);
+      console.log("filtered candidates:", payload.candidates);
+
       setData(payload);
       setPage(payload.pagination.page);
       setSort(targetSort);
@@ -280,18 +284,50 @@ export function ImportManagementClient({
         method: "POST",
       });
 
-      const payload = (await response.json()) as {
+      const payload = (await response.json()) as ImportManagementInitialData & {
         error?: string;
-        message?: string;
+        success?: boolean;
         collectedCount?: number;
+        displayedCount?: number;
+        message?: string;
+        candidates?: ImportCandidatesListResult["candidates"];
       };
+
+      console.log("collect result:", payload);
 
       if (!response.ok) {
         throw new Error(payload.error ?? "候補の収集に失敗しました。");
       }
 
+      if (Array.isArray(payload.candidates)) {
+        setData((current) => ({
+          ...current,
+          summary: payload.summary ?? current.summary,
+          candidates: payload.candidates ?? [],
+          pagination: payload.pagination ?? current.pagination,
+          message: undefined,
+        }));
+        setPage(payload.pagination?.page ?? 1);
+        setSelectedIds(new Set());
+        setActiveFilters(new Set());
+
+        const displayedCount =
+          payload.displayedCount ?? payload.pagination?.totalCount ?? payload.candidates.length;
+
+        console.log("loaded candidates:", payload.candidates);
+        console.log("filtered candidates:", payload.candidates);
+
+        setCollectMessage(
+          payload.message ??
+            (displayedCount > 0
+              ? `${displayedCount}件の候補を表示しました。`
+              : "候補を収集しましたが、表示できる候補がありません。"),
+        );
+        return;
+      }
+
+      await loadCandidates({ nextPage: 1, nextFilters: new Set() });
       setCollectMessage(payload.message ?? "候補を収集しました。");
-      await loadCandidates({ nextPage: 1 });
     } catch (collectError) {
       setError(
         collectError instanceof Error

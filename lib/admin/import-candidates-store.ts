@@ -82,7 +82,7 @@ export function getImportCandidateIdSet(
 
 export async function appendImportCandidates(
   newRecords: StoredImportCandidate[],
-): Promise<{ addedCount: number }> {
+): Promise<{ addedCount: number; records: StoredImportCandidate[] }> {
   const { records, sha } = await loadImportCandidates();
   const existingIds = getImportCandidateIdSet(records);
   const toAppend: StoredImportCandidate[] = [];
@@ -95,7 +95,7 @@ export async function appendImportCandidates(
   }
 
   if (toAppend.length === 0) {
-    return { addedCount: 0 };
+    return { addedCount: 0, records };
   }
 
   const nextRecords = [...records, ...toAppend];
@@ -105,7 +105,7 @@ export async function appendImportCandidates(
     sha,
   );
 
-  return { addedCount: toAppend.length };
+  return { addedCount: toAppend.length, records: nextRecords };
 }
 
 export async function updateImportCandidateStatuses(

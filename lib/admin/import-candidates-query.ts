@@ -113,11 +113,22 @@ export async function getImportCandidatesList(options: {
   sort?: ImportCandidateSortKey;
   filters?: ImportFilterKey[];
 }): Promise<ImportCandidatesListResult> {
+  const { records } = await loadImportCandidates();
+  return buildImportCandidatesListFromRecords(records, options);
+}
+
+export function buildImportCandidatesListFromRecords(
+  records: StoredImportCandidate[],
+  options: {
+    page?: number;
+    sort?: ImportCandidateSortKey;
+    filters?: ImportFilterKey[];
+  } = {},
+): ImportCandidatesListResult {
   const page = Math.max(1, options.page ?? 1);
   const sort = options.sort ?? "collectedAt-desc";
   const filterSet = new Set(options.filters ?? []);
 
-  const { records } = await loadImportCandidates();
   const summary = buildSummary(records);
 
   const candidateRecords = records.filter((record) => record.status === "candidate");

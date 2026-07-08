@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin/auth";
 import { collectImportCandidates } from "@/lib/admin/import-collect";
+import { isDmmConfigured } from "@/lib/dmm/client";
+import { isGitHubCatalogConfigured } from "@/lib/admin/github-config";
+
+export const dynamic = "force-dynamic";
 
 export async function POST() {
   if (!(await isAdminAuthenticated())) {
@@ -17,7 +21,11 @@ export async function POST() {
       );
     }
 
-    return NextResponse.json(result);
+    return NextResponse.json({
+      ...result,
+      configured: isGitHubCatalogConfigured(),
+      dmmConfigured: isDmmConfigured(),
+    });
   } catch (error) {
     return NextResponse.json(
       {

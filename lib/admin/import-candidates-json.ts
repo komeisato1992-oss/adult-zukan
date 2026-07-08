@@ -83,44 +83,175 @@ function normalizeDmmItem(
   return {
     ...item,
     content_id: resolvedContentId,
-    title: typeof item.title === "string" ? item.title : "",
+    title:
+      typeof item.title === "string" && item.title.trim()
+        ? item.title.trim()
+        : resolvedContentId,
+  } as DmmItem;
+}
+
+function isBareDmmItemRecord(record: Record<string, unknown>): boolean {
+  return (
+    typeof record.product_id === "string" ||
+    typeof record.service_code === "string" ||
+    typeof record.floor_code === "string"
+  );
+}
+
+function readStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => {
+      if (typeof entry === "string") return entry.trim();
+      if (isObject(entry) && typeof entry.name === "string") {
+        return entry.name.trim();
+      }
+      return "";
+    })
+    .filter(Boolean);
+}
+
+function flatRecordToStoredCandidate(
+  record: Record<string, unknown>,
+  contentId: string,
+): StoredImportCandidate {
+  const source =
+    typeof record.source === "string" && record.source.trim()
+      ? record.source.trim()
+      : "import";
+  const collectedAt =
+    typeof record.collectedAt === "string" && record.collectedAt.trim()
+      ? record.collectedAt.trim()
+      : new Date().toISOString();
+  const imageURL =
+    typeof record.imageURL === "string" && record.imageURL.trim()
+      ? record.imageURL.trim()
+      : "";
+  const durationValue = record.duration;
+  const duration =
+    typeof durationValue === "number"
+      ? durationValue
+      : typeof durationValue === "string" && durationValue.trim()
+        ? Number.parseInt(durationValue, 10)
+        : null;
+
+  const stub: StoredImportCandidate = {
+    content_id: contentId,
+    title:
+      typeof record.title === "string" && record.title.trim()
+        ? record.title.trim()
+        : contentId,
+    imageURL,
+    actresses: readStringArray(record.actresses),
+    maker: typeof record.maker === "string" ? record.maker : "",
+    label: typeof record.label === "string" ? record.label : "",
+    series: typeof record.series === "string" ? record.series : "",
+    genres: readStringArray(record.genres),
+    price: typeof record.price === "string" ? record.price : "",
+    releaseDate: typeof record.releaseDate === "string" ? record.releaseDate : "",
+    duration: Number.isFinite(duration) ? duration : null,
+    affiliateURL:
+      typeof record.affiliateURL === "string" ? record.affiliateURL : "",
+    description:
+      typeof record.description === "string" ? record.description : "",
+    sampleImages: readStringArray(record.sampleImages),
+    source,
+    collectedAt,
+    status: readStatus(record),
+    item: {} as DmmItem,
+  };
+
+  stub.item = flatFieldsToDmmItem(stub);
+  return stub;
+}
+
+function flatFieldsToDmmItem(record: StoredImportCandidate): DmmItem {
+  const imageURL = record.imageURL?.trim();
+
+  return {
+    content_id: record.content_id,
+    title: record.title || record.content_id,
+    imageURL: imageURL
+      ? { large: imageURL, list: imageURL, small: imageURL }
+      : undefined,
+    iteminfo: {
+      actress: record.actresses.map((name) => ({ name })),
+      genre: record.genres.map((name) => ({ name })),
+    },
+    prices: record.price ? { price: record.price } : undefined,
+    date: record.releaseDate || undefined,
+    volume: record.duration != null ? String(record.duration) : undefined,
+    affiliateURL: record.affiliateURL || undefined,
+    URL: record.affiliateURL || undefined,
   } as DmmItem;
 }
 
 function normalizeImportCandidate(value: unknown): StoredImportCandidate | null {
   if (!isObject(value)) return null;
 
-  const itemRaw = value.item;
-  if (!isObject(itemRaw)) return null;
-
-  const contentId =
-    readContentId(value) ??
-    (typeof itemRaw.content_id === "string" && itemRaw.content_id.trim()
-      ? itemRaw.content_id.trim()
-      : null);
-
+  const contentId = readContentId(value);
   if (!contentId) return null;
 
-  const dmmItem = normalizeDmmItem(itemRaw, contentId);
-  if (!dmmItem) return null;
+  const itemRaw = value.item;
+  if (isObject(itemRaw)) {
+    const dmmItem = normalizeDmmItem(itemRaw, contentId);
+    if (!dmmItem) return null;
 
-  const source =
-    typeof value.source === "string" && value.source.trim()
-      ? value.source.trim()
-      : "import";
-  const collectedAt =
-    typeof value.collectedAt === "string" && value.collectedAt.trim()
-      ? value.collectedAt.trim()
-      : new Date().toISOString();
+    const source =
+      typeof value.source === "string" && value.source.trim()
+        ? value.source.trim()
+        : "import";
+    const collectedAt =
+      typeof value.collectedAt === "string" && value.collectedAt.trim()
+        ? value.collectedAt.trim()
+        : new Date().toISOString();
 
-  const derived = dmmItemToStoredCandidate(dmmItem, source);
+    const derived = dmmItemToStoredCandidate(dmmItem, source);
 
+    return {
+      ...derived,
+      content_id: contentId,
+      status: readStatus(value),
+      collectedAt,
+      source,
+    };
+  }
+
+  if (isBareDmmItemRecord(value)) {
+    const dmmItem = normalizeDmmItem(value, contentId);
+    if (!dmmItem) return null;
+
+    const source =
+      typeof value.source === "string" && value.source.trim()
+        ? value.source.trim()
+        : "import";
+    const collectedAt =
+      typeof value.collectedAt === "string" && value.collectedAt.trim()
+        ? value.collectedAt.trim()
+        : new Date().toISOString();
+
+    const derived = dmmItemToStoredCandidate(dmmItem, source);
+    return {
+      ...derived,
+      content_id: contentId,
+      status: readStatus(value),
+      collectedAt,
+      source,
+    };
+  }
+
+  if (typeof value.title === "string" || typeof value.imageURL === "string") {
+    return flatRecordToStoredCandidate(value, contentId);
+  }
+
+  const minimalItem = normalizeDmmItem({ content_id: contentId, title: contentId }, contentId);
+  if (!minimalItem) return null;
+
+  const derived = dmmItemToStoredCandidate(minimalItem, "import");
   return {
     ...derived,
     content_id: contentId,
     status: readStatus(value),
-    collectedAt,
-    source,
   };
 }
 

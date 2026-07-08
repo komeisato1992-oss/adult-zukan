@@ -15,6 +15,8 @@ import {
   loadImportCandidates,
 } from "@/lib/admin/import-candidates-store";
 import { dmmItemToStoredCandidate } from "@/lib/admin/import-candidate-mapper";
+import { buildImportCandidatesListFromRecords } from "@/lib/admin/import-candidates-query";
+import type { ImportCandidatesListResult } from "@/lib/admin/import-candidate-types";
 import { IMPORT_COLLECT_MAX } from "@/lib/admin/import-constants";
 
 type CollectFetchSpec = {
@@ -102,17 +104,23 @@ async function fetchGenrePool(): Promise<Array<{ item: DmmItem; source: string }
 }
 
 export type CollectImportCandidatesResult = {
+  success: boolean;
   configured: boolean;
   collectedCount: number;
+  displayedCount: number;
   message: string;
-};
+} & ImportCandidatesListResult;
 
 export async function collectImportCandidates(): Promise<CollectImportCandidatesResult> {
   if (!isDmmConfigured()) {
+    const emptyList = buildImportCandidatesListFromRecords([]);
     return {
+      success: false,
       configured: false,
       collectedCount: 0,
+      displayedCount: 0,
       message: "DMM API の認証情報が未設定です（DMM_API_ID / DMM_AFFILIATE_ID）。",
+      ...emptyList,
     };
   }
 
@@ -159,21 +167,34 @@ export async function collectImportCandidates(): Promise<CollectImportCandidates
   }
 
   if (selected.length === 0) {
+    const list = buildImportCandidatesListFromRecords(existingRecords, {
+      page: 1,
+    });
     return {
+      success: true,
       configured: true,
       collectedCount: 0,
+      displayedCount: list.pagination.totalCount,
       message: "新しい未掲載候補が見つかりませんでした。",
+      ...list,
     };
   }
 
-  const { addedCount } = await appendImportCandidates(selected);
+  const { addedCount, records } = await appendImportCandidates(selected);
+  const list = buildImportCandidatesListFromRecords(records, { page: 1 });
+  const displayedCount = list.summary.candidateCount;
 
   return {
+    success: true,
     configured: true,
     collectedCount: addedCount,
+    displayedCount,
     message:
-      addedCount > 0
-        ? `${addedCount}件の候補を収集しました。`
-        : "新しい未掲載候補が見つかりませんでした（重複のため保存されませんでした）。",
+      displayedCount > 0
+        ? `${displayedCount}件の候補を表示しました。`
+        : addedCount > 0
+          ? `${addedCount}件を保存しましたが、一覧に反映できる候補がありません。`
+          : "新しい未掲載候補が見つかりませんでした（重複のため保存されませんでした）。",
+    ...list,
   };
 }

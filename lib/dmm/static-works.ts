@@ -28,6 +28,9 @@ async function fetchDmmStaticWorksUncached(): Promise<DmmItem[]> {
   const snapshot = readCatalogSnapshot();
 
   if (snapshot.length >= CATALOG_MIN_VALID) {
+    // 検索・一覧・女優ページ等は先頭 CATALOG_TARGET_VALID 件のみ使用。
+    // 一括追加は add-work.ts で新規作品を先頭へ prepend する。
+    // TODO: 将来は data/dmm/search-index.json を直接参照し全件検索可能にする案あり。
     const items = filterValidCatalogItems(
       snapshot.slice(0, DMM_STATIC_WORKS_COUNT),
     );

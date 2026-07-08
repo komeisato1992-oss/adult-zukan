@@ -63,7 +63,15 @@ export async function POST(request: Request) {
 
     const baseMessage =
       addedCount > 0
-        ? `${addedCount}件を追加しました。${skippedCount}件は重複のためスキップしました。`
+        ? [
+            `${addedCount}件を追加しました。`,
+            skippedCount > 0
+              ? `${skippedCount}件は重複のためスキップしました。`
+              : null,
+            "追加作品は一覧・検索・関連ページに反映されます。",
+          ]
+            .filter(Boolean)
+            .join("\n")
         : skippedCount > 0
           ? `追加できる作品がありませんでした。${skippedCount}件は重複または不正データのためスキップしました。`
           : "追加できる作品がありませんでした。";

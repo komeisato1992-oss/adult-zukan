@@ -21,6 +21,7 @@ import {
   getDmmItemMakerName,
 } from "@/lib/dmm/display";
 import { DMM_WORKS_REVALIDATE } from "@/lib/dmm/static-works";
+import { getCatalogSnapshotFingerprint } from "@/lib/dmm/catalog-display";
 import { getDmmStaticWorks } from "@/lib/dmm/static-works";
 import { readCatalogSnapshot } from "@/lib/dmm/catalog-snapshot";
 import type { DmmItem } from "@/lib/dmm/types";
@@ -35,16 +36,20 @@ function createSummariesLoader<T>(
   cacheKey: string,
   compute: (items: DmmItem[]) => T,
 ): () => Promise<T> {
-  const loadSummaries = unstable_cache(
-    async () => {
-      const items = await getCatalogWorks();
-      return compute(items);
-    },
-    [cacheKey],
-    { revalidate: DMM_WORKS_REVALIDATE },
-  );
+  return cache(async (): Promise<T> => {
+    const items = await getCatalogWorks();
 
-  return cache(loadSummaries);
+    if (process.env.NODE_ENV === "development") {
+      return compute(items);
+    }
+
+    const fingerprint = getCatalogSnapshotFingerprint();
+    return unstable_cache(
+      async () => compute(await getCatalogWorks()),
+      [cacheKey, fingerprint],
+      { revalidate: DMM_WORKS_REVALIDATE },
+    )();
+  });
 }
 
 export const getActressSummaries = createSummariesLoader(

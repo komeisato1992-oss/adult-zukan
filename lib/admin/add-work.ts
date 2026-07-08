@@ -188,7 +188,15 @@ export async function addWorksToCatalog(
   if (preparedItems.length > 0) {
     // 新規追加を先頭に置く。slice(0, 2000) の検索・一覧対象に必ず含めるため。
     // TODO: 将来は data/dmm/search-index.json をフロントが直接参照する案も検討。
-    const mergedItems = [...preparedItems, ...items];
+    const preparedIds = new Set(
+      preparedItems.map((item) => normalizeCatalogContentId(item.content_id)),
+    );
+    const mergedItems = [
+      ...preparedItems,
+      ...items.filter(
+        (item) => !preparedIds.has(normalizeCatalogContentId(item.content_id)),
+      ),
+    ];
 
     let previousIndexes;
     let nextIndexes;

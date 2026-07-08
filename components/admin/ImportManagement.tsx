@@ -24,6 +24,7 @@ export async function ImportManagement() {
     initialData = {
       summary: {
         publishedCount: 0,
+        catalogTotalCount: 0,
         candidateCount: 0,
         addedCount: 0,
         excludedCount: 0,

@@ -43,6 +43,8 @@ export const IMPORT_CANDIDATE_SORT_LABELS: Record<ImportCandidateSortKey, string
 
 export type ImportCandidatesSummary = {
   publishedCount: number;
+  /** catalog-snapshot.json の総件数（掲載作品数とは別） */
+  catalogTotalCount: number;
   candidateCount: number;
   addedCount: number;
   excludedCount: number;
@@ -54,6 +56,9 @@ export type ImportCandidateListItem = {
   item: DmmItem;
   source: string;
   collectedAt: string;
+  status?: ImportCandidateStatus;
+  isAdded?: boolean;
+  isExcluded?: boolean;
 };
 
 export type ImportCandidatesListResult = {

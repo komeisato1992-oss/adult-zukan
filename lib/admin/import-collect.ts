@@ -17,6 +17,7 @@ import {
 import { dmmItemToStoredCandidate } from "@/lib/admin/import-candidate-mapper";
 import { buildImportCandidatesListFromRecords } from "@/lib/admin/import-candidates-query";
 import type { ImportCandidatesListResult } from "@/lib/admin/import-candidate-types";
+import { storedRecordToListItem } from "@/lib/admin/import-candidates-visibility";
 import { IMPORT_COLLECT_MAX } from "@/lib/admin/import-constants";
 
 type CollectFetchSpec = {
@@ -108,19 +109,26 @@ export type CollectImportCandidatesResult = {
   configured: boolean;
   collectedCount: number;
   displayedCount: number;
+  count: number;
   message: string;
-} & ImportCandidatesListResult;
+  candidates: ImportCandidatesListResult["candidates"];
+  summary: ImportCandidatesListResult["summary"];
+  pagination: ImportCandidatesListResult["pagination"];
+};
 
 export async function collectImportCandidates(): Promise<CollectImportCandidatesResult> {
   if (!isDmmConfigured()) {
-    const emptyList = buildImportCandidatesListFromRecords([]);
+    const emptyList = await buildImportCandidatesListFromRecords([]);
     return {
       success: false,
       configured: false,
       collectedCount: 0,
       displayedCount: 0,
+      count: 0,
       message: "DMM API の認証情報が未設定です（DMM_API_ID / DMM_AFFILIATE_ID）。",
-      ...emptyList,
+      candidates: [],
+      summary: emptyList.summary,
+      pagination: emptyList.pagination,
     };
   }
 
@@ -167,34 +175,46 @@ export async function collectImportCandidates(): Promise<CollectImportCandidates
   }
 
   if (selected.length === 0) {
-    const list = buildImportCandidatesListFromRecords(existingRecords, {
+    const allCandidates = existingRecords.map(storedRecordToListItem);
+    const list = await buildImportCandidatesListFromRecords(existingRecords, {
       page: 1,
+      includeAll: true,
     });
     return {
       success: true,
       configured: true,
       collectedCount: 0,
-      displayedCount: list.pagination.totalCount,
+      displayedCount: list.candidates.length,
+      count: list.candidates.length,
+      candidates: allCandidates,
       message: "新しい未掲載候補が見つかりませんでした。",
-      ...list,
+      summary: list.summary,
+      pagination: list.pagination,
     };
   }
 
   const { addedCount, records } = await appendImportCandidates(selected);
-  const list = buildImportCandidatesListFromRecords(records, { page: 1 });
-  const displayedCount = list.summary.candidateCount;
+  const allCandidates = records.map(storedRecordToListItem);
+  const list = await buildImportCandidatesListFromRecords(records, {
+    page: 1,
+    includeAll: true,
+  });
+  const displayedCount = list.candidates.length;
 
   return {
     success: true,
     configured: true,
     collectedCount: addedCount,
     displayedCount,
+    count: displayedCount,
+    candidates: allCandidates,
     message:
       displayedCount > 0
         ? `${displayedCount}件の候補を表示しました。`
         : addedCount > 0
           ? `${addedCount}件を保存しましたが、一覧に反映できる候補がありません。`
           : "新しい未掲載候補が見つかりませんでした（重複のため保存されませんでした）。",
-    ...list,
+    summary: list.summary,
+    pagination: list.pagination,
   };
 }

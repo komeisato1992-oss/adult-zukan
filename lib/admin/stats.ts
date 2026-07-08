@@ -25,23 +25,48 @@ export type AdminSiteStats = {
   noDescription: number;
 };
 
+/** Dashboard・作品追加ページ共通の掲載作品数（有効作品のみ） */
+export async function getPublishedWorkCount(): Promise<number> {
+  const works = await getCatalogWorks();
+  return works.length;
+}
+
+/** catalog-snapshot.json の生の配列件数（掲載対象外を含む） */
+export function getCatalogSnapshotTotalCount(): number {
+  return readCatalogSnapshot().length;
+}
+
+export async function getImportWorkCounts(): Promise<{
+  publishedCount: number;
+  catalogTotalCount: number;
+}> {
+  const [publishedCount, catalogTotalCount] = await Promise.all([
+    getPublishedWorkCount(),
+    Promise.resolve(getCatalogSnapshotTotalCount()),
+  ]);
+
+  return { publishedCount, catalogTotalCount };
+}
+
 export async function getAdminSiteStats(): Promise<AdminSiteStats> {
   const [
-    works,
+    publishedCount,
     actresses,
     makers,
     labels,
     series,
     genres,
     snapshot,
+    works,
   ] = await Promise.all([
-    getCatalogWorks(),
+    getPublishedWorkCount(),
     getActressSummaries(),
     getMakerSummaries(),
     getLabelSummaries(),
     getSeriesSummaries(),
     getGenreSummaries(),
     Promise.resolve(readCatalogSnapshot()),
+    getCatalogWorks(),
   ]);
 
   const filterStats = analyzeCatalogItems(snapshot);
@@ -59,7 +84,7 @@ export async function getAdminSiteStats(): Promise<AdminSiteStats> {
   }
 
   return {
-    works: works.length,
+    works: publishedCount,
     actresses: actresses.length,
     makers: makers.length,
     labels: labels.length,

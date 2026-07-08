@@ -4,7 +4,8 @@ import type { ImportCandidatesSummary } from "@/lib/admin/import-candidate-types
 
 type ImportSummaryBarProps = {
   summary: ImportCandidatesSummary;
-  filteredCount: number;
+  visibleCount: number;
+  displayedCount: number;
   isCollecting: boolean;
   onCollect: () => void;
 };
@@ -30,7 +31,8 @@ function formatCollectedAt(value: string | null): string {
 
 export function ImportSummaryBar({
   summary,
-  filteredCount,
+  visibleCount,
+  displayedCount,
   isCollecting,
   onCollect,
 }: ImportSummaryBarProps) {
@@ -41,6 +43,12 @@ export function ImportSummaryBar({
           <p className="text-sm font-bold text-foreground">未掲載候補サマリー</p>
           <dl className="grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
             <div className="flex justify-between gap-4 sm:block">
+              <dt className="text-muted">総カタログ件数</dt>
+              <dd className="font-semibold text-foreground">
+                {summary.catalogTotalCount.toLocaleString()}件
+              </dd>
+            </div>
+            <div className="flex justify-between gap-4 sm:block">
               <dt className="text-muted">掲載作品数</dt>
               <dd className="font-semibold text-foreground">
                 {summary.publishedCount.toLocaleString()}件
@@ -49,7 +57,7 @@ export function ImportSummaryBar({
             <div className="flex justify-between gap-4 sm:block">
               <dt className="text-muted">未掲載候補</dt>
               <dd className="font-semibold text-accent">
-                {summary.candidateCount.toLocaleString()}件
+                {visibleCount.toLocaleString()}件
               </dd>
             </div>
             <div className="flex justify-between gap-4 sm:block">
@@ -67,8 +75,8 @@ export function ImportSummaryBar({
           </dl>
           <p className="text-xs text-muted">
             前回収集日時：{formatCollectedAt(summary.lastCollectedAt)}
-            {filteredCount !== summary.candidateCount
-              ? ` / 表示 ${filteredCount.toLocaleString()} 件（フィルター適用中）`
+            {displayedCount !== visibleCount
+              ? ` / 現在表示 ${displayedCount.toLocaleString()} 件（品質フィルター適用中）`
               : null}
           </p>
         </div>

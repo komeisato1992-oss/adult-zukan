@@ -1,7 +1,7 @@
 import "server-only";
 
 import {
-  commitCatalogToGitHub,
+  commitCatalogBundleToGitHub,
   fetchCatalogFromGitHub,
   GitHubCatalogError,
 } from "@/lib/admin/github-catalog";
@@ -13,6 +13,14 @@ import {
 } from "@/lib/admin/import-quality";
 import { normalizeCatalogContentId } from "@/lib/dmm/catalog-snapshot";
 import { logCatalogSnapshotThrownError } from "@/lib/dmm/catalog-snapshot-json";
+import {
+  compareIndexUpdateStats,
+  formatIndexUpdateStats,
+  IndexRebuildError,
+  rebuildAllIndexes,
+  serializeCatalogIndexes,
+  type IndexUpdateStats,
+} from "@/lib/dmm/index-builders";
 import { isValidDmmListItem } from "@/lib/dmm/filter";
 import type { DmmItem } from "@/lib/dmm/types";
 
@@ -21,6 +29,8 @@ export type BulkAddWorksResult = {
   duplicateContentIds: string[];
   invalidContentIds: string[];
   rebuiltCatalog: boolean;
+  indexUpdateStats: IndexUpdateStats | null;
+  committedToGitHub: boolean;
 };
 
 export type BulkAddPreviewResult = {
@@ -156,7 +166,6 @@ export async function addWorksToCatalog(
   // 形式不正でも止めず、空配列 or 復旧形式で続行する
   const {
     items,
-    sha,
     envelope,
     raw,
     rebuilt,
@@ -173,14 +182,40 @@ export async function addWorksToCatalog(
     invalidContentIds,
   } = classifyBulkWorks(works, existingIds);
 
+  let indexUpdateStats: IndexUpdateStats | null = null;
+  let committedToGitHub = false;
+
   if (preparedItems.length > 0) {
-    await commitCatalogToGitHub(
-      envelope,
-      [...items, ...preparedItems],
-      sha,
-      buildBulkCommitMessage(addedContentIds),
-      raw,
-    );
+    const mergedItems = [...items, ...preparedItems];
+
+    let previousIndexes;
+    let nextIndexes;
+    try {
+      previousIndexes = rebuildAllIndexes(items);
+      nextIndexes = rebuildAllIndexes(mergedItems);
+      indexUpdateStats = compareIndexUpdateStats(previousIndexes, nextIndexes);
+    } catch (error) {
+      if (error instanceof IndexRebuildError) {
+        throw new AddWorkValidationError(error.message, 500);
+      }
+      throw error;
+    }
+
+    const indexFiles = serializeCatalogIndexes(nextIndexes);
+
+    try {
+      await commitCatalogBundleToGitHub(
+        envelope,
+        mergedItems,
+        buildBulkCommitMessage(addedContentIds),
+        indexFiles,
+        raw,
+      );
+      committedToGitHub = true;
+    } catch (error) {
+      logCatalogSnapshotThrownError(error);
+      throw error;
+    }
   }
 
   const statusUpdateIds = [...addedContentIds, ...duplicateContentIds];
@@ -198,6 +233,8 @@ export async function addWorksToCatalog(
     duplicateContentIds,
     invalidContentIds,
     rebuiltCatalog: rebuilt,
+    indexUpdateStats,
+    committedToGitHub,
   };
 }
 
@@ -207,6 +244,11 @@ export function toAddWorkErrorMessage(error: unknown): {
 } {
   if (error instanceof AddWorkValidationError) {
     return { message: error.message, status: error.status };
+  }
+
+  if (error instanceof IndexRebuildError) {
+    logCatalogSnapshotThrownError(error);
+    return { message: error.message, status: 500 };
   }
 
   if (error instanceof GitHubCatalogError) {

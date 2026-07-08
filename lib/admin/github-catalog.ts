@@ -97,7 +97,7 @@ async function githubRequest<T>(
       );
     }
 
-    if (response.status === 409) {
+    if (response.status === 409 || response.status === 422) {
       throw new GitHubCatalogError(
         "カタログ更新が競合しました。しばらく待ってから再度お試しください。",
         409,
@@ -119,10 +119,6 @@ async function githubRequest<T>(
 
 function decodeBase64Content(content: string): string {
   return Buffer.from(content.replace(/\n/g, ""), "base64").toString("utf-8");
-}
-
-function encodeGitHubContent(content: string): string {
-  return Buffer.from(content, "utf-8").toString("base64");
 }
 
 async function readCatalogFileText(
@@ -237,18 +233,33 @@ export async function fetchCatalogFromGitHub(): Promise<CatalogSnapshotHandle> {
   };
 }
 
-export async function commitCatalogToGitHub(
+export type GitHubFileCommit = {
+  path: string;
+  content: string;
+};
+
+type GitRefResponse = {
+  object: { sha: string };
+};
+
+type GitCommitResponse = {
+  sha: string;
+  tree: { sha: string };
+};
+
+type GitBlobResponse = {
+  sha: string;
+};
+
+type GitTreeResponse = {
+  sha: string;
+};
+
+function buildCatalogSaveContent(
   envelope: CatalogSnapshotEnvelope,
   mergedItems: DmmItem[],
-  sha: string | null,
-  commitLabel: string,
   originalRaw?: unknown,
-): Promise<void> {
-  const config = getGitHubConfig();
-  if (!config) {
-    throw new GitHubCatalogError("GitHub連携の設定が未完了です。", 503);
-  }
-
+): string {
   const saveData =
     originalRaw !== undefined
       ? buildCatalogOutput(originalRaw, mergedItems)
@@ -262,25 +273,147 @@ export async function commitCatalogToGitHub(
               updatedAt: new Date().toISOString(),
             };
 
-  const content = serializeCatalogSnapshot(saveData);
+  return serializeCatalogSnapshot(saveData);
+}
 
-  const body: Record<string, string> = {
-    message: commitLabel.startsWith("Add ")
-      ? commitLabel
-      : `Add work ${commitLabel} via admin import`,
-    content: encodeGitHubContent(content),
-    branch: config.branch,
-  };
+function normalizeCommitMessage(commitLabel: string): string {
+  return commitLabel.startsWith("Add ")
+    ? commitLabel
+    : `Add work ${commitLabel} via admin import`;
+}
 
-  if (sha) {
-    body.sha = sha;
+async function getBranchHead(): Promise<{ commitSha: string; treeSha: string }> {
+  const config = getGitHubConfig();
+  if (!config) {
+    throw new GitHubCatalogError("GitHub連携の設定が未完了です。", 503);
   }
 
-  await githubRequest(`${getContentsUrl(CATALOG_FILE_PATH)}`, {
-    method: "PUT",
-    body: JSON.stringify(body),
-  }).catch((error: unknown) => {
+  const ref = await githubRequest<GitRefResponse>(
+    `https://api.github.com/repos/${config.owner}/${config.repo}/git/ref/heads/${encodeURIComponent(config.branch)}`,
+  );
+
+  const commit = await githubRequest<GitCommitResponse>(
+    `https://api.github.com/repos/${config.owner}/${config.repo}/git/commits/${ref.object.sha}`,
+  );
+
+  return {
+    commitSha: ref.object.sha,
+    treeSha: commit.tree.sha,
+  };
+}
+
+async function createGitBlob(content: string): Promise<string> {
+  const config = getGitHubConfig();
+  if (!config) {
+    throw new GitHubCatalogError("GitHub連携の設定が未完了です。", 503);
+  }
+
+  const blob = await githubRequest<GitBlobResponse>(
+    `https://api.github.com/repos/${config.owner}/${config.repo}/git/blobs`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        content,
+        encoding: "utf-8",
+      }),
+    },
+  );
+
+  return blob.sha;
+}
+
+/** catalog + 関連 index を Git Trees API で1コミットにまとめて更新する */
+export async function commitCatalogBundleToGitHub(
+  envelope: CatalogSnapshotEnvelope,
+  mergedItems: DmmItem[],
+  commitLabel: string,
+  indexFiles: GitHubFileCommit[],
+  originalRaw?: unknown,
+): Promise<void> {
+  const config = getGitHubConfig();
+  if (!config) {
+    throw new GitHubCatalogError("GitHub連携の設定が未完了です。", 503);
+  }
+
+  const files: GitHubFileCommit[] = [
+    {
+      path: CATALOG_FILE_PATH,
+      content: buildCatalogSaveContent(envelope, mergedItems, originalRaw),
+    },
+    ...indexFiles,
+  ];
+
+  const { commitSha, treeSha } = await getBranchHead();
+
+  const treeEntries = await Promise.all(
+    files.map(async (file) => ({
+      path: file.path,
+      mode: "100644" as const,
+      type: "blob" as const,
+      sha: await createGitBlob(file.content),
+    })),
+  );
+
+  const newTree = await githubRequest<GitTreeResponse>(
+    `https://api.github.com/repos/${config.owner}/${config.repo}/git/trees`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        base_tree: treeSha,
+        tree: treeEntries,
+      }),
+    },
+  );
+
+  const newCommit = await githubRequest<GitCommitResponse>(
+    `https://api.github.com/repos/${config.owner}/${config.repo}/git/commits`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        message: normalizeCommitMessage(commitLabel),
+        tree: newTree.sha,
+        parents: [commitSha],
+      }),
+    },
+  );
+
+  try {
+    await githubRequest(
+      `https://api.github.com/repos/${config.owner}/${config.repo}/git/refs/heads/${encodeURIComponent(config.branch)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({
+          sha: newCommit.sha,
+          force: false,
+        }),
+      },
+    );
+  } catch (error) {
+    if (error instanceof GitHubCatalogError && error.status === 409) {
+      throw error;
+    }
+
     logCatalogSnapshotThrownError(error);
-    throw error;
-  });
+    throw new GitHubCatalogError(
+      "カタログ更新が競合しました。しばらく待ってから再度お試しください。",
+      409,
+    );
+  }
+}
+
+export async function commitCatalogToGitHub(
+  envelope: CatalogSnapshotEnvelope,
+  mergedItems: DmmItem[],
+  sha: string | null,
+  commitLabel: string,
+  originalRaw?: unknown,
+): Promise<void> {
+  void sha;
+  await commitCatalogBundleToGitHub(
+    envelope,
+    mergedItems,
+    commitLabel,
+    [],
+    originalRaw,
+  );
 }

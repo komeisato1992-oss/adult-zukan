@@ -6,6 +6,7 @@ import {
 } from "@/lib/admin/add-work";
 import { isAdminAuthenticated } from "@/lib/admin/auth";
 import { IMPORT_BULK_ADD_MAX } from "@/lib/admin/import-constants";
+import { formatIndexUpdateStats } from "@/lib/dmm/index-builders";
 import { logCatalogSnapshotThrownError } from "@/lib/dmm/catalog-snapshot-json";
 import type { DmmItem } from "@/lib/dmm/types";
 
@@ -71,13 +72,22 @@ export async function POST(request: Request) {
       ? " catalog-snapshot.json を読み込みましたが作品配列を特定できなかったため、works形式で復旧して追加しました。"
       : "";
 
+    const indexNote =
+      result.indexUpdateStats && result.committedToGitHub
+        ? `\n\n${formatIndexUpdateStats(result.indexUpdateStats)}\n\nGitHubへ1回commitしました。\nVercelで自動デプロイが開始されました。`
+        : result.committedToGitHub
+          ? "\n\nGitHubへ1回commitしました。\nVercelで自動デプロイが開始されました。"
+          : "";
+
     return NextResponse.json({
       success: true,
       addedCount,
       skippedCount,
       addedContentIds: result.addedContentIds,
       rebuiltCatalog: result.rebuiltCatalog,
-      message: `${baseMessage}${rebuiltNote} Vercel反映まで数分かかります。`.trim(),
+      indexUpdateStats: result.indexUpdateStats,
+      committedToGitHub: result.committedToGitHub,
+      message: `${baseMessage}${rebuiltNote}${indexNote}`.trim(),
     });
   } catch (error) {
     logCatalogSnapshotThrownError(error);

@@ -6,6 +6,7 @@ import {
 } from "@/lib/admin/add-work";
 import { isAdminAuthenticated } from "@/lib/admin/auth";
 import { IMPORT_BULK_ADD_MAX } from "@/lib/admin/import-constants";
+import { logCatalogSnapshotThrownError } from "@/lib/dmm/catalog-snapshot-json";
 import type { DmmItem } from "@/lib/dmm/types";
 
 type BulkAddWorkEntry = {
@@ -59,17 +60,27 @@ export async function POST(request: Request) {
     const skippedCount =
       result.duplicateContentIds.length + result.invalidContentIds.length;
 
+    const baseMessage =
+      addedCount > 0
+        ? `${addedCount}件を追加しました。${skippedCount}件は重複のためスキップしました。`
+        : skippedCount > 0
+          ? `追加できる作品がありませんでした。${skippedCount}件は重複または不正データのためスキップしました。`
+          : "追加できる作品がありませんでした。";
+
+    const rebuiltNote = result.rebuiltCatalog
+      ? " catalog-snapshot.json を読み込みましたが作品配列を特定できなかったため、works形式で復旧して追加しました。"
+      : "";
+
     return NextResponse.json({
       success: true,
       addedCount,
       skippedCount,
       addedContentIds: result.addedContentIds,
-      message:
-        addedCount > 0
-          ? `追加しました。Vercel反映まで数分かかります。`
-          : "追加できる作品がありませんでした。",
+      rebuiltCatalog: result.rebuiltCatalog,
+      message: `${baseMessage}${rebuiltNote} Vercel反映まで数分かかります。`.trim(),
     });
   } catch (error) {
+    logCatalogSnapshotThrownError(error);
     const { message, status } = toAddWorkErrorMessage(error);
     return NextResponse.json({ error: message }, { status });
   }

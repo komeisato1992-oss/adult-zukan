@@ -12,6 +12,7 @@ import {
   type ImportSelectionSummary,
 } from "@/lib/admin/import-quality";
 import { normalizeCatalogContentId } from "@/lib/dmm/catalog-snapshot";
+import { logCatalogSnapshotThrownError } from "@/lib/dmm/catalog-snapshot-json";
 import { isValidDmmListItem } from "@/lib/dmm/filter";
 import type { DmmItem } from "@/lib/dmm/types";
 
@@ -19,6 +20,7 @@ export type BulkAddWorksResult = {
   addedContentIds: string[];
   duplicateContentIds: string[];
   invalidContentIds: string[];
+  rebuiltCatalog: boolean;
 };
 
 export type BulkAddPreviewResult = {
@@ -151,7 +153,15 @@ export async function addWorksToCatalog(
     throw new AddWorkValidationError("追加する作品が選択されていません。");
   }
 
-  const { items, sha } = await fetchCatalogFromGitHub();
+  // 形式不正でも止めず、空配列 or 復旧形式で続行する
+  const {
+    items,
+    sha,
+    envelope,
+    raw,
+    rebuilt,
+  } = await fetchCatalogFromGitHub();
+
   const existingIds = new Set(
     items.map((entry) => normalizeCatalogContentId(entry.content_id)),
   );
@@ -165,9 +175,11 @@ export async function addWorksToCatalog(
 
   if (preparedItems.length > 0) {
     await commitCatalogToGitHub(
+      envelope,
       [...items, ...preparedItems],
       sha,
       buildBulkCommitMessage(addedContentIds),
+      raw,
     );
   }
 
@@ -175,8 +187,9 @@ export async function addWorksToCatalog(
   if (statusUpdateIds.length > 0) {
     try {
       await markImportCandidatesAdded(statusUpdateIds);
-    } catch {
-      // カタログ追加は成功。候補ステータス更新失敗は後続操作で再同期可能。
+    } catch (error) {
+      logCatalogSnapshotThrownError(error);
+      console.warn("Failed to mark import candidates as added:", error);
     }
   }
 
@@ -184,6 +197,7 @@ export async function addWorksToCatalog(
     addedContentIds,
     duplicateContentIds,
     invalidContentIds,
+    rebuiltCatalog: rebuilt,
   };
 }
 
@@ -196,8 +210,17 @@ export function toAddWorkErrorMessage(error: unknown): {
   }
 
   if (error instanceof GitHubCatalogError) {
-    return { message: error.message, status: error.status };
+    logCatalogSnapshotThrownError(error);
+    return {
+      message: `${error.message} 追加に失敗しました。consoleに catalog-snapshot debug を出力しています。`,
+      status: error.status,
+    };
   }
 
-  return { message: "追加に失敗しました", status: 500 };
+  logCatalogSnapshotThrownError(error);
+  return {
+    message:
+      "追加に失敗しました。consoleに catalog-snapshot debug を出力しています。",
+    status: 500,
+  };
 }

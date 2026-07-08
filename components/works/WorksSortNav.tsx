@@ -6,12 +6,14 @@ import {
 } from "@/lib/works/sort";
 
 type WorksSortNavProps = {
+  basePath?: string;
   currentSort: WorkSortKey;
   options: WorkSortOption[];
   query?: Record<string, string | undefined>;
 };
 
 export function WorksSortNav({
+  basePath = "/works",
   currentSort,
   options,
   query = {},
@@ -23,7 +25,7 @@ export function WorksSortNav({
         return (
           <Link
             key={key}
-            href={buildWorksSortHref("/works", key, query)}
+            href={buildWorksSortHref(basePath, key, query)}
             prefetch
             aria-current={isActive ? "true" : undefined}
             className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${

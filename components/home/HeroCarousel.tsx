@@ -5,6 +5,7 @@ import type { Work } from "@/data/types";
 import { AFFILIATE_LINK_REL } from "@/lib/utils";
 import { formatPrice, getDisplayPrice } from "@/lib/format";
 import { WorkThumbnail } from "@/components/ui/WorkThumbnail";
+import { WORK_CARD_VIEW_LABEL } from "@/components/works/work-card-cta-styles";
 
 type HeroCarouselProps = {
   works: Work[];
@@ -92,7 +93,7 @@ export function HeroCarousel({ works }: HeroCarouselProps) {
               rel={AFFILIATE_LINK_REL}
               className="mt-6 inline-flex h-11 items-center rounded bg-accent px-8 text-sm font-semibold text-white transition-colors hover:bg-accent-hover"
             >
-              FANZAで見る
+              {WORK_CARD_VIEW_LABEL}
             </a>
           </div>
         </div>

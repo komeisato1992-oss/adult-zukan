@@ -30,9 +30,17 @@ export type ActressListItem = {
   slug: string;
   workCount: number;
   imageUrl?: string;
+  reading: string;
+  imageFromMultiActressWork?: boolean;
   latestReleaseTimestamp: number;
   popularOrder: number;
 };
+
+function compareActressByReading(a: ActressListItem, b: ActressListItem): number {
+  const readingA = a.reading ?? a.name;
+  const readingB = b.reading ?? b.name;
+  return readingA.localeCompare(readingB, "ja");
+}
 
 export function parseActressSortParam(value?: string | null): ActressSortKey {
   switch (value) {
@@ -76,7 +84,7 @@ export function sortActresses(
           b.workCount - a.workCount || a.name.localeCompare(b.name, "ja"),
       );
     case "name":
-      return sorted.sort((a, b) => a.name.localeCompare(b.name, "ja"));
+      return sorted.sort(compareActressByReading);
     case "popular":
     default:
       return sorted.sort(

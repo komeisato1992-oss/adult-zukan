@@ -2,9 +2,19 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { CompareToggleButton } from "@/components/compare/CompareToggleButton";
-import { clearCompareIds, readCompareIds, subscribeCompareStore } from "@/components/compare/compare-store";
+import {
+  clearCompareIds,
+  readCompareIds,
+  setCompareIds,
+  subscribeCompareStore,
+} from "@/components/compare/compare-store";
+import {
+  WORK_CARD_VIEW_LABEL,
+  workCardCtaBaseClassName,
+} from "@/components/works/work-card-cta-styles";
 import { ActressNameLinks } from "@/components/ui/ActressNameLinks";
 import { GenreNameLinks } from "@/components/ui/GenreNameLinks";
 import { ImageLightboxModal } from "@/components/works/ImageLightboxModal";
@@ -50,15 +60,28 @@ function CompareDescription({ contentId, description }: { contentId: string; des
 }
 
 export function ComparePageClient() {
+  const searchParams = useSearchParams();
   const [ids, setIds] = useState<string[]>([]);
   const [items, setItems] = useState<CompareItem[]>([]);
   const [activeImage, setActiveImage] = useState<{ src: string; alt: string } | null>(null);
 
   useEffect(() => {
+    const idsParam = searchParams.get("ids");
+    if (idsParam) {
+      const urlIds = idsParam
+        .split(",")
+        .map((id) => id.trim())
+        .filter(Boolean)
+        .slice(0, 3);
+      if (urlIds.length > 0) {
+        setCompareIds(urlIds);
+      }
+    }
+
     const sync = () => setIds(readCompareIds().slice(0, 3));
     sync();
     return subscribeCompareStore(sync);
-  }, []);
+  }, [searchParams]);
 
   useEffect(() => {
     if (ids.length === 0) {
@@ -139,9 +162,9 @@ export function ComparePageClient() {
                 href={item.fanzaUrl}
                 target="_blank"
                 rel="nofollow sponsored noopener noreferrer"
-                className="mt-3 inline-flex w-full items-center justify-center rounded bg-accent px-3 py-2 text-sm font-bold text-white hover:bg-accent-hover"
+                className={`${workCardCtaBaseClassName} mt-3 bg-accent text-white hover:bg-accent-hover`}
               >
-                FANZAで見る
+                {WORK_CARD_VIEW_LABEL}
               </a>
 
               <div className="mt-3 space-y-2 text-sm">

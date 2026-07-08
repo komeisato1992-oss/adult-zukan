@@ -1,0 +1,170 @@
+"use client";
+
+import Image from "next/image";
+import { useRef, useState } from "react";
+import { toPng } from "html-to-image";
+import type { SnsCompareWorkMini } from "@/lib/admin/sns-types";
+import { siteConfig } from "@/lib/site-config";
+import { isValidImageUrl } from "@/lib/works";
+
+type SnsCompareImagePreviewProps = {
+  works: [SnsCompareWorkMini, SnsCompareWorkMini];
+  compareUrl: string;
+};
+
+function CompareImageWorkColumn({
+  label,
+  work,
+}: {
+  label: string;
+  work: SnsCompareWorkMini;
+}) {
+  const imageUrl =
+    isValidImageUrl(work.imageUrl) && work.imageUrl ? work.imageUrl : undefined;
+
+  return (
+    <div className="flex min-w-0 flex-1 flex-col border border-border bg-white">
+      <div className="border-b border-border bg-accent-light px-3 py-2 text-center text-xs font-bold text-accent">
+        {label}
+      </div>
+      <div className="flex flex-1 flex-col p-3">
+        <div className="relative mx-auto aspect-[3/4] w-full max-w-[140px] overflow-hidden rounded-md border border-border bg-surface">
+          {imageUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={imageUrl}
+              alt={work.title}
+              crossOrigin="anonymous"
+              className="h-full w-full object-cover object-[right_center]"
+            />
+          ) : (
+            <div className="flex h-full items-center justify-center text-[10px] text-muted">
+              画像なし
+            </div>
+          )}
+        </div>
+        <div className="mt-3 space-y-1.5 text-[11px] leading-relaxed text-foreground">
+          <p className="line-clamp-3 text-xs font-bold">{work.title}</p>
+          <p>
+            <span className="text-muted">女優：</span>
+            {work.actressNames || "-"}
+          </p>
+          <p>
+            <span className="text-muted">価格：</span>
+            {work.price || "-"}
+          </p>
+          <p>
+            <span className="text-muted">発売日：</span>
+            {work.releaseDate || "-"}
+          </p>
+          <p>
+            <span className="text-muted">再生時間：</span>
+            {work.duration || "-"}
+          </p>
+          <p className="line-clamp-2">
+            <span className="text-muted">ジャンル：</span>
+            {work.genres || "-"}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function SnsCompareImagePreview({
+  works,
+  compareUrl,
+}: SnsCompareImagePreviewProps) {
+  const previewRef = useRef<HTMLDivElement>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
+
+  async function handleExport() {
+    if (!previewRef.current) return;
+
+    setExporting(true);
+    setExportError("");
+
+    try {
+      const dataUrl = await toPng(previewRef.current, {
+        cacheBust: true,
+        pixelRatio: 2,
+        backgroundColor: "#ffffff",
+      });
+
+      const link = document.createElement("a");
+      link.download = `compare-${works[0].contentId}-${works[1].contentId}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch {
+      setExportError("画像の書き出しに失敗しました。ブラウザで再試行してください。");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm font-semibold text-foreground">比較画像プレビュー</p>
+
+      <div className="overflow-x-auto rounded-lg border border-border bg-surface p-3">
+        <div
+          ref={previewRef}
+          className="w-[720px] overflow-hidden rounded-lg border border-border bg-white shadow-sm"
+        >
+          <div className="flex items-center justify-between border-b border-border bg-white px-4 py-3">
+            <div className="flex items-center gap-2">
+              <Image
+                src={siteConfig.logoIcon}
+                alt={siteConfig.name}
+                width={28}
+                height={28}
+                className="h-7 w-7"
+                unoptimized
+              />
+              <span className="text-sm font-bold text-foreground">
+                {siteConfig.name}
+              </span>
+            </div>
+            <span className="rounded-full bg-accent px-3 py-1 text-xs font-bold text-white">
+              似ている作品を比較して選べる
+            </span>
+          </div>
+
+          <p className="border-b border-border bg-white px-4 py-2 text-center text-xs text-muted">
+            アダルト図鑑では、似ている作品を比較できます
+          </p>
+
+          <div className="grid grid-cols-2 gap-3 bg-surface p-3">
+            <CompareImageWorkColumn label="作品A" work={works[0]} />
+            <CompareImageWorkColumn label="作品B" work={works[1]} />
+          </div>
+
+          <div className="border-t border-border bg-accent-light px-4 py-2 text-center text-[11px] text-muted">
+            {compareUrl}
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={handleExport}
+          disabled={exporting}
+          className="rounded-lg border border-accent bg-white px-3 py-1.5 text-sm font-medium text-accent transition-colors hover:bg-accent-light disabled:opacity-60"
+        >
+          {exporting ? "書き出し中..." : "画像を書き出し"}
+        </button>
+        <p className="text-xs text-muted">
+          PNG形式で保存できます。X投稿時は手動で添付してください。
+        </p>
+      </div>
+
+      {exportError ? (
+        <p className="text-xs text-red-600" role="alert">
+          {exportError}
+        </p>
+      ) : null}
+    </div>
+  );
+}

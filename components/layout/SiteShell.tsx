@@ -5,7 +5,13 @@ import { CompareFloatingButton } from "@/components/compare/CompareFloatingButto
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 
-const BARE_PATHS = ["/age-denied"];
+const BARE_PATH_PREFIXES = ["/age-denied", "/admin"];
+
+function isBarePath(pathname: string): boolean {
+  return BARE_PATH_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
 
 type SiteShellProps = {
   children: React.ReactNode;
@@ -13,7 +19,7 @@ type SiteShellProps = {
 
 export function SiteShell({ children }: SiteShellProps) {
   const pathname = usePathname();
-  const isBare = BARE_PATHS.includes(pathname);
+  const isBare = isBarePath(pathname);
 
   if (isBare) {
     return <>{children}</>;

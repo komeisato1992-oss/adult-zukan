@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CompareToggleButton } from "@/components/compare/CompareToggleButton";
+import { WorkCardCtaRow } from "@/components/works/WorkCardCtaRow";
 import type { Work } from "@/data/types";
 import { AFFILIATE_LINK_REL } from "@/lib/utils";
 import { formatPrice, getDisplayPrice } from "@/lib/format";
@@ -84,7 +84,10 @@ export function WorkCard({
       </div>
       {work.contentId ? (
         <div className={`${paddingX} pb-3`}>
-          <CompareToggleButton contentId={work.contentId} />
+          <WorkCardCtaRow
+            contentId={work.contentId}
+            fanzaUrl={work.affiliateUrl}
+          />
         </div>
       ) : null}
     </article>

@@ -6,6 +6,7 @@ type PageMetadataOptions = {
   title: string;
   description: string;
   path?: string;
+  canonicalPath?: string;
   ogType?: "website" | "article";
   noIndex?: boolean;
   /** true の場合 title をそのまま使用（サイト名を付与しない） */
@@ -26,12 +27,14 @@ export function createPageMetadata({
   title,
   description,
   path = "",
+  canonicalPath,
   ogType = "website",
   noIndex = false,
   absoluteTitle = false,
   ogImage,
 }: PageMetadataOptions): Metadata {
   const url = `${SITE_URL}${path}`;
+  const canonicalUrl = `${SITE_URL}${canonicalPath ?? path}`;
   const resolvedTitle =
     absoluteTitle || path === "" ? title : `${title} | ${siteConfig.name}`;
   const imageUrl = resolveOgImageUrl(ogImage);
@@ -41,7 +44,7 @@ export function createPageMetadata({
     description,
     metadataBase: new URL(SITE_URL),
     alternates: {
-      canonical: url,
+      canonical: canonicalUrl,
     },
     openGraph: {
       type: ogType,

@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { SectionHeader } from "@/components/ui/SectionHeader";
-import { DmmCatalogWorksGrid } from "@/components/works/DmmCatalogWorksGrid";
+import { CatalogWorksListSection } from "@/components/works/CatalogWorksListSection";
 import { DmmRelatedWorks } from "@/components/works/DmmRelatedWorks";
 import { JsonLd } from "@/components/seo/JsonLd";
 import {
@@ -167,9 +167,9 @@ export default async function MakerDetailPage({
         <section aria-labelledby="maker-all" className="mt-12">
           <SectionHeader title="全作品" id="maker-all" />
           {works.length > 0 ? (
-            <DmmCatalogWorksGrid
+            <CatalogWorksListSection
               items={works}
-              currentPage={currentPage}
+              initialPage={currentPage}
               paginationBasePath={getMakerDetailPath(slug)}
             />
           ) : (

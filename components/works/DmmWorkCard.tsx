@@ -1,11 +1,12 @@
 import Link from "next/link";
-import { CompareToggleButton } from "@/components/compare/CompareToggleButton";
 import { CatalogWorkImage } from "@/components/ui/CatalogWorkImage";
+import { WorkCardCtaRow } from "@/components/works/WorkCardCtaRow";
 import { CompactNameList } from "@/components/ui/CompactNameList";
 import {
   getDmmItemActressNameList,
   getDmmListItemImageUrl,
 } from "@/lib/dmm/display";
+import { getDmmFanzaUrl } from "@/lib/dmm/fanza-url";
 import { formatDmmPriceString } from "@/lib/dmm/format-price";
 import type { DmmItem } from "@/lib/dmm/types";
 import { parseDmmPrice } from "@/lib/utils";
@@ -88,7 +89,10 @@ export function DmmWorkCard({
         <p className="mt-1 text-[11px] text-muted/90">{item.content_id}</p>
       </div>
       <div className={`${paddingX} pb-3`}>
-        <CompareToggleButton contentId={item.content_id} />
+        <WorkCardCtaRow
+          contentId={item.content_id}
+          fanzaUrl={getDmmFanzaUrl(item)}
+        />
       </div>
     </article>
   );

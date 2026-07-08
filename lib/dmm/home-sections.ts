@@ -26,6 +26,7 @@ export type RankedActress = {
   slug: string;
   workCount: number;
   imageUrl?: string;
+  imageFromMultiActressWork?: boolean;
 };
 
 function isDmmItemOnSale(item: DmmItem): boolean {
@@ -217,10 +218,15 @@ export function getRankedActresses(
   const imageByActress = buildActressRepresentativeImageMap(valid, actresses);
 
   return actresses
-    .map((actress) => ({
-      ...actress,
-      imageUrl: imageByActress.get(actress.name),
-    }))
+    .map((actress) => {
+      const image = imageByActress.get(actress.name);
+
+      return {
+        ...actress,
+        imageUrl: image?.imageUrl,
+        imageFromMultiActressWork: image?.isFromMultiActressWork,
+      };
+    })
     .slice(0, limit);
 }
 

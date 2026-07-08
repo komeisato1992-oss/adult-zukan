@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { ComparePageClient } from "@/components/compare/ComparePageClient";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
@@ -24,7 +25,15 @@ export default function ComparePage() {
           作品比較
         </h1>
       </header>
-      <ComparePageClient />
+      <Suspense
+        fallback={
+          <section className="mt-8 rounded border border-border bg-surface p-8 text-center text-sm text-muted">
+            比較作品を読み込み中...
+          </section>
+        }
+      >
+        <ComparePageClient />
+      </Suspense>
     </PageLayout>
   );
 }

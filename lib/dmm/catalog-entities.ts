@@ -9,6 +9,7 @@ import { isValidDmmListItem } from "@/lib/dmm/filter";
 import { getDmmFanzaUrl } from "@/lib/dmm/fanza-url";
 import type { DmmItem } from "@/lib/dmm/types";
 import { encodeActressSlug, decodeActressSlug, matchesActressSlug } from "@/lib/actresses/slug";
+import { getActressReading } from "@/lib/actresses/readings";
 import { buildActressRepresentativeImageMap } from "@/lib/dmm/actress-representative-image";
 import { encodeEntitySlug } from "@/lib/entities/paths";
 import { slugify } from "@/lib/utils";
@@ -21,6 +22,8 @@ export type CatalogEntity = {
 
 export type CatalogActressEntity = CatalogEntity & {
   imageUrl?: string;
+  reading: string;
+  imageFromMultiActressWork?: boolean;
 };
 
 export type CatalogLabelEntity = CatalogEntity & {
@@ -135,7 +138,10 @@ export function getCatalogSeries(items: DmmItem[]): CatalogSeriesEntity[] {
 
 export function getCatalogActresses(items: DmmItem[]): CatalogActressEntity[] {
   const valid = filterValidCatalogItems(items);
-  const map = new Map<string, CatalogActressEntity>();
+  const map = new Map<
+    string,
+    CatalogEntity & { ruby?: string }
+  >();
 
   for (const item of valid) {
     const actresses = item.actress ?? item.iteminfo?.actress ?? [];
@@ -145,11 +151,13 @@ export function getCatalogActresses(items: DmmItem[]): CatalogActressEntity[] {
 
       const slug = encodeActressSlug(actress.name);
       const existing = map.get(actress.name);
+      const ruby = actress.ruby?.trim();
 
       map.set(actress.name, {
         name: actress.name,
         slug,
         workCount: (existing?.workCount ?? 0) + 1,
+        ruby: existing?.ruby ?? ruby,
       });
     }
   }
@@ -163,10 +171,18 @@ export function getCatalogActresses(items: DmmItem[]): CatalogActressEntity[] {
 
   const imageByActress = buildActressRepresentativeImageMap(valid, actresses);
 
-  return actresses.map((actress) => ({
-    ...actress,
-    imageUrl: imageByActress.get(actress.name),
-  }));
+  return actresses.map((actress) => {
+    const image = imageByActress.get(actress.name);
+
+    return {
+      name: actress.name,
+      slug: actress.slug,
+      workCount: actress.workCount,
+      reading: getActressReading(actress.name, actress.ruby),
+      imageUrl: image?.imageUrl,
+      imageFromMultiActressWork: image?.isFromMultiActressWork,
+    };
+  });
 }
 
 export function getCatalogActressBySlug(

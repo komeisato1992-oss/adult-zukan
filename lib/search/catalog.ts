@@ -23,6 +23,34 @@ function trimSearchQuery(query: string): string {
   return query.trim().replace(/[\s\u3000]+/g, " ");
 }
 
+export async function searchCatalogAll(query: string): Promise<{
+  items: DmmItem[];
+  query: string;
+}> {
+  const trimmed = trimSearchQuery(query);
+  const normalizedQuery = normalizeSearchQuery(trimmed);
+
+  if (!normalizedQuery) {
+    return { items: [], query: "" };
+  }
+
+  const index = await getSearchIndex();
+  const works = await getCatalogWorks();
+  const worksById = new Map(works.map((item) => [item.content_id, item]));
+
+  const matchedWorks: DmmItem[] = [];
+  for (const entry of index) {
+    if (!entry.searchText.includes(normalizedQuery)) continue;
+    const item = worksById.get(entry.contentId);
+    if (item) matchedWorks.push(item);
+  }
+
+  return {
+    items: filterDisplayableItems(matchedWorks),
+    query: trimmed,
+  };
+}
+
 export async function searchCatalog(
   query: string,
   page = 1,

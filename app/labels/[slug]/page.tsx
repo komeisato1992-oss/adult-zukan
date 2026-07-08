@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { SectionHeader } from "@/components/ui/SectionHeader";
-import { DmmCatalogWorksGrid } from "@/components/works/DmmCatalogWorksGrid";
+import { CatalogWorksListSection } from "@/components/works/CatalogWorksListSection";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { getCatalogLabelStaticParams } from "@/lib/dmm/catalog-entities";
 import { getLabelSummaryBySlug, getLabelWorksBySlug } from "@/lib/catalog";
@@ -115,9 +115,9 @@ export default async function LabelDetailPage({
 
         <section aria-labelledby="label-all">
           <SectionHeader title="全作品" id="label-all" />
-          <DmmCatalogWorksGrid
+          <CatalogWorksListSection
             items={works}
-            currentPage={currentPage}
+            initialPage={currentPage}
             paginationBasePath={getLabelDetailPath(slug)}
           />
         </section>

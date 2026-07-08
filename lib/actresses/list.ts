@@ -41,6 +41,8 @@ export function buildActressListItems(items: DmmItem[]): ActressListItem[] {
     slug: actress.slug,
     workCount: actress.workCount,
     imageUrl: actress.imageUrl,
+    reading: actress.reading,
+    imageFromMultiActressWork: actress.imageFromMultiActressWork,
     latestReleaseTimestamp: latestReleaseByActress.get(actress.name) ?? 0,
     popularOrder: popularOrderMap.get(actress.name) ?? Number.MAX_SAFE_INTEGER,
   }));

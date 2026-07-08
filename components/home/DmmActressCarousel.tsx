@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { MultiActressPackageBanner } from "@/components/actresses/MultiActressPackageBanner";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { getActressDetailPath } from "@/lib/actresses/slug";
 import type { RankedActress } from "@/lib/works/catalog";
@@ -44,6 +45,9 @@ export function DmmActressCarousel({
                     unoptimized
                   />
                 )}
+                {actress.imageFromMultiActressWork ? (
+                  <MultiActressPackageBanner />
+                ) : null}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                 <div className="absolute bottom-0 left-0 right-0 p-3">
                   <p className="text-sm font-bold text-white">{actress.name}</p>

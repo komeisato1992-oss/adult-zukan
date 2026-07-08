@@ -1,23 +1,21 @@
 import { PageLayout } from "@/components/layout/PageLayout";
-import { DmmHeroCarousel } from "@/components/home/DmmHeroCarousel";
 import { DmmWorkScrollSection } from "@/components/home/DmmWorkScrollSection";
 import { DmmActressCarousel } from "@/components/home/DmmActressCarousel";
 import { DmmMakerRankingSection } from "@/components/home/DmmMakerRankingSection";
 import { DmmSeriesRankingSection } from "@/components/home/DmmSeriesRankingSection";
 import { DmmPopularGenreSection } from "@/components/home/DmmPopularGenreSection";
+import { RandomCompareSection } from "@/components/home/RandomCompareSection";
+import { SiteIntroSection } from "@/components/home/SiteIntroSection";
 import { WorksDiscoverSection } from "@/components/home/WorksDiscoverSection";
-import { JsonLd } from "@/components/seo/JsonLd";
 import { LazySection } from "@/components/ui/LazySection";
 import { UpdatedDate } from "@/components/ui/UpdatedDate";
-import { siteConfig } from "@/lib/site-config";
+import { pickRandomComparePair } from "@/lib/home/random-compare-pair";
 import { seoTitles } from "@/lib/seo/titles";
 import { truncateDescription } from "@/lib/seo/descriptions";
 import { createPageMetadata } from "@/lib/seo/metadata";
-import { createItemListJsonLd } from "@/lib/seo/json-ld";
+import { filterDisplayableItems } from "@/lib/dmm/filter";
 import {
-  HERO_CAROUSEL_LIMIT,
   HOME_SECTION_LIMIT,
-  getHeroWorks,
   getNewWorks,
   getPopularWorks,
   getRankedActresses,
@@ -32,14 +30,16 @@ export const revalidate = 86400;
 
 export const metadata = createPageMetadata({
   title: seoTitles.home,
-  description: truncateDescription(siteConfig.description),
+  description: truncateDescription(
+    "アダルト図鑑は、複数のAV作品を並べて比較できる日本では珍しい作品比較サイトです。価格・女優・メーカー・シリーズ・ジャンルを一画面で比較しながら、作品選びができます。",
+  ),
   absoluteTitle: true,
 });
 
 export default async function HomePage() {
   const catalog = await getSharedCatalogWorks();
+  const displayableItems = filterDisplayableItems(catalog);
 
-  const heroWorks = getHeroWorks(catalog, HERO_CAROUSEL_LIMIT);
   const popularWorks = getPopularWorks(catalog, HOME_SECTION_LIMIT);
   const newWorks = getNewWorks(catalog, HOME_SECTION_LIMIT);
   const saleWorks = getSaleWorks(catalog, HOME_SECTION_LIMIT);
@@ -49,22 +49,15 @@ export default async function HomePage() {
   const rankedGenres = getRankedGenres(catalog);
 
   const updatedDate = new Date().toISOString().split("T")[0];
+  const randomComparePair = pickRandomComparePair(displayableItems);
 
   return (
     <>
-      {heroWorks.length > 0 && (
-        <JsonLd
-          data={createItemListJsonLd(
-            "おすすめ作品",
-            heroWorks.map((item) => ({
-              name: item.title,
-              url: `${siteConfig.url}/works/${item.content_id}`,
-            })),
-          )}
-        />
-      )}
+      <SiteIntroSection />
 
-      <DmmHeroCarousel items={heroWorks} />
+      {randomComparePair ? (
+        <RandomCompareSection items={randomComparePair} />
+      ) : null}
 
       <PageLayout>
         <WorksDiscoverSection />

@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { ActressGenreLinks } from "@/components/actresses/ActressGenreLinks";
@@ -149,12 +150,14 @@ export default async function ActressDetailPage({
 
         <ActressPopularWorks items={sections.popularWorks} />
 
-        <ActressWorksSection
-          items={displayableWorks}
-          makers={sections.makers}
-          slug={slug}
-          initialPage={currentPage}
-        />
+        <Suspense fallback={null}>
+          <ActressWorksSection
+            items={displayableWorks}
+            makers={sections.makers}
+            slug={slug}
+            initialPage={currentPage}
+          />
+        </Suspense>
 
         <ActressGenreLinks genres={sections.genres} />
 

@@ -33,6 +33,10 @@ export function clearCompareIds() {
   writeCompareIds([]);
 }
 
+export function setCompareIds(ids: string[]) {
+  writeCompareIds(ids);
+}
+
 export function toggleCompareId(contentId: string): {
   ids: string[];
   added: boolean;

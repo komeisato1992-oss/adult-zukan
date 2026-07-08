@@ -15,6 +15,7 @@ import {
 } from "@/lib/seo/json-ld";
 import {
   getWorksSortPageTitle,
+  getWorksCanonicalPath,
   parseWorkSortParam,
 } from "@/lib/works/sort";
 
@@ -45,7 +46,8 @@ function isSaleFilter(params: { sale?: string; filter?: string }): boolean {
 export async function generateMetadata({ searchParams }: WorksPageProps) {
   const params = await searchParams;
   const { q } = params;
-  const sortTitle = getWorksSortPageTitle(parseWorkSortParam(params.sort));
+  const sort = parseWorkSortParam(params.sort);
+  const sortTitle = getWorksSortPageTitle(sort);
 
   return createPageMetadata({
     title: q
@@ -63,6 +65,7 @@ export async function generateMetadata({ searchParams }: WorksPageProps) {
           )
         : truncateDescription(pageIntros.works),
     path: "/works",
+    canonicalPath: getWorksCanonicalPath(sort, "/works"),
     absoluteTitle: true,
   });
 }

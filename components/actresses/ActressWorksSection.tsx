@@ -1,16 +1,24 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Pagination } from "@/components/ui/Pagination";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { DmmWorkListCard } from "@/components/works/DmmWorkListCard";
+import { WorksSortNav } from "@/components/works/WorksSortNav";
 import { getDmmItemMakerName } from "@/lib/dmm/display";
 import type { ActressPageMaker } from "@/lib/dmm/actress-page";
 import type { DmmItem } from "@/lib/dmm/types";
 import {
   CATALOG_DETAIL_PAGE_SIZE,
   paginateItems,
+  parsePageParam,
 } from "@/lib/pagination";
+import {
+  getWorksSortOptions,
+  parseWorkSortParam,
+  sortWorks,
+} from "@/lib/works/sort";
 
 type ActressWorksSectionProps = {
   items: DmmItem[];
@@ -25,11 +33,14 @@ export function ActressWorksSection({
   slug,
   initialPage,
 }: ActressWorksSectionProps) {
+  const searchParams = useSearchParams();
   const [selectedMaker, setSelectedMaker] = useState("all");
   const [clientPage, setClientPage] = useState(1);
 
+  const currentSort = parseWorkSortParam(searchParams.get("sort"));
   const isFiltered = selectedMaker !== "all";
   const paginationBasePath = `/actresses/${slug}`;
+  const urlPage = parsePageParam(searchParams.get("page") ?? String(initialPage));
 
   const filteredItems = useMemo(() => {
     if (!isFiltered) {
@@ -41,11 +52,23 @@ export function ActressWorksSection({
     );
   }, [items, isFiltered, selectedMaker]);
 
-  const currentPage = isFiltered ? clientPage : initialPage;
-  const pagination = useMemo(
-    () => paginateItems(filteredItems, currentPage, CATALOG_DETAIL_PAGE_SIZE),
-    [filteredItems, currentPage],
+  const sortOptions = useMemo(
+    () => getWorksSortOptions(filteredItems),
+    [filteredItems],
   );
+  const sortedItems = useMemo(
+    () => sortWorks(filteredItems, currentSort),
+    [filteredItems, currentSort],
+  );
+
+  const currentPage = isFiltered ? clientPage : urlPage;
+  const pagination = useMemo(
+    () => paginateItems(sortedItems, currentPage, CATALOG_DETAIL_PAGE_SIZE),
+    [sortedItems, currentPage],
+  );
+  const paginationQuery = {
+    sort: currentSort === "popular" ? undefined : currentSort,
+  };
 
   const handleMakerChange = useCallback(
     (event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -84,6 +107,12 @@ export function ActressWorksSection({
         </div>
       ) : null}
 
+      <WorksSortNav
+        basePath={paginationBasePath}
+        currentSort={currentSort}
+        options={sortOptions}
+      />
+
       {pagination.items.length > 0 ? (
         <>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
@@ -95,6 +124,7 @@ export function ActressWorksSection({
             currentPage={pagination.currentPage}
             totalPages={pagination.totalPages}
             basePath={paginationBasePath}
+            query={paginationQuery}
             onPageChange={isFiltered ? handlePageChange : undefined}
           />
         </>

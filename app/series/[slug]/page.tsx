@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { SectionHeader } from "@/components/ui/SectionHeader";
-import { DmmCatalogWorksGrid } from "@/components/works/DmmCatalogWorksGrid";
+import { CatalogWorksListSection } from "@/components/works/CatalogWorksListSection";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { getCatalogSeriesStaticParams } from "@/lib/dmm/catalog-entities";
 import { getSeriesSummaryBySlug, getSeriesWorksBySlug } from "@/lib/catalog";
@@ -119,9 +119,9 @@ export default async function SeriesDetailPage({
 
         <section aria-labelledby="series-all" className="mb-10">
           <SectionHeader title="全作品" id="series-all" />
-          <DmmCatalogWorksGrid
+          <CatalogWorksListSection
             items={works}
-            currentPage={currentPage}
+            initialPage={currentPage}
             paginationBasePath={getSeriesDetailPath(slug)}
           />
         </section>

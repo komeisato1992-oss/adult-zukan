@@ -5,7 +5,13 @@ import { usePathname } from "next/navigation";
 import { AgeGateModal } from "@/components/age-gate/AgeGateModal";
 import { isAgeVerified } from "@/lib/age-gate/storage";
 
-const EXEMPT_PATHS = ["/age-denied"];
+const EXEMPT_PATH_PREFIXES = ["/age-denied", "/admin"];
+
+function isExemptPath(pathname: string): boolean {
+  return EXEMPT_PATH_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
 
 type AgeGateProviderProps = {
   children: React.ReactNode;
@@ -13,7 +19,7 @@ type AgeGateProviderProps = {
 
 export function AgeGateProvider({ children }: AgeGateProviderProps) {
   const pathname = usePathname();
-  const isExempt = EXEMPT_PATHS.includes(pathname);
+  const isExempt = isExemptPath(pathname);
   const [checked, setChecked] = useState(isExempt);
   const [verified, setVerified] = useState(isExempt);
 

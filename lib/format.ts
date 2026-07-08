@@ -2,9 +2,9 @@ import type { AffiliateProvider } from "@/data/types";
 
 const providerLabels: Record<AffiliateProvider, string> = {
   dmm: "DMMで見る",
-  fanza: "FANZAで見る",
+  fanza: "作品を見る",
   rakuten: "楽天TVで見る",
-  sample: "FANZAで見る",
+  sample: "作品を見る",
 };
 
 export function getAffiliateLabel(provider: AffiliateProvider): string {

@@ -74,18 +74,24 @@ function compareRepresentativeCandidates(
   return a.contentId.localeCompare(b.contentId, "ja");
 }
 
+export type ActressRepresentativeImage = {
+  imageUrl: string;
+  isFromMultiActressWork: boolean;
+};
+
 function selectRepresentativeImage(
   candidates: WorkCandidate[],
-): string | undefined {
+): ActressRepresentativeImage | undefined {
   if (candidates.length === 0) return undefined;
 
   const sorted = [...candidates].sort(compareRepresentativeCandidates);
-  const soloCandidate = sorted.find((candidate) => candidate.isSolo);
-  if (soloCandidate) {
-    return soloCandidate.imageUrl;
-  }
+  const selected = sorted.find((candidate) => candidate.isSolo) ?? sorted[0];
+  if (!selected) return undefined;
 
-  return sorted[0]?.imageUrl;
+  return {
+    imageUrl: selected.imageUrl,
+    isFromMultiActressWork: !selected.isSolo,
+  };
 }
 
 /**
@@ -95,7 +101,7 @@ function selectRepresentativeImage(
 export function buildActressRepresentativeImageMap(
   items: DmmItem[],
   actresses: ActressImageSelectionInput[],
-): Map<string, string> {
+): Map<string, ActressRepresentativeImage> {
   const catalogIndex = buildCatalogIndexMap(items);
   const candidatesByActress = new Map<string, WorkCandidate[]>();
 
@@ -113,14 +119,14 @@ export function buildActressRepresentativeImageMap(
     }
   }
 
-  const imageByActress = new Map<string, string>();
+  const imageByActress = new Map<string, ActressRepresentativeImage>();
 
   for (const actress of actresses) {
-    const imageUrl = selectRepresentativeImage(
+    const selection = selectRepresentativeImage(
       candidatesByActress.get(actress.name) ?? [],
     );
-    if (imageUrl) {
-      imageByActress.set(actress.name, imageUrl);
+    if (selection) {
+      imageByActress.set(actress.name, selection);
     }
   }
 

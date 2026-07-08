@@ -13,6 +13,7 @@ const HOME_SORT_HREFS: Record<WorkSortKey, string> = {
   "today-views": "/works?sort=today-views",
   "total-views": "/works?sort=total-views",
   "duration-desc": "/works?sort=duration_desc",
+  random: "/works?sort=random",
 };
 
 export function WorksDiscoverSection() {

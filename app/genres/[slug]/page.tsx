@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { SectionHeader } from "@/components/ui/SectionHeader";
-import { DmmCatalogWorksGrid } from "@/components/works/DmmCatalogWorksGrid";
+import { CatalogWorksListSection } from "@/components/works/CatalogWorksListSection";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { getCatalogGenreStaticParams } from "@/lib/dmm/catalog-entities";
 import { getGenreSummaryBySlug, getGenreWorksBySlug } from "@/lib/catalog";
@@ -107,9 +107,9 @@ export default async function GenreDetailPage({
 
         <section aria-labelledby="genre-all">
           <SectionHeader title="全作品" id="genre-all" />
-          <DmmCatalogWorksGrid
+          <CatalogWorksListSection
             items={works}
-            currentPage={currentPage}
+            initialPage={currentPage}
             paginationBasePath={getGenreDetailPath(slug)}
           />
         </section>

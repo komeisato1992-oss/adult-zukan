@@ -8,7 +8,8 @@ export type WorkSortKey =
   | "price-asc"
   | "today-views"
   | "total-views"
-  | "duration-desc";
+  | "duration-desc"
+  | "random";
 
 export const DEFAULT_WORK_SORT: WorkSortKey = "popular";
 
@@ -20,6 +21,7 @@ export const WORK_SORT_LABELS: Record<WorkSortKey, string> = {
   "today-views": "本日の再生数順",
   "total-views": "総再生数順",
   "duration-desc": "再生時間長い順",
+  random: "🎲 ランダム",
 };
 
 export const HOME_WORK_SORT_KEYS: WorkSortKey[] = [
@@ -28,6 +30,7 @@ export const HOME_WORK_SORT_KEYS: WorkSortKey[] = [
   "price-desc",
   "price-asc",
   "duration-desc",
+  "random",
 ];
 
 export type WorkSortOption = {
@@ -67,6 +70,18 @@ function getTotalViewCount(item: DmmItem): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+function shuffleItems<T>(items: T[]): T[] {
+  const shuffled = [...items];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[swapIndex]] = [
+      shuffled[swapIndex],
+      shuffled[index],
+    ];
+  }
+  return shuffled;
+}
+
 export function parseWorkSortParam(value?: string | null): WorkSortKey {
   switch (value) {
     case "new":
@@ -84,6 +99,8 @@ export function parseWorkSortParam(value?: string | null): WorkSortKey {
     case "duration-desc":
     case "duration_desc":
       return "duration-desc";
+    case "random":
+      return "random";
     case "rank":
     case "popular":
     default:
@@ -101,7 +118,7 @@ export function getWorksSortOptions(items: DmmItem[]): WorkSortOption[] {
     keys.push("total-views");
   }
 
-  keys.push("duration-desc");
+  keys.push("duration-desc", "random");
 
   return keys.map((key) => ({ key, label: WORK_SORT_LABELS[key] }));
 }
@@ -137,6 +154,8 @@ export function sortWorks(
       return sorted.sort(
         (a, b) => getItemDurationMinutes(b) - getItemDurationMinutes(a),
       );
+    case "random":
+      return shuffleItems(sorted);
     default:
       return items;
   }
@@ -162,6 +181,13 @@ export function buildWorksSortHref(
   return qs ? `${basePath}?${qs}` : basePath;
 }
 
+export function getWorksCanonicalPath(
+  sort: WorkSortKey,
+  basePath = "/works",
+): string {
+  return sort === "random" ? basePath : basePath;
+}
+
 export function getWorksSortPageTitle(sort: WorkSortKey): string | null {
   switch (sort) {
     case "new":
@@ -176,6 +202,8 @@ export function getWorksSortPageTitle(sort: WorkSortKey): string | null {
       return "総再生数順 作品一覧";
     case "duration-desc":
       return "再生時間が長い順 作品一覧";
+    case "random":
+      return "ランダム作品一覧";
     case "popular":
       return null;
   }

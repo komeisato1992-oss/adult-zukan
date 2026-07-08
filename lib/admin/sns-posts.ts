@@ -2,6 +2,8 @@ import "server-only";
 
 import { getActressDetailPath } from "@/lib/actresses/slug";
 import { pickComparePairs } from "@/lib/admin/sns-compare-pairs";
+import { loadSnsPostHistory } from "@/lib/admin/sns-post-history-store";
+import { buildHistoryExclusions } from "@/lib/admin/sns-post-history-rules";
 import {
   actressNamesToHashtags,
   buildHashtagLine,
@@ -34,6 +36,29 @@ import {
 import type { DmmItem } from "@/lib/dmm/types";
 
 const RANKING_URL = "https://adult-zukan.jp/ranking";
+
+export function buildSnsPostUrl(
+  post: Pick<SnsScheduledPost, "type" | "compareUrl" | "meta">,
+): string | undefined {
+  if (post.compareUrl) return post.compareUrl;
+  if (post.meta?.contentId) {
+    return buildSiteUrl(`/works/${post.meta.contentId}`);
+  }
+  if (post.meta?.actressName) {
+    return buildSiteUrl(getActressDetailPath(post.meta.actressName));
+  }
+  if (post.meta?.genreSlug) {
+    return buildSiteUrl(getGenreDetailPath(post.meta.genreSlug));
+  }
+  if (post.type === "ranking") return RANKING_URL;
+  return undefined;
+}
+
+function pickFromPool<T>(items: T[], fallback: T[]): T | undefined {
+  const pool = items.length > 0 ? items : fallback;
+  if (pool.length === 0) return undefined;
+  return pool[getDayOffset(pool.length)] ?? pool[0];
+}
 
 function getDayOffset(length: number): number {
   if (length <= 0) return 0;
@@ -227,18 +252,33 @@ export function buildRankingPost(
 export async function getSnsScheduledPosts(): Promise<SnsScheduledPost[]> {
   const items = await getCatalogItems();
   const displayable = filterDisplayableItems(items);
-  const comparePairs = pickComparePairs(items);
+  const { records: history } = await loadSnsPostHistory();
+  const exclusions = buildHistoryExclusions(history);
+  const comparePairs = pickComparePairs(items, exclusions.excludedCompareKeys);
   let compareIndex = 0;
 
-  const recommendedWork =
-    displayable[getDayOffset(displayable.length)] ?? displayable[0];
+  const recommendedWork = pickFromPool(
+    displayable.filter(
+      (item) => !exclusions.excludedContentIds.has(item.content_id),
+    ),
+    displayable,
+  );
 
   const rankedActresses = getRankedActresses(items, 20);
-  const actress =
-    rankedActresses[getDayOffset(rankedActresses.length)] ?? rankedActresses[0];
+  const actress = pickFromPool(
+    rankedActresses.filter(
+      (entry) => !exclusions.excludedActressNames.has(entry.name),
+    ),
+    rankedActresses,
+  );
 
   const rankedGenres = getRankedGenres(items, 20);
-  const genre = rankedGenres[getDayOffset(rankedGenres.length)] ?? rankedGenres[0];
+  const genre = pickFromPool(
+    rankedGenres.filter(
+      (entry) => !exclusions.excludedGenreNames.has(entry.name),
+    ),
+    rankedGenres,
+  );
 
   return SNS_DAILY_SCHEDULE.map((entry) => {
     if (entry.type === "recommended-work" && recommendedWork) {

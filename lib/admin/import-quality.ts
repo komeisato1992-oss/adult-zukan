@@ -69,6 +69,12 @@ export type ImportSelectionSummary = {
   noSampleImages: number;
 };
 
+export type ImportBulkConfirmSummary = ImportSelectionSummary & {
+  selectedCount: number;
+  toAddCount: number;
+  duplicateCount: number;
+};
+
 export function summarizeImportSelection(items: DmmItem[]): ImportSelectionSummary {
   const summary: ImportSelectionSummary = {
     total: items.length,

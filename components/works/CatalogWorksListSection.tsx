@@ -63,7 +63,10 @@ function CatalogWorksListSectionInner({
     () => paginateItems(sortedItems, currentPage, CATALOG_DETAIL_PAGE_SIZE),
     [sortedItems, currentPage],
   );
-  const paginationQuery = buildPaginationQuery(currentSort, query);
+  const paginationQuery = useMemo(
+    () => buildPaginationQuery(currentSort, query),
+    [currentSort, query],
+  );
 
   if (displayableItems.length === 0) {
     return (

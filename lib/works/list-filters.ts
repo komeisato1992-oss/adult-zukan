@@ -1,5 +1,8 @@
 import type { DmmItem } from "@/lib/dmm/types";
-import { getDmmItemGenreNameList, getDmmItemMakerName } from "@/lib/dmm/display";
+import {
+  getDmmItemGenreNameList,
+  getDmmItemMakerName,
+} from "@/lib/dmm/display";
 import { parseDmmPrice } from "@/lib/utils";
 
 export type WorkPriceFilterKey =
@@ -124,12 +127,15 @@ function getDateBounds() {
   };
 }
 
-function matchesDateFilter(item: DmmItem, filter: WorkDateFilterKey): boolean {
+function matchesDateFilterWithBounds(
+  item: DmmItem,
+  filter: WorkDateFilterKey,
+  bounds: ReturnType<typeof getDateBounds>,
+): boolean {
   if (filter === "all") return true;
   const ts = parseReleaseTimestamp(item);
   if (ts <= 0) return false;
 
-  const bounds = getDateBounds();
   switch (filter) {
     case "today":
       return ts >= bounds.todayStart;
@@ -144,6 +150,151 @@ function matchesDateFilter(item: DmmItem, filter: WorkDateFilterKey): boolean {
   }
 }
 
+function matchesDateFilter(item: DmmItem, filter: WorkDateFilterKey): boolean {
+  if (filter === "all") return true;
+  return matchesDateFilterWithBounds(item, filter, getDateBounds());
+}
+
+export type WorkFilterEntry = {
+  item: DmmItem;
+  haystack: string;
+  genres: string[];
+  maker: string;
+  price: number;
+  listPrice: number;
+  releaseTs: number;
+};
+
+/** フィルター用の派生データを一括構築（一覧の再計算コストを下げる） */
+export function buildWorkFilterEntries(items: DmmItem[]): WorkFilterEntry[] {
+  return items.map((item) => {
+    const actresses = item.actress ?? item.iteminfo?.actress ?? [];
+    const actressText = actresses.map((actress) => actress.name).join(" ");
+    const maker = getDmmItemMakerName(item) ?? "";
+
+    return {
+      item,
+      haystack: `${item.title} ${item.content_id} ${maker} ${actressText}`.toLowerCase(),
+      genres: getDmmItemGenreNameList(item),
+      maker,
+      price: parseDmmPrice(item.prices?.price),
+      listPrice: parseDmmPrice(item.prices?.list_price),
+      releaseTs: parseReleaseTimestamp(item),
+    };
+  });
+}
+
+function matchesPriceFilterEntry(
+  entry: WorkFilterEntry,
+  filter: WorkPriceFilterKey,
+): boolean {
+  if (filter === "all") return true;
+  if (entry.price <= 0) return false;
+
+  switch (filter) {
+    case "under-1000":
+      return entry.price < 1000;
+    case "1000-2999":
+      return entry.price >= 1000 && entry.price <= 2999;
+    case "3000-4999":
+      return entry.price >= 3000 && entry.price <= 4999;
+    case "5000-over":
+      return entry.price >= 5000;
+    default:
+      return true;
+  }
+}
+
+function matchesDateFilterEntry(
+  entry: WorkFilterEntry,
+  filter: WorkDateFilterKey,
+  bounds: ReturnType<typeof getDateBounds>,
+): boolean {
+  if (filter === "all") return true;
+  if (entry.releaseTs <= 0) return false;
+
+  switch (filter) {
+    case "today":
+      return entry.releaseTs >= bounds.todayStart;
+    case "this-week":
+      return entry.releaseTs >= bounds.weekStart;
+    case "this-month":
+      return entry.releaseTs >= bounds.monthStart;
+    case "this-year":
+      return entry.releaseTs >= bounds.yearStart;
+    default:
+      return true;
+  }
+}
+
+export function filterWorkEntriesByQuery(
+  entries: WorkFilterEntry[],
+  query: WorksListQueryState,
+): DmmItem[] {
+  const keyword = query.q?.trim().toLowerCase();
+  const genre = query.genre?.trim();
+  const maker = query.maker?.trim();
+  const price = parsePriceFilter(query.price);
+  const date = parseDateFilter(query.date);
+  const saleOnly =
+    query.sale === "1" || query.sale === "true" || query.filter === "sale";
+  const dateBounds = date !== "all" ? getDateBounds() : null;
+
+  const result: DmmItem[] = [];
+
+  for (const entry of entries) {
+    if (keyword && !entry.haystack.includes(keyword)) continue;
+
+    if (genre && !entry.genres.includes(genre)) continue;
+
+    if (maker && entry.maker !== maker) continue;
+
+    if (saleOnly) {
+      if (!(entry.listPrice > 0 && entry.price > 0 && entry.price < entry.listPrice)) {
+        continue;
+      }
+    }
+
+    if (!matchesPriceFilterEntry(entry, price)) continue;
+
+    if (dateBounds && !matchesDateFilterEntry(entry, date, dateBounds)) continue;
+
+    result.push(entry.item);
+  }
+
+  return result;
+}
+
+export function getWorkFilterOptionsFromEntries(
+  entries: WorkFilterEntry[],
+): {
+  genreOptions: WorkFilterOption[];
+  makerOptions: WorkFilterOption[];
+} {
+  const genreCount = new Map<string, number>();
+  const makerCount = new Map<string, number>();
+
+  for (const entry of entries) {
+    for (const genre of entry.genres) {
+      genreCount.set(genre, (genreCount.get(genre) ?? 0) + 1);
+    }
+
+    if (entry.maker) {
+      makerCount.set(entry.maker, (makerCount.get(entry.maker) ?? 0) + 1);
+    }
+  }
+
+  const toOptions = (map: Map<string, number>): WorkFilterOption[] =>
+    [...map.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "ja"))
+      .map(([label, count]) => ({ label, value: label, count }));
+
+  return {
+    genreOptions: toOptions(genreCount),
+    makerOptions: toOptions(makerCount),
+  };
+}
+
 export function filterWorksByQuery(
   items: DmmItem[],
   query: WorksListQueryState,
@@ -155,6 +306,7 @@ export function filterWorksByQuery(
   const date = parseDateFilter(query.date);
   const saleOnly =
     query.sale === "1" || query.sale === "true" || query.filter === "sale";
+  const dateBounds = date !== "all" ? getDateBounds() : null;
 
   return items.filter((item) => {
     if (keyword) {
@@ -182,7 +334,9 @@ export function filterWorksByQuery(
     }
 
     if (!matchesPriceFilter(item, price)) return false;
-    if (!matchesDateFilter(item, date)) return false;
+    if (dateBounds && !matchesDateFilterWithBounds(item, date, dateBounds)) {
+      return false;
+    }
     return true;
   });
 }

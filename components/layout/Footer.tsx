@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FooterFavoritesLink } from "@/components/layout/FooterFavoritesLink";
 import { navItems, siteConfig, sidebarSections, legalLinks } from "@/lib/site-config";
 
 export function Footer() {
@@ -24,12 +25,16 @@ export function Footer() {
             <ul className="mt-3 space-y-2">
               {navItems.map((item) => (
                 <li key={item.href}>
-                  <Link
-                    href={item.href}
-                    className="text-sm text-muted hover:text-accent"
-                  >
-                    {item.label}
-                  </Link>
+                  {item.href === "/favorites" ? (
+                    <FooterFavoritesLink />
+                  ) : (
+                    <Link
+                      href={item.href}
+                      className="text-sm text-muted hover:text-accent"
+                    >
+                      {item.label}
+                    </Link>
+                  )}
                 </li>
               ))}
             </ul>

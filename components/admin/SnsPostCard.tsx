@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import { SnsCompareImagePreview } from "@/components/admin/SnsCompareImagePreview";
+import type { SnsPostHistoryEntry } from "@/lib/admin/sns-post-history-types";
 import type { SnsScheduledPost } from "@/lib/admin/sns-types";
 
 type SnsPostCardProps = {
   post: SnsScheduledPost;
+  onPosted?: (entry: SnsPostHistoryEntry) => void;
 };
 
 function buildTweetIntentUrl(text: string): string {
@@ -18,11 +20,17 @@ function getCharCountClass(length: number): string {
   return "text-muted";
 }
 
-export function SnsPostCard({ post: initialPost }: SnsPostCardProps) {
+const actionButtonClassName =
+  "inline-flex h-11 min-h-[44px] min-w-0 flex-1 items-center justify-center rounded-lg px-3 text-sm sm:flex-none";
+
+export function SnsPostCard({ post: initialPost, onPosted }: SnsPostCardProps) {
   const [post, setPost] = useState(initialPost);
   const [copied, setCopied] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isMarkingPosted, setIsMarkingPosted] = useState(false);
   const [regenerateError, setRegenerateError] = useState<string | null>(null);
+  const [markPostedError, setMarkPostedError] = useState<string | null>(null);
+  const [markedPosted, setMarkedPosted] = useState(false);
   const charCount = post.body.length;
 
   async function handleCopy() {
@@ -68,6 +76,7 @@ export function SnsPostCard({ post: initialPost }: SnsPostCardProps) {
         compareUrl: post.type === "compare" ? payload.compareUrl : undefined,
         meta: payload.meta ?? current.meta,
       }));
+      setMarkedPosted(false);
     } catch {
       setRegenerateError("別案の更新に失敗しました。");
     } finally {
@@ -75,21 +84,62 @@ export function SnsPostCard({ post: initialPost }: SnsPostCardProps) {
     }
   }
 
+  async function handleMarkPosted() {
+    setIsMarkingPosted(true);
+    setMarkPostedError(null);
+
+    try {
+      const response = await fetch("/api/admin/sns/mark-posted", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          postType: post.type,
+          meta: post.meta,
+          postText: post.body,
+          postUrl: post.compareUrl,
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        entry?: SnsPostHistoryEntry;
+        error?: string;
+      };
+
+      if (!response.ok) {
+        setMarkPostedError(payload.error ?? "投稿済みの記録に失敗しました。");
+        return;
+      }
+
+      if (payload.entry) {
+        onPosted?.(payload.entry);
+      }
+      setMarkedPosted(true);
+    } catch {
+      setMarkPostedError("投稿済みの記録に失敗しました。");
+    } finally {
+      setIsMarkingPosted(false);
+    }
+  }
+
   return (
-    <article className="rounded-xl border border-border bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+    <article className="w-full max-w-full overflow-hidden rounded-xl border border-border bg-white p-4 shadow-sm sm:p-5">
+      <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
           <p className="text-xs font-medium text-muted">投稿タイプ</p>
-          <h3 className="mt-1 text-base font-bold text-foreground">{post.typeLabel}</h3>
+          <h3 className="mt-1 break-words text-base font-bold text-foreground">
+            {post.typeLabel}
+          </h3>
         </div>
-        <span className="rounded-full bg-accent-light px-3 py-1 text-xs font-medium text-accent">
+        <span className="shrink-0 rounded-full bg-accent-light px-3 py-1 text-xs font-medium text-accent">
           {post.slot}
         </span>
       </div>
 
-      <p className="mt-4 whitespace-pre-wrap text-sm leading-relaxed text-foreground">
+      <div className="mt-4 max-w-full overflow-hidden whitespace-pre-wrap break-words font-sans text-sm leading-relaxed text-foreground [overflow-wrap:anywhere]">
         {post.body}
-      </p>
+      </div>
 
       <p className={`mt-3 text-xs ${getCharCountClass(charCount)}`}>
         {charCount}文字
@@ -101,7 +151,7 @@ export function SnsPostCard({ post: initialPost }: SnsPostCardProps) {
       </p>
 
       {post.compareWorks && post.compareUrl ? (
-        <div className="mt-5 space-y-4 rounded-lg border border-border bg-surface p-4">
+        <div className="mt-5 max-w-full space-y-4 overflow-hidden rounded-lg border border-border bg-surface p-3 sm:p-4">
           <SnsCompareImagePreview
             works={post.compareWorks}
             compareUrl={post.compareUrl}
@@ -112,7 +162,7 @@ export function SnsPostCard({ post: initialPost }: SnsPostCardProps) {
               href={post.compareUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-accent hover:underline"
+              className="break-all text-accent hover:underline"
             >
               {post.compareUrl}
             </a>
@@ -126,11 +176,23 @@ export function SnsPostCard({ post: initialPost }: SnsPostCardProps) {
         </p>
       ) : null}
 
+      {markPostedError ? (
+        <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {markPostedError}
+        </p>
+      ) : null}
+
+      {markedPosted ? (
+        <p className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          投稿履歴に記録しました。
+        </p>
+      ) : null}
+
       <div className="mt-5 flex flex-wrap gap-2">
         <button
           type="button"
           onClick={handleCopy}
-          className="rounded-lg border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:border-accent hover:text-accent"
+          className={`${actionButtonClassName} border border-border text-foreground transition-colors hover:border-accent hover:text-accent`}
         >
           {copied ? "コピーしました" : "コピー"}
         </button>
@@ -138,7 +200,7 @@ export function SnsPostCard({ post: initialPost }: SnsPostCardProps) {
           href={buildTweetIntentUrl(post.body)}
           target="_blank"
           rel="noopener noreferrer"
-          className="rounded-lg bg-accent px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
+          className={`${actionButtonClassName} bg-accent font-medium text-white transition-colors hover:bg-accent-hover`}
         >
           Xで開く
         </a>
@@ -146,9 +208,21 @@ export function SnsPostCard({ post: initialPost }: SnsPostCardProps) {
           type="button"
           onClick={handleRegenerate}
           disabled={isRegenerating}
-          className="rounded-lg border border-border bg-white px-3 py-1.5 text-sm text-foreground transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-60"
+          className={`${actionButtonClassName} border border-border bg-white text-foreground transition-colors hover:bg-surface disabled:cursor-not-allowed disabled:opacity-60`}
         >
           {isRegenerating ? "更新中..." : "別案に更新"}
+        </button>
+        <button
+          type="button"
+          onClick={handleMarkPosted}
+          disabled={isMarkingPosted || markedPosted}
+          className={`${actionButtonClassName} border border-emerald-300 bg-emerald-50 text-emerald-800 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60`}
+        >
+          {isMarkingPosted
+            ? "記録中..."
+            : markedPosted
+              ? "投稿済み"
+              : "投稿済みにする"}
         </button>
       </div>
     </article>

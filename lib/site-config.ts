@@ -40,6 +40,7 @@ export const pageIntros = {
 export const navItems = [
   { href: "/", label: "TOP" },
   { href: "/works", label: "作品一覧" },
+  { href: "/favorites", label: "お気に入り" },
   { href: "/ranking", label: "ランキング" },
   { href: "/works?sale=1", label: "セール" },
   { href: "/actresses", label: "女優" },
@@ -57,7 +58,6 @@ export const legalLinks = [
   { href: "/privacy", label: "プライバシーポリシー" },
   { href: "/contact", label: "お問い合わせ" },
   { href: "/age-restriction", label: "18歳未満閲覧禁止" },
-  { href: "/favorites", label: "お気に入り" },
   { href: "/history", label: "閲覧履歴" },
   { href: "/sitemap", label: "サイトマップ" },
 ] as const;
@@ -68,6 +68,7 @@ export const sidebarSections = [
     links: [
       { href: "/", label: "TOP" },
       { href: "/works", label: "作品一覧" },
+      { href: "/favorites", label: "お気に入り" },
       { href: "/works?sale=1", label: "セール作品" },
       { href: "/ranking", label: "ランキング" },
       { href: "/actresses", label: "女優一覧" },

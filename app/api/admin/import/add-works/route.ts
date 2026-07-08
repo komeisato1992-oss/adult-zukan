@@ -62,7 +62,7 @@ export async function POST(request: Request) {
       invalidCount: result.invalidContentIds.length,
       message:
         result.addedContentIds.length > 0
-          ? `${result.addedContentIds.length}件を追加しました。Vercelの反映まで数分かかります。`
+          ? `${result.addedContentIds.length}件を追加しました`
           : "追加できる作品がありませんでした。",
     });
   } catch (error) {

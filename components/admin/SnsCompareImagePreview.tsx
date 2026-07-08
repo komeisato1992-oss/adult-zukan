@@ -23,11 +23,11 @@ function CompareImageWorkColumn({
     isValidImageUrl(work.imageUrl) && work.imageUrl ? work.imageUrl : undefined;
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col border border-border bg-white">
+    <div className="flex min-w-0 w-full flex-1 flex-col border border-border bg-white">
       <div className="border-b border-border bg-accent-light px-3 py-2 text-center text-xs font-bold text-accent">
         {label}
       </div>
-      <div className="flex flex-1 flex-col p-3">
+      <div className="flex min-w-0 flex-1 flex-col p-3">
         <div className="relative mx-auto aspect-[3/4] w-full max-w-[140px] overflow-hidden rounded-md border border-border bg-surface">
           {imageUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -43,7 +43,7 @@ function CompareImageWorkColumn({
             </div>
           )}
         </div>
-        <div className="mt-3 space-y-1.5 text-[11px] leading-relaxed text-foreground">
+        <div className="mt-3 min-w-0 space-y-1.5 break-words text-[11px] leading-relaxed text-foreground">
           <p className="line-clamp-3 text-xs font-bold">{work.title}</p>
           <p>
             <span className="text-muted">女優：</span>
@@ -104,25 +104,25 @@ export function SnsCompareImagePreview({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="w-full max-w-full space-y-3 overflow-hidden">
       <p className="text-sm font-semibold text-foreground">比較画像プレビュー</p>
 
-      <div className="overflow-x-auto rounded-lg border border-border bg-surface p-3">
+      <div className="w-full max-w-full overflow-hidden rounded-lg border border-border bg-surface p-2 sm:p-3">
         <div
           ref={previewRef}
-          className="w-[720px] overflow-hidden rounded-lg border border-border bg-white shadow-sm"
+          className="mx-auto w-full max-w-full overflow-hidden rounded-lg border border-border bg-white shadow-sm sm:max-w-[720px]"
         >
-          <div className="flex items-center justify-between border-b border-border bg-white px-4 py-3">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border bg-white px-3 py-3 sm:px-4">
+            <div className="flex min-w-0 items-center gap-2">
               <Image
                 src={siteConfig.logoIcon}
                 alt={siteConfig.name}
                 width={28}
                 height={28}
-                className="h-7 w-7"
+                className="h-7 w-7 shrink-0"
                 unoptimized
               />
-              <span className="text-sm font-bold text-foreground">
+              <span className="truncate text-sm font-bold text-foreground">
                 {siteConfig.name}
               </span>
             </div>
@@ -131,16 +131,16 @@ export function SnsCompareImagePreview({
             </span>
           </div>
 
-          <p className="border-b border-border bg-white px-4 py-2 text-center text-xs text-muted">
+          <p className="border-b border-border bg-white px-3 py-2 text-center text-xs text-muted sm:px-4">
             アダルト図鑑では、似ている作品を比較できます
           </p>
 
-          <div className="grid grid-cols-2 gap-3 bg-surface p-3">
+          <div className="grid grid-cols-1 gap-3 bg-surface p-3 sm:grid-cols-2">
             <CompareImageWorkColumn label="作品A" work={works[0]} />
             <CompareImageWorkColumn label="作品B" work={works[1]} />
           </div>
 
-          <div className="border-t border-border bg-accent-light px-4 py-2 text-center text-[11px] text-muted">
+          <div className="break-all border-t border-border bg-accent-light px-3 py-2 text-center text-[11px] text-muted sm:px-4">
             {compareUrl}
           </div>
         </div>
@@ -151,7 +151,7 @@ export function SnsCompareImagePreview({
           type="button"
           onClick={handleExport}
           disabled={exporting}
-          className="rounded-lg border border-accent bg-white px-3 py-1.5 text-sm font-medium text-accent transition-colors hover:bg-accent-light disabled:opacity-60"
+          className="inline-flex h-11 min-h-[44px] items-center rounded-lg border border-accent bg-white px-3 text-sm font-medium text-accent transition-colors hover:bg-accent-light disabled:opacity-60"
         >
           {exporting ? "書き出し中..." : "画像を書き出し"}
         </button>

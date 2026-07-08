@@ -7,6 +7,7 @@ import { DmmSampleMovieThumbnail } from "@/components/works/DmmSampleMovieThumbn
 import { DmmActressLinks } from "@/components/works/DmmActressLinks";
 import { FanzaLinkButton } from "@/components/works/FanzaLinkButton";
 import { ImageLightboxModal } from "@/components/works/ImageLightboxModal";
+import { FavoriteButton } from "@/components/user/FavoriteButton";
 import type { DmmReleaseDateInfo } from "@/lib/dmm/release-date";
 
 type DmmWorkHeroProps = {
@@ -84,9 +85,12 @@ export function DmmWorkHero({
           </div>
 
           <div className="min-w-0">
-            <h1 className="text-xl font-bold leading-tight text-foreground sm:text-2xl lg:text-3xl">
-              {title}
-            </h1>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <h1 className="min-w-0 flex-1 text-xl font-bold leading-tight text-foreground sm:text-2xl lg:text-3xl">
+                {title}
+              </h1>
+              <FavoriteButton contentId={contentId} title={title} />
+            </div>
 
             {descriptionTeaser && (
               <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-muted">

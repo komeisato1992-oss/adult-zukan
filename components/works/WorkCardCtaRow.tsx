@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { CompareToggleButton } from "@/components/compare/CompareToggleButton";
 import {
   WORK_CARD_VIEW_LABEL,
@@ -13,14 +14,14 @@ type WorkCardCtaRowProps = {
   className?: string;
 };
 
-export function WorkCardCtaRow({
+function WorkCardCtaRowInner({
   contentId,
   fanzaUrl,
   className = "",
 }: WorkCardCtaRowProps) {
   return (
-    <div className={`flex flex-nowrap gap-2 ${className}`}>
-      <div className="min-w-0 flex-1 basis-0">
+    <div className={`flex flex-nowrap items-stretch gap-1.5 sm:gap-2 ${className}`}>
+      <div className="min-w-0 basis-[40%] md:flex-1 md:basis-0">
         <CompareToggleButton contentId={contentId} variant="card" />
       </div>
       {fanzaUrl ? (
@@ -28,7 +29,7 @@ export function WorkCardCtaRow({
           href={fanzaUrl}
           target="_blank"
           rel={AFFILIATE_LINK_REL}
-          className={`${workCardCtaBaseClassName} shrink-0 flex-1 basis-0 bg-[#E60012] text-white transition-colors hover:bg-[#c4000f]`}
+          className={`${workCardCtaBaseClassName} min-w-0 basis-[60%] bg-[#E60012] text-white transition-colors hover:bg-[#c4000f] md:flex-1 md:basis-0`}
         >
           {WORK_CARD_VIEW_LABEL}
         </a>
@@ -36,3 +37,11 @@ export function WorkCardCtaRow({
     </div>
   );
 }
+
+export const WorkCardCtaRow = memo(
+  WorkCardCtaRowInner,
+  (prev, next) =>
+    prev.contentId === next.contentId &&
+    prev.fanzaUrl === next.fanzaUrl &&
+    prev.className === next.className,
+);

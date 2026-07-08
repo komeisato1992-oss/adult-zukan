@@ -1,7 +1,9 @@
 "use client";
 
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
+import { FavoriteNavLabel } from "@/components/user/FavoriteNavLabel";
 import { navItems } from "@/lib/site-config";
 
 function isNavItemActive(
@@ -36,6 +38,13 @@ function navLinkClassName(active: boolean): string {
     : "whitespace-nowrap rounded px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent-light hover:text-accent";
 }
 
+function renderNavLabel(href: string, label: string): ReactNode {
+  if (href === "/favorites") {
+    return <FavoriteNavLabel />;
+  }
+  return label;
+}
+
 export function MainNav() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -55,7 +64,7 @@ export function MainNav() {
             aria-current={active ? "page" : undefined}
             className={navLinkClassName(active)}
           >
-            {item.label}
+            {renderNavLabel(item.href, item.label)}
           </Link>
         );
       })}
@@ -68,7 +77,7 @@ export function SidebarNavLink({
   label,
 }: {
   href: string;
-  label: string;
+  label: ReactNode;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -84,7 +93,7 @@ export function SidebarNavLink({
           : "block rounded px-2 py-1.5 text-sm text-muted transition-colors hover:bg-accent-light hover:text-accent"
       }
     >
-      {label}
+      {href === "/favorites" ? <FavoriteNavLabel /> : label}
     </Link>
   );
 }

@@ -5,6 +5,8 @@ export const COMPARE_MAX_ITEMS = 3;
 const COMPARE_EVENT = "az:compare-updated";
 export const COMPARE_LIMIT_EVENT = "az:compare-limit-reached";
 
+let compareIdsCache: string[] | null = null;
+
 function normalizeIds(input: unknown): string[] {
   if (!Array.isArray(input)) return [];
   return input
@@ -15,17 +17,34 @@ function normalizeIds(input: unknown): string[] {
 }
 
 export function readCompareIds(): string[] {
+  if (compareIdsCache) return compareIdsCache;
+
   if (typeof window === "undefined") return [];
+
   try {
-    return normalizeIds(JSON.parse(window.localStorage.getItem(COMPARE_STORAGE_KEY) ?? "[]"));
+    compareIdsCache = normalizeIds(
+      JSON.parse(window.localStorage.getItem(COMPARE_STORAGE_KEY) ?? "[]"),
+    );
   } catch {
-    return [];
+    compareIdsCache = [];
   }
+
+  return compareIdsCache;
+}
+
+export function isCompareId(contentId: string): boolean {
+  const trimmed = contentId.trim();
+  if (!trimmed) return false;
+  return readCompareIds().includes(trimmed);
 }
 
 function writeCompareIds(ids: string[]) {
+  compareIdsCache = normalizeIds(ids);
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(COMPARE_STORAGE_KEY, JSON.stringify(normalizeIds(ids)));
+  window.localStorage.setItem(
+    COMPARE_STORAGE_KEY,
+    JSON.stringify(compareIdsCache),
+  );
   window.dispatchEvent(new Event(COMPARE_EVENT));
 }
 
@@ -70,7 +89,10 @@ export function toggleCompareId(contentId: string): {
 export function subscribeCompareStore(callback: () => void): () => void {
   if (typeof window === "undefined") return () => {};
   const onStorage = (event: StorageEvent) => {
-    if (event.key === COMPARE_STORAGE_KEY) callback();
+    if (event.key === COMPARE_STORAGE_KEY) {
+      compareIdsCache = null;
+      callback();
+    }
   };
   const onUpdate = () => callback();
   window.addEventListener("storage", onStorage);

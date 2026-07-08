@@ -6,6 +6,8 @@ import type { ImportFilterKey } from "@/lib/admin/import-quality";
 import { isDmmConfigured } from "@/lib/dmm/client";
 import { isGitHubCatalogConfigured } from "@/lib/admin/github-config";
 
+export const dynamic = "force-dynamic";
+
 const VALID_SORTS = new Set<ImportCandidateSortKey>([
   "collectedAt-desc",
   "releaseDate-desc",

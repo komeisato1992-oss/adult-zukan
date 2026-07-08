@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FavoriteCardButton } from "@/components/user/FavoriteCardButton";
 import { CatalogWorkImage } from "@/components/ui/CatalogWorkImage";
 import { WorkCardCtaRow } from "@/components/works/WorkCardCtaRow";
 import { CompactNameList } from "@/components/ui/CompactNameList";
@@ -56,26 +57,29 @@ export function DmmWorkCard({
     <article
       className={`group max-w-full overflow-hidden rounded-lg border border-border/80 bg-white shadow-sm transition-all duration-300 ease-out hover:-translate-y-1.5 hover:border-accent/20 hover:shadow-xl ${className}`}
     >
-      <Link href={`/works/${item.content_id}`} prefetch className="block max-w-full">
-        <div className="relative">
-          <CatalogWorkImage src={imageUrl} alt={item.title} variant="portrait" />
-          {isOnSale && (
-            <span className="absolute left-2.5 top-2.5 z-10 rounded-sm bg-accent px-2 py-0.5 text-xs font-bold text-white shadow-sm">
-              SALE
-            </span>
-          )}
-        </div>
-        <div className={`${paddingX} pt-3 pb-0`}>
-          <h3
-            className={`line-clamp-2 font-semibold leading-snug text-foreground transition-colors group-hover:text-accent ${titleSize}`}
-          >
-            {item.title}
-          </h3>
-          {releaseDate ? (
-            <p className="mt-1.5 text-xs text-muted">{releaseDate}</p>
-          ) : null}
-        </div>
-      </Link>
+      <div className="relative">
+        <Link href={`/works/${item.content_id}`} prefetch className="block max-w-full">
+          <div className="relative">
+            <CatalogWorkImage src={imageUrl} alt={item.title} variant="portrait" />
+            {isOnSale && (
+              <span className="absolute left-2.5 top-2.5 z-10 rounded-sm bg-accent px-2 py-0.5 text-xs font-bold text-white shadow-sm">
+                SALE
+              </span>
+            )}
+          </div>
+          <div className={`${paddingX} pt-3 pb-0`}>
+            <h3
+              className={`line-clamp-2 font-semibold leading-snug text-foreground transition-colors group-hover:text-accent ${titleSize}`}
+            >
+              {item.title}
+            </h3>
+            {releaseDate ? (
+              <p className="mt-1.5 text-xs text-muted">{releaseDate}</p>
+            ) : null}
+          </div>
+        </Link>
+        <FavoriteCardButton contentId={item.content_id} title={item.title} />
+      </div>
       <div className={`${paddingX} pt-1.5`}>
         <CompactNameList names={actressNames} />
         {current && (

@@ -25,8 +25,8 @@ export function AdminShell({ children }: AdminShellProps) {
   }
 
   return (
-    <div className="min-h-screen bg-surface">
-      <div className="mx-auto flex min-h-screen max-w-7xl">
+    <div className="min-h-screen max-w-full overflow-x-hidden bg-surface">
+      <div className="mx-auto flex min-h-screen w-full max-w-7xl overflow-x-hidden">
         <aside className="hidden w-64 shrink-0 border-r border-border bg-white lg:block">
           <AdminSidebar />
         </aside>
@@ -39,17 +39,17 @@ export function AdminShell({ children }: AdminShellProps) {
               className="absolute inset-0 bg-black/40"
               onClick={() => setMobileOpen(false)}
             />
-            <aside className="relative h-full w-72 bg-white shadow-xl">
+            <aside className="relative h-full w-[min(18rem,85vw)] max-w-full bg-white shadow-xl">
               <AdminSidebar onNavigate={() => setMobileOpen(false)} />
             </aside>
           </div>
         ) : null}
 
-        <div className="flex min-w-0 flex-1 flex-col">
-          <header className="flex items-center justify-between border-b border-border bg-white px-4 py-3 sm:px-6">
+        <div className="flex min-w-0 max-w-full flex-1 flex-col overflow-x-hidden">
+          <header className="flex items-center justify-between gap-3 border-b border-border bg-white px-4 py-3">
             <button
               type="button"
-              className="rounded-lg border border-border px-3 py-1.5 text-sm lg:hidden"
+              className="inline-flex h-11 min-h-[44px] items-center rounded-lg border border-border px-3 text-sm lg:hidden"
               onClick={() => setMobileOpen(true)}
             >
               メニュー
@@ -59,13 +59,17 @@ export function AdminShell({ children }: AdminShellProps) {
               type="button"
               onClick={handleLogout}
               disabled={loggingOut}
-              className="rounded-lg border border-border px-3 py-1.5 text-sm text-foreground transition-colors hover:border-accent hover:text-accent disabled:opacity-60"
+              className="inline-flex h-11 min-h-[44px] items-center rounded-lg border border-border px-3 text-sm text-foreground transition-colors hover:border-accent hover:text-accent disabled:opacity-60"
             >
               {loggingOut ? "ログアウト中..." : "ログアウト"}
             </button>
           </header>
 
-          <main className="flex-1 p-4 sm:p-6">{children}</main>
+          <main className="min-w-0 max-w-full flex-1 overflow-x-hidden p-4 sm:p-6">
+            <div className="mx-auto w-full max-w-full overflow-x-hidden">
+              {children}
+            </div>
+          </main>
         </div>
       </div>
     </div>

@@ -82,7 +82,5 @@ export const getDmmStaticWorks = cache(fetchDmmStaticWorksUncached);
 
 export async function getDmmStaticWorkContentIds(): Promise<string[]> {
   const items = await getDmmStaticWorks();
-  const contentIds = items.map((item) => item.content_id);
-  console.log(`generateStaticParams件数: ${contentIds.length}`);
-  return contentIds;
+  return items.map((item) => item.content_id);
 }

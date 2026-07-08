@@ -1,6 +1,5 @@
 "use client";
 
-const FAVORITES_KEY = "adult_zukan_favorites";
 const HISTORY_KEY = "adult_zukan_history";
 const MAX_HISTORY = 20;
 
@@ -24,23 +23,6 @@ function readJson<T>(key: string, fallback: T): T {
 
 function writeJson<T>(key: string, value: T): void {
   localStorage.setItem(key, JSON.stringify(value));
-}
-
-export function getFavorites(): string[] {
-  return readJson<string[]>(FAVORITES_KEY, []);
-}
-
-export function isFavorite(slug: string): boolean {
-  return getFavorites().includes(slug);
-}
-
-export function toggleFavorite(slug: string): string[] {
-  const current = getFavorites();
-  const next = current.includes(slug)
-    ? current.filter((s) => s !== slug)
-    : [...current, slug];
-  writeJson(FAVORITES_KEY, next);
-  return next;
 }
 
 export function getHistory(): StoredWork[] {

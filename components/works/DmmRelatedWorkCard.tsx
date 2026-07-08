@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FavoriteCardButton } from "@/components/user/FavoriteCardButton";
 import { WorkCardCtaRow } from "@/components/works/WorkCardCtaRow";
 import { CatalogWorkImage } from "@/components/ui/CatalogWorkImage";
 import { CompactNameList } from "@/components/ui/CompactNameList";
@@ -24,23 +25,26 @@ export function DmmRelatedWorkCard({ item }: DmmRelatedWorkCardProps) {
 
   return (
     <article className="group block max-w-full overflow-hidden rounded-lg border border-border/80 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/20 hover:shadow-md">
-      <Link
-        href={`/works/${item.content_id}`}
-        prefetch
-        className="block"
-      >
-        <CatalogWorkImage
-          src={imageUrl}
-          alt={item.title}
-          variant="landscape"
-          sizes="(max-width: 1024px) 50vw, 25vw"
-        />
-        <div className="px-3 pt-3 pb-0">
-          <p className="line-clamp-2 text-sm font-semibold leading-snug text-foreground group-hover:text-accent">
-            {item.title}
-          </p>
-        </div>
-      </Link>
+      <div className="relative">
+        <Link
+          href={`/works/${item.content_id}`}
+          prefetch
+          className="block"
+        >
+          <CatalogWorkImage
+            src={imageUrl}
+            alt={item.title}
+            variant="landscape"
+            sizes="(max-width: 1024px) 50vw, 25vw"
+          />
+          <div className="px-3 pt-3 pb-0">
+            <p className="line-clamp-2 text-sm font-semibold leading-snug text-foreground group-hover:text-accent">
+              {item.title}
+            </p>
+          </div>
+        </Link>
+        <FavoriteCardButton contentId={item.content_id} title={item.title} />
+      </div>
       <div className="px-3 pt-1">
         <CompactNameList names={actressNames} />
         {price && <p className="mt-1 text-sm font-bold text-accent">{price}</p>}

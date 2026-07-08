@@ -9,6 +9,7 @@ import {
   buildImportActressPost,
   buildImportComparePost,
   buildImportRecommendedWorkPost,
+  formatImportCatalogJson,
   IMPORT_SNS_POST_TYPE_LABELS,
   pickImportComparePair,
   type ImportSnsPostType,
@@ -35,15 +36,10 @@ type ImportCandidateCardProps = {
   sourceLabel: string;
   selected: boolean;
   isAdded: boolean;
+  emphasizeSns?: boolean;
   comparePool?: DmmItem[];
   onSelectedChange: (contentId: string, selected: boolean) => void;
   onExclude: (contentId: string) => void | Promise<void>;
-  onMarkAdded: (contentId: string) => void;
-};
-
-type AddMessage = {
-  type: "success" | "duplicate" | "error";
-  text: string;
 };
 
 const ACTION_BUTTON_CLASS =
@@ -78,17 +74,15 @@ export function ImportCandidateCard({
   sourceLabel,
   selected,
   isAdded,
+  emphasizeSns = false,
   comparePool = [],
   onSelectedChange,
   onExclude,
-  onMarkAdded,
 }: ImportCandidateCardProps) {
   const [showSnsPanel, setShowSnsPanel] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
+  const [showJson, setShowJson] = useState(false);
   const [showLightbox, setShowLightbox] = useState(false);
-  const [isAdding, setIsAdding] = useState(false);
-  const [emphasizeSns, setEmphasizeSns] = useState(false);
-  const [addMessage, setAddMessage] = useState<AddMessage | null>(null);
   const [snsType, setSnsType] = useState<ImportSnsPostType | "">("");
   const [selectedActress, setSelectedActress] = useState("");
   const [generatedPost, setGeneratedPost] = useState<{
@@ -110,66 +104,9 @@ export function ImportCandidateCard({
       ? "bg-accent-light text-accent"
       : "bg-surface text-foreground";
 
-  async function handleAddWork() {
-    if (isAdding || isAdded) return;
-
-    if (!window.confirm("この作品をサイトに追加しますか？")) {
-      return;
-    }
-
-    setIsAdding(true);
-    setAddMessage(null);
-
-    try {
-      const response = await fetch("/api/admin/import/add-work", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          contentId: item.content_id,
-          item,
-        }),
-      });
-
-      const payload = (await response.json()) as {
-        error?: string;
-        message?: string;
-      };
-
-      if (response.status === 409) {
-        onMarkAdded(item.content_id);
-        setAddMessage({
-          type: "duplicate",
-          text: payload.error ?? "この作品はすでに追加済みです。",
-        });
-        return;
-      }
-
-      if (!response.ok) {
-        setAddMessage({
-          type: "error",
-          text: payload.error ?? "追加に失敗しました。",
-        });
-        return;
-      }
-
-      onMarkAdded(item.content_id);
-      setEmphasizeSns(true);
-      setAddMessage({
-        type: "success",
-        text:
-          payload.message ??
-          "追加しました。Vercelの反映まで数分かかります。",
-      });
-    } catch {
-      setAddMessage({
-        type: "error",
-        text: "追加に失敗しました。",
-      });
-    } finally {
-      setIsAdding(false);
-    }
+  function handleSelectToAdd() {
+    if (isAdded || selected) return;
+    onSelectedChange(item.content_id, true);
   }
 
   function handleGenerateSns() {
@@ -221,7 +158,6 @@ export function ImportCandidateCard({
     setSnsType("");
     setGeneratedPost(null);
     setSelectedActress("");
-    setEmphasizeSns(false);
   }
 
   const actressText =
@@ -229,13 +165,6 @@ export function ImportCandidateCard({
   const makerText = getDmmItemMakerName(item) ?? "-";
   const priceText = getDmmItemPrice(item) ?? "-";
   const releaseText = release?.value ?? "-";
-
-  const addMessageClass =
-    addMessage?.type === "success"
-      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-      : addMessage?.type === "duplicate"
-        ? "border-amber-200 bg-amber-50 text-amber-900"
-        : "border-red-200 bg-red-50 text-red-700";
 
   return (
     <article className="rounded-xl border border-border bg-white p-4 shadow-sm sm:p-5">
@@ -383,10 +312,13 @@ export function ImportCandidateCard({
         </div>
       </div>
 
-      {addMessage ? (
-        <p className={`mt-4 rounded-lg border px-3 py-2 text-sm ${addMessageClass}`}>
-          {addMessage.text}
-        </p>
+      {showJson ? (
+        <div className="mt-4 rounded-lg border border-border bg-surface p-3">
+          <p className="text-xs font-medium text-muted">追加用JSON</p>
+          <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-all text-xs text-foreground">
+            {formatImportCatalogJson(item)}
+          </pre>
+        </div>
       ) : null}
 
       {isAdded && emphasizeSns ? (
@@ -395,14 +327,21 @@ export function ImportCandidateCard({
         </p>
       ) : null}
 
-      <div className="mt-4 flex gap-2 border-t border-border pt-4">
+      <div className="mt-4 flex flex-wrap gap-2 border-t border-border pt-4">
         <button
           type="button"
-          onClick={handleAddWork}
-          disabled={isAdding || isAdded}
+          onClick={handleSelectToAdd}
+          disabled={isAdded || selected}
           className={`${ACTION_BUTTON_CLASS} bg-accent text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60`}
         >
-          {isAdding ? "追加中..." : isAdded ? "追加済み" : "追加"}
+          {isAdded ? "追加済み" : selected ? "選択済み" : "選択に追加"}
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowJson((current) => !current)}
+          className={`${ACTION_BUTTON_CLASS} border border-border text-foreground hover:border-accent hover:text-accent`}
+        >
+          {showJson ? "JSONを閉じる" : "JSONを表示"}
         </button>
         <button
           type="button"
@@ -418,8 +357,7 @@ export function ImportCandidateCard({
         <button
           type="button"
           onClick={() => onExclude(item.content_id)}
-          disabled={isAdding}
-          className={`${ACTION_BUTTON_CLASS} border border-border text-foreground hover:border-accent hover:text-accent disabled:opacity-60`}
+          className={`${ACTION_BUTTON_CLASS} border border-border text-foreground hover:border-accent hover:text-accent`}
         >
           除外
         </button>

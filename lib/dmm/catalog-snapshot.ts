@@ -21,10 +21,24 @@ export function readCatalogSnapshot(): DmmItem[] {
 }
 
 export function writeCatalogSnapshot(items: DmmItem[]): void {
-  if (items.length === 0) {
-    return;
-  }
-
   mkdirSync(SNAPSHOT_DIR, { recursive: true });
-  writeFileSync(SNAPSHOT_FILE, JSON.stringify(items, null, 2), "utf-8");
+  writeFileSync(
+    SNAPSHOT_FILE,
+    `${JSON.stringify(items, null, 2)}\n`,
+    "utf-8",
+  );
+}
+
+export function normalizeCatalogContentId(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+export function catalogHasContentId(
+  items: DmmItem[],
+  contentId: string,
+): boolean {
+  const normalizedId = normalizeCatalogContentId(contentId);
+  return items.some(
+    (entry) => normalizeCatalogContentId(entry.content_id) === normalizedId,
+  );
 }

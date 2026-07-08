@@ -1,9 +1,9 @@
 "use client";
 
-import type { ImportSelectionSummary } from "@/lib/admin/import-quality";
+import type { ImportBulkConfirmSummary } from "@/lib/admin/import-quality";
 
 type ImportBulkConfirmModalProps = {
-  summary: ImportSelectionSummary;
+  summary: ImportBulkConfirmSummary;
   isSubmitting: boolean;
   onConfirm: () => void;
   onCancel: () => void;
@@ -30,9 +30,17 @@ export function ImportBulkConfirmModal({
         <dl className="mt-4 space-y-2 text-sm">
           <div className="flex justify-between gap-4">
             <dt className="text-muted">選択件数</dt>
-            <dd className="font-semibold text-foreground">{summary.total}件</dd>
+            <dd className="font-semibold text-foreground">{summary.selectedCount}件</dd>
           </div>
           <div className="flex justify-between gap-4">
+            <dt className="text-muted">追加予定</dt>
+            <dd className="font-semibold text-accent">{summary.toAddCount}件</dd>
+          </div>
+          <div className="flex justify-between gap-4">
+            <dt className="text-muted">重複除外</dt>
+            <dd className="text-foreground">{summary.duplicateCount}件</dd>
+          </div>
+          <div className="flex justify-between gap-4 border-t border-border pt-2">
             <dt className="text-muted">画像なし</dt>
             <dd className="text-foreground">{summary.noImage}件</dd>
           </div>
@@ -60,10 +68,10 @@ export function ImportBulkConfirmModal({
           <button
             type="button"
             onClick={onConfirm}
-            disabled={isSubmitting}
+            disabled={isSubmitting || summary.toAddCount === 0}
             className="inline-flex h-11 flex-1 items-center justify-center rounded-lg bg-accent text-sm font-semibold text-white hover:bg-accent-hover disabled:opacity-60"
           >
-            {isSubmitting ? "追加中..." : "追加する"}
+            {isSubmitting ? "追加中..." : "一括追加する"}
           </button>
           <button
             type="button"

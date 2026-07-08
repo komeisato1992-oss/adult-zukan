@@ -1,9 +1,15 @@
 import { ImportManagementClient } from "@/components/admin/ImportManagementClient";
 import { getImportCandidatesList } from "@/lib/admin/import-candidates-query";
-import { isGitHubCatalogConfigured } from "@/lib/admin/github-config";
+import {
+  isGitHubCatalogConfigured,
+  logGitHubEnvDiagnostics,
+} from "@/lib/admin/github-config";
+import { isImportCandidatesJsonCorruptError } from "@/lib/admin/import-candidates-json";
 import { isDmmConfigured } from "@/lib/dmm/client";
 
 export async function ImportManagement() {
+  logGitHubEnvDiagnostics();
+
   let initialData;
 
   try {
@@ -12,6 +18,7 @@ export async function ImportManagement() {
       ...list,
       configured: isGitHubCatalogConfigured(),
       dmmConfigured: isDmmConfigured(),
+      jsonCorrupt: false,
     };
   } catch (error) {
     initialData = {
@@ -31,6 +38,7 @@ export async function ImportManagement() {
       },
       configured: isGitHubCatalogConfigured(),
       dmmConfigured: isDmmConfigured(),
+      jsonCorrupt: isImportCandidatesJsonCorruptError(error),
       message:
         error instanceof Error
           ? error.message

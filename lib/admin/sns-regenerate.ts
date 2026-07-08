@@ -1,6 +1,8 @@
 import "server-only";
 
 import { pickAlternativeComparePair } from "@/lib/admin/sns-compare-pairs";
+import { loadSnsPostHistory } from "@/lib/admin/sns-post-history-store";
+import { buildHistoryExclusions } from "@/lib/admin/sns-post-history-rules";
 import {
   buildActressPost,
   buildComparePost,
@@ -45,9 +47,13 @@ function pickRandomItem<T>(items: T[]): T | null {
 function pickAlternativeRecommendedWork(
   items: DmmItem[],
   excludeContentId?: string,
+  excludedContentIds?: Set<string>,
 ): DmmItem | null {
   const eligible = filterDisplayableItems(items).filter((item) => {
     if (excludeContentId && item.content_id === excludeContentId) {
+      return false;
+    }
+    if (excludedContentIds?.has(item.content_id)) {
       return false;
     }
     return true;
@@ -63,22 +69,29 @@ function pickAlternativeRecommendedWork(
 function pickAlternativeActress(
   items: DmmItem[],
   excludeActressName?: string,
+  excludedActressNames?: Set<string>,
 ) {
   const ranked = getRankedActresses(items, 100).filter(
     (actress) =>
       actress.workCount > 0 &&
-      (!excludeActressName || actress.name !== excludeActressName),
+      (!excludeActressName || actress.name !== excludeActressName) &&
+      !excludedActressNames?.has(actress.name),
   );
 
   const withImage = ranked.filter((actress) => actress.imageUrl);
   return pickRandomItem(withImage.length > 0 ? withImage : ranked);
 }
 
-function pickAlternativeGenre(items: DmmItem[], excludeGenreSlug?: string) {
+function pickAlternativeGenre(
+  items: DmmItem[],
+  excludeGenreSlug?: string,
+  excludedGenreNames?: Set<string>,
+) {
   const ranked = getRankedGenres(items, 100).filter(
     (genre) =>
       genre.workCount > 0 &&
-      (!excludeGenreSlug || genre.slug !== excludeGenreSlug),
+      (!excludeGenreSlug || genre.slug !== excludeGenreSlug) &&
+      !excludedGenreNames?.has(genre.name),
   );
 
   return pickRandomItem(ranked);
@@ -99,9 +112,15 @@ export async function regenerateSnsPost(
   meta?: SnsPostMeta,
 ): Promise<Pick<SnsScheduledPost, "body" | "compareWorks" | "compareUrl" | "meta">> {
   const items = await getCatalogItems();
+  const { records: history } = await loadSnsPostHistory();
+  const exclusions = buildHistoryExclusions(history);
 
   if (type === "recommended-work") {
-    const work = pickAlternativeRecommendedWork(items, meta?.contentId);
+    const work = pickAlternativeRecommendedWork(
+      items,
+      meta?.contentId,
+      exclusions.excludedContentIds,
+    );
     if (!work) {
       throw new SnsRegenerateError("別案のおすすめ作品が見つかりませんでした。");
     }
@@ -113,7 +132,11 @@ export async function regenerateSnsPost(
   }
 
   if (type === "compare") {
-    const pair = pickAlternativeComparePair(items, meta?.compareContentIds);
+    const pair = pickAlternativeComparePair(
+      items,
+      meta?.compareContentIds,
+      exclusions.excludedCompareKeys,
+    );
     if (!pair) {
       throw new SnsRegenerateError("別案の比較ペアが見つかりませんでした。");
     }
@@ -130,7 +153,11 @@ export async function regenerateSnsPost(
   }
 
   if (type === "actress") {
-    const actress = pickAlternativeActress(items, meta?.actressName);
+    const actress = pickAlternativeActress(
+      items,
+      meta?.actressName,
+      exclusions.excludedActressNames,
+    );
     if (!actress) {
       throw new SnsRegenerateError("別案の女優が見つかりませんでした。");
     }
@@ -142,7 +169,11 @@ export async function regenerateSnsPost(
   }
 
   if (type === "genre") {
-    const genre = pickAlternativeGenre(items, meta?.genreSlug);
+    const genre = pickAlternativeGenre(
+      items,
+      meta?.genreSlug,
+      exclusions.excludedGenreNames,
+    );
     if (!genre) {
       throw new SnsRegenerateError("別案のジャンルが見つかりませんでした。");
     }

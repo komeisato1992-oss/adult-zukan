@@ -1,24 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { isFavorite, toggleFavorite } from "@/lib/client-storage";
+import { useState } from "react";
+import { isFavorite, toggleFavorite } from "@/lib/favorites";
 
 type FavoriteButtonProps = {
-  slug: string;
+  contentId: string;
   title: string;
   className?: string;
 };
 
-export function FavoriteButton({ slug, title, className }: FavoriteButtonProps) {
-  const [active, setActive] = useState(false);
-
-  useEffect(() => {
-    setActive(isFavorite(slug));
-  }, [slug]);
+export function FavoriteButton({ contentId, title, className }: FavoriteButtonProps) {
+  const [active, setActive] = useState(() => isFavorite(contentId));
 
   function handleClick() {
-    const next = toggleFavorite(slug);
-    setActive(next.includes(slug));
+    const next = toggleFavorite(contentId);
+    setActive(next.includes(contentId));
   }
 
   return (
@@ -29,11 +25,15 @@ export function FavoriteButton({ slug, title, className }: FavoriteButtonProps) 
       aria-pressed={active}
       className={
         className ??
-        "inline-flex h-10 items-center gap-2 rounded border border-border px-4 text-sm font-medium transition-colors hover:border-accent hover:text-accent"
+        `inline-flex h-10 shrink-0 items-center gap-1.5 rounded border px-4 text-sm font-medium transition-colors ${
+          active
+            ? "border-accent bg-accent-light text-accent"
+            : "border-accent/50 bg-white text-accent hover:border-accent hover:bg-accent-light/50"
+        }`
       }
     >
-      <span aria-hidden="true">{active ? "★" : "☆"}</span>
-      {active ? "お気に入り済み" : "お気に入り"}
+      <span aria-hidden="true">{active ? "❤️" : "♡"}</span>
+      {active ? "お気に入り済み" : "お気に入りに追加"}
     </button>
   );
 }

@@ -2,7 +2,7 @@ import { createPageMetadata } from "@/lib/seo/metadata";
 import { FavoritesClient } from "./FavoritesClient";
 
 export const metadata = createPageMetadata({
-  title: "お気に入り",
+  title: "お気に入り作品一覧",
   description: "お気に入りに登録した作品一覧。",
   path: "/favorites",
   noIndex: true,

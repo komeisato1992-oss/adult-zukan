@@ -182,10 +182,12 @@ function trySelectPairs(
   pairs: ScoredPair[],
   selected: ScoredPair[],
   usedCount: Map<string, number>,
+  excludePairKeys?: Set<string>,
 ): void {
   for (const pair of pairs) {
     if (selected.length >= MAX_PAIR_SELECTIONS) break;
     if (selected.some((existing) => samePair(existing, pair))) continue;
+    if (isExcludedComparePair(pair.workA, pair.workB, excludePairKeys)) continue;
 
     const countA = usedCount.get(pair.workA.contentId) ?? 0;
     const countB = usedCount.get(pair.workB.contentId) ?? 0;
@@ -197,8 +199,19 @@ function trySelectPairs(
   }
 }
 
-function pairKey(contentIdA: string, contentIdB: string): string {
+export function comparePairKey(contentIdA: string, contentIdB: string): string {
   return [contentIdA, contentIdB].sort().join(",");
+}
+
+function isExcludedComparePair(
+  workA: WorkCandidate,
+  workB: WorkCandidate,
+  excludePairKeys?: Set<string>,
+): boolean {
+  if (!excludePairKeys || excludePairKeys.size === 0) return false;
+  return excludePairKeys.has(
+    comparePairKey(workA.contentId, workB.contentId),
+  );
 }
 
 function collectUniquePairs(candidates: WorkCandidate[]): ScoredPair[] {
@@ -233,18 +246,25 @@ function collectUniquePairs(candidates: WorkCandidate[]): ScoredPair[] {
 export function pickAlternativeComparePair(
   items: DmmItem[],
   excludeContentIds?: [string, string],
+  excludePairKeys?: Set<string>,
 ): [SnsCompareWorkMini, SnsCompareWorkMini] | null {
   const candidates = getCompareCandidates(items);
   if (candidates.length < 2) return null;
 
   const excludeKey =
     excludeContentIds?.length === 2
-      ? pairKey(excludeContentIds[0], excludeContentIds[1])
+      ? comparePairKey(excludeContentIds[0], excludeContentIds[1])
       : null;
+  const mergedExcludeKeys = new Set(excludePairKeys);
+  if (excludeKey) {
+    mergedExcludeKeys.add(excludeKey);
+  }
 
   const available = collectUniquePairs(candidates).filter((pair) => {
-    if (!excludeKey) return true;
-    return pairKey(pair.workA.contentId, pair.workB.contentId) !== excludeKey;
+    if (isExcludedComparePair(pair.workA, pair.workB, mergedExcludeKeys)) {
+      return false;
+    }
+    return true;
   });
 
   if (available.length === 0) return null;
@@ -257,6 +277,7 @@ export function pickAlternativeComparePair(
 
 export function pickComparePairs(
   items: DmmItem[],
+  excludePairKeys?: Set<string>,
 ): Array<[SnsCompareWorkMini, SnsCompareWorkMini]> {
   const candidates = getCompareCandidates(items);
   if (candidates.length < 2) return [];
@@ -264,13 +285,19 @@ export function pickComparePairs(
   const selected: ScoredPair[] = [];
   const usedCount = new Map<string, number>();
 
-  trySelectPairs(buildScoredPairs(candidates, scorePair, 2), selected, usedCount);
+  trySelectPairs(
+    buildScoredPairs(candidates, scorePair, 2),
+    selected,
+    usedCount,
+    excludePairKeys,
+  );
 
   if (selected.length < MAX_PAIR_SELECTIONS) {
     trySelectPairs(
       buildScoredPairs(candidates, scorePairRelaxed, 1),
       selected,
       usedCount,
+      excludePairKeys,
     );
   }
 
@@ -284,6 +311,7 @@ export function pickComparePairs(
           minCommonGenres: 0,
         };
         if (selected.some((existing) => samePair(existing, pair))) continue;
+        if (isExcludedComparePair(pair.workA, pair.workB, excludePairKeys)) continue;
 
         const countA = usedCount.get(pair.workA.contentId) ?? 0;
         const countB = usedCount.get(pair.workB.contentId) ?? 0;

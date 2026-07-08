@@ -5,19 +5,28 @@ import {
   fetchCatalogFromGitHub,
   GitHubCatalogError,
 } from "@/lib/admin/github-catalog";
+import { markImportCandidatesAdded } from "@/lib/admin/import-candidates-store";
 import { IMPORT_BULK_ADD_MAX } from "@/lib/admin/import-constants";
-import { markImportCandidateAdded, markImportCandidatesAdded } from "@/lib/admin/import-candidates-store";
+import {
+  summarizeImportSelection,
+  type ImportSelectionSummary,
+} from "@/lib/admin/import-quality";
+import { normalizeCatalogContentId } from "@/lib/dmm/catalog-snapshot";
 import { isValidDmmListItem } from "@/lib/dmm/filter";
 import type { DmmItem } from "@/lib/dmm/types";
-
-export type AddWorkToCatalogResult =
-  | { status: "added"; contentId: string }
-  | { status: "duplicate"; contentId: string };
 
 export type BulkAddWorksResult = {
   addedContentIds: string[];
   duplicateContentIds: string[];
   invalidContentIds: string[];
+};
+
+export type BulkAddPreviewResult = {
+  selectedCount: number;
+  toAddCount: number;
+  duplicateCount: number;
+  invalidCount: number;
+  qualitySummary: ImportSelectionSummary;
 };
 
 export class AddWorkValidationError extends Error {
@@ -30,18 +39,14 @@ export class AddWorkValidationError extends Error {
   }
 }
 
-function normalizeContentId(value: string): string {
-  return value.trim().toLowerCase();
-}
-
 function prepareCatalogItem(item: DmmItem, contentId: string): DmmItem {
-  const normalizedId = normalizeContentId(contentId);
+  const normalizedId = normalizeCatalogContentId(contentId);
 
   if (!normalizedId) {
     throw new AddWorkValidationError("content_id が不正です。");
   }
 
-  if (normalizeContentId(item.content_id) !== normalizedId) {
+  if (normalizeCatalogContentId(item.content_id) !== normalizedId) {
     throw new AddWorkValidationError("content_id と作品データが一致しません。");
   }
 
@@ -56,61 +61,15 @@ function prepareCatalogItem(item: DmmItem, contentId: string): DmmItem {
   };
 }
 
-export async function addWorkToCatalog(
-  contentId: string,
-  item: DmmItem,
-): Promise<AddWorkToCatalogResult> {
-  const preparedItem = prepareCatalogItem(item, contentId);
-  const { items, sha } = await fetchCatalogFromGitHub();
-
-  const exists = items.some(
-    (entry) => normalizeContentId(entry.content_id) === preparedItem.content_id,
-  );
-
-  if (exists) {
-    try {
-      await markImportCandidateAdded(preparedItem.content_id);
-    } catch {
-      // 候補ステータス更新失敗は許容
-    }
-
-    return {
-      status: "duplicate",
-      contentId: preparedItem.content_id,
-    };
-  }
-
-  const nextItems = [...items, preparedItem];
-  await commitCatalogToGitHub(nextItems, sha, preparedItem.content_id);
-
-  try {
-    await markImportCandidateAdded(preparedItem.content_id);
-  } catch {
-    // カタログ追加は成功。候補ステータス更新失敗は後続操作で再同期可能。
-  }
-
-  return {
-    status: "added",
-    contentId: preparedItem.content_id,
-  };
-}
-
-export async function addWorksToCatalog(
+function classifyBulkWorks(
   works: Array<{ contentId: string; item: DmmItem }>,
-): Promise<BulkAddWorksResult> {
-  if (works.length > IMPORT_BULK_ADD_MAX) {
-    throw new AddWorkValidationError("1回で追加できるのは100件までです");
-  }
-
-  if (works.length === 0) {
-    throw new AddWorkValidationError("追加する作品が選択されていません。");
-  }
-
-  const { items, sha } = await fetchCatalogFromGitHub();
-  const existingIds = new Set(
-    items.map((entry) => normalizeContentId(entry.content_id)),
-  );
-
+  existingIds: Set<string>,
+): {
+  preparedItems: DmmItem[];
+  addedContentIds: string[];
+  duplicateContentIds: string[];
+  invalidContentIds: string[];
+} {
   const preparedItems: DmmItem[] = [];
   const addedContentIds: string[] = [];
   const duplicateContentIds: string[] = [];
@@ -133,15 +92,82 @@ export async function addWorksToCatalog(
       preparedItems.push(prepared);
       addedContentIds.push(prepared.content_id);
     } catch {
-      invalidContentIds.push(contentId.trim().toLowerCase());
+      invalidContentIds.push(normalizeCatalogContentId(contentId));
     }
   }
+
+  return {
+    preparedItems,
+    addedContentIds,
+    duplicateContentIds,
+    invalidContentIds,
+  };
+}
+
+function buildBulkCommitMessage(addedContentIds: string[]): string {
+  if (addedContentIds.length === 0) {
+    return "Add works from admin import";
+  }
+
+  if (addedContentIds.length <= 3) {
+    return `Add works: ${addedContentIds.join(", ")}`;
+  }
+
+  return `Add ${addedContentIds.length} works from admin import`;
+}
+
+export async function previewBulkAddWorks(
+  works: Array<{ contentId: string; item: DmmItem }>,
+): Promise<BulkAddPreviewResult> {
+  if (works.length > IMPORT_BULK_ADD_MAX) {
+    throw new AddWorkValidationError("1回で追加できるのは100件までです");
+  }
+
+  const { items } = await fetchCatalogFromGitHub();
+  const existingIds = new Set(
+    items.map((entry) => normalizeCatalogContentId(entry.content_id)),
+  );
+
+  const { preparedItems, duplicateContentIds, invalidContentIds } =
+    classifyBulkWorks(works, existingIds);
+
+  return {
+    selectedCount: works.length,
+    toAddCount: preparedItems.length,
+    duplicateCount: duplicateContentIds.length,
+    invalidCount: invalidContentIds.length,
+    qualitySummary: summarizeImportSelection(preparedItems),
+  };
+}
+
+export async function addWorksToCatalog(
+  works: Array<{ contentId: string; item: DmmItem }>,
+): Promise<BulkAddWorksResult> {
+  if (works.length > IMPORT_BULK_ADD_MAX) {
+    throw new AddWorkValidationError("1回で追加できるのは100件までです");
+  }
+
+  if (works.length === 0) {
+    throw new AddWorkValidationError("追加する作品が選択されていません。");
+  }
+
+  const { items, sha } = await fetchCatalogFromGitHub();
+  const existingIds = new Set(
+    items.map((entry) => normalizeCatalogContentId(entry.content_id)),
+  );
+
+  const {
+    preparedItems,
+    addedContentIds,
+    duplicateContentIds,
+    invalidContentIds,
+  } = classifyBulkWorks(works, existingIds);
 
   if (preparedItems.length > 0) {
     await commitCatalogToGitHub(
       [...items, ...preparedItems],
       sha,
-      `Add ${preparedItems.length} works via admin bulk import`,
+      buildBulkCommitMessage(addedContentIds),
     );
   }
 
@@ -173,5 +199,5 @@ export function toAddWorkErrorMessage(error: unknown): {
     return { message: error.message, status: error.status };
   }
 
-  return { message: "追加に失敗しました。", status: 500 };
+  return { message: "追加に失敗しました", status: 500 };
 }

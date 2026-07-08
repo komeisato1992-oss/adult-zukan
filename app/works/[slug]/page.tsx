@@ -181,9 +181,15 @@ export default async function WorkDetailPage({ params }: WorkDetailPageProps) {
             <div>
               <header>
                 <p className="text-sm text-muted">{work.productCode}</p>
-                <h1 className="mt-2 text-2xl font-bold text-foreground sm:text-3xl">
-                  {work.title}
-                </h1>
+                <div className="mt-2 flex flex-wrap items-start justify-between gap-3">
+                  <h1 className="min-w-0 flex-1 text-2xl font-bold text-foreground sm:text-3xl">
+                    {work.title}
+                  </h1>
+                  <FavoriteButton
+                    contentId={work.contentId || work.slug}
+                    title={work.title}
+                  />
+                </div>
                 <div className="mt-4 flex items-baseline gap-3">
                   <span className="text-2xl font-bold text-accent">
                     {formatPrice(current)}
@@ -297,7 +303,6 @@ export default async function WorkDetailPage({ params }: WorkDetailPageProps) {
                 />
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                   <CompareToggleButton contentId={work.contentId} />
-                  <FavoriteButton slug={work.slug} title={work.title} />
                   <UpdatedDate date={work.releaseDate} label="発売日" />
                 </div>
               </div>

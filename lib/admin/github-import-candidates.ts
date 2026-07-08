@@ -1,6 +1,12 @@
 import "server-only";
 
 import { getGitHubConfig } from "@/lib/admin/github-config";
+import {
+  ImportCandidatesJsonCorruptError,
+  ImportCandidatesJsonError,
+  parseImportCandidatesJson,
+  serializeImportCandidates,
+} from "@/lib/admin/import-candidates-json";
 import type { StoredImportCandidate } from "@/lib/admin/import-candidate-types";
 
 const IMPORT_CANDIDATES_FILE_PATH = "data/dmm/import-candidates.json";
@@ -87,30 +93,8 @@ function encodeGitHubContent(content: string): string {
   return Buffer.from(content, "utf-8").toString("base64");
 }
 
-function parseImportCandidatesJson(raw: string): StoredImportCandidate[] {
-  let parsed: unknown;
-
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    throw new GitHubImportCandidatesError(
-      "import-candidates.json の形式が不正です。",
-      500,
-    );
-  }
-
-  if (!Array.isArray(parsed)) {
-    throw new GitHubImportCandidatesError(
-      "import-candidates.json の形式が不正です。",
-      500,
-    );
-  }
-
-  return parsed as StoredImportCandidate[];
-}
-
-export async function fetchImportCandidatesFromGitHub(): Promise<{
-  records: StoredImportCandidate[];
+export async function fetchImportCandidatesRawFromGitHub(): Promise<{
+  content: string;
   sha: string | null;
 }> {
   const config = getGitHubConfig();
@@ -124,7 +108,7 @@ export async function fetchImportCandidatesFromGitHub(): Promise<{
     );
 
     return {
-      records: parseImportCandidatesJson(decodeGitHubContent(data.content)),
+      content: decodeGitHubContent(data.content),
       sha: data.sha,
     };
   } catch (error) {
@@ -132,7 +116,31 @@ export async function fetchImportCandidatesFromGitHub(): Promise<{
       error instanceof GitHubImportCandidatesError &&
       error.status === 404
     ) {
-      return { records: [], sha: null };
+      return { content: "[]", sha: null };
+    }
+
+    throw error;
+  }
+}
+
+export async function fetchImportCandidatesFromGitHub(): Promise<{
+  records: StoredImportCandidate[];
+  sha: string | null;
+}> {
+  const { content, sha } = await fetchImportCandidatesRawFromGitHub();
+
+  try {
+    return {
+      records: parseImportCandidatesJson(content),
+      sha,
+    };
+  } catch (error) {
+    if (error instanceof ImportCandidatesJsonCorruptError) {
+      throw error;
+    }
+
+    if (error instanceof ImportCandidatesJsonError) {
+      throw new GitHubImportCandidatesError(error.message, error.status);
     }
 
     throw error;
@@ -149,7 +157,7 @@ export async function commitImportCandidatesToGitHub(
     throw new GitHubImportCandidatesError("GitHub連携の設定が未完了です。", 503);
   }
 
-  const content = `${JSON.stringify(records, null, 2)}\n`;
+  const content = serializeImportCandidates(records);
   const body: Record<string, string> = {
     message,
     content: encodeGitHubContent(content),

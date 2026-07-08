@@ -5,10 +5,16 @@ import path from "path";
 import {
   commitImportCandidatesToGitHub,
   fetchImportCandidatesFromGitHub,
+  fetchImportCandidatesRawFromGitHub,
   GitHubImportCandidatesError,
 } from "@/lib/admin/github-import-candidates";
 import { isGitHubCatalogConfigured } from "@/lib/admin/github-config";
 import { normalizeImportContentId } from "@/lib/admin/import-candidate-mapper";
+import {
+  ImportCandidatesJsonError,
+  parseImportCandidatesJson,
+  serializeImportCandidates,
+} from "@/lib/admin/import-candidates-json";
 import type {
   ImportCandidateStatus,
   StoredImportCandidate,
@@ -23,11 +29,13 @@ export function readImportCandidatesLocal(): StoredImportCandidate[] {
   }
 
   try {
-    const parsed = JSON.parse(
+    return parseImportCandidatesJson(
       readFileSync(IMPORT_CANDIDATES_FILE, "utf-8"),
-    ) as unknown;
-    return Array.isArray(parsed) ? (parsed as StoredImportCandidate[]) : [];
-  } catch {
+    );
+  } catch (error) {
+    if (error instanceof ImportCandidatesJsonError) {
+      throw error;
+    }
     return [];
   }
 }
@@ -36,11 +44,7 @@ export function writeImportCandidatesLocal(
   records: StoredImportCandidate[],
 ): void {
   mkdirSync(SNAPSHOT_DIR, { recursive: true });
-  writeFileSync(
-    IMPORT_CANDIDATES_FILE,
-    `${JSON.stringify(records, null, 2)}\n`,
-    "utf-8",
-  );
+  writeFileSync(IMPORT_CANDIDATES_FILE, serializeImportCandidates(records), "utf-8");
 }
 
 export async function loadImportCandidates(): Promise<{
@@ -148,11 +152,29 @@ export async function markImportCandidateExcluded(
   await updateImportCandidateStatuses([contentId], "excluded");
 }
 
+export async function resetImportCandidates(): Promise<void> {
+  if (isGitHubCatalogConfigured()) {
+    const { sha } = await fetchImportCandidatesRawFromGitHub();
+    await commitImportCandidatesToGitHub(
+      [],
+      sha,
+      "Reset import-candidates.json via admin",
+    );
+    return;
+  }
+
+  writeImportCandidatesLocal([]);
+}
+
 export function toImportCandidatesStoreErrorMessage(error: unknown): {
   message: string;
   status: number;
 } {
   if (error instanceof GitHubImportCandidatesError) {
+    return { message: error.message, status: error.status };
+  }
+
+  if (error instanceof ImportCandidatesJsonError) {
     return { message: error.message, status: error.status };
   }
 

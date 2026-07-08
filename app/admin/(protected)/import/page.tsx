@@ -1,5 +1,7 @@
 import { ImportManagement } from "@/components/admin/ImportManagement";
 
+export const dynamic = "force-dynamic";
+
 export default function AdminImportPage() {
   return (
     <div className="space-y-8">
@@ -17,9 +19,10 @@ export default function AdminImportPage() {
         <ul className="mt-2 list-inside list-disc space-y-1">
           <li>「候補を収集」で FANZA から最大200件ずつ未掲載候補を蓄積</li>
           <li>候補一覧は import-candidates.json から表示（ページ表示時に FANZA API は叩かない）</li>
+          <li>候補をチェックで選択し、「選択した作品を一括追加」で GitHub へ1回だけ commit</li>
           <li>1ページ100件 / 1回の一括追加は最大100件まで</li>
+          <li>追加後、Vercel の自動デプロイで本番反映（数分・デプロイは1回）</li>
           <li>追加・除外後は候補ステータスを更新し、次回以降表示しない</li>
-          <li>追加後、Vercel の自動デプロイで本番反映（数分）</li>
         </ul>
       </section>
 

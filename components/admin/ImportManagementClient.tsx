@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ImportBulkConfirmModal } from "@/components/admin/ImportBulkConfirmModal";
 import { ImportBulkSnsPanel } from "@/components/admin/ImportBulkSnsPanel";
 import { ImportBulkToolbar } from "@/components/admin/ImportBulkToolbar";
@@ -12,17 +12,15 @@ import type { ImportCandidateSortKey } from "@/lib/admin/import-candidate-types"
 import type { ImportCandidatesListResult } from "@/lib/admin/import-candidate-types";
 import { IMPORT_BULK_ADD_MAX } from "@/lib/admin/import-constants";
 import { formatImportSourceLabel } from "@/lib/admin/import-source-labels";
-import {
-  getImportQualityFlags,
-  summarizeImportSelection,
-  type ImportFilterKey,
-} from "@/lib/admin/import-quality";
+import type { ImportBulkConfirmSummary, ImportFilterKey } from "@/lib/admin/import-quality";
+import { getImportQualityFlags } from "@/lib/admin/import-quality";
 import type { DmmItem } from "@/lib/dmm/types";
 
 type ImportManagementInitialData = ImportCandidatesListResult & {
   configured: boolean;
   dmmConfigured: boolean;
   message?: string;
+  jsonCorrupt?: boolean;
 };
 
 type ImportManagementClientProps = {
@@ -45,21 +43,26 @@ export function ImportManagementClient({
     new Set(),
   );
   const [recentlyAddedItems, setRecentlyAddedItems] = useState<DmmItem[]>([]);
+  const [recentlyAddedIds, setRecentlyAddedIds] = useState<Set<string>>(new Set());
+  const [confirmSummary, setConfirmSummary] = useState<ImportBulkConfirmSummary | null>(
+    null,
+  );
   const [bulkAddMessage, setBulkAddMessage] = useState<string | null>(null);
   const [bulkAddError, setBulkAddError] = useState<string | null>(null);
   const [collectMessage, setCollectMessage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isCollecting, setIsCollecting] = useState(false);
   const [isBulkAdding, setIsBulkAdding] = useState(false);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [jsonCorrupt, setJsonCorrupt] = useState(Boolean(initialData.jsonCorrupt));
+  const [isResettingJson, setIsResettingJson] = useState(false);
+  const [resetJsonMessage, setResetJsonMessage] = useState<string | null>(null);
 
   const visibleCandidates = useMemo(
-    () =>
-      data.candidates.filter(
-        (candidate) => !addedIds.has(candidate.contentId),
-      ),
-    [data.candidates, addedIds],
+    () => data.candidates,
+    [data.candidates],
   );
 
   const selectedCandidates = useMemo(
@@ -68,14 +71,6 @@ export function ImportManagementClient({
         selectedIds.has(candidate.contentId),
       ),
     [visibleCandidates, selectedIds],
-  );
-
-  const confirmSummary = useMemo(
-    () =>
-      summarizeImportSelection(
-        selectedCandidates.map((candidate) => candidate.item),
-      ),
-    [selectedCandidates],
   );
 
   const comparePool = useMemo(
@@ -122,23 +117,30 @@ export function ImportManagementClient({
     [page, sort, activeFilters],
   );
 
-  const handleMarkAdded = useCallback(
-    async (contentId: string) => {
-      setAddedIds((current) => new Set([...current, contentId]));
-      setSelectedIds((current) => {
-        const next = new Set(current);
-        next.delete(contentId);
-        return next;
+  useEffect(() => {
+    let cancelled = false;
+
+    fetch("/api/admin/import/get-candidates?page=1", { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok || cancelled) return null;
+        return (await response.json()) as ImportManagementInitialData;
+      })
+      .then((payload) => {
+        if (!payload || cancelled) return;
+        setData((current) => ({
+          ...current,
+          configured: payload.configured,
+          dmmConfigured: payload.dmmConfigured,
+        }));
+      })
+      .catch(() => {
+        // 初期表示はサーバー描画の値を維持
       });
 
-      try {
-        await loadCandidates();
-      } catch {
-        // 一覧再取得失敗時も追加済み表示は維持
-      }
-    },
-    [loadCandidates],
-  );
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleExclude = useCallback(
     async (contentId: string) => {
@@ -301,6 +303,39 @@ export function ImportManagementClient({
     }
   }
 
+  async function handleResetJson() {
+    setIsResettingJson(true);
+    setError(null);
+    setResetJsonMessage(null);
+
+    try {
+      const response = await fetch("/api/admin/import/reset-candidates", {
+        method: "POST",
+      });
+
+      const payload = (await response.json()) as {
+        error?: string;
+        message?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "import-candidates.json の初期化に失敗しました。");
+      }
+
+      setJsonCorrupt(false);
+      setResetJsonMessage(payload.message ?? "import-candidates.json を初期化しました。");
+      await loadCandidates({ nextPage: 1 });
+    } catch (resetError) {
+      setError(
+        resetError instanceof Error
+          ? resetError.message
+          : "import-candidates.json の初期化に失敗しました。",
+      );
+    } finally {
+      setIsResettingJson(false);
+    }
+  }
+
   async function handleSortChange(nextSort: ImportCandidateSortKey) {
     setIsLoading(true);
     setError(null);
@@ -335,7 +370,7 @@ export function ImportManagementClient({
     }
   }
 
-  function handleBulkAddRequest() {
+  async function handleBulkAddRequest() {
     setBulkAddError(null);
 
     if (selectedCandidates.length === 0) {
@@ -348,7 +383,62 @@ export function ImportManagementClient({
       return;
     }
 
-    setShowConfirmModal(true);
+    setIsPreviewLoading(true);
+
+    try {
+      const response = await fetch("/api/admin/import/bulk-add-preview", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          selectedWorks: selectedCandidates.map((candidate) => ({
+            contentId: candidate.contentId,
+            item: candidate.item,
+          })),
+        }),
+      });
+
+      const payload = (await response.json()) as {
+        error?: string;
+        selectedCount: number;
+        toAddCount: number;
+        duplicateCount: number;
+        qualitySummary: {
+          total: number;
+          noImage: number;
+          noActress: number;
+          noPrice: number;
+          noDescription: number;
+          noSampleImages: number;
+        };
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? "追加内容の確認に失敗しました。");
+      }
+
+      setConfirmSummary({
+        selectedCount: payload.selectedCount,
+        toAddCount: payload.toAddCount,
+        duplicateCount: payload.duplicateCount,
+        total: payload.qualitySummary.total,
+        noImage: payload.qualitySummary.noImage,
+        noActress: payload.qualitySummary.noActress,
+        noPrice: payload.qualitySummary.noPrice,
+        noDescription: payload.qualitySummary.noDescription,
+        noSampleImages: payload.qualitySummary.noSampleImages,
+      });
+      setShowConfirmModal(true);
+    } catch (previewError) {
+      setBulkAddError(
+        previewError instanceof Error
+          ? previewError.message
+          : "追加内容の確認に失敗しました。",
+      );
+    } finally {
+      setIsPreviewLoading(false);
+    }
   }
 
   async function handleBulkAddConfirm() {
@@ -362,13 +452,13 @@ export function ImportManagementClient({
     setBulkAddError(null);
 
     try {
-      const response = await fetch("/api/admin/import/bulk-add", {
+      const response = await fetch("/api/admin/import/bulk-add-works", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          works: selectedCandidates.map((candidate) => ({
+          selectedWorks: selectedCandidates.map((candidate) => ({
             contentId: candidate.contentId,
             item: candidate.item,
           })),
@@ -378,6 +468,7 @@ export function ImportManagementClient({
       const payload = (await response.json()) as {
         error?: string;
         message?: string;
+        addedCount?: number;
         addedContentIds?: string[];
       };
 
@@ -387,6 +478,7 @@ export function ImportManagementClient({
 
       const addedContentIds = payload.addedContentIds ?? [];
       setAddedIds((current) => new Set([...current, ...addedContentIds]));
+      setRecentlyAddedIds((current) => new Set([...current, ...addedContentIds]));
       setRecentlyAddedItems(
         selectedCandidates
           .filter((candidate) => addedContentIds.includes(candidate.contentId))
@@ -395,10 +487,12 @@ export function ImportManagementClient({
       setSelectedIds(new Set());
       setBulkAddMessage(
         payload.message ??
-          `${addedContentIds.length}件を追加しました。Vercelの反映まで数分かかります。`,
+          (payload.addedCount && payload.addedCount > 0
+            ? "追加しました。Vercel反映まで数分かかります。"
+            : "追加できる作品がありませんでした。"),
       );
+      setConfirmSummary(null);
       setShowConfirmModal(false);
-      await loadCandidates();
     } catch (bulkError) {
       setBulkAddError(
         bulkError instanceof Error
@@ -414,7 +508,7 @@ export function ImportManagementClient({
   if (!data.configured) {
     return (
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
-        GitHub 連携（GITHUB_TOKEN / GITHUB_OWNER）が未設定のため、候補データの保存・追加ができません。
+        GitHub 連携（GITHUB_TOKEN / GITHUB_OWNER / GITHUB_REPO / GITHUB_BRANCH）が未設定のため、一括追加・デプロイができません。
       </div>
     );
   }
@@ -438,7 +532,25 @@ export function ImportManagementClient({
 
       {data.message ? (
         <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          {data.message}
+          <p>{data.message}</p>
+          {jsonCorrupt ? (
+            <button
+              type="button"
+              onClick={handleResetJson}
+              disabled={isResettingJson}
+              className="mt-3 inline-flex h-11 min-h-[44px] items-center justify-center rounded-lg border border-amber-300 bg-white px-4 text-sm font-medium text-amber-900 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {isResettingJson
+                ? "初期化中..."
+                : "import-candidates.json を初期化する"}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
+      {resetJsonMessage ? (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+          {resetJsonMessage}
         </div>
       ) : null}
 
@@ -470,6 +582,17 @@ export function ImportManagementClient({
         <ImportBulkSnsPanel items={recentlyAddedItems} />
       ) : null}
 
+      {!isLoading && visibleCandidates.length > 0 ? (
+        <ImportBulkToolbar
+          selectedCount={selectedCandidates.length}
+          isBulkAdding={isBulkAdding || isPreviewLoading}
+          onSelectAll={handleSelectAll}
+          onClearSelection={handleClearSelection}
+          onSelectByFlag={handleSelectByFlag}
+          onBulkAdd={handleBulkAddRequest}
+        />
+      ) : null}
+
       <ImportFilterBar
         activeFilters={activeFilters}
         onToggleFilter={handleToggleFilter}
@@ -494,42 +617,33 @@ export function ImportManagementClient({
           表示できる候補作品がありません。「候補を収集」で FANZA から未掲載作品を蓄積してください。
         </div>
       ) : (
-        <>
-          <ImportBulkToolbar
-            selectedCount={selectedCandidates.length}
-            filteredCount={visibleCandidates.length}
-            isBulkAdding={isBulkAdding}
-            onSelectAll={handleSelectAll}
-            onClearSelection={handleClearSelection}
-            onSelectByFlag={handleSelectByFlag}
-            onBulkAdd={handleBulkAddRequest}
-          />
-
-          <div className="space-y-4">
-            {visibleCandidates.map((candidate) => (
-              <ImportCandidateCard
-                key={candidate.contentId}
-                item={candidate.item}
-                source={candidate.source}
-                sourceLabel={formatImportSourceLabel(candidate.source)}
-                selected={selectedIds.has(candidate.contentId)}
-                isAdded={addedIds.has(candidate.contentId)}
-                comparePool={comparePool}
-                onSelectedChange={handleSelectedChange}
-                onExclude={handleExclude}
-                onMarkAdded={handleMarkAdded}
-              />
-            ))}
-          </div>
-        </>
+        <div className="space-y-4">
+          {visibleCandidates.map((candidate) => (
+            <ImportCandidateCard
+              key={candidate.contentId}
+              item={candidate.item}
+              source={candidate.source}
+              sourceLabel={formatImportSourceLabel(candidate.source)}
+              selected={selectedIds.has(candidate.contentId)}
+              isAdded={addedIds.has(candidate.contentId)}
+              emphasizeSns={recentlyAddedIds.has(candidate.contentId)}
+              comparePool={comparePool}
+              onSelectedChange={handleSelectedChange}
+              onExclude={handleExclude}
+            />
+          ))}
+        </div>
       )}
 
-      {showConfirmModal ? (
+      {showConfirmModal && confirmSummary ? (
         <ImportBulkConfirmModal
           summary={confirmSummary}
           isSubmitting={isBulkAdding}
           onConfirm={handleBulkAddConfirm}
-          onCancel={() => setShowConfirmModal(false)}
+          onCancel={() => {
+            setShowConfirmModal(false);
+            setConfirmSummary(null);
+          }}
         />
       ) : null}
     </div>

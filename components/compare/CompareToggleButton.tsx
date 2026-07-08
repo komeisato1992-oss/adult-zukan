@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import {
-  readCompareIds,
+  isCompareId,
   subscribeCompareStore,
   toggleCompareId,
 } from "@/components/compare/compare-store";
 import {
   WORK_CARD_COMPARE_ACTIVE_LABEL,
   WORK_CARD_COMPARE_LABEL,
+  WORK_CARD_COMPARE_LABEL_MOBILE,
   workCardCtaBaseClassName,
 } from "@/components/works/work-card-cta-styles";
 
@@ -18,16 +19,19 @@ type CompareToggleButtonProps = {
   variant?: "default" | "card";
 };
 
-export function CompareToggleButton({
+function CompareToggleButtonInner({
   contentId,
   className = "",
   variant = "default",
 }: CompareToggleButtonProps) {
-  const [isCompared, setIsCompared] = useState(false);
+  const [isCompared, setIsCompared] = useState(() => isCompareId(contentId));
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    const sync = () => setIsCompared(readCompareIds().includes(contentId));
+    const sync = () => {
+      const next = isCompareId(contentId);
+      setIsCompared((current) => (current === next ? current : next));
+    };
     sync();
     return subscribeCompareStore(sync);
   }, [contentId]);
@@ -41,7 +45,8 @@ export function CompareToggleButton({
       }
       return;
     }
-    setIsCompared(result.ids.includes(contentId));
+    const next = result.ids.includes(contentId);
+    setIsCompared((current) => (current === next ? current : next));
   }
 
   const cardClassName =
@@ -69,7 +74,17 @@ export function CompareToggleButton({
         onClick={handleClick}
         className={variant === "card" ? cardClassName : defaultClassName}
       >
-        {isCompared ? WORK_CARD_COMPARE_ACTIVE_LABEL : WORK_CARD_COMPARE_LABEL}
+        {isCompared ? (
+          WORK_CARD_COMPARE_ACTIVE_LABEL
+        ) : variant === "card" ? (
+          <>
+            <span className="md:hidden">{WORK_CARD_COMPARE_LABEL_MOBILE}</span>
+            <span className="hidden md:inline">{WORK_CARD_COMPARE_LABEL}</span>
+          </>
+        ) : (
+          WORK_CARD_COMPARE_LABEL
+        )}
+
       </button>
       {message ? (
         <p className="absolute right-0 top-full z-20 mt-1 whitespace-nowrap rounded bg-foreground px-2 py-1 text-[11px] text-white">
@@ -79,3 +94,11 @@ export function CompareToggleButton({
     </div>
   );
 }
+
+export const CompareToggleButton = memo(
+  CompareToggleButtonInner,
+  (prev, next) =>
+    prev.contentId === next.contentId &&
+    prev.className === next.className &&
+    prev.variant === next.variant,
+);

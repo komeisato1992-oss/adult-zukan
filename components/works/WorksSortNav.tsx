@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { memo } from "react";
+import { WorksListControlGroup } from "@/components/works/WorksListControlGroup";
 import {
   buildWorksSortHref,
   type WorkSortKey,
@@ -12,32 +14,35 @@ type WorksSortNavProps = {
   query?: Record<string, string | undefined>;
 };
 
-export function WorksSortNav({
+function WorksSortNavInner({
   basePath = "/works",
   currentSort,
   options,
   query = {},
 }: WorksSortNavProps) {
   return (
-    <nav aria-label="並び替え" className="mb-4 flex flex-wrap gap-2">
-      {options.map(({ key, label }) => {
-        const isActive = key === currentSort;
-        return (
-          <Link
-            key={key}
-            href={buildWorksSortHref(basePath, key, query)}
-            prefetch
-            aria-current={isActive ? "true" : undefined}
-            className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
-              isActive
-                ? "border-accent bg-accent text-white"
-                : "border-border bg-white text-foreground hover:border-accent hover:text-accent"
-            }`}
-          >
-            {label}
-          </Link>
-        );
-      })}
-    </nav>
+    <WorksListControlGroup label="並び替え" className="mb-4">
+      <nav aria-label="並び替え" className="flex flex-wrap gap-2">
+        {options.map(({ key, label }) => {
+          const isActive = key === currentSort;
+          return (
+            <Link
+              key={key}
+              href={buildWorksSortHref(basePath, key, query)}
+              aria-current={isActive ? "true" : undefined}
+              className={`rounded-full border px-3 py-1.5 text-sm transition-colors ${
+                isActive
+                  ? "border-accent bg-accent text-white"
+                  : "border-border bg-white text-foreground hover:border-accent hover:text-accent"
+              }`}
+            >
+              {label}
+            </Link>
+          );
+        })}
+      </nav>
+    </WorksListControlGroup>
   );
 }
+
+export const WorksSortNav = memo(WorksSortNavInner);

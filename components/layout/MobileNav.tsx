@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { FavoriteNavLabel } from "@/components/user/FavoriteNavLabel";
 import { navItems } from "@/lib/site-config";
 
 function isNavItemActive(
@@ -84,7 +85,7 @@ export function MobileNav() {
                     : "block px-4 py-2.5 text-sm text-foreground hover:bg-accent-light hover:text-accent"
                 }
               >
-                {item.label}
+                {item.href === "/favorites" ? <FavoriteNavLabel /> : item.label}
               </Link>
             );
           })}

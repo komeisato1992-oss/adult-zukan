@@ -5,7 +5,6 @@ import type { ImportFilterKey } from "@/lib/admin/import-quality";
 
 type ImportBulkToolbarProps = {
   selectedCount: number;
-  filteredCount: number;
   isBulkAdding: boolean;
   onSelectAll: () => void;
   onClearSelection: () => void;
@@ -17,12 +16,10 @@ const QUICK_SELECT_OPTIONS: ImportFilterKey[] = [
   "hasImage",
   "hasActress",
   "hasPrice",
-  "hasSampleImages",
 ];
 
 export function ImportBulkToolbar({
   selectedCount,
-  filteredCount,
   isBulkAdding,
   onSelectAll,
   onClearSelection,
@@ -30,21 +27,21 @@ export function ImportBulkToolbar({
   onBulkAdd,
 }: ImportBulkToolbarProps) {
   return (
-    <div className="rounded-xl border border-border bg-white p-4 shadow-sm">
+    <div className="sticky top-0 z-20 rounded-xl border border-border bg-white/95 p-4 shadow-sm backdrop-blur-sm">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-bold text-foreground">一括追加</p>
-          <p className="mt-1 text-xs text-muted">
-            選択 {selectedCount} 件 / 表示 {filteredCount} 件（1回最大 {IMPORT_BULK_ADD_MAX} 件）
-          </p>
-        </div>
+        <p className="text-sm font-bold text-foreground">
+          選択中：{selectedCount}件
+          <span className="ml-2 text-xs font-normal text-muted">
+            （1回最大 {IMPORT_BULK_ADD_MAX} 件）
+          </span>
+        </p>
         <button
           type="button"
           onClick={onBulkAdd}
           disabled={selectedCount === 0 || isBulkAdding}
           className="inline-flex h-11 min-h-[44px] items-center rounded-lg bg-accent px-4 text-sm font-semibold text-white transition-colors hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isBulkAdding ? "追加中..." : "選択した作品を追加"}
+          {isBulkAdding ? "追加中..." : "選択した作品を一括追加"}
         </button>
       </div>
 
@@ -73,7 +70,6 @@ export function ImportBulkToolbar({
             {flag === "hasImage" && "画像ありだけ選択"}
             {flag === "hasActress" && "女優ありだけ選択"}
             {flag === "hasPrice" && "価格ありだけ選択"}
-            {flag === "hasSampleImages" && "サンプル画像ありだけ選択"}
           </button>
         ))}
       </div>

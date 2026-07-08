@@ -1,13 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  memo,
+  startTransition,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useSearchParams } from "next/navigation";
 import { Pagination } from "@/components/ui/Pagination";
 import { DmmWorkListCard } from "@/components/works/DmmWorkListCard";
+import { WorksListControlGroup } from "@/components/works/WorksListControlGroup";
 import {
+  buildWorkFilterEntries,
   buildWorksQueryString,
-  filterWorksByQuery,
-  getWorkFilterOptions,
+  filterWorkEntriesByQuery,
+  getWorkFilterOptionsFromEntries,
   WORK_DATE_FILTER_OPTIONS,
   WORK_PRICE_FILTER_OPTIONS,
   type WorksListQueryState,
@@ -19,6 +28,20 @@ import type { DmmItem } from "@/lib/dmm/types";
 type WorksListSectionProps = {
   items: DmmItem[];
 };
+
+type WorksListGridProps = {
+  items: DmmItem[];
+};
+
+const WorksListGrid = memo(function WorksListGrid({ items }: WorksListGridProps) {
+  return (
+    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+      {items.map((item) => (
+        <DmmWorkListCard key={item.content_id} item={item} />
+      ))}
+    </div>
+  );
+});
 
 function parseQueryState(search: string): WorksListQueryState {
   const params = new URLSearchParams(search);
@@ -70,27 +93,31 @@ export function WorksListSection({ items }: WorksListSectionProps) {
 
   const updateQuery = useCallback(
     (patch: Partial<WorksListQueryState>, resetPage = false) => {
-      setQueryState((current) => {
-        const next = mergeQuery(current, patch, resetPage);
-        const qs = buildWorksQueryString(next);
-        const url = qs ? `/works?${qs}` : "/works";
-        window.history.replaceState(null, "", url);
-        return next;
+      startTransition(() => {
+        setQueryState((current) => {
+          const next = mergeQuery(current, patch, resetPage);
+          const qs = buildWorksQueryString(next);
+          const url = qs ? `/works?${qs}` : "/works";
+          window.history.replaceState(null, "", url);
+          return next;
+        });
       });
     },
     [],
   );
 
+  const filterEntries = useMemo(() => buildWorkFilterEntries(items), [items]);
+
   const { genreOptions, makerOptions } = useMemo(
-    () => getWorkFilterOptions(items),
-    [items],
+    () => getWorkFilterOptionsFromEntries(filterEntries),
+    [filterEntries],
   );
   const sortOptions = useMemo(() => getWorksSortOptions(items), [items]);
   const currentSort = parseWorkSortParam(queryState.sort);
 
   const filtered = useMemo(
-    () => filterWorksByQuery(items, queryState),
-    [items, queryState],
+    () => filterWorkEntriesByQuery(filterEntries, queryState),
+    [filterEntries, queryState],
   );
   const sorted = useMemo(() => sortWorks(filtered, currentSort), [filtered, currentSort]);
   const currentPage = parsePageParam(queryState.page);
@@ -99,20 +126,31 @@ export function WorksListSection({ items }: WorksListSectionProps) {
     [sorted, currentPage],
   );
 
-  const activeConditions = [
-    queryState.genre ? `ジャンル：${queryState.genre}` : null,
-    queryState.maker ? `メーカー：${queryState.maker}` : null,
-    queryState.price && queryState.price !== "all"
-      ? `価格帯：${WORK_PRICE_FILTER_OPTIONS.find((o) => o.key === queryState.price)?.label ?? queryState.price}`
-      : null,
-    queryState.date && queryState.date !== "all"
-      ? `発売日：${WORK_DATE_FILTER_OPTIONS.find((o) => o.key === queryState.date)?.label ?? queryState.date}`
-      : null,
-  ].filter((v): v is string => Boolean(v));
+  const activeConditions = useMemo(
+    () =>
+      [
+        queryState.genre ? `ジャンル：${queryState.genre}` : null,
+        queryState.maker ? `メーカー：${queryState.maker}` : null,
+        queryState.price && queryState.price !== "all"
+          ? `価格帯：${WORK_PRICE_FILTER_OPTIONS.find((o) => o.key === queryState.price)?.label ?? queryState.price}`
+          : null,
+        queryState.date && queryState.date !== "all"
+          ? `発売日：${WORK_DATE_FILTER_OPTIONS.find((o) => o.key === queryState.date)?.label ?? queryState.date}`
+          : null,
+      ].filter((v): v is string => Boolean(v)),
+    [queryState.genre, queryState.maker, queryState.price, queryState.date],
+  );
 
   const clearFilters = useCallback(() => {
     updateQuery({ genre: undefined, maker: undefined, price: "all", date: "all" }, true);
   }, [updateQuery]);
+
+  const handlePageChange = useCallback(
+    (page: number) => {
+      updateQuery({ page: String(page) });
+    },
+    [updateQuery],
+  );
 
   return (
     <>
@@ -126,74 +164,73 @@ export function WorksListSection({ items }: WorksListSectionProps) {
         </button>
       </div>
 
-      <div className={`${mobileOpen ? "block" : "hidden"} mb-5 space-y-3 md:block`}>
-        <div className="grid gap-3 md:grid-cols-4">
-          <select
-            value={queryState.genre ?? ""}
-            onChange={(event) =>
-              updateQuery({ genre: event.target.value || undefined }, true)
-            }
-            className="h-10 rounded border border-border bg-white px-3 text-sm text-foreground"
-          >
-            <option value="">ジャンル ▼</option>
-            {genreOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+      <div className={`${mobileOpen ? "block" : "hidden"} mb-5 space-y-4 md:block`}>
+        <WorksListControlGroup label="絞り込み">
+          <div className="grid w-full gap-3 sm:grid-cols-2 md:flex md:flex-1 md:flex-wrap">
+            <select
+              value={queryState.genre ?? ""}
+              onChange={(event) =>
+                updateQuery({ genre: event.target.value || undefined }, true)
+              }
+              className="h-10 rounded border border-border bg-white px-3 text-sm text-foreground md:min-w-[140px]"
+            >
+              <option value="">ジャンル ▼</option>
+              {genreOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
 
-          <select
-            value={queryState.maker ?? ""}
-            onChange={(event) =>
-              updateQuery({ maker: event.target.value || undefined }, true)
-            }
-            className="h-10 rounded border border-border bg-white px-3 text-sm text-foreground"
-          >
-            <option value="">メーカー ▼</option>
-            {makerOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            <select
+              value={queryState.maker ?? ""}
+              onChange={(event) =>
+                updateQuery({ maker: event.target.value || undefined }, true)
+              }
+              className="h-10 rounded border border-border bg-white px-3 text-sm text-foreground md:min-w-[140px]"
+            >
+              <option value="">メーカー ▼</option>
+              {makerOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
 
-          <select
-            value={queryState.price ?? "all"}
-            onChange={(event) => updateQuery({ price: event.target.value }, true)}
-            className="h-10 rounded border border-border bg-white px-3 text-sm text-foreground"
-          >
-            <option value="all">価格帯 ▼</option>
-            {WORK_PRICE_FILTER_OPTIONS.filter((o) => o.key !== "all").map((option) => (
-              <option key={option.key} value={option.key}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            <select
+              value={queryState.price ?? "all"}
+              onChange={(event) => updateQuery({ price: event.target.value }, true)}
+              className="h-10 rounded border border-border bg-white px-3 text-sm text-foreground md:min-w-[140px]"
+            >
+              <option value="all">価格帯 ▼</option>
+              {WORK_PRICE_FILTER_OPTIONS.filter((o) => o.key !== "all").map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
 
-          <select
-            value={queryState.date ?? "all"}
-            onChange={(event) => updateQuery({ date: event.target.value }, true)}
-            className="h-10 rounded border border-border bg-white px-3 text-sm text-foreground"
-          >
-            <option value="all">発売日 ▼</option>
-            {WORK_DATE_FILTER_OPTIONS.filter((o) => o.key !== "all").map((option) => (
-              <option key={option.key} value={option.key}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </div>
+            <select
+              value={queryState.date ?? "all"}
+              onChange={(event) => updateQuery({ date: event.target.value }, true)}
+              className="h-10 rounded border border-border bg-white px-3 text-sm text-foreground md:min-w-[140px]"
+            >
+              <option value="all">発売日 ▼</option>
+              {WORK_DATE_FILTER_OPTIONS.filter((o) => o.key !== "all").map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </WorksListControlGroup>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="text-sm text-muted" htmlFor="works-sort">
-            並び替え
-          </label>
+        <WorksListControlGroup label="並び替え">
           <select
             id="works-sort"
             value={currentSort}
             onChange={(event) => updateQuery({ sort: event.target.value }, true)}
-            className="h-10 rounded border border-border bg-white px-3 text-sm text-foreground"
+            className="h-10 rounded border border-border bg-white px-3 text-sm text-foreground md:min-w-[160px]"
           >
             {sortOptions.map((option) => (
               <option key={option.key} value={option.key}>
@@ -201,7 +238,7 @@ export function WorksListSection({ items }: WorksListSectionProps) {
               </option>
             ))}
           </select>
-        </div>
+        </WorksListControlGroup>
       </div>
 
       {activeConditions.length > 0 ? (
@@ -231,16 +268,12 @@ export function WorksListSection({ items }: WorksListSectionProps) {
 
       {pagination.items.length > 0 ? (
         <>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {pagination.items.map((item) => (
-              <DmmWorkListCard key={item.content_id} item={item} />
-            ))}
-          </div>
+          <WorksListGrid items={pagination.items} />
           <Pagination
             currentPage={pagination.currentPage}
             totalPages={pagination.totalPages}
             basePath="/works"
-            onPageChange={(page) => updateQuery({ page: String(page) })}
+            onPageChange={handlePageChange}
           />
         </>
       ) : (

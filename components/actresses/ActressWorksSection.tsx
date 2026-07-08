@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, startTransition } from "react";
 import { useSearchParams } from "next/navigation";
 import { Pagination } from "@/components/ui/Pagination";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { DmmWorkListCard } from "@/components/works/DmmWorkListCard";
+import { WorksListControlGroup } from "@/components/works/WorksListControlGroup";
 import { WorksSortNav } from "@/components/works/WorksSortNav";
 import { getDmmItemMakerName } from "@/lib/dmm/display";
 import type { ActressPageMaker } from "@/lib/dmm/actress-page";
@@ -72,8 +73,11 @@ export function ActressWorksSection({
 
   const handleMakerChange = useCallback(
     (event: React.ChangeEvent<HTMLSelectElement>) => {
-      setSelectedMaker(event.target.value);
-      setClientPage(1);
+      const value = event.target.value;
+      startTransition(() => {
+        setSelectedMaker(value);
+        setClientPage(1);
+      });
     },
     [],
   );
@@ -87,24 +91,21 @@ export function ActressWorksSection({
       <SectionHeader title="作品一覧" id="actress-works" />
 
       {makers.length > 0 ? (
-        <div className="mb-5 flex flex-wrap items-center gap-2 text-sm">
-          <label htmlFor="actress-maker-filter" className="font-medium text-foreground">
-            メーカー：
-          </label>
+        <WorksListControlGroup label="絞り込み" className="mb-4">
           <select
             id="actress-maker-filter"
             value={selectedMaker}
             onChange={handleMakerChange}
-            className="min-w-[160px] rounded border border-border bg-white px-3 py-2 text-sm text-foreground"
+            className="h-10 min-w-[160px] rounded border border-border bg-white px-3 text-sm text-foreground"
           >
-            <option value="all">すべて</option>
+            <option value="all">メーカー ▼</option>
             {makers.map((maker) => (
               <option key={maker.name} value={maker.name}>
                 {maker.name}
               </option>
             ))}
           </select>
-        </div>
+        </WorksListControlGroup>
       ) : null}
 
       <WorksSortNav

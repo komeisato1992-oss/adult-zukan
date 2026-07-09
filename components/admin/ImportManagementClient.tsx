@@ -561,7 +561,8 @@ export function ImportManagementClient({
     <div className="space-y-6">
       <ImportSummaryBar
         summary={data.summary}
-        filteredCount={data.pagination.totalCount}
+        visibleCount={data.summary.candidateCount}
+        displayedCount={data.pagination.totalCount}
         isCollecting={isCollecting}
         onCollect={handleCollect}
       />

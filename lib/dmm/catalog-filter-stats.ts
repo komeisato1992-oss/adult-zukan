@@ -73,7 +73,7 @@ export function analyzeCatalogItems(items: DmmItem[]): CatalogFilterStats {
 
 export function pickValidCatalogItems(
   items: DmmItem[],
-  limit: number,
+  limit?: number,
 ): DmmItem[] {
   const valid: DmmItem[] = [];
 
@@ -86,7 +86,7 @@ export function pickValidCatalogItems(
       continue;
     }
     valid.push(item);
-    if (valid.length >= limit) break;
+    if (limit !== undefined && valid.length >= limit) break;
   }
 
   return valid;

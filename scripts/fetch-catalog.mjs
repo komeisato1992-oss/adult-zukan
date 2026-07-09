@@ -12,7 +12,6 @@ const SNAPSHOT_FILE = path.join(ROOT, "data", "dmm", "catalog-snapshot.json");
 const API_AFFILIATE_FALLBACK = "zukanjp-990";
 const FANZA_GRAPHQL_URL = "https://api.video.dmm.co.jp/graphql";
 
-const TARGET_TOTAL = 2000;
 const MIN_VALID = 300;
 const FETCH_BATCH_SIZE = 100;
 const MAX_OFFSET = 5001;
@@ -312,7 +311,7 @@ async function main() {
     return true;
   };
 
-  const remainingSlots = () => Math.max(0, TARGET_TOTAL - finalItems.length);
+  const remainingSlots = () => Number.POSITIVE_INFINITY;
 
   const fetchBySort = async (sort) => {
     for (let offset = 1; offset <= MAX_OFFSET; offset += FETCH_BATCH_SIZE) {
@@ -415,7 +414,7 @@ async function main() {
   );
   await fetchByKeywordGroup("series", topSeries);
 
-  const finalLimited = finalItems.slice(0, TARGET_TOTAL);
+  const finalLimited = finalItems;
   if (finalLimited.length < MIN_VALID) {
     console.error(
       `有効作品が${MIN_VALID}件未満(${finalLimited.length}件)のためスナップショットを更新しません`,

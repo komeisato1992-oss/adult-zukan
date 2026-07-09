@@ -11,7 +11,6 @@ import {
   getPopularWorks,
   getSharedCatalogWorks,
 } from "@/lib/works/catalog";
-import { DMM_STATIC_WORKS_COUNT } from "@/lib/dmm/static-works";
 import { filterItemsWithValidImage } from "@/lib/works";
 
 export const metadata = createPageMetadata({
@@ -23,7 +22,7 @@ export const metadata = createPageMetadata({
 export default async function RankingWorksPage() {
   const catalog = await getSharedCatalogWorks();
   const items = filterItemsWithValidImage(
-    getPopularWorks(catalog, DMM_STATIC_WORKS_COUNT),
+    getPopularWorks(catalog, catalog.length),
   );
 
   return (

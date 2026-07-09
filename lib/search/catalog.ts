@@ -9,7 +9,10 @@ import {
   WORKS_LIST_PAGE_SIZE,
 } from "@/lib/pagination";
 import { getSearchIndex } from "@/lib/search/index";
-import { normalizeSearchQuery } from "@/lib/search/normalize-query";
+import {
+  normalizeSearchInput,
+  searchEntryMatches,
+} from "@/lib/search/match";
 
 export type CatalogSearchResults = {
   items: DmmItem[];
@@ -19,18 +22,13 @@ export type CatalogSearchResults = {
   totalPages: number;
 };
 
-function trimSearchQuery(query: string): string {
-  return query.trim().replace(/[\s\u3000]+/g, " ");
-}
-
 export async function searchCatalogAll(query: string): Promise<{
   items: DmmItem[];
   query: string;
 }> {
-  const trimmed = trimSearchQuery(query);
-  const normalizedQuery = normalizeSearchQuery(trimmed);
+  const { trimmed, normalized } = normalizeSearchInput(query);
 
-  if (!normalizedQuery) {
+  if (!normalized) {
     return { items: [], query: "" };
   }
 
@@ -40,7 +38,7 @@ export async function searchCatalogAll(query: string): Promise<{
 
   const matchedWorks: DmmItem[] = [];
   for (const entry of index) {
-    if (!entry.searchText.includes(normalizedQuery)) continue;
+    if (!searchEntryMatches(entry, normalized)) continue;
     const item = worksById.get(entry.contentId);
     if (item) matchedWorks.push(item);
   }
@@ -55,10 +53,9 @@ export async function searchCatalog(
   query: string,
   page = 1,
 ): Promise<CatalogSearchResults> {
-  const trimmed = trimSearchQuery(query);
-  const normalizedQuery = normalizeSearchQuery(trimmed);
+  const { trimmed, normalized } = normalizeSearchInput(query);
 
-  if (!normalizedQuery) {
+  if (!normalized) {
     return {
       items: [],
       query: "",
@@ -74,7 +71,7 @@ export async function searchCatalog(
 
   const matchedWorks: DmmItem[] = [];
   for (const entry of index) {
-    if (!entry.searchText.includes(normalizedQuery)) continue;
+    if (!searchEntryMatches(entry, normalized)) continue;
     const item = worksById.get(entry.contentId);
     if (item) matchedWorks.push(item);
   }

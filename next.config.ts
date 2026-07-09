@@ -13,6 +13,16 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  async redirects() {
+    return [
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "www.adult-zukan.jp" }],
+        destination: "https://adult-zukan.jp/:path*",
+        permanent: true,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

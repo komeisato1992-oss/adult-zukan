@@ -67,14 +67,19 @@ function CompareImageWorkColumn({
         {label}
       </div>
       <div className="flex min-w-0 flex-1 flex-col p-3">
-        <div className="relative mx-auto aspect-[3/4] w-full max-w-[140px] overflow-hidden rounded-md border border-border bg-surface">
+        <div className="sns-compare-package-frame relative mx-auto h-[187px] w-[140px] overflow-hidden rounded-md border border-border bg-surface">
           {proxyUrl && !imageError ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={proxyUrl}
               alt={work.title}
               onError={() => setImageError(true)}
-              className="h-full w-full object-cover object-[right_center]"
+              className="absolute right-0 top-0"
+              style={{
+                height: "100%",
+                width: "auto",
+                maxWidth: "none",
+              }}
             />
           ) : imageError ? (
             <div className="flex h-full items-center justify-center px-2 text-center text-[10px] leading-relaxed text-red-600">

@@ -8,7 +8,6 @@ import {
 } from "@/lib/dmm/catalog-filter-stats";
 import type { DmmItem } from "@/lib/dmm/types";
 
-export const CATALOG_TARGET_VALID = 2000;
 export const CATALOG_MIN_VALID = 300;
 export const CATALOG_MAX_API_ITEMS = 10000;
 export const DMM_CATALOG_SORT = "rank" as const;
@@ -70,17 +69,12 @@ export async function fetchDmmCatalogFromApi(): Promise<CatalogFetchResult> {
       raw.push(item);
     }
 
-    const validSoFar = pickValidCatalogItems(raw, CATALOG_TARGET_VALID);
-    if (validSoFar.length >= CATALOG_TARGET_VALID) {
-      break;
-    }
-
     if (pageItems.length < FETCH_BATCH_SIZE) {
       break;
     }
   }
 
-  const items = pickValidCatalogItems(raw, CATALOG_TARGET_VALID);
+  const items = pickValidCatalogItems(raw);
   const stats = analyzeCatalogItems(raw);
   stats.apiTotal = apiTotal;
   stats.validCount = items.length;

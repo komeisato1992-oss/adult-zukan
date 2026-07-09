@@ -1,17 +1,87 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## 開発環境
+
+このリポジトリは **npm** を使います（`package-lock.json` あり）。
+
+| ファイル | パッケージマネージャ |
+| --- | --- |
+| `package-lock.json` | npm |
+| `pnpm-lock.yaml` | pnpm（未使用） |
+| `yarn.lock` | yarn（未使用） |
+
+### 初回セットアップ
+
+Node.js **20 以上**が必要です（`.nvmrc` 参照）。
+
+**nvm を使う場合（推奨）**
+
+```bash
+# nvm 未導入なら一度だけ実行
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+
+# ターミナルを開き直してから
+cd adult-zukan
+nvm install
+npm install
+```
+
+**Node.js を直接インストールした場合**
+
+[https://nodejs.org/](https://nodejs.org/) から LTS を入れたあと:
+
+```bash
+npm install
+```
+
+自動セットアップスクリプト:
+
+```bash
+bash scripts/setup-dev.sh
+```
+
+### 開発サーバー起動
+
+```bash
+npm run dev
+```
+
+[http://localhost:3000](http://localhost:3000) を開いて確認してください。
+
+`npm run dev` は `scripts/dev.mjs` 経由でポート 3000 の既存プロセスを整理してから `next dev` を起動します。
+
+**npm が `command not found` の場合**
+
+Node.js が PATH に無い状態です。次のいずれかで起動できます。
+
+```bash
+# セットアップ（nvm + npm install）
+bash scripts/setup-dev.sh
+
+# または npm なしで開発サーバーだけ起動（node_modules 済みの場合）
+bash bin/dev
+```
+
+Cursor 同梱の Node を直接使う場合:
+
+```bash
+/Applications/Cursor.app/Contents/Resources/app/resources/helpers/node scripts/dev.mjs
+```
+
+### その他コマンド
+
+```bash
+npm run build    # 本番ビルド
+npm run start    # 本番サーバー
+npm run lint     # ESLint
+```
+
 ## Getting Started
 
 First, run the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.

@@ -22,7 +22,14 @@ export async function POST() {
     }
 
     return NextResponse.json({
-      ...result,
+      success: true,
+      count: result.count,
+      candidates: result.candidates,
+      summary: result.summary,
+      pagination: result.pagination,
+      collectedCount: result.collectedCount,
+      displayedCount: result.displayedCount,
+      message: result.message,
       configured: isGitHubCatalogConfigured(),
       dmmConfigured: isDmmConfigured(),
     });

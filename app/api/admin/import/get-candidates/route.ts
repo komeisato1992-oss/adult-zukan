@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin/auth";
 import type { ImportCandidateSortKey } from "@/lib/admin/import-candidate-types";
-import { getImportCandidatesList } from "@/lib/admin/import-candidates-query";
+import { getAllImportCandidateListItems, getImportCandidatesList } from "@/lib/admin/import-candidates-query";
 import type { ImportFilterKey } from "@/lib/admin/import-quality";
 import { isDmmConfigured } from "@/lib/dmm/client";
 import { isGitHubCatalogConfigured } from "@/lib/admin/github-config";
@@ -54,8 +54,26 @@ export async function GET(request: Request) {
   const page = Number.parseInt(searchParams.get("page") ?? "1", 10);
   const sort = parseSort(searchParams.get("sort"));
   const filters = parseFilters(searchParams.get("filters"));
+  const includeAll = searchParams.get("all") === "1";
 
   try {
+    if (includeAll) {
+      const result = await getAllImportCandidateListItems();
+
+      return NextResponse.json({
+        summary: result.summary,
+        candidates: result.candidates,
+        pagination: {
+          page: 1,
+          pageSize: result.candidates.length,
+          totalPages: 1,
+          totalCount: result.candidates.length,
+        },
+        configured: isGitHubCatalogConfigured(),
+        dmmConfigured: isDmmConfigured(),
+      });
+    }
+
     const result = await getImportCandidatesList({
       page: Number.isFinite(page) ? page : 1,
       sort,

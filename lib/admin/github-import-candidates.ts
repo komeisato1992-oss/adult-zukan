@@ -8,8 +8,9 @@ import {
   serializeImportCandidates,
 } from "@/lib/admin/import-candidates-json";
 import type { StoredImportCandidate } from "@/lib/admin/import-candidate-types";
+import { IMPORT_CANDIDATES_RELATIVE_PATH } from "@/lib/admin/import-candidates-path";
 
-const IMPORT_CANDIDATES_FILE_PATH = "data/dmm/import-candidates.json";
+const IMPORT_CANDIDATES_FILE_PATH = IMPORT_CANDIDATES_RELATIVE_PATH;
 const GITHUB_API_VERSION = "2022-11-28";
 
 type GitHubFileResponse = {

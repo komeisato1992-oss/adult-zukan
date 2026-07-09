@@ -19,9 +19,13 @@ import type {
   ImportCandidateStatus,
   StoredImportCandidate,
 } from "@/lib/admin/import-candidate-types";
+import { IMPORT_CANDIDATES_RELATIVE_PATH } from "@/lib/admin/import-candidates-path";
 
 const SNAPSHOT_DIR = path.join(process.cwd(), "data", "dmm");
-const IMPORT_CANDIDATES_FILE = path.join(SNAPSHOT_DIR, "import-candidates.json");
+const IMPORT_CANDIDATES_FILE = path.join(
+  process.cwd(),
+  IMPORT_CANDIDATES_RELATIVE_PATH,
+);
 
 export function readImportCandidatesLocal(): StoredImportCandidate[] {
   if (!existsSync(IMPORT_CANDIDATES_FILE)) {

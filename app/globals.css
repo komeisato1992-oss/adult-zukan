@@ -39,6 +39,12 @@ img {
   height: auto;
 }
 
+.sns-compare-package-frame img {
+  max-width: none;
+  width: auto;
+  height: 100%;
+}
+
 @layer base {
   .work-image-frame img,
   .portrait-image-frame img {

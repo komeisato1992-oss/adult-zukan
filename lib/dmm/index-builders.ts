@@ -22,7 +22,7 @@ import {
   type RankedNameCount,
 } from "@/lib/dmm/home-sections";
 import { CATALOG_INDEX_PATHS } from "@/lib/dmm/index-paths";
-import { buildSearchText } from "@/lib/search/build-text";
+import { buildSearchFieldValues } from "@/lib/search/build-text";
 import type { SearchIndexEntry } from "@/lib/search/index";
 import type { DmmItem } from "@/lib/dmm/types";
 
@@ -90,7 +90,7 @@ function serializeIndexDocument<T>(items: T): string {
 function buildSearchIndex(items: DmmItem[]): SearchIndexEntry[] {
   return items.map((item) => ({
     contentId: item.content_id,
-    searchText: buildSearchText(item),
+    searchFields: buildSearchFieldValues(item),
   }));
 }
 

@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+NODE="${NODE:-}"
+
+resolve_node() {
+  if [ -n "$NODE" ] && "$NODE" --version >/dev/null 2>&1; then
+    echo "$NODE"
+    return 0
+  fi
+
+  if command -v node >/dev/null 2>&1; then
+    command -v node
+    return 0
+  fi
+
+  local cursor_node="/Applications/Cursor.app/Contents/Resources/app/resources/helpers/node"
+  if [ -x "$cursor_node" ]; then
+    echo "$cursor_node"
+    return 0
+  fi
+
+  return 1
+}
+
+RESOLVED_NODE="$(resolve_node)" || {
+  cat <<'EOF'
+Node.js が見つかりません。
+
+npm が使える場合:
+  npm install
+  npm run dev
+
+初回セットアップ:
+  bash scripts/setup-dev.sh
+
+詳細は README.md の「開発環境」を参照してください。
+EOF
+  exit 1
+}
+
+exec "$RESOLVED_NODE" "$ROOT/scripts/dev.mjs"

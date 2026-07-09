@@ -21,7 +21,6 @@ export {
 
 export {
   DMM_CATALOG_SORT,
-  DMM_STATIC_WORKS_COUNT,
   DMM_WORKS_REVALIDATE,
   getDmmStaticWorks,
   getDmmStaticWorkContentIds,

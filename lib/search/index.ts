@@ -5,11 +5,12 @@ import { cache } from "react";
 import { getCatalogWorks } from "@/lib/catalog";
 import { getCatalogSnapshotFingerprint } from "@/lib/dmm/catalog-display";
 import { DMM_WORKS_REVALIDATE } from "@/lib/dmm/static-works";
-import { buildSearchText } from "@/lib/search/build-text";
+import { buildSearchFieldValues } from "@/lib/search/build-text";
 
 export type SearchIndexEntry = {
   contentId: string;
-  searchText: string;
+  /** 正規化済み title / actress / maker / label / series / genre 等 */
+  searchFields: string[];
 };
 
 const SEARCH_INDEX_REVALIDATE = DMM_WORKS_REVALIDATE;
@@ -18,14 +19,14 @@ async function buildSearchIndexEntries(): Promise<SearchIndexEntry[]> {
   const items = await getCatalogWorks();
   return items.map((item) => ({
     contentId: item.content_id,
-    searchText: buildSearchText(item),
+    searchFields: buildSearchFieldValues(item),
   }));
 }
 
 function loadSearchIndexCached(fingerprint: string): Promise<SearchIndexEntry[]> {
   return unstable_cache(
     buildSearchIndexEntries,
-    ["catalog-search-index-v3", fingerprint],
+    ["catalog-search-index-v5", fingerprint],
     { revalidate: SEARCH_INDEX_REVALIDATE },
   )();
 }

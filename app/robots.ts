@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { SITE_URL } from "@/lib/constants";
+import { getCanonicalHostname, SITE_URL } from "@/lib/constants";
 
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -10,7 +10,7 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ["/favorites", "/history", "/age-denied", "/admin", "/api/"],
       },
     ],
-    host: SITE_URL,
+    host: getCanonicalHostname(),
     sitemap: `${SITE_URL}/sitemap.xml`,
   };
 }

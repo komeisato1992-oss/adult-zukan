@@ -5,15 +5,10 @@ import { analyzeCatalogItems } from "@/lib/dmm/catalog-filter-stats";
 import { logCatalogBuildStats } from "@/lib/dmm/catalog-build-log";
 import {
   CATALOG_MIN_VALID,
-  CATALOG_TARGET_VALID,
   DMM_CATALOG_SORT,
   fetchDmmCatalogFromApi,
 } from "@/lib/dmm/catalog-fetch";
 import { filterValidCatalogItems } from "@/lib/dmm/catalog-entities";
-import {
-  logCatalogDisplayDebug,
-  selectCatalogDisplayItems,
-} from "@/lib/dmm/catalog-display";
 import {
   readCatalogSnapshot,
   writeCatalogSnapshot,
@@ -24,17 +19,13 @@ import type { DmmItem } from "@/lib/dmm/types";
 /** DMM作品ページのISR再検証間隔（24時間） */
 export const DMM_WORKS_REVALIDATE = 86400;
 
-export const DMM_STATIC_WORKS_COUNT = CATALOG_TARGET_VALID;
-
 export { DMM_CATALOG_SORT };
 
 async function fetchDmmStaticWorksUncached(): Promise<DmmItem[]> {
   const snapshot = readCatalogSnapshot();
 
   if (snapshot.length >= CATALOG_MIN_VALID) {
-    const displaySnapshot = selectCatalogDisplayItems(snapshot);
-    const items = filterValidCatalogItems(displaySnapshot);
-    logCatalogDisplayDebug(snapshot, displaySnapshot);
+    const items = filterValidCatalogItems(snapshot);
     const stats = analyzeCatalogItems(snapshot);
     stats.validCount = items.length;
     logCatalogBuildStats(stats, { worksListCount: items.length });
@@ -46,9 +37,7 @@ async function fetchDmmStaticWorksUncached(): Promise<DmmItem[]> {
 
     if (items.length > 0) {
       writeCatalogSnapshot(items);
-      const validItems = filterValidCatalogItems(
-        items.slice(0, DMM_STATIC_WORKS_COUNT),
-      );
+      const validItems = filterValidCatalogItems(items);
       stats.validCount = validItems.length;
       logCatalogBuildStats(stats, {
         worksListCount: validItems.length,
@@ -58,9 +47,7 @@ async function fetchDmmStaticWorksUncached(): Promise<DmmItem[]> {
   }
 
   if (snapshot.length > 0) {
-    const displaySnapshot = selectCatalogDisplayItems(snapshot);
-    const items = filterValidCatalogItems(displaySnapshot);
-    logCatalogDisplayDebug(snapshot, displaySnapshot);
+    const items = filterValidCatalogItems(snapshot);
     const stats = analyzeCatalogItems(snapshot);
     stats.validCount = items.length;
     logCatalogBuildStats(stats, { worksListCount: items.length });

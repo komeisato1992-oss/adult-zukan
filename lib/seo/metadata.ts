@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { SITE_URL } from "@/lib/constants";
+import { normalizeSiteUrl, SITE_URL } from "@/lib/constants";
 import { siteConfig } from "@/lib/site-config";
 
 type PageMetadataOptions = {
@@ -16,11 +16,13 @@ type PageMetadataOptions = {
 };
 
 function resolveOgImageUrl(ogImage?: string): string {
-  if (!ogImage) return siteConfig.ogImage;
+  if (!ogImage) return normalizeSiteUrl(`${SITE_URL}${siteConfig.ogImage}`);
   if (ogImage.startsWith("http://") || ogImage.startsWith("https://")) {
-    return ogImage;
+    return normalizeSiteUrl(ogImage);
   }
-  return `${SITE_URL}${ogImage.startsWith("/") ? ogImage : `/${ogImage}`}`;
+  return normalizeSiteUrl(
+    `${SITE_URL}${ogImage.startsWith("/") ? ogImage : `/${ogImage}`}`,
+  );
 }
 
 export function createPageMetadata({
@@ -33,8 +35,8 @@ export function createPageMetadata({
   absoluteTitle = false,
   ogImage,
 }: PageMetadataOptions): Metadata {
-  const url = `${SITE_URL}${path}`;
-  const canonicalUrl = `${SITE_URL}${canonicalPath ?? path}`;
+  const url = normalizeSiteUrl(`${SITE_URL}${path}`);
+  const canonicalUrl = normalizeSiteUrl(`${SITE_URL}${canonicalPath ?? path}`);
   const resolvedTitle =
     absoluteTitle || path === "" ? title : `${title} | ${siteConfig.name}`;
   const imageUrl = resolveOgImageUrl(ogImage);

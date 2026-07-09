@@ -5,28 +5,51 @@ import {
   getDmmItemMakerName,
   getDmmItemSeriesName,
 } from "@/lib/dmm/display";
-import { normalizeSearchQuery } from "@/lib/search/normalize-query";
+import { normalizeSearchText } from "@/lib/search/normalize-text";
 
-export function buildSearchText(item: DmmItem): string {
+export type SearchIndexFieldKey =
+  | "title"
+  | "actress"
+  | "maker"
+  | "label"
+  | "series"
+  | "genre"
+  | "contentId"
+  | "productId";
+
+export type SearchIndexFields = Record<SearchIndexFieldKey, string>;
+
+function normalizeField(value: string): string {
+  const normalized = normalizeSearchText(value);
+  return normalized || "";
+}
+
+/** 作品ごとの正規化済み検索フィールド */
+export function buildSearchIndexFields(item: DmmItem): SearchIndexFields {
   const genres = (item.iteminfo?.genre ?? [])
     .map((genre) => genre.name)
     .filter(Boolean)
     .join(" ");
-  const actresses = getDmmItemActressNameList(item).join(" ");
-  const maker = getDmmItemMakerName(item) ?? "";
-  const label = getDmmItemLabelName(item) ?? "";
-  const series = getDmmItemSeriesName(item) ?? "";
 
-  const text = [
-    item.title,
-    item.content_id,
-    item.product_id,
-    actresses,
-    maker,
-    label,
-    series,
-    genres,
-  ].join(" ");
+  return {
+    title: normalizeField(item.title ?? ""),
+    actress: normalizeField(getDmmItemActressNameList(item).join(" ")),
+    maker: normalizeField(getDmmItemMakerName(item) ?? ""),
+    label: normalizeField(getDmmItemLabelName(item) ?? ""),
+    series: normalizeField(getDmmItemSeriesName(item) ?? ""),
+    genre: normalizeField(genres),
+    contentId: normalizeField(item.content_id ?? ""),
+    productId: normalizeField(item.product_id ?? ""),
+  };
+}
 
-  return normalizeSearchQuery(text);
+/** インデックス照合用の正規化フィールド配列（空は除外） */
+export function buildSearchFieldValues(item: DmmItem): string[] {
+  const fields = buildSearchIndexFields(item);
+  return Object.values(fields).filter(Boolean);
+}
+
+/** @deprecated buildSearchFieldValues / buildSearchIndexFields を使用 */
+export function buildSearchText(item: DmmItem): string {
+  return buildSearchFieldValues(item).join("");
 }

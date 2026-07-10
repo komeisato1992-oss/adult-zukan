@@ -29,14 +29,16 @@ export const metadata = createPageMetadata({
 
 function GenreListFallback() {
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-      {Array.from({ length: 6 }).map((_, index) => (
+    <div className="grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+      {Array.from({ length: 12 }).map((_, index) => (
         <div
           key={index}
-          className="rounded border border-border bg-white p-5 text-center shadow-sm"
+          className="flex min-h-[60px] items-center rounded-lg border border-border bg-white px-3 py-2.5 shadow-sm sm:min-h-[64px]"
         >
-          <div className="mx-auto h-5 w-24 animate-pulse rounded bg-surface" />
-          <div className="mx-auto mt-2 h-3 w-12 animate-pulse rounded bg-surface" />
+          <div className="flex w-full items-start justify-between gap-2">
+            <div className="h-4 w-20 animate-pulse rounded bg-surface" />
+            <div className="h-3 w-10 animate-pulse rounded bg-surface" />
+          </div>
         </div>
       ))}
     </div>

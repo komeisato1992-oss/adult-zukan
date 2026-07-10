@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-10T15:11:16.729Z",
-  "total": 395,
+  "updatedAt": "2026-07-10T16:34:16.454Z",
+  "total": 505,
   "items": [
     {
       "name": "-沌-CHAOS-",
@@ -12,14 +12,14 @@
     {
       "name": "【破廉恥濃】",
       "slug": "破廉恥濃",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "HALENTINO/妄想族",
       "makerSlug": "halentino-妄想族"
     },
     {
       "name": "※スマホ推奨タテ動画※マドーンショート",
       "slug": "スマホ推奨タテ動画-マドーンショート",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "マドンナ",
       "makerSlug": "マドンナ"
     },
@@ -40,7 +40,7 @@
     {
       "name": "ACHIJO（アチージョ）",
       "slug": "achijo-アチージョ",
-      "workCount": 6,
+      "workCount": 7,
       "makerName": "マドンナ",
       "makerSlug": "マドンナ"
     },
@@ -75,16 +75,23 @@
     {
       "name": "AROMA",
       "slug": "aroma",
-      "workCount": 11,
+      "workCount": 13,
       "makerName": "アロマ企画",
       "makerSlug": "アロマ企画"
     },
     {
       "name": "Attackers BEST",
       "slug": "attackers-best",
-      "workCount": 6,
+      "workCount": 9,
       "makerName": "アタッカーズ",
       "makerSlug": "アタッカーズ"
+    },
+    {
+      "name": "AV OPEN 2016",
+      "slug": "av-open-2016",
+      "workCount": 1,
+      "makerName": "ROOKIE",
+      "makerSlug": "rookie"
     },
     {
       "name": "AV OPEN 2018",
@@ -103,14 +110,14 @@
     {
       "name": "AVSCollector’s",
       "slug": "avscollector-s",
-      "workCount": 21,
+      "workCount": 50,
       "makerName": "AVS collector’s",
       "makerSlug": "avs-collector-s"
     },
     {
       "name": "AVSCollector’s GOLD",
       "slug": "avscollector-s-gold",
-      "workCount": 4,
+      "workCount": 14,
       "makerName": "AVS collector’s",
       "makerSlug": "avs-collector-s"
     },
@@ -124,23 +131,37 @@
     {
       "name": "BAZOOKA（バズーカ）",
       "slug": "bazooka-バズーカ",
-      "workCount": 11,
+      "workCount": 19,
       "makerName": "BAZOOKA",
       "makerSlug": "bazooka"
     },
     {
       "name": "BEATLE",
       "slug": "beatle",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "BEATLE",
       "makerSlug": "beatle"
     },
     {
       "name": "BeFree",
       "slug": "befree",
-      "workCount": 4,
+      "workCount": 7,
       "makerName": "BeFree",
       "makerSlug": "befree"
+    },
+    {
+      "name": "Bind",
+      "slug": "bind",
+      "workCount": 1,
+      "makerName": "MERCURY（マーキュリー）",
+      "makerSlug": "mercury-マーキュリー"
+    },
+    {
+      "name": "BLACK BEAST",
+      "slug": "black-beast",
+      "workCount": 1,
+      "makerName": "グローバルメディアエンタテインメント",
+      "makerSlug": "グローバルメディアエンタテインメント"
     },
     {
       "name": "BLUE RIBON",
@@ -152,7 +173,7 @@
     {
       "name": "BoinBB/ABC",
       "slug": "boinbb-abc",
-      "workCount": 4,
+      "workCount": 7,
       "makerName": "ABC/妄想族",
       "makerSlug": "abc-妄想族"
     },
@@ -178,6 +199,13 @@
       "makerSlug": "venus"
     },
     {
+      "name": "buffet",
+      "slug": "buffet",
+      "workCount": 1,
+      "makerName": "buffet",
+      "makerSlug": "buffet"
+    },
+    {
       "name": "BURST（グレイズ）",
       "slug": "burst-グレイズ",
       "workCount": 2,
@@ -199,16 +227,30 @@
       "makerSlug": "chuchugirl-チュチュガール"
     },
     {
+      "name": "COBRA（ワープ）",
+      "slug": "cobra-ワープ",
+      "workCount": 4,
+      "makerName": "ワープエンタテインメント",
+      "makerSlug": "ワープエンタテインメント"
+    },
+    {
       "name": "CORE（ゴーゴーズ）",
       "slug": "core-ゴーゴーズ",
-      "workCount": 2,
+      "workCount": 3,
       "makerName": "ゴーゴーズ",
       "makerSlug": "ゴーゴーズ"
     },
     {
+      "name": "CosDeluxe Plus",
+      "slug": "cosdeluxe-plus",
+      "workCount": 1,
+      "makerName": "クリスタル映像",
+      "makerSlug": "クリスタル映像"
+    },
+    {
       "name": "COSMOSPICTURES（ソフト・オン・デマンド）",
       "slug": "cosmospictures-ソフト・オン・デマンド",
-      "workCount": 3,
+      "workCount": 7,
       "makerName": "コスモス映像",
       "makerSlug": "コスモス映像"
     },
@@ -229,28 +271,28 @@
     {
       "name": "DAHLIA",
       "slug": "dahlia",
-      "workCount": 24,
+      "workCount": 29,
       "makerName": "DAHLIA",
       "makerSlug": "dahlia"
     },
     {
       "name": "DEEP’S",
       "slug": "deep-s",
-      "workCount": 25,
+      "workCount": 43,
       "makerName": "ディープス",
       "makerSlug": "ディープス"
     },
     {
       "name": "DEEP’S 2号店",
       "slug": "deep-s-2号店",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "ディープス",
       "makerSlug": "ディープス"
     },
     {
       "name": "DEEP’S 3号店",
       "slug": "deep-s-3号店",
-      "workCount": 3,
+      "workCount": 6,
       "makerName": "ディープス",
       "makerSlug": "ディープス"
     },
@@ -262,16 +304,23 @@
       "makerSlug": "deep-妄想族"
     },
     {
+      "name": "DOC Actress",
+      "slug": "doc-actress",
+      "workCount": 1,
+      "makerName": "DOC",
+      "makerSlug": "doc"
+    },
+    {
       "name": "DOC AI LAB",
       "slug": "doc-ai-lab",
-      "workCount": 4,
+      "workCount": 6,
       "makerName": "DOC",
       "makerSlug": "doc"
     },
     {
       "name": "DOC DREAM",
       "slug": "doc-dream",
-      "workCount": 13,
+      "workCount": 15,
       "makerName": "DOC",
       "makerSlug": "doc"
     },
@@ -292,7 +341,7 @@
     {
       "name": "E-BODY",
       "slug": "e-body",
-      "workCount": 30,
+      "workCount": 59,
       "makerName": "E-BODY",
       "makerSlug": "e-body"
     },
@@ -304,37 +353,51 @@
       "makerSlug": "クリスタル映像"
     },
     {
+      "name": "ECSTASY（レアルワークス）",
+      "slug": "ecstasy-レアルワークス",
+      "workCount": 3,
+      "makerName": "レアルワークス",
+      "makerSlug": "レアルワークス"
+    },
+    {
       "name": "EROTICA",
       "slug": "erotica",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "EROTICA",
       "makerSlug": "erotica"
     },
     {
       "name": "FAIR＆WAY",
       "slug": "fair-way",
-      "workCount": 9,
+      "workCount": 12,
       "makerName": "FAIR＆WAY",
       "makerSlug": "fair-way"
     },
     {
       "name": "FALENO star",
       "slug": "faleno-star",
-      "workCount": 16,
+      "workCount": 22,
       "makerName": "FALENO",
       "makerSlug": "faleno"
     },
     {
       "name": "FAプロ",
       "slug": "faプロ",
-      "workCount": 4,
+      "workCount": 5,
       "makerName": "FAプロ",
       "makerSlug": "faプロ"
     },
     {
+      "name": "FEARLESS",
+      "slug": "fearless",
+      "workCount": 4,
+      "makerName": "ワープエンタテインメント",
+      "makerSlug": "ワープエンタテインメント"
+    },
+    {
       "name": "Fitch",
       "slug": "fitch",
-      "workCount": 24,
+      "workCount": 42,
       "makerName": "Fitch",
       "makerSlug": "fitch"
     },
@@ -348,7 +411,7 @@
     {
       "name": "FLOWER＆HONEY",
       "slug": "flower-honey",
-      "workCount": 1,
+      "workCount": 3,
       "makerName": "花と蜜",
       "makerSlug": "花と蜜"
     },
@@ -360,25 +423,46 @@
       "makerSlug": "abc-妄想族"
     },
     {
+      "name": "For Real",
+      "slug": "for-real",
+      "workCount": 1,
+      "makerName": "ヲナサポベスト",
+      "makerSlug": "ヲナサポベスト"
+    },
+    {
+      "name": "gain corporation",
+      "slug": "gain-corporation",
+      "workCount": 1,
+      "makerName": "ゲインコーポレーション",
+      "makerSlug": "ゲインコーポレーション"
+    },
+    {
       "name": "GAS",
       "slug": "gas",
-      "workCount": 4,
+      "workCount": 5,
       "makerName": "シネマユニット・ガス",
       "makerSlug": "シネマユニット・ガス"
     },
     {
       "name": "GLAMOROUS",
       "slug": "glamorous",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "プレミアム",
       "makerSlug": "プレミアム"
     },
     {
       "name": "GLORY QUEST",
       "slug": "glory-quest",
-      "workCount": 28,
+      "workCount": 41,
       "makerName": "グローリークエスト",
       "makerSlug": "グローリークエスト"
+    },
+    {
+      "name": "GooNiES",
+      "slug": "goonies",
+      "workCount": 7,
+      "makerName": "グーニーズ",
+      "makerSlug": "グーニーズ"
     },
     {
       "name": "GOS",
@@ -390,7 +474,7 @@
     {
       "name": "grace",
       "slug": "grace",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "grace",
       "makerSlug": "grace"
     },
@@ -404,16 +488,23 @@
     {
       "name": "h.m.p",
       "slug": "h-m-p",
-      "workCount": 2,
+      "workCount": 3,
       "makerName": "h.m.p",
       "makerSlug": "h-m-p"
     },
     {
+      "name": "h.m.p DORAMA",
+      "slug": "h-m-p-dorama",
+      "workCount": 1,
+      "makerName": "h.m.p DORAMA",
+      "makerSlug": "h-m-p-dorama"
+    },
+    {
       "name": "HHHグループ",
       "slug": "hhhグループ",
-      "workCount": 61,
-      "makerName": "ロイヤル",
-      "makerSlug": "ロイヤル"
+      "workCount": 123,
+      "makerName": "Hunter",
+      "makerSlug": "hunter"
     },
     {
       "name": "Hold on！",
@@ -425,7 +516,7 @@
     {
       "name": "How to学園",
       "slug": "how-to学園",
-      "workCount": 5,
+      "workCount": 7,
       "makerName": "バレマンッ！！/妄想族",
       "makerSlug": "バレマンッ-妄想族"
     },
@@ -437,30 +528,51 @@
       "makerSlug": "桃太郎映像出版"
     },
     {
+      "name": "Hydra",
+      "slug": "hydra",
+      "workCount": 1,
+      "makerName": "BOTAN",
+      "makerSlug": "botan"
+    },
+    {
+      "name": "I AM AI",
+      "slug": "i-am-ai",
+      "workCount": 2,
+      "makerName": "KNIP",
+      "makerSlug": "knip"
+    },
+    {
+      "name": "I.B.WORKS",
+      "slug": "i-b-works",
+      "workCount": 1,
+      "makerName": "I.B.WORKS",
+      "makerSlug": "i-b-works"
+    },
+    {
       "name": "IENF",
       "slug": "ienf",
-      "workCount": 5,
+      "workCount": 7,
       "makerName": "アイエナジー",
       "makerSlug": "アイエナジー"
     },
     {
       "name": "IESP",
       "slug": "iesp",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "アイエナジー",
       "makerSlug": "アイエナジー"
     },
     {
       "name": "in mad",
       "slug": "in-mad",
-      "workCount": 10,
+      "workCount": 20,
       "makerName": "アタッカーズ",
       "makerSlug": "アタッカーズ"
     },
     {
       "name": "INCEST（ヴィーナス）",
       "slug": "incest-ヴィーナス",
-      "workCount": 6,
+      "workCount": 8,
       "makerName": "VENUS",
       "makerSlug": "venus"
     },
@@ -474,7 +586,7 @@
     {
       "name": "IROKE",
       "slug": "iroke",
-      "workCount": 6,
+      "workCount": 7,
       "makerName": "million",
       "makerSlug": "million"
     },
@@ -488,77 +600,91 @@
     {
       "name": "K-Tribe",
       "slug": "k-tribe",
-      "workCount": 2,
+      "workCount": 3,
       "makerName": "ケー・トライブ",
       "makerSlug": "ケー・トライブ"
     },
     {
       "name": "kawaii",
       "slug": "kawaii",
-      "workCount": 51,
+      "workCount": 79,
       "makerName": "kawaii",
       "makerSlug": "kawaii"
     },
     {
+      "name": "kira☆kira",
+      "slug": "kira-kira",
+      "workCount": 1,
+      "makerName": "kira☆kira",
+      "makerSlug": "kira-kira"
+    },
+    {
       "name": "kira☆kira BLACK GAL",
       "slug": "kira-kira-black-gal",
-      "workCount": 5,
+      "workCount": 14,
       "makerName": "kira☆kira",
       "makerSlug": "kira-kira"
     },
     {
       "name": "KSB企画/エマニエル",
       "slug": "ksb企画-エマニエル",
-      "workCount": 4,
+      "workCount": 5,
       "makerName": "KSB企画/エマニエル",
       "makerSlug": "ksb企画-エマニエル"
     },
     {
       "name": "LADY HUNTERS",
       "slug": "lady-hunters",
-      "workCount": 6,
+      "workCount": 13,
       "makerName": "桃太郎映像出版",
       "makerSlug": "桃太郎映像出版"
     },
     {
       "name": "LadyHunter（桃太郎映像出版）",
       "slug": "ladyhunter-桃太郎映像出版",
-      "workCount": 6,
+      "workCount": 7,
       "makerName": "桃太郎映像出版",
       "makerSlug": "桃太郎映像出版"
     },
     {
       "name": "LEO",
       "slug": "leo",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "LEO",
       "makerSlug": "leo"
     },
     {
       "name": "LOCK-ON",
       "slug": "lock-on",
-      "workCount": 1,
+      "workCount": 3,
       "makerName": "First Star",
       "makerSlug": "first-star"
     },
     {
+      "name": "LOTUS",
+      "slug": "lotus",
+      "workCount": 1,
+      "makerName": "ロータス",
+      "makerSlug": "ロータス"
+    },
+    {
       "name": "LUNATICS",
       "slug": "lunatics",
-      "workCount": 27,
+      "workCount": 39,
       "makerName": "ルナティックス",
       "makerSlug": "ルナティックス"
     },
     {
       "name": "M’s video Group",
       "slug": "m-s-video-group",
-      "workCount": 3,
+      "workCount": 13,
       "makerName": "エムズビデオグループ",
       "makerSlug": "エムズビデオグループ"
     },
     {
       "name": "MADAM MANIAC",
       "slug": "madam-maniac",
-      "workCount": 2,
+      "workCount": 3,
       "makerName": "クリスタル映像",
       "makerSlug": "クリスタル映像"
     },
@@ -572,14 +698,14 @@
     {
       "name": "Madonna",
       "slug": "madonna",
-      "workCount": 170,
+      "workCount": 219,
       "makerName": "マドンナ",
       "makerSlug": "マドンナ"
     },
     {
       "name": "MADOOOON！！！！",
       "slug": "madoooon",
-      "workCount": 4,
+      "workCount": 5,
       "makerName": "マドンナ",
       "makerSlug": "マドンナ"
     },
@@ -593,14 +719,14 @@
     {
       "name": "MANIAC（クリスタル）",
       "slug": "maniac-クリスタル",
-      "workCount": 5,
+      "workCount": 8,
       "makerName": "クリスタル映像",
       "makerSlug": "クリスタル映像"
     },
     {
       "name": "MANIAQ/妄想族",
       "slug": "maniaq-妄想族",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "MANIAQ/妄想族",
       "makerSlug": "maniaq-妄想族"
     },
@@ -614,35 +740,35 @@
     {
       "name": "Marcano",
       "slug": "marcano",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "まるかあの/妄想族",
       "makerSlug": "まるかあの-妄想族"
     },
     {
       "name": "maryGOLD",
       "slug": "marygold",
-      "workCount": 2,
+      "workCount": 4,
       "makerName": "FALENO",
       "makerSlug": "faleno"
     },
     {
       "name": "MAX-A",
       "slug": "max-a",
-      "workCount": 19,
+      "workCount": 22,
       "makerName": "マックスエー",
       "makerSlug": "マックスエー"
     },
     {
       "name": "MCP",
       "slug": "mcp",
-      "workCount": 2,
+      "workCount": 3,
       "makerName": "MARRION",
       "makerSlug": "marrion"
     },
     {
       "name": "MDMA",
       "slug": "mdma",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "MDMA",
       "makerSlug": "mdma"
     },
@@ -682,51 +808,65 @@
       "makerSlug": "mellow-moon-メロウムーン"
     },
     {
+      "name": "MILK",
+      "slug": "milk",
+      "workCount": 2,
+      "makerName": "MILK",
+      "makerSlug": "milk"
+    },
+    {
       "name": "million（ミリオン）",
       "slug": "million-ミリオン",
-      "workCount": 19,
+      "workCount": 26,
       "makerName": "ケイ・エム・プロデュース",
       "makerSlug": "ケイ・エム・プロデュース"
     },
     {
       "name": "MO Platinum",
       "slug": "mo-platinum",
-      "workCount": 4,
+      "workCount": 5,
       "makerName": "M男パラダイス",
       "makerSlug": "m男パラダイス"
     },
     {
+      "name": "MONDO（ルビー）",
+      "slug": "mondo-ルビー",
+      "workCount": 1,
+      "makerName": "ルビー",
+      "makerSlug": "ルビー"
+    },
+    {
       "name": "MONROE",
       "slug": "monroe",
-      "workCount": 26,
+      "workCount": 32,
       "makerName": "マドンナ",
       "makerSlug": "マドンナ"
     },
     {
       "name": "MOODYZ ACID",
       "slug": "moodyz-acid",
-      "workCount": 1,
+      "workCount": 5,
       "makerName": "ムーディーズ",
       "makerSlug": "ムーディーズ"
     },
     {
       "name": "MOODYZ Best",
       "slug": "moodyz-best",
-      "workCount": 18,
+      "workCount": 29,
       "makerName": "ムーディーズ",
       "makerSlug": "ムーディーズ"
     },
     {
       "name": "MOODYZ DIVA",
       "slug": "moodyz-diva",
-      "workCount": 179,
+      "workCount": 257,
       "makerName": "ムーディーズ",
       "makerSlug": "ムーディーズ"
     },
     {
       "name": "MOODYZ Fresh",
       "slug": "moodyz-fresh",
-      "workCount": 10,
+      "workCount": 16,
       "makerName": "ムーディーズ",
       "makerSlug": "ムーディーズ"
     },
@@ -747,14 +887,14 @@
     {
       "name": "MOODYZ REAL",
       "slug": "moodyz-real",
-      "workCount": 15,
+      "workCount": 20,
       "makerName": "ムーディーズ",
       "makerSlug": "ムーディーズ"
     },
     {
       "name": "MOODYZ ニュージーニアス",
       "slug": "moodyz-ニュージーニアス",
-      "workCount": 6,
+      "workCount": 11,
       "makerName": "ムーディーズ",
       "makerSlug": "ムーディーズ"
     },
@@ -766,16 +906,30 @@
       "makerSlug": "doc"
     },
     {
+      "name": "Mother in law",
+      "slug": "mother-in-law",
+      "workCount": 1,
+      "makerName": "グローバルメディアエンタテインメント",
+      "makerSlug": "グローバルメディアエンタテインメント"
+    },
+    {
+      "name": "mow",
+      "slug": "mow",
+      "workCount": 1,
+      "makerName": "OFFICE K’S",
+      "makerSlug": "office-k-s"
+    },
+    {
       "name": "Mr.michiru＋",
       "slug": "mr-michiru",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "Mr.michiru",
       "makerSlug": "mr-michiru"
     },
     {
       "name": "MUTEKI",
       "slug": "muteki",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "MUTEKI",
       "makerSlug": "muteki"
     },
@@ -789,21 +943,28 @@
     {
       "name": "NANA",
       "slug": "nana",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "NANA",
       "makerSlug": "nana"
     },
     {
+      "name": "NewMOM",
+      "slug": "newmom",
+      "workCount": 1,
+      "makerName": "グローバルメディアエンタテインメント",
+      "makerSlug": "グローバルメディアエンタテインメント"
+    },
+    {
       "name": "NIKUYOKU",
       "slug": "nikuyoku",
-      "workCount": 3,
+      "workCount": 7,
       "makerName": "Fitch",
       "makerSlug": "fitch"
     },
     {
       "name": "NIRVANA",
       "slug": "nirvana",
-      "workCount": 2,
+      "workCount": 3,
       "makerName": "NIRVANA",
       "makerSlug": "nirvana"
     },
@@ -824,14 +985,35 @@
     {
       "name": "NPJ",
       "slug": "npj",
-      "workCount": 6,
+      "workCount": 20,
       "makerName": "NPJ",
       "makerSlug": "npj"
     },
     {
+      "name": "OFFICE K’S",
+      "slug": "office-k-s",
+      "workCount": 5,
+      "makerName": "OFFICE K’S",
+      "makerSlug": "office-k-s"
+    },
+    {
+      "name": "OKITA",
+      "slug": "okita",
+      "workCount": 1,
+      "makerName": "いきなりエロざんまい",
+      "makerSlug": "いきなりエロざんまい"
+    },
+    {
+      "name": "OLYMPUS",
+      "slug": "olympus",
+      "workCount": 4,
+      "makerName": "オリンポス",
+      "makerSlug": "オリンポス"
+    },
+    {
       "name": "OPPAI",
       "slug": "oppai",
-      "workCount": 24,
+      "workCount": 43,
       "makerName": "OPPAI",
       "makerSlug": "oppai"
     },
@@ -843,30 +1025,44 @@
       "makerSlug": "petshop-妄想族"
     },
     {
+      "name": "PPF",
+      "slug": "ppf",
+      "workCount": 1,
+      "makerName": "MERA",
+      "makerSlug": "mera"
+    },
+    {
       "name": "PREMIUM BEST",
       "slug": "premium-best",
-      "workCount": 2,
+      "workCount": 4,
       "makerName": "プレミアム",
       "makerSlug": "プレミアム"
     },
     {
+      "name": "R●●E（グローバルメディアエンタテインメント）",
+      "slug": "r-e-グローバルメディアエンタテインメント",
+      "workCount": 1,
+      "makerName": "グローバルメディアエンタテインメント",
+      "makerSlug": "グローバルメディアエンタテインメント"
+    },
+    {
       "name": "Re:Madonna/AIリマスター",
       "slug": "re-madonna-aiリマスター",
-      "workCount": 1,
+      "workCount": 4,
       "makerName": "マドンナ",
       "makerSlug": "マドンナ"
     },
     {
       "name": "REAL（レアルワークス）",
       "slug": "real-レアルワークス",
-      "workCount": 17,
+      "workCount": 29,
       "makerName": "レアルワークス",
       "makerSlug": "レアルワークス"
     },
     {
       "name": "Reality（VENUS）",
       "slug": "reality-venus",
-      "workCount": 2,
+      "workCount": 3,
       "makerName": "VENUS",
       "makerSlug": "venus"
     },
@@ -880,14 +1076,14 @@
     {
       "name": "ROCKET",
       "slug": "rocket",
-      "workCount": 5,
+      "workCount": 14,
       "makerName": "ROCKET",
       "makerSlug": "rocket"
     },
     {
       "name": "ROOKIE",
       "slug": "rookie",
-      "workCount": 11,
+      "workCount": 21,
       "makerName": "ROOKIE",
       "makerSlug": "rookie"
     },
@@ -915,28 +1111,28 @@
     {
       "name": "S-Cute",
       "slug": "s-cute",
-      "workCount": 112,
+      "workCount": 171,
       "makerName": "S-Cute",
       "makerSlug": "s-cute"
     },
     {
       "name": "S-Cute Best",
       "slug": "s-cute-best",
-      "workCount": 1,
+      "workCount": 3,
       "makerName": "S-Cute",
       "makerSlug": "s-cute"
     },
     {
       "name": "S-Cute Single",
       "slug": "s-cute-single",
-      "workCount": 2,
+      "workCount": 3,
       "makerName": "S-Cute",
       "makerSlug": "s-cute"
     },
     {
       "name": "S1 NO.1 STYLE",
       "slug": "s1-no-1-style",
-      "workCount": 302,
+      "workCount": 467,
       "makerName": "エスワン ナンバーワンスタイル",
       "makerSlug": "エスワン-ナンバーワンスタイル"
     },
@@ -955,6 +1151,13 @@
       "makerSlug": "mercury-マーキュリー"
     },
     {
+      "name": "SAMOARI",
+      "slug": "samoari",
+      "workCount": 1,
+      "makerName": "ワープエンタテインメント",
+      "makerSlug": "ワープエンタテインメント"
+    },
+    {
       "name": "SCOOP（スクープ）",
       "slug": "scoop-スクープ",
       "workCount": 5,
@@ -971,7 +1174,7 @@
     {
       "name": "SENZ",
       "slug": "senz",
-      "workCount": 3,
+      "workCount": 4,
       "makerName": "SODクリエイト",
       "makerSlug": "sodクリエイト"
     },
@@ -983,6 +1186,27 @@
       "makerSlug": "sex-agent-妄想族"
     },
     {
+      "name": "SHY",
+      "slug": "shy",
+      "workCount": 1,
+      "makerName": "シャイ企画",
+      "makerSlug": "シャイ企画"
+    },
+    {
+      "name": "SILK",
+      "slug": "silk",
+      "workCount": 1,
+      "makerName": "SILK LABO",
+      "makerSlug": "silk-labo"
+    },
+    {
+      "name": "Sin MOM",
+      "slug": "sin-mom",
+      "workCount": 4,
+      "makerName": "グローバルメディアエンタテインメント",
+      "makerSlug": "グローバルメディアエンタテインメント"
+    },
+    {
       "name": "sister",
       "slug": "sister",
       "workCount": 1,
@@ -992,49 +1216,56 @@
     {
       "name": "SODSTAR",
       "slug": "sodstar",
-      "workCount": 47,
+      "workCount": 81,
       "makerName": "SODクリエイト",
       "makerSlug": "sodクリエイト"
     },
     {
       "name": "SODクリエイト",
       "slug": "sodクリエイト",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "SODクリエイト",
       "makerSlug": "sodクリエイト"
     },
     {
       "name": "SOD女子社員",
       "slug": "sod女子社員",
-      "workCount": 14,
+      "workCount": 20,
       "makerName": "SODクリエイト",
       "makerSlug": "sodクリエイト"
     },
     {
       "name": "SOD素人",
       "slug": "sod素人",
-      "workCount": 7,
+      "workCount": 10,
       "makerName": "SODクリエイト",
       "makerSlug": "sodクリエイト"
     },
     {
       "name": "STARみぃつけた！",
       "slug": "starみぃつけた",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "SODクリエイト",
       "makerSlug": "sodクリエイト"
     },
     {
       "name": "sugar",
       "slug": "sugar",
-      "workCount": 4,
+      "workCount": 5,
       "makerName": "million",
       "makerSlug": "million"
     },
     {
+      "name": "SUKEKIYO",
+      "slug": "sukekiyo",
+      "workCount": 1,
+      "makerName": "DOC",
+      "makerSlug": "doc"
+    },
+    {
       "name": "Super Global Media",
       "slug": "super-global-media",
-      "workCount": 1,
+      "workCount": 3,
       "makerName": "グローバルメディアエンタテインメント",
       "makerSlug": "グローバルメディアエンタテインメント"
     },
@@ -1048,21 +1279,21 @@
     {
       "name": "SWITCH（SWITCH）",
       "slug": "switch-switch",
-      "workCount": 2,
+      "workCount": 5,
       "makerName": "SWITCH",
       "makerSlug": "switch"
     },
     {
       "name": "SYUCHI",
       "slug": "syuchi",
-      "workCount": 14,
+      "workCount": 22,
       "makerName": "ナチュラルハイ",
       "makerSlug": "ナチュラルハイ"
     },
     {
       "name": "S級素人",
       "slug": "s級素人",
-      "workCount": 2,
+      "workCount": 3,
       "makerName": "S級素人",
       "makerSlug": "s級素人"
     },
@@ -1076,7 +1307,7 @@
     {
       "name": "TEPPAN",
       "slug": "teppan",
-      "workCount": 3,
+      "workCount": 4,
       "makerName": "TEPPAN",
       "makerSlug": "teppan"
     },
@@ -1088,18 +1319,46 @@
       "makerSlug": "スパイスビジュアル"
     },
     {
+      "name": "TIGHT",
+      "slug": "tight",
+      "workCount": 1,
+      "makerName": "タイト",
+      "makerSlug": "タイト"
+    },
+    {
+      "name": "TMA",
+      "slug": "tma",
+      "workCount": 3,
+      "makerName": "TMA",
+      "makerSlug": "tma"
+    },
+    {
+      "name": "TMASC",
+      "slug": "tmasc",
+      "workCount": 1,
+      "makerName": "TMA",
+      "makerSlug": "tma"
+    },
+    {
       "name": "Treasure（ルビー）",
       "slug": "treasure-ルビー",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "ルビー",
       "makerSlug": "ルビー"
     },
     {
       "name": "ULTIMA",
       "slug": "ultima",
-      "workCount": 2,
+      "workCount": 3,
       "makerName": "VENUS",
       "makerSlug": "venus"
+    },
+    {
+      "name": "Underground",
+      "slug": "underground",
+      "workCount": 1,
+      "makerName": "FALENO TUBE",
+      "makerSlug": "faleno-tube"
     },
     {
       "name": "Undress",
@@ -1111,9 +1370,16 @@
     {
       "name": "V＆R PANDEMIC",
       "slug": "v-r-pandemic",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "V＆Rプランニング",
       "makerSlug": "v-rプランニング"
+    },
+    {
+      "name": "V＆R PRODUCE-ex-",
+      "slug": "v-r-produce-ex",
+      "workCount": 5,
+      "makerName": "V＆R PRODUCE",
+      "makerSlug": "v-r-produce"
     },
     {
       "name": "Vitamin",
@@ -1125,14 +1391,14 @@
     {
       "name": "VIVID（ドリームチケット）",
       "slug": "vivid-ドリームチケット",
-      "workCount": 4,
+      "workCount": 8,
       "makerName": "ドリームチケット",
       "makerSlug": "ドリームチケット"
     },
     {
       "name": "VIXEN",
       "slug": "vixen",
-      "workCount": 3,
+      "workCount": 4,
       "makerName": "シネマジック",
       "makerSlug": "シネマジック"
     },
@@ -1146,7 +1412,7 @@
     {
       "name": "WANZ",
       "slug": "wanz",
-      "workCount": 50,
+      "workCount": 78,
       "makerName": "ワンズファクトリー",
       "makerSlug": "ワンズファクトリー"
     },
@@ -1158,30 +1424,44 @@
       "makerSlug": "マックスエー"
     },
     {
+      "name": "Yellow Moon（イエロームーン）",
+      "slug": "yellow-moon-イエロームーン",
+      "workCount": 2,
+      "makerName": "Yellow Moon（イエロームーン）",
+      "makerSlug": "yellow-moon-イエロームーン"
+    },
+    {
       "name": "ZOOO",
       "slug": "zooo",
-      "workCount": 2,
+      "workCount": 4,
       "makerName": "ZOOO",
       "makerSlug": "zooo"
     },
     {
       "name": "あいすまん",
       "slug": "あいすまん",
-      "workCount": 14,
+      "workCount": 19,
       "makerName": "あいすまん",
       "makerSlug": "あいすまん"
     },
     {
       "name": "アイデアポケットBEST",
       "slug": "アイデアポケットbest",
-      "workCount": 13,
+      "workCount": 26,
       "makerName": "アイデアポケット",
       "makerSlug": "アイデアポケット"
     },
     {
+      "name": "アオハル開発",
+      "slug": "アオハル開発",
+      "workCount": 1,
+      "makerName": "ホームルーム/妄想族",
+      "makerSlug": "ホームルーム-妄想族"
+    },
+    {
       "name": "アシュタルト",
       "slug": "アシュタルト",
-      "workCount": 5,
+      "workCount": 6,
       "makerName": "DOC",
       "makerSlug": "doc"
     },
@@ -1193,9 +1473,23 @@
       "makerSlug": "アタッカーズ"
     },
     {
+      "name": "アブノーマルカンパニーズ",
+      "slug": "アブノーマルカンパニーズ",
+      "workCount": 4,
+      "makerName": "三和出版",
+      "makerSlug": "三和出版"
+    },
+    {
+      "name": "あまちゅあ排泄クラブ",
+      "slug": "あまちゅあ排泄クラブ",
+      "workCount": 1,
+      "makerName": "BRILL（JADE）",
+      "makerSlug": "brill-jade"
+    },
+    {
       "name": "アリスJAPAN",
       "slug": "アリスjapan",
-      "workCount": 99,
+      "workCount": 136,
       "makerName": "アリスJAPAN",
       "makerSlug": "アリスjapan"
     },
@@ -1216,42 +1510,42 @@
     {
       "name": "いんすた",
       "slug": "いんすた",
-      "workCount": 1,
+      "workCount": 3,
       "makerName": "HMN WORKS",
       "makerSlug": "hmn-works"
     },
     {
       "name": "うさぎ/妄想族",
       "slug": "うさぎ-妄想族",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "うさぎ/妄想族",
       "makerSlug": "うさぎ-妄想族"
     },
     {
       "name": "うらキン",
       "slug": "うらキン",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "うらキン",
       "makerSlug": "うらキン"
     },
     {
       "name": "うれまん/妄想族",
       "slug": "うれまん-妄想族",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "うれまん/妄想族",
       "makerSlug": "うれまん-妄想族"
     },
     {
       "name": "えむっ娘ラボ",
       "slug": "えむっ娘ラボ",
-      "workCount": 4,
+      "workCount": 12,
       "makerName": "えむっ娘ラボ",
       "makerSlug": "えむっ娘ラボ"
     },
     {
       "name": "エレガンス",
       "slug": "エレガンス",
-      "workCount": 10,
+      "workCount": 27,
       "makerName": "プレミアム",
       "makerSlug": "プレミアム"
     },
@@ -1263,22 +1557,36 @@
       "makerSlug": "ムーディーズ"
     },
     {
+      "name": "エロカリ",
+      "slug": "エロカリ",
+      "workCount": 13,
+      "makerName": "アマTV",
+      "makerSlug": "アマtv"
+    },
+    {
       "name": "エロぼん",
       "slug": "エロぼん",
-      "workCount": 3,
+      "workCount": 5,
       "makerName": "DOC",
       "makerSlug": "doc"
     },
     {
       "name": "おおかみ",
       "slug": "おおかみ",
-      "workCount": 3,
+      "workCount": 4,
       "makerName": "ひよこ",
       "makerSlug": "ひよこ"
     },
     {
       "name": "オーロラドラマ",
       "slug": "オーロラドラマ",
+      "workCount": 3,
+      "makerName": "オーロラプロジェクト・アネックス",
+      "makerSlug": "オーロラプロジェクト・アネックス"
+    },
+    {
+      "name": "オーロラハメ撮り",
+      "slug": "オーロラハメ撮り",
       "workCount": 1,
       "makerName": "オーロラプロジェクト・アネックス",
       "makerSlug": "オーロラプロジェクト・アネックス"
@@ -1293,16 +1601,23 @@
     {
       "name": "オーロラプロジェクト・アネックス",
       "slug": "オーロラプロジェクト・アネックス",
-      "workCount": 3,
+      "workCount": 6,
       "makerName": "オーロラプロジェクト・アネックス",
       "makerSlug": "オーロラプロジェクト・アネックス"
     },
     {
+      "name": "おかず。-ex-",
+      "slug": "おかず-ex",
+      "workCount": 3,
+      "makerName": "ケイ・エム・プロデュース",
+      "makerSlug": "ケイ・エム・プロデュース"
+    },
+    {
       "name": "おっぱい祭り",
       "slug": "おっぱい祭り",
-      "workCount": 9,
-      "makerName": "痴女ヘブン",
-      "makerSlug": "痴女ヘブン"
+      "workCount": 16,
+      "makerName": "Hunter",
+      "makerSlug": "hunter"
     },
     {
       "name": "おとなの制服",
@@ -1314,9 +1629,16 @@
     {
       "name": "おばパコ食堂",
       "slug": "おばパコ食堂",
-      "workCount": 1,
+      "workCount": 3,
       "makerName": "MERCURY（マーキュリー）",
       "makerSlug": "mercury-マーキュリー"
+    },
+    {
+      "name": "お妻味",
+      "slug": "お妻味",
+      "workCount": 1,
+      "makerName": "OFFICE K’S",
+      "makerSlug": "office-k-s"
     },
     {
       "name": "お中元にはボンレスハム",
@@ -1349,35 +1671,49 @@
     {
       "name": "カシマ",
       "slug": "カシマ",
-      "workCount": 5,
+      "workCount": 10,
       "makerName": "デジタルアーク",
       "makerSlug": "デジタルアーク"
     },
     {
       "name": "かつお物産/妄想族",
       "slug": "かつお物産-妄想族",
-      "workCount": 3,
+      "workCount": 5,
       "makerName": "かつお物産/妄想族",
       "makerSlug": "かつお物産-妄想族"
     },
     {
-      "name": "ぎがdeれいんペニマックス",
-      "slug": "ぎがdeれいんペニマックス",
+      "name": "ぎがdeれいん",
+      "slug": "ぎがdeれいん",
       "workCount": 1,
       "makerName": "ぎがdeれいん",
       "makerSlug": "ぎがdeれいん"
     },
     {
+      "name": "ぎがdeれいんペニマックス",
+      "slug": "ぎがdeれいんペニマックス",
+      "workCount": 2,
+      "makerName": "ぎがdeれいん",
+      "makerSlug": "ぎがdeれいん"
+    },
+    {
+      "name": "キチックス/妄想族",
+      "slug": "キチックス-妄想族",
+      "workCount": 1,
+      "makerName": "キチックス/妄想族",
+      "makerSlug": "キチックス-妄想族"
+    },
+    {
       "name": "ギャラリー",
       "slug": "ギャラリー",
-      "workCount": 2,
+      "workCount": 4,
       "makerName": "ギャラリー",
       "makerSlug": "ギャラリー"
     },
     {
       "name": "きれいなお姉さんは好きですか",
       "slug": "きれいなお姉さんは好きですか",
-      "workCount": 8,
+      "workCount": 15,
       "makerName": "ムーディーズ",
       "makerSlug": "ムーディーズ"
     },
@@ -1398,7 +1734,7 @@
     {
       "name": "グローバルメディアアネックス",
       "slug": "グローバルメディアアネックス",
-      "workCount": 20,
+      "workCount": 36,
       "makerName": "グローバルメディアアネックス",
       "makerSlug": "グローバルメディアアネックス"
     },
@@ -1410,16 +1746,23 @@
       "makerSlug": "doc"
     },
     {
+      "name": "ゲッツ！！ボンボン",
+      "slug": "ゲッツ-ボンボン",
+      "workCount": 1,
+      "makerName": "ゲッツ！！ボンボン/妄想族",
+      "makerSlug": "ゲッツ-ボンボン-妄想族"
+    },
+    {
       "name": "ゴーゴーズAIリマスター",
       "slug": "ゴーゴーズaiリマスター",
-      "workCount": 6,
+      "workCount": 7,
       "makerName": "ゴーゴーズ",
       "makerSlug": "ゴーゴーズ"
     },
     {
       "name": "ゴールドTOHJIROレーベル",
       "slug": "ゴールドtohjiroレーベル",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "ドグマ",
       "makerSlug": "ドグマ"
     },
@@ -1433,16 +1776,30 @@
     {
       "name": "こすパコハメ撮りおじさん",
       "slug": "こすパコハメ撮りおじさん",
-      "workCount": 3,
+      "workCount": 4,
       "makerName": "こすパコハメ撮りおじさん",
       "makerSlug": "こすパコハメ撮りおじさん"
     },
     {
+      "name": "コスパ最強！！",
+      "slug": "コスパ最強",
+      "workCount": 1,
+      "makerName": "コスパ最強！！",
+      "makerSlug": "コスパ最強"
+    },
+    {
       "name": "コス堕ち備忘録",
       "slug": "コス堕ち備忘録",
-      "workCount": 2,
+      "workCount": 3,
       "makerName": "HMN WORKS",
       "makerSlug": "hmn-works"
+    },
+    {
+      "name": "ゴリラのひまつぶし",
+      "slug": "ゴリラのひまつぶし",
+      "workCount": 1,
+      "makerName": "ゴリラのひまつぶし",
+      "makerSlug": "ゴリラのひまつぶし"
     },
     {
       "name": "これぞ！素人",
@@ -1454,9 +1811,23 @@
     {
       "name": "ザ・マジックミラー（MM号・MM便）",
       "slug": "ザ・マジックミラー-mm号・mm便",
-      "workCount": 20,
+      "workCount": 29,
       "makerName": "ディープス",
       "makerSlug": "ディープス"
+    },
+    {
+      "name": "シャトーブリ庵",
+      "slug": "シャトーブリ庵",
+      "workCount": 1,
+      "makerName": "MERCURY（マーキュリー）",
+      "makerSlug": "mercury-マーキュリー"
+    },
+    {
+      "name": "ジュエル",
+      "slug": "ジュエル",
+      "workCount": 2,
+      "makerName": "ジュエル",
+      "makerSlug": "ジュエル"
     },
     {
       "name": "シロウトネキ",
@@ -1466,11 +1837,32 @@
       "makerSlug": "シロウトネキ-妄想族"
     },
     {
+      "name": "しろうとヤッホー",
+      "slug": "しろうとヤッホー",
+      "workCount": 1,
+      "makerName": "しろうとヤッホー",
+      "makerSlug": "しろうとヤッホー"
+    },
+    {
+      "name": "しろうと親衛隊",
+      "slug": "しろうと親衛隊",
+      "workCount": 1,
+      "makerName": "しろうとがーる/妄想族",
+      "makerSlug": "しろうとがーる-妄想族"
+    },
+    {
       "name": "スーパースペシャル",
       "slug": "スーパースペシャル",
-      "workCount": 2,
+      "workCount": 3,
       "makerName": "アタッカーズ",
       "makerSlug": "アタッカーズ"
+    },
+    {
+      "name": "すっぴん無加工",
+      "slug": "すっぴん無加工",
+      "workCount": 1,
+      "makerName": "テンダー",
+      "makerSlug": "テンダー"
     },
     {
       "name": "スパルタン",
@@ -1487,9 +1879,23 @@
       "makerSlug": "センタービレッジ"
     },
     {
+      "name": "ソクマン",
+      "slug": "ソクマン",
+      "workCount": 1,
+      "makerName": "タカラ映像",
+      "makerSlug": "タカラ映像"
+    },
+    {
+      "name": "ダイナマイトプレミア",
+      "slug": "ダイナマイトプレミア",
+      "workCount": 1,
+      "makerName": "ダイナマイトエンタープライズ",
+      "makerSlug": "ダイナマイトエンタープライズ"
+    },
+    {
       "name": "ダスッ！",
       "slug": "ダスッ",
-      "workCount": 57,
+      "workCount": 82,
       "makerName": "ダスッ！",
       "makerSlug": "ダスッ"
     },
@@ -1501,11 +1907,25 @@
       "makerSlug": "shigeki"
     },
     {
+      "name": "ダマちゃん。",
+      "slug": "ダマちゃん",
+      "workCount": 1,
+      "makerName": "ダマちゃん。",
+      "makerSlug": "ダマちゃん"
+    },
+    {
       "name": "ダメいきっ！",
       "slug": "ダメいきっ",
-      "workCount": 6,
+      "workCount": 8,
       "makerName": "SHIGEKI",
       "makerSlug": "shigeki"
+    },
+    {
+      "name": "だるま",
+      "slug": "だるま",
+      "workCount": 1,
+      "makerName": "桃太郎映像出版",
+      "makerSlug": "桃太郎映像出版"
     },
     {
       "name": "たんぽぽ/妄想族",
@@ -1515,67 +1935,109 @@
       "makerSlug": "たんぽぽ-妄想族"
     },
     {
+      "name": "ちぇりーこーく",
+      "slug": "ちぇりーこーく",
+      "workCount": 1,
+      "makerName": "チェリーズ",
+      "makerSlug": "チェリーズ"
+    },
+    {
+      "name": "チェリーズれぼ",
+      "slug": "チェリーズれぼ",
+      "workCount": 1,
+      "makerName": "チェリーズれぼ/妄想族",
+      "makerSlug": "チェリーズれぼ-妄想族"
+    },
+    {
       "name": "ちむちむ王国",
       "slug": "ちむちむ王国",
-      "workCount": 1,
+      "workCount": 3,
       "makerName": "三和出版",
       "makerSlug": "三和出版"
     },
     {
+      "name": "チュルチュル素人",
+      "slug": "チュルチュル素人",
+      "workCount": 5,
+      "makerName": "First Star",
+      "makerSlug": "first-star"
+    },
+    {
       "name": "ティーチャー/妄想族",
       "slug": "ティーチャー-妄想族",
-      "workCount": 2,
+      "workCount": 3,
       "makerName": "ティーチャー/妄想族",
       "makerSlug": "ティーチャー-妄想族"
     },
     {
+      "name": "ディープスAIリマスター",
+      "slug": "ディープスaiリマスター",
+      "workCount": 9,
+      "makerName": "ディープス",
+      "makerSlug": "ディープス"
+    },
+    {
       "name": "ティッシュ",
       "slug": "ティッシュ",
-      "workCount": 77,
+      "workCount": 122,
       "makerName": "アイデアポケット",
       "makerSlug": "アイデアポケット"
     },
     {
       "name": "トーキョー ヲタ連/妄想族",
       "slug": "トーキョー-ヲタ連-妄想族",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "トーキョー ヲタ連/妄想族",
       "makerSlug": "トーキョー-ヲタ連-妄想族"
     },
     {
+      "name": "ナイスマッチ",
+      "slug": "ナイスマッチ",
+      "workCount": 1,
+      "makerName": "ヲナサポベスト",
+      "makerSlug": "ヲナサポベスト"
+    },
+    {
       "name": "ながえSTYLE",
       "slug": "ながえstyle",
-      "workCount": 16,
+      "workCount": 22,
       "makerName": "ながえスタイル",
       "makerSlug": "ながえスタイル"
     },
     {
       "name": "ナチュFile",
       "slug": "ナチュfile",
-      "workCount": 3,
+      "workCount": 5,
       "makerName": "ナチュラルハイ",
       "makerSlug": "ナチュラルハイ"
     },
     {
       "name": "ナマっ痴。",
       "slug": "ナマっ痴",
-      "workCount": 2,
+      "workCount": 4,
       "makerName": "グローリークエスト",
       "makerSlug": "グローリークエスト"
     },
     {
       "name": "なまなま",
       "slug": "なまなま",
-      "workCount": 13,
+      "workCount": 24,
       "makerName": "なまなま",
       "makerSlug": "なまなま"
     },
     {
       "name": "ねくすと",
       "slug": "ねくすと",
-      "workCount": 1,
+      "workCount": 4,
       "makerName": "First Star",
       "makerSlug": "first-star"
+    },
+    {
+      "name": "ノーインフォ",
+      "slug": "ノーインフォ",
+      "workCount": 1,
+      "makerName": "INITIUM",
+      "makerSlug": "initium"
     },
     {
       "name": "ノースキンズ",
@@ -1587,9 +2049,23 @@
     {
       "name": "ハイカラ/妄想族",
       "slug": "ハイカラ-妄想族",
-      "workCount": 7,
+      "workCount": 8,
       "makerName": "ハイカラ/妄想族",
       "makerSlug": "ハイカラ-妄想族"
+    },
+    {
+      "name": "ハイパーミックス（グローバルメディアエンタテインメント）",
+      "slug": "ハイパーミックス-グローバルメディアエンタテインメント",
+      "workCount": 1,
+      "makerName": "グローバルメディアエンタテインメント",
+      "makerSlug": "グローバルメディアエンタテインメント"
+    },
+    {
+      "name": "ハイパー熟道",
+      "slug": "ハイパー熟道",
+      "workCount": 2,
+      "makerName": "グローバルメディアエンタテインメント",
+      "makerSlug": "グローバルメディアエンタテインメント"
     },
     {
       "name": "パコパコ団とゆかいな仲間たち/妄想族",
@@ -1601,14 +2077,14 @@
     {
       "name": "はじめ企画",
       "slug": "はじめ企画",
-      "workCount": 1,
+      "workCount": 7,
       "makerName": "はじめ企画",
       "makerSlug": "はじめ企画"
     },
     {
       "name": "バビロン/妄想族",
       "slug": "バビロン-妄想族",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "バビロン/妄想族",
       "makerSlug": "バビロン-妄想族"
     },
@@ -1620,6 +2096,13 @@
       "makerSlug": "ムーディーズ"
     },
     {
+      "name": "ハメドリネットワークSecondEdition",
+      "slug": "ハメドリネットワークsecondedition",
+      "workCount": 4,
+      "makerName": "HMN WORKS",
+      "makerSlug": "hmn-works"
+    },
+    {
       "name": "ハメ録ch",
       "slug": "ハメ録ch",
       "workCount": 1,
@@ -1629,14 +2112,14 @@
     {
       "name": "ハラスメント",
       "slug": "ハラスメント",
-      "workCount": 39,
+      "workCount": 43,
       "makerName": "ハラスメント",
       "makerSlug": "ハラスメント"
     },
     {
       "name": "ビッグモーカル",
       "slug": "ビッグモーカル",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "ビッグモーカル",
       "makerSlug": "ビッグモーカル"
     },
@@ -1650,9 +2133,16 @@
     {
       "name": "ビビアン",
       "slug": "ビビアン",
-      "workCount": 12,
+      "workCount": 18,
       "makerName": "ビビアン",
       "makerSlug": "ビビアン"
+    },
+    {
+      "name": "ひよこ",
+      "slug": "ひよこ",
+      "workCount": 1,
+      "makerName": "ひよこ",
+      "makerSlug": "ひよこ"
     },
     {
       "name": "ピンクカフェオレ",
@@ -1671,7 +2161,7 @@
     {
       "name": "ファーストスター ネオ",
       "slug": "ファーストスター-ネオ",
-      "workCount": 1,
+      "workCount": 5,
       "makerName": "First Star",
       "makerSlug": "first-star"
     },
@@ -1692,14 +2182,14 @@
     {
       "name": "フェチ眼",
       "slug": "フェチ眼",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "フェチ眼",
       "makerSlug": "フェチ眼"
     },
     {
       "name": "ふぇち党",
       "slug": "ふぇち党",
-      "workCount": 2,
+      "workCount": 3,
       "makerName": "DOC",
       "makerSlug": "doc"
     },
@@ -1711,6 +2201,13 @@
       "makerSlug": "グレイズ"
     },
     {
+      "name": "フォーディメンション（エマニエル）",
+      "slug": "フォーディメンション-エマニエル",
+      "workCount": 2,
+      "makerName": "フォーディメンション/エマニエル",
+      "makerSlug": "フォーディメンション-エマニエル"
+    },
+    {
       "name": "プカプカZ",
       "slug": "プカプカz",
       "workCount": 2,
@@ -1720,21 +2217,21 @@
     {
       "name": "ブラックドッグ",
       "slug": "ブラックドッグ",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "バミューダ/妄想族",
       "makerSlug": "バミューダ-妄想族"
     },
     {
       "name": "ふらわー",
       "slug": "ふらわー",
-      "workCount": 1,
+      "workCount": 3,
       "makerName": "たんぽぽ/妄想族",
       "makerSlug": "たんぽぽ-妄想族"
     },
     {
       "name": "プリモ",
       "slug": "プリモ",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "プリモ",
       "makerSlug": "プリモ"
     },
@@ -1748,7 +2245,7 @@
     {
       "name": "プレシャス",
       "slug": "プレシャス",
-      "workCount": 8,
+      "workCount": 11,
       "makerName": "Fitch",
       "makerSlug": "fitch"
     },
@@ -1769,14 +2266,14 @@
     {
       "name": "プレミアムな人妻たち",
       "slug": "プレミアムな人妻たち",
-      "workCount": 1,
+      "workCount": 3,
       "makerName": "プレミアム",
       "makerSlug": "プレミアム"
     },
     {
       "name": "ブロッコリー",
       "slug": "ブロッコリー",
-      "workCount": 7,
+      "workCount": 10,
       "makerName": "ブロッコリー/妄想族",
       "makerSlug": "ブロッコリー-妄想族"
     },
@@ -1790,7 +2287,7 @@
     {
       "name": "ボニータ/妄想族",
       "slug": "ボニータ-妄想族",
-      "workCount": 12,
+      "workCount": 16,
       "makerName": "ボニータ/妄想族",
       "makerSlug": "ボニータ-妄想族"
     },
@@ -1804,7 +2301,7 @@
     {
       "name": "ボンボン",
       "slug": "ボンボン",
-      "workCount": 2,
+      "workCount": 5,
       "makerName": "ゲッツ！！ボンボン/妄想族",
       "makerSlug": "ゲッツ-ボンボン-妄想族"
     },
@@ -1816,23 +2313,51 @@
       "makerSlug": "ゲッツ-ボンボン-妄想族"
     },
     {
+      "name": "ま○こ銀行",
+      "slug": "ま-こ銀行",
+      "workCount": 5,
+      "makerName": "ま○こ銀行",
+      "makerSlug": "ま-こ銀行"
+    },
+    {
+      "name": "マーメイド",
+      "slug": "マーメイド",
+      "workCount": 1,
+      "makerName": "Fitch",
+      "makerSlug": "fitch"
+    },
+    {
       "name": "マジックミラー号",
       "slug": "マジックミラー号",
-      "workCount": 11,
+      "workCount": 14,
       "makerName": "SODクリエイト",
       "makerSlug": "sodクリエイト"
     },
     {
       "name": "マジックミラー号 ハードボイルド",
       "slug": "マジックミラー号-ハードボイルド",
-      "workCount": 3,
+      "workCount": 5,
       "makerName": "サディスティックヴィレッジ",
       "makerSlug": "サディスティックヴィレッジ"
     },
     {
+      "name": "マゾマン",
+      "slug": "マゾマン",
+      "workCount": 2,
+      "makerName": "かぐや姫Pt/妄想族",
+      "makerSlug": "かぐや姫pt-妄想族"
+    },
+    {
+      "name": "マッドボム",
+      "slug": "マッドボム",
+      "workCount": 1,
+      "makerName": "シロウトネキ/妄想族",
+      "makerSlug": "シロウトネキ-妄想族"
+    },
+    {
       "name": "マニアックス（Fitch）",
       "slug": "マニアックス-fitch",
-      "workCount": 2,
+      "workCount": 4,
       "makerName": "Fitch",
       "makerSlug": "fitch"
     },
@@ -1853,14 +2378,14 @@
     {
       "name": "マロンg",
       "slug": "マロンg",
-      "workCount": 1,
+      "workCount": 17,
       "makerName": "BRILL（JADE）",
       "makerSlug": "brill-jade"
     },
     {
       "name": "まんきつ",
       "slug": "まんきつ",
-      "workCount": 20,
+      "workCount": 30,
       "makerName": "ムーディーズ",
       "makerSlug": "ムーディーズ"
     },
@@ -1874,7 +2399,7 @@
     {
       "name": "ミスターミチル",
       "slug": "ミスターミチル",
-      "workCount": 3,
+      "workCount": 9,
       "makerName": "Mr.michiru",
       "makerSlug": "mr-michiru"
     },
@@ -1888,16 +2413,23 @@
     {
       "name": "みんなのキカタン",
       "slug": "みんなのキカタン",
-      "workCount": 36,
+      "workCount": 59,
       "makerName": "ムーディーズ",
       "makerSlug": "ムーディーズ"
     },
     {
       "name": "ムラっch",
       "slug": "ムラっch",
-      "workCount": 2,
+      "workCount": 3,
       "makerName": "ムラっch",
       "makerSlug": "ムラっch"
+    },
+    {
+      "name": "メガ・ハーツ",
+      "slug": "メガ・ハーツ",
+      "workCount": 1,
+      "makerName": "メガハーツ",
+      "makerSlug": "メガハーツ"
     },
     {
       "name": "メタプリ",
@@ -1909,14 +2441,14 @@
     {
       "name": "めばえ＃18",
       "slug": "めばえ-18",
-      "workCount": 1,
+      "workCount": 3,
       "makerName": "SODクリエイト",
       "makerSlug": "sodクリエイト"
     },
     {
       "name": "メモリーズ",
       "slug": "メモリーズ",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "メモリーズ",
       "makerSlug": "メモリーズ"
     },
@@ -1928,6 +2460,13 @@
       "makerSlug": "メロンぱんぱん-妄想族"
     },
     {
+      "name": "モンスターズ",
+      "slug": "モンスターズ",
+      "workCount": 1,
+      "makerName": "MONSTERS",
+      "makerSlug": "monsters"
+    },
+    {
       "name": "ヤマソラパンチ",
       "slug": "ヤマソラパンチ",
       "workCount": 2,
@@ -1935,16 +2474,23 @@
       "makerSlug": "山と空-妄想族"
     },
     {
+      "name": "ゆらら夢",
+      "slug": "ゆらら夢",
+      "workCount": 1,
+      "makerName": "マーレーインターナショナル",
+      "makerSlug": "マーレーインターナショナル"
+    },
+    {
       "name": "ゆるポケ",
       "slug": "ゆるポケ",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "アイデアポケット",
       "makerSlug": "アイデアポケット"
     },
     {
       "name": "ヨリヌキ",
       "slug": "ヨリヌキ",
-      "workCount": 8,
+      "workCount": 14,
       "makerName": "アリスJAPAN",
       "makerSlug": "アリスjapan"
     },
@@ -1965,14 +2511,21 @@
     {
       "name": "ローカルワイフ",
       "slug": "ローカルワイフ",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "花と蜜",
       "makerSlug": "花と蜜"
     },
     {
+      "name": "ロリ専科",
+      "slug": "ロリ専科",
+      "workCount": 1,
+      "makerName": "グレイズ",
+      "makerSlug": "グレイズ"
+    },
+    {
       "name": "暗黒",
       "slug": "暗黒",
-      "workCount": 3,
+      "workCount": 6,
       "makerName": "ティーチャー/妄想族",
       "makerSlug": "ティーチャー-妄想族"
     },
@@ -1986,7 +2539,7 @@
     {
       "name": "闇録",
       "slug": "闇録",
-      "workCount": 2,
+      "workCount": 3,
       "makerName": "闇録",
       "makerSlug": "闇録"
     },
@@ -1998,6 +2551,13 @@
       "makerSlug": "ルビー"
     },
     {
+      "name": "淫漏裸流",
+      "slug": "淫漏裸流",
+      "workCount": 1,
+      "makerName": "ヲナサポベスト",
+      "makerSlug": "ヲナサポベスト"
+    },
+    {
       "name": "宇宙企画",
       "slug": "宇宙企画",
       "workCount": 4,
@@ -2005,9 +2565,23 @@
       "makerSlug": "宇宙企画"
     },
     {
+      "name": "悦虐絶頂",
+      "slug": "悦虐絶頂",
+      "workCount": 1,
+      "makerName": "ホームルーム/妄想族",
+      "makerSlug": "ホームルーム-妄想族"
+    },
+    {
+      "name": "俺のフェチ",
+      "slug": "俺のフェチ",
+      "workCount": 1,
+      "makerName": "ドグマ",
+      "makerSlug": "ドグマ"
+    },
+    {
       "name": "俺の素人-Z- SECOND IMPACT",
       "slug": "俺の素人-z-second-impact",
-      "workCount": 3,
+      "workCount": 4,
       "makerName": "俺の素人-Z- SECOND IMPACT",
       "makerSlug": "俺の素人-z-second-impact"
     },
@@ -2021,7 +2595,7 @@
     {
       "name": "花ざかりの妻たち",
       "slug": "花ざかりの妻たち",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "E-BODY",
       "makerSlug": "e-body"
     },
@@ -2035,37 +2609,51 @@
     {
       "name": "街角シロウトナンパ",
       "slug": "街角シロウトナンパ",
-      "workCount": 18,
+      "workCount": 28,
       "makerName": "DOC",
       "makerSlug": "doc"
     },
     {
+      "name": "楽園（センタービレッジ）",
+      "slug": "楽園-センタービレッジ",
+      "workCount": 1,
+      "makerName": "センタービレッジ",
+      "makerSlug": "センタービレッジ"
+    },
+    {
       "name": "姦乱者",
       "slug": "姦乱者",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "姦乱者/妄想族",
       "makerSlug": "姦乱者-妄想族"
     },
     {
       "name": "完ナマSTYLE",
       "slug": "完ナマstyle",
-      "workCount": 3,
+      "workCount": 5,
       "makerName": "First Star",
       "makerSlug": "first-star"
     },
     {
       "name": "還暦ハメ撮り匠列伝",
       "slug": "還暦ハメ撮り匠列伝",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "同人AV倶楽部/妄想族",
       "makerSlug": "同人av倶楽部-妄想族"
     },
     {
       "name": "巨根ハメ撮り極み",
       "slug": "巨根ハメ撮り極み",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "同人AV倶楽部/妄想族",
       "makerSlug": "同人av倶楽部-妄想族"
+    },
+    {
+      "name": "巨乳",
+      "slug": "巨乳",
+      "workCount": 2,
+      "makerName": "キチックス/妄想族",
+      "makerSlug": "キチックス-妄想族"
     },
     {
       "name": "強く気高い美女たち",
@@ -2077,9 +2665,9 @@
     {
       "name": "極グループ",
       "slug": "極グループ",
-      "workCount": 4,
-      "makerName": "人妻花園劇場",
-      "makerSlug": "人妻花園劇場"
+      "workCount": 5,
+      "makerName": "TAG/ゴールド",
+      "makerSlug": "tag-ゴールド"
     },
     {
       "name": "君を食べたい/妄想族",
@@ -2089,9 +2677,23 @@
       "makerSlug": "君を食べたい-妄想族"
     },
     {
+      "name": "堅者の食卓",
+      "slug": "堅者の食卓",
+      "workCount": 1,
+      "makerName": "堅者の食卓/妄想族",
+      "makerSlug": "堅者の食卓-妄想族"
+    },
+    {
+      "name": "五次元",
+      "slug": "五次元",
+      "workCount": 3,
+      "makerName": "五次元",
+      "makerSlug": "五次元"
+    },
+    {
       "name": "五十路ん",
       "slug": "五十路ん",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "五十路ん",
       "makerSlug": "五十路ん"
     },
@@ -2103,9 +2705,16 @@
       "makerSlug": "センタービレッジ"
     },
     {
+      "name": "左曲がりのダンディ",
+      "slug": "左曲がりのダンディ",
+      "workCount": 1,
+      "makerName": "INITIUM",
+      "makerSlug": "initium"
+    },
+    {
       "name": "山と空",
       "slug": "山と空",
-      "workCount": 11,
+      "workCount": 14,
       "makerName": "山と空/妄想族",
       "makerSlug": "山と空-妄想族"
     },
@@ -2119,30 +2728,30 @@
     {
       "name": "死夜悪",
       "slug": "死夜悪",
-      "workCount": 16,
+      "workCount": 20,
       "makerName": "アタッカーズ",
       "makerSlug": "アタッカーズ"
     },
     {
       "name": "七狗留",
       "slug": "七狗留",
-      "workCount": 17,
+      "workCount": 26,
       "makerName": "プラネットプラス",
       "makerSlug": "プラネットプラス"
     },
     {
       "name": "若桃",
       "slug": "若桃",
-      "workCount": 53,
+      "workCount": 113,
       "makerName": "桃太郎映像出版",
       "makerSlug": "桃太郎映像出版"
     },
     {
       "name": "秋のシコシコ強化月間",
       "slug": "秋のシコシコ強化月間",
-      "workCount": 2,
-      "makerName": "ダスッ！",
-      "makerSlug": "ダスッ"
+      "workCount": 4,
+      "makerName": "無垢",
+      "makerSlug": "無垢"
     },
     {
       "name": "淑女の晩餐",
@@ -2152,16 +2761,30 @@
       "makerSlug": "baltan-バルタン"
     },
     {
+      "name": "熟マン族",
+      "slug": "熟マン族",
+      "workCount": 5,
+      "makerName": "ホットエンターテイメント",
+      "makerSlug": "ホットエンターテイメント"
+    },
+    {
       "name": "熟れコミ",
       "slug": "熟れコミ",
-      "workCount": 11,
+      "workCount": 20,
       "makerName": "マドンナ",
       "makerSlug": "マドンナ"
     },
     {
+      "name": "熟女（ホットエンターテイメント）",
+      "slug": "熟女-ホットエンターテイメント",
+      "workCount": 2,
+      "makerName": "ホットエンターテイメント",
+      "makerSlug": "ホットエンターテイメント"
+    },
+    {
       "name": "熟女JAPAN",
       "slug": "熟女japan",
-      "workCount": 9,
+      "workCount": 11,
       "makerName": "熟女JAPAN",
       "makerSlug": "熟女japan"
     },
@@ -2189,37 +2812,72 @@
     {
       "name": "春のパンツまつり",
       "slug": "春のパンツまつり",
-      "workCount": 8,
-      "makerName": "E-BODY",
-      "makerSlug": "e-body"
+      "workCount": 16,
+      "makerName": "はじめ企画",
+      "makerSlug": "はじめ企画"
+    },
+    {
+      "name": "初声 ウブごえ",
+      "slug": "初声-ウブごえ",
+      "workCount": 1,
+      "makerName": "MERCURY（マーキュリー）",
+      "makerSlug": "mercury-マーキュリー"
+    },
+    {
+      "name": "初代渋谷特別特攻本部",
+      "slug": "初代渋谷特別特攻本部",
+      "workCount": 1,
+      "makerName": "MERCURY（マーキュリー）",
+      "makerSlug": "mercury-マーキュリー"
     },
     {
       "name": "女神（ヴィーナス）",
       "slug": "女神-ヴィーナス",
-      "workCount": 10,
+      "workCount": 14,
       "makerName": "VENUS",
       "makerSlug": "venus"
     },
     {
       "name": "女性主権",
       "slug": "女性主権",
-      "workCount": 1,
+      "workCount": 3,
       "makerName": "BALTAN＜バルタン＞",
       "makerSlug": "baltan-バルタン"
     },
     {
+      "name": "女装TOKIO",
+      "slug": "女装tokio",
+      "workCount": 1,
+      "makerName": "MERCURY（マーキュリー）",
+      "makerSlug": "mercury-マーキュリー"
+    },
+    {
       "name": "女優のクセがスゴい！！",
       "slug": "女優のクセがスゴい",
-      "workCount": 3,
+      "workCount": 5,
       "makerName": "SODクリエイト",
       "makerSlug": "sodクリエイト"
     },
     {
       "name": "職業女子",
       "slug": "職業女子",
-      "workCount": 2,
+      "workCount": 3,
       "makerName": "SHIGEKI",
       "makerSlug": "shigeki"
+    },
+    {
+      "name": "新・熟道",
+      "slug": "新・熟道",
+      "workCount": 2,
+      "makerName": "グローバルメディアエンタテインメント",
+      "makerSlug": "グローバルメディアエンタテインメント"
+    },
+    {
+      "name": "新・熟道新",
+      "slug": "新・熟道新",
+      "workCount": 1,
+      "makerName": "グローバルメディアエンタテインメント",
+      "makerSlug": "グローバルメディアエンタテインメント"
     },
     {
       "name": "新セカイ/妄想族",
@@ -2231,7 +2889,7 @@
     {
       "name": "新宿UNDERGROUND",
       "slug": "新宿underground",
-      "workCount": 1,
+      "workCount": 3,
       "makerName": "MERCURY（マーキュリー）",
       "makerSlug": "mercury-マーキュリー"
     },
@@ -2266,7 +2924,7 @@
     {
       "name": "人妻（ホットエンターテイメント）",
       "slug": "人妻-ホットエンターテイメント",
-      "workCount": 1,
+      "workCount": 6,
       "makerName": "ホットエンターテイメント",
       "makerSlug": "ホットエンターテイメント"
     },
@@ -2280,7 +2938,7 @@
     {
       "name": "是空（センタービレッジ）",
       "slug": "是空-センタービレッジ",
-      "workCount": 1,
+      "workCount": 3,
       "makerName": "センタービレッジ",
       "makerSlug": "センタービレッジ"
     },
@@ -2301,63 +2959,98 @@
     {
       "name": "赤面女子",
       "slug": "赤面女子",
-      "workCount": 11,
+      "workCount": 26,
       "makerName": "赤面女子",
       "makerSlug": "赤面女子"
     },
     {
       "name": "絶景コンボ",
       "slug": "絶景コンボ",
-      "workCount": 4,
+      "workCount": 6,
       "makerName": "山と空/妄想族",
       "makerSlug": "山と空-妄想族"
     },
     {
-      "name": "全日本カメコ協同組合/妄想族",
-      "slug": "全日本カメコ協同組合-妄想族",
+      "name": "専属",
+      "slug": "専属",
       "workCount": 3,
+      "makerName": "桃太郎映像出版",
+      "makerSlug": "桃太郎映像出版"
+    },
+    {
+      "name": "全日本カメコ協同組合",
+      "slug": "全日本カメコ協同組合",
+      "workCount": 1,
       "makerName": "全日本カメコ協同組合/妄想族",
       "makerSlug": "全日本カメコ協同組合-妄想族"
     },
     {
+      "name": "全日本カメコ協同組合/妄想族",
+      "slug": "全日本カメコ協同組合-妄想族",
+      "workCount": 5,
+      "makerName": "全日本カメコ協同組合/妄想族",
+      "makerSlug": "全日本カメコ協同組合-妄想族"
+    },
+    {
+      "name": "素人（ホットエンターテイメント）",
+      "slug": "素人-ホットエンターテイメント",
+      "workCount": 1,
+      "makerName": "ホットエンターテイメント",
+      "makerSlug": "ホットエンターテイメント"
+    },
+    {
       "name": "素人39",
       "slug": "素人39",
-      "workCount": 5,
+      "workCount": 8,
       "makerName": "素人39",
       "makerSlug": "素人39"
     },
     {
       "name": "素人only プラム",
       "slug": "素人only-プラム",
-      "workCount": 10,
+      "workCount": 22,
       "makerName": "プラム",
       "makerSlug": "プラム"
     },
     {
+      "name": "素人Pro",
+      "slug": "素人pro",
+      "workCount": 1,
+      "makerName": "素人Pro",
+      "makerSlug": "素人pro"
+    },
+    {
       "name": "素人バラエティー",
       "slug": "素人バラエティー",
-      "workCount": 5,
-      "makerName": "サディヴィレナウ！",
-      "makerSlug": "サディヴィレナウ"
+      "workCount": 6,
+      "makerName": "サディスティックヴィレッジ",
+      "makerSlug": "サディスティックヴィレッジ"
     },
     {
       "name": "素人ホイホイ/妄想族",
       "slug": "素人ホイホイ-妄想族",
-      "workCount": 18,
+      "workCount": 20,
+      "makerName": "素人ホイホイ/妄想族",
+      "makerSlug": "素人ホイホイ-妄想族"
+    },
+    {
+      "name": "素人ホイホイプラス",
+      "slug": "素人ホイホイプラス",
+      "workCount": 1,
       "makerName": "素人ホイホイ/妄想族",
       "makerSlug": "素人ホイホイ-妄想族"
     },
     {
       "name": "素人ムクムク/ROOKIE",
       "slug": "素人ムクムク-rookie",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "ROOKIE",
       "makerSlug": "rookie"
     },
     {
       "name": "素人喫茶",
       "slug": "素人喫茶",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "素人喫茶/妄想族",
       "makerSlug": "素人喫茶-妄想族"
     },
@@ -2378,7 +3071,7 @@
     {
       "name": "素人娘狂騒局",
       "slug": "素人娘狂騒局",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "BabyEntertainment",
       "makerSlug": "babyentertainment"
     },
@@ -2392,14 +3085,14 @@
     {
       "name": "唾鬼",
       "slug": "唾鬼",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "唾鬼",
       "makerSlug": "唾鬼"
     },
     {
       "name": "大人のドラマ",
       "slug": "大人のドラマ",
-      "workCount": 28,
+      "workCount": 42,
       "makerName": "アタッカーズ",
       "makerSlug": "アタッカーズ"
     },
@@ -2413,35 +3106,42 @@
     {
       "name": "脱ぐのは恥だがペニス立つ",
       "slug": "脱ぐのは恥だがペニス立つ",
-      "workCount": 15,
+      "workCount": 18,
       "makerName": "脱ぐのは恥だがペニス立つ/妄想族",
       "makerSlug": "脱ぐのは恥だがペニス立つ-妄想族"
     },
     {
+      "name": "短縮FunCity",
+      "slug": "短縮funcity",
+      "workCount": 1,
+      "makerName": "FunCity/妄想族",
+      "makerSlug": "funcity-妄想族"
+    },
+    {
       "name": "痴●",
       "slug": "痴",
-      "workCount": 1,
+      "workCount": 4,
       "makerName": "桃太郎映像出版",
       "makerSlug": "桃太郎映像出版"
     },
     {
       "name": "痴女ヘブン",
       "slug": "痴女ヘブン",
-      "workCount": 9,
+      "workCount": 19,
       "makerName": "痴女ヘブン",
       "makerSlug": "痴女ヘブン"
     },
     {
       "name": "痴女ヘブンBEST",
       "slug": "痴女ヘブンbest",
-      "workCount": 1,
+      "workCount": 4,
       "makerName": "痴女ヘブン",
       "makerSlug": "痴女ヘブン"
     },
     {
       "name": "痴人",
       "slug": "痴人",
-      "workCount": 23,
+      "workCount": 29,
       "makerName": "FunCity/妄想族",
       "makerSlug": "funcity-妄想族"
     },
@@ -2469,7 +3169,7 @@
     {
       "name": "超時空夢幻カメコ",
       "slug": "超時空夢幻カメコ",
-      "workCount": 4,
+      "workCount": 6,
       "makerName": "木曜だヨ！全員集合っ！！",
       "makerSlug": "木曜だヨ-全員集合っ"
     },
@@ -2483,9 +3183,16 @@
     {
       "name": "椿鳳院",
       "slug": "椿鳳院",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "椿鳳院",
       "makerSlug": "椿鳳院"
+    },
+    {
+      "name": "鉄板",
+      "slug": "鉄板",
+      "workCount": 3,
+      "makerName": "モデスト",
+      "makerSlug": "モデスト"
     },
     {
       "name": "天女(First Star)",
@@ -2495,9 +3202,16 @@
       "makerSlug": "first-star"
     },
     {
+      "name": "電影美女",
+      "slug": "電影美女",
+      "workCount": 1,
+      "makerName": "Fitch",
+      "makerSlug": "fitch"
+    },
+    {
       "name": "投稿FANクラブ",
       "slug": "投稿fanクラブ",
-      "workCount": 1,
+      "workCount": 3,
       "makerName": "投稿FANクラブ",
       "makerSlug": "投稿fanクラブ"
     },
@@ -2516,18 +3230,32 @@
       "makerSlug": "東京恋人"
     },
     {
+      "name": "桃色吐息",
+      "slug": "桃色吐息",
+      "workCount": 1,
+      "makerName": "センタービレッジ",
+      "makerSlug": "センタービレッジ"
+    },
+    {
       "name": "桃太郎プレミアムベスト",
       "slug": "桃太郎プレミアムベスト",
-      "workCount": 7,
+      "workCount": 17,
       "makerName": "桃太郎映像出版",
       "makerSlug": "桃太郎映像出版"
     },
     {
       "name": "頭狂シャリラ",
       "slug": "頭狂シャリラ",
-      "workCount": 2,
+      "workCount": 5,
       "makerName": "BRILL（JADE）",
       "makerSlug": "brill-jade"
+    },
+    {
+      "name": "働く女たち",
+      "slug": "働く女たち",
+      "workCount": 1,
+      "makerName": "はめちゃんGOLD/妄想族",
+      "makerSlug": "はめちゃんgold-妄想族"
     },
     {
       "name": "同人AV倶楽部/妄想族",
@@ -2539,21 +3267,21 @@
     {
       "name": "毒宴会",
       "slug": "毒宴会",
-      "workCount": 2,
+      "workCount": 4,
       "makerName": "毒宴会",
       "makerSlug": "毒宴会"
     },
     {
       "name": "独占素人",
       "slug": "独占素人",
-      "workCount": 1,
+      "workCount": 7,
       "makerName": "独占素人",
       "makerSlug": "独占素人"
     },
     {
       "name": "二代目つば飲みおじさん（全日本カメコ協同組合/妄想族）",
       "slug": "二代目つば飲みおじさん-全日本カメコ協同組合-妄想族",
-      "workCount": 2,
+      "workCount": 3,
       "makerName": "全日本カメコ協同組合/妄想族",
       "makerSlug": "全日本カメコ協同組合-妄想族"
     },
@@ -2574,23 +3302,44 @@
     {
       "name": "肉漫",
       "slug": "肉漫",
-      "workCount": 5,
+      "workCount": 9,
       "makerName": "Fitch",
       "makerSlug": "fitch"
     },
     {
       "name": "入魂の一乳",
       "slug": "入魂の一乳",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "unfinished",
       "makerSlug": "unfinished"
     },
     {
       "name": "背徳ビチョビチョ！NTR大放出",
       "slug": "背徳ビチョビチョ-ntr大放出",
-      "workCount": 2,
-      "makerName": "マドンナ",
-      "makerSlug": "マドンナ"
+      "workCount": 3,
+      "makerName": "ダスッ！",
+      "makerSlug": "ダスッ"
+    },
+    {
+      "name": "美女神 Fetish",
+      "slug": "美女神-fetish",
+      "workCount": 1,
+      "makerName": "MEGAMI",
+      "makerSlug": "megami"
+    },
+    {
+      "name": "美女神 Queen",
+      "slug": "美女神-queen",
+      "workCount": 1,
+      "makerName": "MEGAMI",
+      "makerSlug": "megami"
+    },
+    {
+      "name": "美少女collection",
+      "slug": "美少女collection",
+      "workCount": 1,
+      "makerName": "Brolle",
+      "makerSlug": "brolle"
     },
     {
       "name": "美人魔女MAX",
@@ -2602,37 +3351,44 @@
     {
       "name": "変態紳士倶楽部",
       "slug": "変態紳士倶楽部",
-      "workCount": 9,
+      "workCount": 27,
       "makerName": "変態紳士倶楽部",
       "makerSlug": "変態紳士倶楽部"
     },
     {
       "name": "豊彦企画",
       "slug": "豊彦企画",
-      "workCount": 5,
+      "workCount": 9,
       "makerName": "豊彦",
       "makerSlug": "豊彦"
     },
     {
       "name": "僕たち男の娘",
       "slug": "僕たち男の娘",
-      "workCount": 1,
+      "workCount": 3,
       "makerName": "僕たち男の娘",
       "makerSlug": "僕たち男の娘"
     },
     {
       "name": "本中",
       "slug": "本中",
-      "workCount": 19,
+      "workCount": 41,
       "makerName": "本中",
       "makerSlug": "本中"
     },
     {
       "name": "本物人妻（旦那に内緒でAV体験）",
       "slug": "本物人妻-旦那に内緒でav体験",
-      "workCount": 3,
+      "workCount": 6,
       "makerName": "SODクリエイト",
       "makerSlug": "sodクリエイト"
+    },
+    {
+      "name": "未満",
+      "slug": "未満",
+      "workCount": 4,
+      "makerName": "未満",
+      "makerSlug": "未満"
     },
     {
       "name": "未来OKAZUラボ",
@@ -2644,14 +3400,14 @@
     {
       "name": "無垢",
       "slug": "無垢",
-      "workCount": 7,
+      "workCount": 21,
       "makerName": "無垢",
       "makerSlug": "無垢"
     },
     {
       "name": "無届けカウパー先生",
       "slug": "無届けカウパー先生",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "unfinished",
       "makerSlug": "unfinished"
     },
@@ -2686,16 +3442,23 @@
     {
       "name": "誘女",
       "slug": "誘女",
-      "workCount": 12,
+      "workCount": 15,
       "makerName": "アタッカーズ",
       "makerSlug": "アタッカーズ"
     },
     {
       "name": "楊貴妃",
       "slug": "楊貴妃",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "ルビー",
       "makerSlug": "ルビー"
+    },
+    {
+      "name": "裸婦趣向",
+      "slug": "裸婦趣向",
+      "workCount": 1,
+      "makerName": "プラネットプラス",
+      "makerSlug": "プラネットプラス"
     },
     {
       "name": "乱交☆パラダイス",
@@ -2705,16 +3468,23 @@
       "makerSlug": "木曜だヨ-全員集合っ"
     },
     {
+      "name": "流出ドキュメント",
+      "slug": "流出ドキュメント",
+      "workCount": 1,
+      "makerName": "ホームルーム/妄想族",
+      "makerSlug": "ホームルーム-妄想族"
+    },
+    {
       "name": "溜池ゴロー",
       "slug": "溜池ゴロー",
-      "workCount": 20,
+      "workCount": 34,
       "makerName": "TAMEIKE",
       "makerSlug": "tameike"
     },
     {
       "name": "龍縛",
       "slug": "龍縛",
-      "workCount": 3,
+      "workCount": 5,
       "makerName": "アタッカーズ",
       "makerSlug": "アタッカーズ"
     },
@@ -2728,7 +3498,7 @@
     {
       "name": "恋愛カノジョ",
       "slug": "恋愛カノジョ",
-      "workCount": 1,
+      "workCount": 4,
       "makerName": "HMN WORKS",
       "makerSlug": "hmn-works"
     },
@@ -2749,21 +3519,21 @@
     {
       "name": "卍GROUP",
       "slug": "卍group",
-      "workCount": 11,
-      "makerName": "JET映像",
-      "makerSlug": "jet映像"
+      "workCount": 14,
+      "makerName": "熟女大学/熟女卍",
+      "makerSlug": "熟女大学-熟女卍"
     },
     {
       "name": "聚楽",
       "slug": "聚楽",
-      "workCount": 12,
+      "workCount": 17,
       "makerName": "センタービレッジ",
       "makerSlug": "センタービレッジ"
     },
     {
       "name": "蜃気楼（蜃気楼）",
       "slug": "蜃気楼-蜃気楼",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "蜃気楼",
       "makerSlug": "蜃気楼"
     }

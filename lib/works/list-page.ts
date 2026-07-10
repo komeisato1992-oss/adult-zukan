@@ -7,6 +7,8 @@ import {
 import { filterDisplayableItems } from "@/lib/dmm/filter";
 import type { DmmItem } from "@/lib/dmm/types";
 import { paginateItems, parsePageParam, WORKS_LIST_PAGE_SIZE } from "@/lib/pagination";
+import { mapPageItemsToWorkCards } from "@/lib/works/paginated-work-list";
+import type { WorkListCardItem } from "@/lib/works/work-list-card-item";
 import {
   buildWorkFilterEntries,
   filterWorkEntriesByQuery,
@@ -21,7 +23,7 @@ import {
 } from "@/lib/works/sort";
 
 export type WorksListPageData = {
-  pageItems: DmmItem[];
+  pageItems: WorkListCardItem[];
   totalItems: number;
   totalPages: number;
   currentPage: number;
@@ -82,7 +84,7 @@ export async function getWorksListPageData(
   ]);
 
   return {
-    pageItems: pagination.items,
+    pageItems: mapPageItemsToWorkCards(pagination.items),
     totalItems: pagination.totalItems,
     totalPages: pagination.totalPages,
     currentPage: pagination.currentPage,

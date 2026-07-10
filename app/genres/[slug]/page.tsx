@@ -2,12 +2,14 @@ import { notFound } from "next/navigation";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { SectionHeader } from "@/components/ui/SectionHeader";
-import { CatalogWorksListSection } from "@/components/works/CatalogWorksListSection";
+import { PaginatedWorkListSection } from "@/components/works/PaginatedWorkListSection";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { getBuildStaticGenerationLimit } from "@/lib/dmm/build-static";
 import { getLimitedEncodedEntityStaticParams } from "@/lib/dmm/generate-static-params";
 import { getGenreSummaryBySlug, getGenreWorksBySlug } from "@/lib/catalog";
 import { parsePageParam } from "@/lib/pagination";
+import { getPaginatedDisplayableWorkCardList } from "@/lib/works/paginated-work-list";
+import { parseWorkSortParam } from "@/lib/works/sort";
 import { siteConfig } from "@/lib/site-config";
 import { PageIntro } from "@/components/ui/PageIntro";
 import { createPageMetadata } from "@/lib/seo/metadata";
@@ -25,7 +27,7 @@ export const dynamicParams = true;
 
 type GenreDetailPageProps = {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; sort?: string }>;
 };
 
 export async function generateStaticParams() {
@@ -67,7 +69,7 @@ export default async function GenreDetailPage({
 }: GenreDetailPageProps) {
   const { slug: rawSlug } = await params;
   const slug = decodeEntitySlug(rawSlug);
-  const { page } = await searchParams;
+  const { page, sort } = await searchParams;
   const genre = await getGenreSummaryBySlug(slug);
 
   if (!genre) {
@@ -75,7 +77,11 @@ export default async function GenreDetailPage({
   }
 
   const works = await getGenreWorksBySlug(slug);
-  const currentPage = parsePageParam(page);
+  const currentSort = parseWorkSortParam(sort);
+  const list = getPaginatedDisplayableWorkCardList(works, {
+    page: parsePageParam(page),
+    sort: currentSort,
+  });
 
   return (
     <>
@@ -105,7 +111,7 @@ export default async function GenreDetailPage({
           <h1 className="border-l-4 border-accent pl-3 text-2xl font-bold text-foreground">
             {genre.name}
           </h1>
-          <p className="mt-2 text-sm text-muted">{works.length}件の作品</p>
+          <p className="mt-2 text-sm text-muted">{genre.workCount}件の作品</p>
           <PageIntro
             text={`${genre.name}ジャンルの作品を一覧掲載。人気作品からお好みの作品を探せます。`}
           />
@@ -113,10 +119,12 @@ export default async function GenreDetailPage({
 
         <section aria-labelledby="genre-all">
           <SectionHeader title="全作品" id="genre-all" />
-          <CatalogWorksListSection
-            items={works}
-            initialPage={currentPage}
-            paginationBasePath={getGenreDetailPath(slug)}
+          <PaginatedWorkListSection
+            pageItems={list.pageItems}
+            currentPage={list.currentPage}
+            totalPages={list.totalPages}
+            basePath={getGenreDetailPath(slug)}
+            currentSort={currentSort}
           />
         </section>
       </PageLayout>

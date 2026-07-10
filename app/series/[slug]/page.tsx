@@ -3,12 +3,14 @@ import { notFound } from "next/navigation";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { SectionHeader } from "@/components/ui/SectionHeader";
-import { CatalogWorksListSection } from "@/components/works/CatalogWorksListSection";
+import { PaginatedWorkListSection } from "@/components/works/PaginatedWorkListSection";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { getBuildStaticGenerationLimit } from "@/lib/dmm/build-static";
 import { getLimitedEncodedEntityStaticParams } from "@/lib/dmm/generate-static-params";
 import { getSeriesSummaryBySlug, getSeriesWorksBySlug } from "@/lib/catalog";
 import { parsePageParam } from "@/lib/pagination";
+import { getPaginatedDisplayableWorkCardList } from "@/lib/works/paginated-work-list";
+import { parseWorkSortParam } from "@/lib/works/sort";
 import { siteConfig } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import { createListDescription } from "@/lib/seo/descriptions";
@@ -29,7 +31,7 @@ export const dynamicParams = true;
 
 type SeriesDetailPageProps = {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; sort?: string }>;
 };
 
 export async function generateStaticParams() {
@@ -71,7 +73,7 @@ export default async function SeriesDetailPage({
 }: SeriesDetailPageProps) {
   const { slug: rawSlug } = await params;
   const slug = decodeEntitySlug(rawSlug);
-  const { page } = await searchParams;
+  const { page, sort } = await searchParams;
   const series = await getSeriesSummaryBySlug(slug);
 
   if (!series) {
@@ -79,7 +81,11 @@ export default async function SeriesDetailPage({
   }
 
   const works = await getSeriesWorksBySlug(slug);
-  const currentPage = parsePageParam(page);
+  const currentSort = parseWorkSortParam(sort);
+  const list = getPaginatedDisplayableWorkCardList(works, {
+    page: parsePageParam(page),
+    sort: currentSort,
+  });
 
   return (
     <>
@@ -120,15 +126,17 @@ export default async function SeriesDetailPage({
           <h1 className="mt-2 border-l-4 border-accent pl-3 text-2xl font-bold text-foreground">
             {series.name}シリーズ
           </h1>
-          <p className="mt-2 text-sm text-muted">{works.length}件の作品</p>
+          <p className="mt-2 text-sm text-muted">{series.workCount}件の作品</p>
         </header>
 
         <section aria-labelledby="series-all" className="mb-10">
           <SectionHeader title="全作品" id="series-all" />
-          <CatalogWorksListSection
-            items={works}
-            initialPage={currentPage}
-            paginationBasePath={getSeriesDetailPath(slug)}
+          <PaginatedWorkListSection
+            pageItems={list.pageItems}
+            currentPage={list.currentPage}
+            totalPages={list.totalPages}
+            basePath={getSeriesDetailPath(slug)}
+            currentSort={currentSort}
           />
         </section>
 

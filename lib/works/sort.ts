@@ -33,6 +33,15 @@ export const HOME_WORK_SORT_KEYS: WorkSortKey[] = [
   "random",
 ];
 
+export const DEFAULT_CATALOG_SORT_OPTIONS: WorkSortOption[] = [
+  { key: "popular", label: WORK_SORT_LABELS.popular },
+  { key: "new", label: WORK_SORT_LABELS.new },
+  { key: "price-desc", label: WORK_SORT_LABELS["price-desc"] },
+  { key: "price-asc", label: WORK_SORT_LABELS["price-asc"] },
+  { key: "duration-desc", label: WORK_SORT_LABELS["duration-desc"] },
+  { key: "random", label: WORK_SORT_LABELS.random },
+];
+
 export type WorkSortOption = {
   key: WorkSortKey;
   label: string;

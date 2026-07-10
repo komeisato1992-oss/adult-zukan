@@ -5,7 +5,7 @@ import { ActressGenreLinks } from "@/components/actresses/ActressGenreLinks";
 import { ActressLatestWork } from "@/components/actresses/ActressLatestWork";
 import { ActressPopularWorks } from "@/components/actresses/ActressPopularWorks";
 import { ActressSeriesLinks } from "@/components/actresses/ActressSeriesLinks";
-import { ActressWorksSection } from "@/components/actresses/ActressWorksSection";
+import { ActressPaginatedWorks } from "@/components/actresses/ActressPaginatedWorks";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { JsonLd } from "@/components/seo/JsonLd";
@@ -18,7 +18,10 @@ import {
 import { getActressDetailPath } from "@/lib/actresses/slug";
 import { buildActressPageSections } from "@/lib/dmm/actress-page";
 import { filterDisplayableItems } from "@/lib/dmm/filter";
+import { getDmmItemMakerName } from "@/lib/dmm/display";
 import { parsePageParam } from "@/lib/pagination";
+import { getPaginatedWorkCardList } from "@/lib/works/paginated-work-list";
+import { parseWorkSortParam } from "@/lib/works/sort";
 import { siteConfig } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import { createListDescription } from "@/lib/seo/descriptions";
@@ -36,7 +39,7 @@ export const dynamicParams = true;
 
 type ActressDetailPageProps = {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; sort?: string; maker?: string }>;
 };
 
 export async function generateStaticParams() {
@@ -77,7 +80,7 @@ export default async function ActressDetailPage({
   searchParams,
 }: ActressDetailPageProps) {
   const { slug } = await params;
-  const { page } = await searchParams;
+  const { page, sort, maker } = await searchParams;
   const actress = await getActressSummaryBySlug(slug);
 
   if (!actress) {
@@ -92,7 +95,18 @@ export default async function ActressDetailPage({
     notFound();
   }
 
-  const currentPage = parsePageParam(page);
+  const selectedMaker = maker?.trim() || undefined;
+  const filteredWorks =
+    selectedMaker != null
+      ? displayableWorks.filter(
+          (item) => getDmmItemMakerName(item) === selectedMaker,
+        )
+      : displayableWorks;
+  const currentSort = parseWorkSortParam(sort);
+  const list = getPaginatedWorkCardList(filteredWorks, {
+    page: parsePageParam(page),
+    sort: currentSort,
+  });
   const actressUrl = `${siteConfig.url}${getActressDetailPath(actress.name)}`;
 
   return (
@@ -157,11 +171,12 @@ export default async function ActressDetailPage({
         <ActressPopularWorks items={sections.popularWorks} />
 
         <Suspense fallback={null}>
-          <ActressWorksSection
-            items={displayableWorks}
-            makers={sections.makers}
+          <ActressPaginatedWorks
             slug={slug}
-            initialPage={currentPage}
+            makers={sections.makers}
+            selectedMaker={selectedMaker}
+            currentSort={currentSort}
+            list={list}
           />
         </Suspense>
 

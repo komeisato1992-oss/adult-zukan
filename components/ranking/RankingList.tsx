@@ -4,7 +4,7 @@ import { RankingWorkCard } from "@/components/ranking/RankingWorkCard";
 import { ActressCard } from "@/components/ui/ActressCard";
 import type { Work } from "@/data/types";
 import type { Actress } from "@/data/types";
-import type { RankingWorkCardItem } from "@/lib/ranking/work-card-item";
+import type { WorkListCardItem } from "@/lib/works/work-list-card-item.types";
 
 type RankedWorkListProps = {
   works: Work[];
@@ -29,7 +29,7 @@ export function RankedWorkList({ works, showRank = true }: RankedWorkListProps) 
 }
 
 type DmmRankedWorkListProps = {
-  items: RankingWorkCardItem[];
+  items: WorkListCardItem[];
   showRank?: boolean;
 };
 

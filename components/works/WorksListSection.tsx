@@ -3,7 +3,7 @@
 import { memo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Pagination } from "@/components/ui/Pagination";
-import { DmmWorkListCard } from "@/components/works/DmmWorkListCard";
+import { WorkListCard } from "@/components/works/WorkListCard";
 import { WorksListControlGroup } from "@/components/works/WorksListControlGroup";
 import {
   buildWorksQueryString,
@@ -14,10 +14,10 @@ import {
 } from "@/lib/works/list-filters";
 import type { WorkSortOption } from "@/lib/works/sort";
 import { parseWorkSortParam } from "@/lib/works/sort";
-import type { DmmItem } from "@/lib/dmm/types";
+import type { WorkListCardItem } from "@/lib/works/work-list-card-item.types";
 
 type WorksListSectionProps = {
-  pageItems: DmmItem[];
+  pageItems: WorkListCardItem[];
   totalItems: number;
   totalPages: number;
   currentPage: number;
@@ -28,14 +28,14 @@ type WorksListSectionProps = {
 };
 
 type WorksListGridProps = {
-  items: DmmItem[];
+  items: WorkListCardItem[];
 };
 
 const WorksListGrid = memo(function WorksListGrid({ items }: WorksListGridProps) {
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
       {items.map((item) => (
-        <DmmWorkListCard key={item.content_id} item={item} />
+        <WorkListCard key={item.contentId} item={item} />
       ))}
     </div>
   );

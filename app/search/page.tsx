@@ -2,7 +2,7 @@ import { PageLayout } from "@/components/layout/PageLayout";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { SearchBar } from "@/components/ui/SearchBar";
 import { PageIntro } from "@/components/ui/PageIntro";
-import { CatalogWorksListSection } from "@/components/works/CatalogWorksListSection";
+import { PaginatedWorkListSection } from "@/components/works/PaginatedWorkListSection";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { unifiedSearch } from "@/lib/search/unified";
 import { parsePageParam } from "@/lib/pagination";
@@ -94,13 +94,13 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
                   ? `（${results.currentPage}/${results.totalPages}ページ目）`
                   : null}
               </p>
-              <CatalogWorksListSection
-                items={results.items}
-                paginationBasePath="/search"
-                initialPage={results.currentPage}
-                totalItems={results.total}
+              <PaginatedWorkListSection
+                pageItems={results.items}
+                currentPage={results.currentPage}
                 totalPages={results.totalPages}
-                query={{ q: results.query, sort }}
+                basePath="/search"
+                currentSort={parseWorkSortParam(sort)}
+                query={{ q: results.query }}
               />
             </div>
           ) : (

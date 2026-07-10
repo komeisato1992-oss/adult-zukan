@@ -3,10 +3,10 @@ import { FavoriteCardButton } from "@/components/user/FavoriteCardButton";
 import { CatalogWorkImage } from "@/components/ui/CatalogWorkImage";
 import { WorkCardCtaRow } from "@/components/works/WorkCardCtaRow";
 import { CompactNameList } from "@/components/ui/CompactNameList";
-import type { RankingWorkCardItem } from "@/lib/ranking/work-card-item";
+import type { WorkListCardItem } from "@/lib/works/work-list-card-item.types";
 
 type RankingWorkCardProps = {
-  item: RankingWorkCardItem;
+  item: WorkListCardItem;
   className?: string;
   size?: "default" | "large";
 };

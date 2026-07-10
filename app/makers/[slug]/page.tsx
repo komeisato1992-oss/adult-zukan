@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { SectionHeader } from "@/components/ui/SectionHeader";
-import { CatalogWorksListSection } from "@/components/works/CatalogWorksListSection";
+import { PaginatedWorkListSection } from "@/components/works/PaginatedWorkListSection";
 import { DmmRelatedWorks } from "@/components/works/DmmRelatedWorks";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { getBuildStaticGenerationLimit } from "@/lib/dmm/build-static";
@@ -20,6 +20,8 @@ import {
 import { getActressDetailPath } from "@/lib/actresses/slug";
 import { getMakerInternalLinks } from "@/lib/dmm/internal-links";
 import { parsePageParam } from "@/lib/pagination";
+import { getPaginatedDisplayableWorkCardList } from "@/lib/works/paginated-work-list";
+import { parseWorkSortParam } from "@/lib/works/sort";
 import { siteConfig } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import { createListDescription } from "@/lib/seo/descriptions";
@@ -35,7 +37,7 @@ export const dynamicParams = true;
 
 type MakerDetailPageProps = {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; sort?: string }>;
 };
 
 export async function generateStaticParams() {
@@ -77,7 +79,7 @@ export default async function MakerDetailPage({
 }: MakerDetailPageProps) {
   const { slug: rawSlug } = await params;
   const slug = decodeEntitySlug(rawSlug);
-  const { page } = await searchParams;
+  const { page, sort } = await searchParams;
   const maker = await getMakerSummaryBySlug(slug);
 
   if (!maker) {
@@ -87,7 +89,11 @@ export default async function MakerDetailPage({
   const works = await getMakerWorksBySlug(slug);
   const { popularWorks, topSeries, topActresses } =
     await getMakerInternalLinks(slug);
-  const currentPage = parsePageParam(page);
+  const currentSort = parseWorkSortParam(sort);
+  const list = getPaginatedDisplayableWorkCardList(works, {
+    page: parsePageParam(page),
+    sort: currentSort,
+  });
   const makerUrl = `${siteConfig.url}${getMakerDetailPath(maker.slug)}`;
 
   return (
@@ -118,7 +124,7 @@ export default async function MakerDetailPage({
           <h1 className="border-l-4 border-accent pl-3 text-2xl font-bold text-foreground">
             {maker.name}
           </h1>
-          <p className="mt-2 text-sm text-muted">{works.length}件の作品</p>
+          <p className="mt-2 text-sm text-muted">{maker.workCount}件の作品</p>
         </header>
 
         {popularWorks.length > 0 ? (
@@ -170,11 +176,13 @@ export default async function MakerDetailPage({
 
         <section aria-labelledby="maker-all" className="mt-12">
           <SectionHeader title="全作品" id="maker-all" />
-          {works.length > 0 ? (
-            <CatalogWorksListSection
-              items={works}
-              initialPage={currentPage}
-              paginationBasePath={getMakerDetailPath(slug)}
+          {list.totalItems > 0 ? (
+            <PaginatedWorkListSection
+              pageItems={list.pageItems}
+              currentPage={list.currentPage}
+              totalPages={list.totalPages}
+              basePath={getMakerDetailPath(slug)}
+              currentSort={currentSort}
             />
           ) : (
             <p className="rounded border border-border bg-surface p-8 text-center text-sm text-muted">

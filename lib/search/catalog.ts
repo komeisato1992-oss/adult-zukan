@@ -8,6 +8,8 @@ import {
   parsePageParam,
   WORKS_LIST_PAGE_SIZE,
 } from "@/lib/pagination";
+import { mapPageItemsToWorkCards } from "@/lib/works/paginated-work-list";
+import type { WorkListCardItem } from "@/lib/works/work-list-card-item";
 import { getSearchIndex } from "@/lib/search/index";
 import {
   normalizeSearchInput,
@@ -15,7 +17,7 @@ import {
 } from "@/lib/search/match";
 
 export type CatalogSearchResults = {
-  items: DmmItem[];
+  items: WorkListCardItem[];
   query: string;
   total: number;
   currentPage: number;
@@ -97,7 +99,7 @@ export async function searchCatalog(
   );
 
   return {
-    items: pagination.items,
+    items: mapPageItemsToWorkCards(pagination.items),
     query: trimmed,
     total,
     currentPage: pagination.currentPage,

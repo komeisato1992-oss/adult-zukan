@@ -62,7 +62,7 @@ export function DmmWorkCard({
           <div className="relative">
             <CatalogWorkImage src={imageUrl} alt={item.title} variant="portrait" />
             {isOnSale && (
-              <span className="absolute left-2.5 top-2.5 z-10 rounded-sm bg-accent px-2 py-0.5 text-xs font-bold text-white shadow-sm">
+              <span className="absolute right-2.5 top-2.5 z-10 rounded-sm bg-accent px-2 py-0.5 text-xs font-bold text-white shadow-sm">
                 SALE
               </span>
             )}

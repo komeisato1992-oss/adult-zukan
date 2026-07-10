@@ -35,7 +35,7 @@ export function WorkCard({
         className="aspect-[2/3]"
       />
       {isOnSale && (
-        <span className="absolute left-2.5 top-2.5 z-10 rounded-sm bg-accent px-2 py-0.5 text-xs font-bold text-white shadow-sm">
+        <span className="absolute right-2.5 top-2.5 z-10 rounded-sm bg-accent px-2 py-0.5 text-xs font-bold text-white shadow-sm">
           SALE
         </span>
       )}

@@ -73,10 +73,6 @@ export function AgeGateModal({ onVerified }: AgeGateModalProps) {
             </button>
           </div>
         </div>
-
-        <p className="border-t border-border bg-surface px-6 py-3 text-center text-xs text-muted">
-          当サイトはアフィリエイトリンクを含みます
-        </p>
       </div>
     </div>
   );

@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-10T06:57:05.537Z",
-  "total": 254,
+  "updatedAt": "2026-07-10T09:41:35.934Z",
+  "total": 256,
   "items": [
     {
       "name": "1113工房/妄想族",
@@ -10,7 +10,7 @@
     {
       "name": "ABC/妄想族",
       "slug": "abc-妄想族",
-      "workCount": 15
+      "workCount": 16
     },
     {
       "name": "Aircontrol",
@@ -45,7 +45,7 @@
     {
       "name": "BeFree",
       "slug": "befree",
-      "workCount": 2
+      "workCount": 3
     },
     {
       "name": "BonキュンBon",
@@ -105,12 +105,12 @@
     {
       "name": "FAIR＆WAY",
       "slug": "fair-way",
-      "workCount": 6
+      "workCount": 8
     },
     {
       "name": "FALENO",
       "slug": "faleno",
-      "workCount": 17
+      "workCount": 18
     },
     {
       "name": "FAプロ",
@@ -125,7 +125,7 @@
     {
       "name": "Fitch",
       "slug": "fitch",
-      "workCount": 40
+      "workCount": 41
     },
     {
       "name": "FLAVORY（フレーバリー）",
@@ -148,6 +148,16 @@
       "workCount": 1
     },
     {
+      "name": "grace",
+      "slug": "grace",
+      "workCount": 1
+    },
+    {
+      "name": "h.m.p",
+      "slug": "h-m-p",
+      "workCount": 2
+    },
+    {
       "name": "HALENTINO/妄想族",
       "slug": "halentino-妄想族",
       "workCount": 4
@@ -165,7 +175,7 @@
     {
       "name": "Hsoda",
       "slug": "hsoda",
-      "workCount": 10
+      "workCount": 11
     },
     {
       "name": "Hunter",
@@ -175,7 +185,7 @@
     {
       "name": "JET映像",
       "slug": "jet映像",
-      "workCount": 7
+      "workCount": 9
     },
     {
       "name": "kawaii",
@@ -230,7 +240,7 @@
     {
       "name": "million",
       "slug": "million",
-      "workCount": 14
+      "workCount": 15
     },
     {
       "name": "Mr.michiru",
@@ -270,7 +280,7 @@
     {
       "name": "OPPAI",
       "slug": "oppai",
-      "workCount": 21
+      "workCount": 27
     },
     {
       "name": "PETSHOP/妄想族",
@@ -285,7 +295,7 @@
     {
       "name": "ROCKET",
       "slug": "rocket",
-      "workCount": 4
+      "workCount": 5
     },
     {
       "name": "ROOKIE",
@@ -305,7 +315,7 @@
     {
       "name": "SEX Agent/妄想族",
       "slug": "sex-agent-妄想族",
-      "workCount": 2
+      "workCount": 3
     },
     {
       "name": "SHIGEKI",
@@ -320,17 +330,17 @@
     {
       "name": "SILVER BIRCH",
       "slug": "silver-birch",
-      "workCount": 65
+      "workCount": 68
     },
     {
       "name": "SODクリエイト",
       "slug": "sodクリエイト",
-      "workCount": 85
+      "workCount": 86
     },
     {
       "name": "SUN",
       "slug": "sun",
-      "workCount": 3
+      "workCount": 4
     },
     {
       "name": "SWITCH",
@@ -425,22 +435,22 @@
     {
       "name": "アイデアポケット",
       "slug": "アイデアポケット",
-      "workCount": 84
+      "workCount": 90
     },
     {
       "name": "アタッカーズ",
       "slug": "アタッカーズ",
-      "workCount": 74
+      "workCount": 77
     },
     {
       "name": "アリスJAPAN",
       "slug": "アリスjapan",
-      "workCount": 105
+      "workCount": 107
     },
     {
       "name": "アロマ企画",
       "slug": "アロマ企画",
-      "workCount": 10
+      "workCount": 11
     },
     {
       "name": "うさぎ/妄想族",
@@ -460,7 +470,7 @@
     {
       "name": "エスワン ナンバーワンスタイル",
       "slug": "エスワン-ナンバーワンスタイル",
-      "workCount": 273
+      "workCount": 293
     },
     {
       "name": "エムズビデオグループ",
@@ -525,7 +535,7 @@
     {
       "name": "クリスタル映像",
       "slug": "クリスタル映像",
-      "workCount": 17
+      "workCount": 18
     },
     {
       "name": "クレイジーウォーカー",
@@ -550,7 +560,7 @@
     {
       "name": "グローリークエスト",
       "slug": "グローリークエスト",
-      "workCount": 29
+      "workCount": 30
     },
     {
       "name": "ケイ・エム・プロデュース",
@@ -680,7 +690,7 @@
     {
       "name": "ダスッ！",
       "slug": "ダスッ",
-      "workCount": 51
+      "workCount": 53
     },
     {
       "name": "たんぽぽ/妄想族",
@@ -705,7 +715,7 @@
     {
       "name": "ディープス",
       "slug": "ディープス",
-      "workCount": 48
+      "workCount": 49
     },
     {
       "name": "デジタルアーク",
@@ -765,7 +775,7 @@
     {
       "name": "パコパコ団とゆかいな仲間たち/妄想族",
       "slug": "パコパコ団とゆかいな仲間たち-妄想族",
-      "workCount": 12
+      "workCount": 13
     },
     {
       "name": "はじめ企画",
@@ -795,7 +805,7 @@
     {
       "name": "バレマンッ！！/妄想族",
       "slug": "バレマンッ-妄想族",
-      "workCount": 4
+      "workCount": 5
     },
     {
       "name": "ビッグモーカル",
@@ -825,7 +835,7 @@
     {
       "name": "プラネットプラス",
       "slug": "プラネットプラス",
-      "workCount": 21
+      "workCount": 22
     },
     {
       "name": "プラム",
@@ -845,7 +855,7 @@
     {
       "name": "プレミアム",
       "slug": "プレミアム",
-      "workCount": 15
+      "workCount": 17
     },
     {
       "name": "ブロッコリー/妄想族",
@@ -880,12 +890,12 @@
     {
       "name": "マックスエー",
       "slug": "マックスエー",
-      "workCount": 21
+      "workCount": 22
     },
     {
       "name": "マドンナ",
       "slug": "マドンナ",
-      "workCount": 198
+      "workCount": 216
     },
     {
       "name": "まるかあの/妄想族",
@@ -905,7 +915,7 @@
     {
       "name": "ムーディーズ",
       "slug": "ムーディーズ",
-      "workCount": 271
+      "workCount": 286
     },
     {
       "name": "ムラっch",
@@ -965,7 +975,7 @@
     {
       "name": "ルビー",
       "slug": "ルビー",
-      "workCount": 13
+      "workCount": 14
     },
     {
       "name": "レアルワークス",
@@ -980,7 +990,7 @@
     {
       "name": "ロイヤル",
       "slug": "ロイヤル",
-      "workCount": 11
+      "workCount": 12
     },
     {
       "name": "ワー",
@@ -990,7 +1000,7 @@
     {
       "name": "ワンズファクトリー",
       "slug": "ワンズファクトリー",
-      "workCount": 47
+      "workCount": 49
     },
     {
       "name": "闇録",
@@ -1180,7 +1190,7 @@
     {
       "name": "桃太郎映像出版",
       "slug": "桃太郎映像出版",
-      "workCount": 77
+      "workCount": 78
     },
     {
       "name": "同人AV倶楽部/妄想族",
@@ -1230,7 +1240,7 @@
     {
       "name": "本中",
       "slug": "本中",
-      "workCount": 17
+      "workCount": 20
     },
     {
       "name": "未来OKAZUラボ",
@@ -1240,7 +1250,7 @@
     {
       "name": "無垢",
       "slug": "無垢",
-      "workCount": 7
+      "workCount": 8
     },
     {
       "name": "無理くりえいてぃぶ",

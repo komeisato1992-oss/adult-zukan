@@ -4,12 +4,13 @@ import { memo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Pagination } from "@/components/ui/Pagination";
 import { WorkListCard } from "@/components/works/WorkListCard";
+import { WorksFilters } from "@/components/works/filters/WorksFilters";
 import { WorksListControlGroup } from "@/components/works/WorksListControlGroup";
 import {
+  applyWorksFilterDraftToQuery,
   buildWorksQueryString,
-  WORK_DATE_FILTER_OPTIONS,
-  WORK_PRICE_FILTER_OPTIONS,
   type WorkFilterOption,
+  type WorksFilterDraft,
   type WorksListQueryState,
 } from "@/lib/works/list-filters";
 import type { WorkSortOption } from "@/lib/works/sort";
@@ -84,29 +85,31 @@ export function WorksListSection({
       ? SALE_DEFAULT_WORK_SORT
       : parseWorkSortParam(queryState.sort);
 
-  const updateQuery = useCallback(
-    (patch: Partial<WorksListQueryState>, resetPage = false) => {
-      const next = mergeQuery(queryState, patch, resetPage);
+  const navigate = useCallback(
+    (next: WorksListQueryState) => {
       const qs = buildWorksQueryString(next);
       router.push(qs ? `/works?${qs}` : "/works");
     },
-    [queryState, router],
+    [router],
   );
 
-  const activeConditions = [
-    queryState.genre ? `ジャンル：${queryState.genre}` : null,
-    queryState.maker ? `メーカー：${queryState.maker}` : null,
-    queryState.price && queryState.price !== "all"
-      ? `価格帯：${WORK_PRICE_FILTER_OPTIONS.find((o) => o.key === queryState.price)?.label ?? queryState.price}`
-      : null,
-    queryState.date && queryState.date !== "all"
-      ? `発売日：${WORK_DATE_FILTER_OPTIONS.find((o) => o.key === queryState.date)?.label ?? queryState.date}`
-      : null,
-  ].filter((value): value is string => Boolean(value));
+  const updateQuery = useCallback(
+    (patch: Partial<WorksListQueryState>, resetPage = false) => {
+      navigate(mergeQuery(queryState, patch, resetPage));
+    },
+    [navigate, queryState],
+  );
 
-  const clearFilters = useCallback(() => {
-    updateQuery({ genre: undefined, maker: undefined, price: "all", date: "all" }, true);
-  }, [updateQuery]);
+  const applyFilters = useCallback(
+    (draft: WorksFilterDraft, resetPage = true) => {
+      const next = applyWorksFilterDraftToQuery(
+        mergeQuery(queryState, {}, resetPage),
+        draft,
+      );
+      navigate(next);
+    },
+    [navigate, queryState],
+  );
 
   const handlePageChange = useCallback(
     (page: number) => {
@@ -118,65 +121,12 @@ export function WorksListSection({
   return (
     <>
       <div className="mb-5 space-y-4">
-        <WorksListControlGroup label="絞り込み">
-          <div className="grid w-full gap-3 sm:grid-cols-2 md:flex md:flex-1 md:flex-wrap">
-            <select
-              value={queryState.genre ?? ""}
-              onChange={(event) =>
-                updateQuery({ genre: event.target.value || undefined }, true)
-              }
-              className="h-10 rounded border border-border bg-white px-3 text-sm text-foreground md:min-w-[140px]"
-            >
-              <option value="">ジャンル ▼</option>
-              {genreOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={queryState.maker ?? ""}
-              onChange={(event) =>
-                updateQuery({ maker: event.target.value || undefined }, true)
-              }
-              className="h-10 rounded border border-border bg-white px-3 text-sm text-foreground md:min-w-[140px]"
-            >
-              <option value="">メーカー ▼</option>
-              {makerOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={queryState.price ?? "all"}
-              onChange={(event) => updateQuery({ price: event.target.value }, true)}
-              className="h-10 rounded border border-border bg-white px-3 text-sm text-foreground md:min-w-[140px]"
-            >
-              <option value="all">価格帯 ▼</option>
-              {WORK_PRICE_FILTER_OPTIONS.filter((o) => o.key !== "all").map((option) => (
-                <option key={option.key} value={option.key}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-
-            <select
-              value={queryState.date ?? "all"}
-              onChange={(event) => updateQuery({ date: event.target.value }, true)}
-              className="h-10 rounded border border-border bg-white px-3 text-sm text-foreground md:min-w-[140px]"
-            >
-              <option value="all">発売日 ▼</option>
-              {WORK_DATE_FILTER_OPTIONS.filter((o) => o.key !== "all").map((option) => (
-                <option key={option.key} value={option.key}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </WorksListControlGroup>
+        <WorksFilters
+          genreOptions={genreOptions}
+          makerOptions={makerOptions}
+          appliedQuery={queryState}
+          onApply={applyFilters}
+        />
 
         <WorksListControlGroup label="並び替え">
           <select
@@ -193,24 +143,6 @@ export function WorksListSection({
           </select>
         </WorksListControlGroup>
       </div>
-
-      {activeConditions.length > 0 ? (
-        <div className="mb-5 rounded border border-border bg-surface px-4 py-3 text-sm">
-          <p className="font-medium text-foreground">絞り込み中：</p>
-          {activeConditions.map((condition) => (
-            <p key={condition} className="mt-1 text-muted">
-              {condition}
-            </p>
-          ))}
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="mt-2 text-accent hover:underline"
-          >
-            条件をクリア
-          </button>
-        </div>
-      ) : null}
 
       <p className="mb-6 text-sm text-muted">
         {totalItems.toLocaleString("ja-JP")}件の作品が見つかりました。

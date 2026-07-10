@@ -49,7 +49,9 @@ export function parseWorksListQueryState(params: {
   sort?: string;
   page?: string;
   genre?: string;
+  genres?: string;
   maker?: string;
+  makers?: string;
   price?: string;
   date?: string;
 }): WorksListQueryState {
@@ -59,7 +61,9 @@ export function parseWorksListQueryState(params: {
     filter: params.filter,
     sort: params.sort,
     genre: params.genre,
+    genres: params.genres,
     maker: params.maker,
+    makers: params.makers,
     price: params.price ?? "all",
     date: params.date ?? "all",
     page: params.page ?? "1",

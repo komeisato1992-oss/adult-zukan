@@ -20,6 +20,11 @@ export type WorkPriceFilterKey =
 
 export type WorkDateFilterKey =
   | "all"
+  | "7d"
+  | "30d"
+  | "3m"
+  | "6m"
+  | "1y"
   | "today"
   | "this-week"
   | "this-month"
@@ -46,11 +51,12 @@ export const WORK_DATE_FILTER_OPTIONS: Array<{
   key: WorkDateFilterKey;
   label: string;
 }> = [
-  { key: "all", label: "すべて" },
-  { key: "today", label: "今日" },
-  { key: "this-week", label: "今週" },
-  { key: "this-month", label: "今月" },
-  { key: "this-year", label: "今年" },
+  { key: "all", label: "指定なし" },
+  { key: "7d", label: "7日以内" },
+  { key: "30d", label: "30日以内" },
+  { key: "3m", label: "3か月以内" },
+  { key: "6m", label: "6か月以内" },
+  { key: "1y", label: "1年以内" },
 ];
 
 export type WorksListQueryState = {
@@ -58,12 +64,70 @@ export type WorksListQueryState = {
   sale?: string;
   filter?: string;
   sort?: string;
+  /** @deprecated genres を使用 */
   genre?: string;
+  genres?: string;
+  /** @deprecated makers を使用 */
   maker?: string;
+  makers?: string;
   price?: string;
   date?: string;
   page?: string;
 };
+
+export type WorksFilterDraft = {
+  genres: string[];
+  makers: string[];
+  price: WorkPriceFilterKey;
+  date: WorkDateFilterKey;
+};
+
+function splitCsvParam(value?: string | null): string[] {
+  if (!value?.trim()) return [];
+  return [...new Set(value.split(",").map((part) => part.trim()).filter(Boolean))];
+}
+
+export function getAppliedGenres(query: WorksListQueryState): string[] {
+  const fromPlural = splitCsvParam(query.genres);
+  if (fromPlural.length > 0) return fromPlural;
+  const legacy = query.genre?.trim();
+  return legacy ? [legacy] : [];
+}
+
+export function getAppliedMakers(query: WorksListQueryState): string[] {
+  const fromPlural = splitCsvParam(query.makers);
+  if (fromPlural.length > 0) return fromPlural;
+  const legacy = query.maker?.trim();
+  return legacy ? [legacy] : [];
+}
+
+export function buildWorksFilterDraftFromQuery(
+  query: WorksListQueryState,
+): WorksFilterDraft {
+  return {
+    genres: getAppliedGenres(query),
+    makers: getAppliedMakers(query),
+    price: parsePriceFilter(query.price),
+    date: parseDateFilter(query.date),
+  };
+}
+
+export function applyWorksFilterDraftToQuery(
+  query: WorksListQueryState,
+  draft: WorksFilterDraft,
+): WorksListQueryState {
+  return {
+    ...query,
+    genre: undefined,
+    genres:
+      draft.genres.length > 0 ? draft.genres.join(",") : undefined,
+    maker: undefined,
+    makers:
+      draft.makers.length > 0 ? draft.makers.join(",") : undefined,
+    price: draft.price,
+    date: draft.date,
+  };
+}
 
 function parseReleaseTimestamp(item: DmmItem): number {
   const raw = item.date?.trim();
@@ -86,6 +150,11 @@ function parsePriceFilter(value?: string): WorkPriceFilterKey {
 
 function parseDateFilter(value?: string): WorkDateFilterKey {
   switch (value) {
+    case "7d":
+    case "30d":
+    case "3m":
+    case "6m":
+    case "1y":
     case "today":
     case "this-week":
     case "this-month":
@@ -115,50 +184,58 @@ function matchesPriceFilter(item: DmmItem, filter: WorkPriceFilterKey): boolean 
   }
 }
 
-function getDateBounds() {
+function getDateCutoff(filter: WorkDateFilterKey): number | null {
+  if (filter === "all") return null;
+
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const weekStart = new Date(todayStart);
-  const day = weekStart.getDay();
-  const diff = day === 0 ? 6 : day - 1;
-  weekStart.setDate(weekStart.getDate() - diff);
-  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const yearStart = new Date(now.getFullYear(), 0, 1);
 
-  return {
-    todayStart: todayStart.getTime(),
-    weekStart: weekStart.getTime(),
-    monthStart: monthStart.getTime(),
-    yearStart: yearStart.getTime(),
-  };
+  switch (filter) {
+    case "7d":
+    case "today":
+    case "this-week": {
+      const cutoff = new Date(todayStart);
+      cutoff.setDate(cutoff.getDate() - 7);
+      return cutoff.getTime();
+    }
+    case "30d":
+    case "this-month": {
+      const cutoff = new Date(todayStart);
+      cutoff.setDate(cutoff.getDate() - 30);
+      return cutoff.getTime();
+    }
+    case "3m": {
+      const cutoff = new Date(todayStart);
+      cutoff.setMonth(cutoff.getMonth() - 3);
+      return cutoff.getTime();
+    }
+    case "6m": {
+      const cutoff = new Date(todayStart);
+      cutoff.setMonth(cutoff.getMonth() - 6);
+      return cutoff.getTime();
+    }
+    case "1y":
+    case "this-year": {
+      const cutoff = new Date(todayStart);
+      cutoff.setFullYear(cutoff.getFullYear() - 1);
+      return cutoff.getTime();
+    }
+    default:
+      return null;
+  }
 }
 
 function matchesDateFilterWithBounds(
   item: DmmItem,
   filter: WorkDateFilterKey,
-  bounds: ReturnType<typeof getDateBounds>,
 ): boolean {
   if (filter === "all") return true;
+  const cutoff = getDateCutoff(filter);
+  if (cutoff == null) return true;
+
   const ts = parseReleaseTimestamp(item);
   if (ts <= 0) return false;
-
-  switch (filter) {
-    case "today":
-      return ts >= bounds.todayStart;
-    case "this-week":
-      return ts >= bounds.weekStart;
-    case "this-month":
-      return ts >= bounds.monthStart;
-    case "this-year":
-      return ts >= bounds.yearStart;
-    default:
-      return true;
-  }
-}
-
-function matchesDateFilter(item: DmmItem, filter: WorkDateFilterKey): boolean {
-  if (filter === "all") return true;
-  return matchesDateFilterWithBounds(item, filter, getDateBounds());
+  return ts >= cutoff;
 }
 
 export type WorkFilterEntry = {
@@ -214,23 +291,12 @@ function matchesPriceFilterEntry(
 function matchesDateFilterEntry(
   entry: WorkFilterEntry,
   filter: WorkDateFilterKey,
-  bounds: ReturnType<typeof getDateBounds>,
 ): boolean {
   if (filter === "all") return true;
+  const cutoff = getDateCutoff(filter);
+  if (cutoff == null) return true;
   if (entry.releaseTs <= 0) return false;
-
-  switch (filter) {
-    case "today":
-      return entry.releaseTs >= bounds.todayStart;
-    case "this-week":
-      return entry.releaseTs >= bounds.weekStart;
-    case "this-month":
-      return entry.releaseTs >= bounds.monthStart;
-    case "this-year":
-      return entry.releaseTs >= bounds.yearStart;
-    default:
-      return true;
-  }
+  return entry.releaseTs >= cutoff;
 }
 
 export function filterWorkEntriesByQuery(
@@ -238,21 +304,22 @@ export function filterWorkEntriesByQuery(
   query: WorksListQueryState,
 ): DmmItem[] {
   const keyword = query.q?.trim().toLowerCase();
-  const genre = query.genre?.trim();
-  const maker = query.maker?.trim();
+  const genres = getAppliedGenres(query);
+  const makers = getAppliedMakers(query);
   const price = parsePriceFilter(query.price);
   const date = parseDateFilter(query.date);
   const saleOnly = isWorksListSaleQuery(query);
-  const dateBounds = date !== "all" ? getDateBounds() : null;
 
   const result: DmmItem[] = [];
 
   for (const entry of entries) {
     if (keyword && !entry.haystack.includes(keyword)) continue;
 
-    if (genre && !entry.genres.includes(genre)) continue;
+    if (genres.length > 0 && !genres.some((genre) => entry.genres.includes(genre))) {
+      continue;
+    }
 
-    if (maker && entry.maker !== maker) continue;
+    if (makers.length > 0 && !makers.includes(entry.maker)) continue;
 
     if (saleOnly) {
       if (!isDmmItemOnSale(entry.item)) {
@@ -262,7 +329,7 @@ export function filterWorkEntriesByQuery(
 
     if (!matchesPriceFilterEntry(entry, price)) continue;
 
-    if (dateBounds && !matchesDateFilterEntry(entry, date, dateBounds)) continue;
+    if (!matchesDateFilterEntry(entry, date)) continue;
 
     result.push(entry.item);
   }
@@ -305,12 +372,11 @@ export function filterWorksByQuery(
   query: WorksListQueryState,
 ): DmmItem[] {
   const keyword = query.q?.trim().toLowerCase();
-  const genre = query.genre?.trim();
-  const maker = query.maker?.trim();
+  const genres = getAppliedGenres(query);
+  const makers = getAppliedMakers(query);
   const price = parsePriceFilter(query.price);
   const date = parseDateFilter(query.date);
   const saleOnly = isWorksListSaleQuery(query);
-  const dateBounds = date !== "all" ? getDateBounds() : null;
 
   return items.filter((item) => {
     if (keyword) {
@@ -322,13 +388,14 @@ export function filterWorksByQuery(
       if (!haystack.includes(keyword)) return false;
     }
 
-    if (genre) {
-      const genres = getDmmItemGenreNameList(item);
-      if (!genres.includes(genre)) return false;
+    if (genres.length > 0) {
+      const itemGenres = getDmmItemGenreNameList(item);
+      if (!genres.some((genre) => itemGenres.includes(genre))) return false;
     }
 
-    if (maker) {
-      if (getDmmItemMakerName(item) !== maker) return false;
+    if (makers.length > 0) {
+      const makerName = getDmmItemMakerName(item) ?? "";
+      if (!makers.includes(makerName)) return false;
     }
 
     if (saleOnly) {
@@ -336,9 +403,7 @@ export function filterWorksByQuery(
     }
 
     if (!matchesPriceFilter(item, price)) return false;
-    if (dateBounds && !matchesDateFilterWithBounds(item, date, dateBounds)) {
-      return false;
-    }
+    if (!matchesDateFilterWithBounds(item, date)) return false;
     return true;
   });
 }
@@ -382,8 +447,8 @@ export function buildWorksQueryString(state: WorksListQueryState): string {
   set("sale", state.sale);
   set("filter", state.filter);
   if (state.sort && state.sort !== "popular") params.set("sort", state.sort);
-  set("genre", state.genre);
-  set("maker", state.maker);
+  set("genres", state.genres);
+  set("makers", state.makers);
   if (state.price && state.price !== "all") params.set("price", state.price);
   if (state.date && state.date !== "all") params.set("date", state.date);
   if (state.page && state.page !== "1") params.set("page", state.page);

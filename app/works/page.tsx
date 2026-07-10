@@ -33,7 +33,9 @@ type WorksPageProps = {
     sort?: string;
     page?: string;
     genre?: string;
+    genres?: string;
     maker?: string;
+    makers?: string;
     price?: string;
     date?: string;
   }>;

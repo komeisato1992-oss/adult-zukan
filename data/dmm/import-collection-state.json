@@ -1,9 +1,9 @@
 {
-  "pastOffset": 1,
+  "pastOffset": 401,
   "pageSize": 100,
-  "lastCollectedAt": "2026-07-10T16:33:18.267Z",
+  "lastCollectedAt": "2026-07-10T16:33:48.142Z",
   "lastNewCollectedAt": "2026-07-10T16:33:18.267Z",
-  "lastPastCollectedAt": null,
-  "lastMode": "new",
+  "lastPastCollectedAt": "2026-07-10T16:33:48.142Z",
+  "lastMode": "past",
   "cycleCount": 0
 }

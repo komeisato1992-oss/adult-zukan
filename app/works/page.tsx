@@ -21,6 +21,7 @@ import {
   getWorksCanonicalPath,
   parseWorkSortParam,
 } from "@/lib/works/sort";
+import { isWorksListSaleQuery } from "@/lib/dmm/sale-price";
 
 export const revalidate = 86400;
 
@@ -39,11 +40,7 @@ type WorksPageProps = {
 };
 
 function isSaleFilter(params: { sale?: string; filter?: string }): boolean {
-  return (
-    params.sale === "1" ||
-    params.sale === "true" ||
-    params.filter === "sale"
-  );
+  return isWorksListSaleQuery(params);
 }
 
 export async function generateMetadata({ searchParams }: WorksPageProps) {
@@ -92,6 +89,10 @@ export default async function WorksPage({ searchParams }: WorksPageProps) {
   const catalog = await getCatalogWorks();
   const queryState = parseWorksListQueryState(params);
   const listData = await getWorksListPageData(catalog, queryState);
+  const isSalePage = isSaleFilter(params);
+  const introText = isSalePage
+    ? "現在価格が元値より安いセール中の作品だけを表示しています。"
+    : pageIntros.works;
 
   return (
     <>
@@ -118,7 +119,7 @@ export default async function WorksPage({ searchParams }: WorksPageProps) {
           <h1 className="border-l-4 border-accent pl-3 text-2xl font-bold text-foreground">
             {pageTitle}
           </h1>
-          <PageIntro text={pageIntros.works} />
+          <PageIntro text={introText} />
         </header>
         <WorksListSection
           pageItems={listData.pageItems}
@@ -129,6 +130,7 @@ export default async function WorksPage({ searchParams }: WorksPageProps) {
           genreOptions={listData.genreOptions}
           makerOptions={listData.makerOptions}
           sortOptions={listData.sortOptions}
+          isSalePage={isSalePage}
         />
       </PageLayout>
     </>

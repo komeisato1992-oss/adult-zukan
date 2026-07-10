@@ -1,4 +1,5 @@
 import type { DmmItem } from "@/lib/dmm/types";
+import { getSalePriceInfo } from "@/lib/dmm/sale-price";
 import { parseDmmPrice } from "@/lib/utils";
 
 export type WorkSortKey =
@@ -6,18 +7,21 @@ export type WorkSortKey =
   | "new"
   | "price-desc"
   | "price-asc"
+  | "discount-desc"
   | "today-views"
   | "total-views"
   | "duration-desc"
   | "random";
 
 export const DEFAULT_WORK_SORT: WorkSortKey = "popular";
+export const SALE_DEFAULT_WORK_SORT: WorkSortKey = "discount-desc";
 
 export const WORK_SORT_LABELS: Record<WorkSortKey, string> = {
   popular: "人気順",
   new: "新着順",
   "price-desc": "価格高い順",
   "price-asc": "価格安い順",
+  "discount-desc": "割引率が高い順",
   "today-views": "本日の再生数順",
   "total-views": "総再生数順",
   "duration-desc": "再生時間長い順",
@@ -101,6 +105,9 @@ export function parseWorkSortParam(value?: string | null): WorkSortKey {
     case "price-asc":
     case "price_asc":
       return "price-asc";
+    case "discount-desc":
+    case "discount_desc":
+      return "discount-desc";
     case "today-views":
       return "today-views";
     case "total-views":
@@ -117,8 +124,13 @@ export function parseWorkSortParam(value?: string | null): WorkSortKey {
   }
 }
 
-export function getWorksSortOptions(items: DmmItem[]): WorkSortOption[] {
-  const keys: WorkSortKey[] = ["popular", "new", "price-desc", "price-asc"];
+export function getWorksSortOptions(
+  items: DmmItem[],
+  options: { includeDiscountSort?: boolean } = {},
+): WorkSortOption[] {
+  const keys: WorkSortKey[] = options.includeDiscountSort
+    ? ["discount-desc", "popular", "new", "price-desc", "price-asc"]
+    : ["popular", "new", "price-desc", "price-asc"];
 
   if (items.some((item) => getTodayViewCount(item) !== null)) {
     keys.push("today-views");
@@ -149,6 +161,15 @@ export function sortWorks(
       return sorted.sort((a, b) => getItemPrice(b) - getItemPrice(a));
     case "price-asc":
       return sorted.sort((a, b) => getItemPrice(a) - getItemPrice(b));
+    case "discount-desc":
+      return sorted.sort((a, b) => {
+        const aRate = getSalePriceInfo(a)?.discountRate ?? 0;
+        const bRate = getSalePriceInfo(b)?.discountRate ?? 0;
+        if (bRate !== aRate) return bRate - aRate;
+        const aPrice = getSalePriceInfo(a)?.currentPrice ?? 0;
+        const bPrice = getSalePriceInfo(b)?.currentPrice ?? 0;
+        return aPrice - bPrice;
+      });
     case "today-views":
       return sorted.sort(
         (a, b) =>
@@ -205,6 +226,8 @@ export function getWorksSortPageTitle(sort: WorkSortKey): string | null {
       return "価格が高い順 作品一覧";
     case "price-asc":
       return "価格が安い順 作品一覧";
+    case "discount-desc":
+      return "割引率が高い順 セール作品一覧";
     case "today-views":
       return "本日の再生数順 作品一覧";
     case "total-views":

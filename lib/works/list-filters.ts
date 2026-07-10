@@ -1,8 +1,14 @@
-import type { DmmItem } from "@/lib/dmm/types";
 import {
   getDmmItemGenreNameList,
   getDmmItemMakerName,
 } from "@/lib/dmm/display";
+import {
+  getCurrentPrice,
+  getRegularPrice,
+  isDmmItemOnSale,
+  isWorksListSaleQuery,
+} from "@/lib/dmm/sale-price";
+import type { DmmItem } from "@/lib/dmm/types";
 import { parseDmmPrice } from "@/lib/utils";
 
 export type WorkPriceFilterKey =
@@ -177,8 +183,8 @@ export function buildWorkFilterEntries(items: DmmItem[]): WorkFilterEntry[] {
       haystack: `${item.title} ${item.content_id} ${maker} ${actressText}`.toLowerCase(),
       genres: getDmmItemGenreNameList(item),
       maker,
-      price: parseDmmPrice(item.prices?.price),
-      listPrice: parseDmmPrice(item.prices?.list_price),
+      price: getCurrentPrice(item) ?? 0,
+      listPrice: getRegularPrice(item) ?? 0,
       releaseTs: parseReleaseTimestamp(item),
     };
   });
@@ -236,8 +242,7 @@ export function filterWorkEntriesByQuery(
   const maker = query.maker?.trim();
   const price = parsePriceFilter(query.price);
   const date = parseDateFilter(query.date);
-  const saleOnly =
-    query.sale === "1" || query.sale === "true" || query.filter === "sale";
+  const saleOnly = isWorksListSaleQuery(query);
   const dateBounds = date !== "all" ? getDateBounds() : null;
 
   const result: DmmItem[] = [];
@@ -250,7 +255,7 @@ export function filterWorkEntriesByQuery(
     if (maker && entry.maker !== maker) continue;
 
     if (saleOnly) {
-      if (!(entry.listPrice > 0 && entry.price > 0 && entry.price < entry.listPrice)) {
+      if (!isDmmItemOnSale(entry.item)) {
         continue;
       }
     }
@@ -304,8 +309,7 @@ export function filterWorksByQuery(
   const maker = query.maker?.trim();
   const price = parsePriceFilter(query.price);
   const date = parseDateFilter(query.date);
-  const saleOnly =
-    query.sale === "1" || query.sale === "true" || query.filter === "sale";
+  const saleOnly = isWorksListSaleQuery(query);
   const dateBounds = date !== "all" ? getDateBounds() : null;
 
   return items.filter((item) => {
@@ -328,9 +332,7 @@ export function filterWorksByQuery(
     }
 
     if (saleOnly) {
-      const current = parseDmmPrice(item.prices?.price);
-      const list = parseDmmPrice(item.prices?.list_price);
-      if (!(list > 0 && current > 0 && current < list)) return false;
+      if (!isDmmItemOnSale(item)) return false;
     }
 
     if (!matchesPriceFilter(item, price)) return false;

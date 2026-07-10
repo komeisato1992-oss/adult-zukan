@@ -10,6 +10,7 @@ const HOME_SORT_HREFS: Record<WorkSortKey, string> = {
   new: "/works?sort=new",
   "price-desc": "/works?sort=price_desc",
   "price-asc": "/works?sort=price_asc",
+  "discount-desc": "/works?sale=1",
   "today-views": "/works?sort=today-views",
   "total-views": "/works?sort=total-views",
   "duration-desc": "/works?sort=duration_desc",

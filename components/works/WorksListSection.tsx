@@ -13,7 +13,10 @@ import {
   type WorksListQueryState,
 } from "@/lib/works/list-filters";
 import type { WorkSortOption } from "@/lib/works/sort";
-import { parseWorkSortParam } from "@/lib/works/sort";
+import {
+  parseWorkSortParam,
+  SALE_DEFAULT_WORK_SORT,
+} from "@/lib/works/sort";
 import type { WorkListCardItem } from "@/lib/works/work-list-card-item.types";
 
 type WorksListSectionProps = {
@@ -25,17 +28,26 @@ type WorksListSectionProps = {
   genreOptions: WorkFilterOption[];
   makerOptions: WorkFilterOption[];
   sortOptions: WorkSortOption[];
+  isSalePage?: boolean;
 };
 
 type WorksListGridProps = {
   items: WorkListCardItem[];
+  priceDisplayMode?: "default" | "sale";
 };
 
-const WorksListGrid = memo(function WorksListGrid({ items }: WorksListGridProps) {
+const WorksListGrid = memo(function WorksListGrid({
+  items,
+  priceDisplayMode = "default",
+}: WorksListGridProps) {
   return (
     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
       {items.map((item) => (
-        <WorkListCard key={item.contentId} item={item} />
+        <WorkListCard
+          key={item.contentId}
+          item={item}
+          priceDisplayMode={priceDisplayMode}
+        />
       ))}
     </div>
   );
@@ -64,9 +76,13 @@ export function WorksListSection({
   genreOptions,
   makerOptions,
   sortOptions,
+  isSalePage = false,
 }: WorksListSectionProps) {
   const router = useRouter();
-  const currentSort = parseWorkSortParam(queryState.sort);
+  const currentSort =
+    isSalePage && !queryState.sort?.trim()
+      ? SALE_DEFAULT_WORK_SORT
+      : parseWorkSortParam(queryState.sort);
 
   const updateQuery = useCallback(
     (patch: Partial<WorksListQueryState>, resetPage = false) => {
@@ -197,13 +213,16 @@ export function WorksListSection({
       ) : null}
 
       <p className="mb-6 text-sm text-muted">
-        {totalItems}件の作品が見つかりました。
+        {totalItems.toLocaleString("ja-JP")}件の作品が見つかりました。
         {totalPages > 1 ? `（${currentPage}/${totalPages}ページ目）` : null}
       </p>
 
       {pageItems.length > 0 ? (
         <>
-          <WorksListGrid items={pageItems} />
+          <WorksListGrid
+            items={pageItems}
+            priceDisplayMode={isSalePage ? "sale" : "default"}
+          />
           <Pagination
             currentPage={currentPage}
             totalPages={totalPages}

@@ -1,10 +1,7 @@
 import "server-only";
 
-import {
-  readCommittedGenreIndex,
-  readCommittedMakerIndex,
-} from "@/lib/dmm/catalog-index-read";
 import { filterDisplayableItems } from "@/lib/dmm/filter";
+import { isDmmItemOnSale, isWorksListSaleQuery } from "@/lib/dmm/sale-price";
 import type { DmmItem } from "@/lib/dmm/types";
 import { paginateItems, parsePageParam, WORKS_LIST_PAGE_SIZE } from "@/lib/pagination";
 import { mapPageItemsToWorkCards } from "@/lib/works/paginated-work-list";
@@ -12,12 +9,14 @@ import type { WorkListCardItem } from "@/lib/works/work-list-card-item";
 import {
   buildWorkFilterEntries,
   filterWorkEntriesByQuery,
+  getWorkFilterOptionsFromEntries,
   type WorkFilterOption,
   type WorksListQueryState,
 } from "@/lib/works/list-filters";
 import {
   getWorksSortOptions,
   parseWorkSortParam,
+  SALE_DEFAULT_WORK_SORT,
   sortWorks,
   type WorkSortOption,
 } from "@/lib/works/sort";
@@ -32,14 +31,15 @@ export type WorksListPageData = {
   sortOptions: WorkSortOption[];
 };
 
-function indexToFilterOptions(
-  items: Array<{ name: string; workCount?: number }>,
-): WorkFilterOption[] {
-  return items.map((item) => ({
-    label: item.name,
-    value: item.name,
-    count: item.workCount,
-  }));
+function resolveWorksListSort(
+  query: WorksListQueryState,
+  isSalePage: boolean,
+) {
+  if (isSalePage && !query.sort?.trim()) {
+    return SALE_DEFAULT_WORK_SORT;
+  }
+
+  return parseWorkSortParam(query.sort);
 }
 
 export function parseWorksListQueryState(params: {
@@ -70,26 +70,31 @@ export async function getWorksListPageData(
   catalog: DmmItem[],
   query: WorksListQueryState,
 ): Promise<WorksListPageData> {
+  const isSalePage = isWorksListSaleQuery(query);
   const displayableItems = filterDisplayableItems(catalog);
   const filterEntries = buildWorkFilterEntries(displayableItems);
+  const entriesForOptions = isSalePage
+    ? filterEntries.filter((entry) => isDmmItemOnSale(entry.item))
+    : filterEntries;
+  const { genreOptions, makerOptions } =
+    getWorkFilterOptionsFromEntries(entriesForOptions);
   const filtered = filterWorkEntriesByQuery(filterEntries, query);
-  const currentSort = parseWorkSortParam(query.sort);
+  const currentSort = resolveWorksListSort(query, isSalePage);
   const sorted = sortWorks(filtered, currentSort);
   const currentPage = parsePageParam(query.page);
   const pagination = paginateItems(sorted, currentPage, WORKS_LIST_PAGE_SIZE);
 
-  const [genres, makers] = await Promise.all([
-    Promise.resolve(readCommittedGenreIndex()),
-    Promise.resolve(readCommittedMakerIndex()),
-  ]);
-
   return {
-    pageItems: mapPageItemsToWorkCards(pagination.items),
+    pageItems: mapPageItemsToWorkCards(pagination.items, {
+      includeSaleInfo: isSalePage,
+    }),
     totalItems: pagination.totalItems,
     totalPages: pagination.totalPages,
     currentPage: pagination.currentPage,
-    genreOptions: indexToFilterOptions(genres),
-    makerOptions: indexToFilterOptions(makers),
-    sortOptions: getWorksSortOptions(displayableItems),
+    genreOptions,
+    makerOptions,
+    sortOptions: getWorksSortOptions(filtered, {
+      includeDiscountSort: isSalePage,
+    }),
   };
 }

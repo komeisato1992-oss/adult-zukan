@@ -2,14 +2,22 @@ import Link from "next/link";
 import { FavoriteCardButton } from "@/components/user/FavoriteCardButton";
 import { CatalogWorkImage } from "@/components/ui/CatalogWorkImage";
 import { WorkCardCtaRow } from "@/components/works/WorkCardCtaRow";
+import { WorkListSalePrice } from "@/components/works/WorkListSalePrice";
 import { CompactNameList } from "@/components/ui/CompactNameList";
-import type { WorkListCardItem } from "@/lib/works/work-list-card-item.types";
+import type {
+  WorkListCardItem,
+  WorkListCardPriceDisplayMode,
+} from "@/lib/works/work-list-card-item.types";
 
 type WorkListCardProps = {
   item: WorkListCardItem;
+  priceDisplayMode?: WorkListCardPriceDisplayMode;
 };
 
-export function WorkListCard({ item }: WorkListCardProps) {
+export function WorkListCard({
+  item,
+  priceDisplayMode = "default",
+}: WorkListCardProps) {
   return (
     <article className="group max-w-full overflow-hidden rounded-lg border border-border/80 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/20 hover:shadow-md">
       <div className="relative">
@@ -25,7 +33,9 @@ export function WorkListCard({ item }: WorkListCardProps) {
       </div>
       <div className="px-3 pt-1">
         <CompactNameList names={item.actressNames} />
-        {item.displayPrice ? (
+        {priceDisplayMode === "sale" && item.saleInfo ? (
+          <WorkListSalePrice item={item} />
+        ) : item.displayPrice ? (
           <p className="mt-1.5 text-sm font-bold text-accent">{item.displayPrice}</p>
         ) : null}
         <p className="mt-1 text-[11px] text-muted/90">{item.contentId}</p>

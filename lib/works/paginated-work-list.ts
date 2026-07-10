@@ -94,8 +94,11 @@ export function getPaginatedWorkCardListFromSorted(
   };
 }
 
-export function mapPageItemsToWorkCards(items: DmmItem[]): WorkListCardItem[] {
-  return toWorkListCardItems(items);
+export function mapPageItemsToWorkCards(
+  items: DmmItem[],
+  options: { includeSaleInfo?: boolean } = {},
+): WorkListCardItem[] {
+  return toWorkListCardItems(items, options);
 }
 
 export function mapSingleWorkCard(item: DmmItem): WorkListCardItem | null {

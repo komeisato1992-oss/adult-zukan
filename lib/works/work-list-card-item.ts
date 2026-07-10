@@ -6,22 +6,23 @@ import {
 } from "@/lib/dmm/display";
 import { getDmmFanzaUrl } from "@/lib/dmm/fanza-url";
 import { formatDmmPriceString } from "@/lib/dmm/format-price";
+import { getSalePriceInfo } from "@/lib/dmm/sale-price";
 import type { DmmItem } from "@/lib/dmm/types";
-import { parseDmmPrice } from "@/lib/utils";
 import { hasValidImage } from "@/lib/works";
 import type { WorkListCardItem } from "@/lib/works/work-list-card-item.types";
 
 export type { WorkListCardItem } from "@/lib/works/work-list-card-item.types";
 
-export function toWorkListCardItem(item: DmmItem): WorkListCardItem | null {
+export function toWorkListCardItem(
+  item: DmmItem,
+  options: { includeSaleInfo?: boolean } = {},
+): WorkListCardItem | null {
   const imageUrl = getDmmListItemImageUrl(item);
   if (!hasValidImage(item) || !imageUrl) {
     return null;
   }
 
-  const price = parseDmmPrice(item.prices?.price);
-  const listPrice = parseDmmPrice(item.prices?.list_price);
-  const isOnSale = listPrice > 0 && price > 0 && price < listPrice;
+  const saleInfo = getSalePriceInfo(item);
 
   return {
     contentId: item.content_id,
@@ -32,20 +33,24 @@ export function toWorkListCardItem(item: DmmItem): WorkListCardItem | null {
       ? formatDmmPriceString(item.prices.price)
       : undefined,
     originalPrice:
-      isOnSale && item.prices?.list_price
+      saleInfo && item.prices?.list_price
         ? formatDmmPriceString(item.prices.list_price)
         : undefined,
-    isOnSale,
+    isOnSale: saleInfo !== null,
+    saleInfo: options.includeSaleInfo && saleInfo ? saleInfo : undefined,
     releaseDate: item.date?.trim() || undefined,
     fanzaUrl: getDmmFanzaUrl(item),
   };
 }
 
-export function toWorkListCardItems(items: DmmItem[]): WorkListCardItem[] {
+export function toWorkListCardItems(
+  items: DmmItem[],
+  options: { includeSaleInfo?: boolean } = {},
+): WorkListCardItem[] {
   const result: WorkListCardItem[] = [];
 
   for (const item of items) {
-    const card = toWorkListCardItem(item);
+    const card = toWorkListCardItem(item, options);
     if (card) {
       result.push(card);
     }

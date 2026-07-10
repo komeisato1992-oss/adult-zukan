@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-10T22:41:09.325Z",
-  "total": 335,
+  "updatedAt": "2026-07-10T22:46:34.347Z",
+  "total": 347,
   "items": [
     {
       "name": "1113工房/妄想族",
@@ -45,7 +45,7 @@
     {
       "name": "BALTAN＜バルタン＞",
       "slug": "baltan-バルタン",
-      "workCount": 5
+      "workCount": 8
     },
     {
       "name": "BAZOOKA",
@@ -105,7 +105,7 @@
     {
       "name": "DANDY",
       "slug": "dandy",
-      "workCount": 8
+      "workCount": 9
     },
     {
       "name": "deep/妄想族",
@@ -115,12 +115,12 @@
     {
       "name": "DOC",
       "slug": "doc",
-      "workCount": 85
+      "workCount": 87
     },
     {
       "name": "E-BODY",
       "slug": "e-body",
-      "workCount": 64
+      "workCount": 71
     },
     {
       "name": "EROTICA",
@@ -145,17 +145,17 @@
     {
       "name": "FAプロ",
       "slug": "faプロ",
-      "workCount": 7
+      "workCount": 8
     },
     {
       "name": "First Star",
       "slug": "first-star",
-      "workCount": 24
+      "workCount": 28
     },
     {
       "name": "Fitch",
       "slug": "fitch",
-      "workCount": 79
+      "workCount": 80
     },
     {
       "name": "FLAVORY（フレーバリー）",
@@ -170,7 +170,7 @@
     {
       "name": "FunCity/妄想族",
       "slug": "funcity-妄想族",
-      "workCount": 34
+      "workCount": 46
     },
     {
       "name": "GIGA",
@@ -210,7 +210,7 @@
     {
       "name": "HMN WORKS",
       "slug": "hmn-works",
-      "workCount": 21
+      "workCount": 25
     },
     {
       "name": "HMNダイナマイト！！/妄想族",
@@ -250,7 +250,7 @@
     {
       "name": "kira☆kira",
       "slug": "kira-kira",
-      "workCount": 15
+      "workCount": 16
     },
     {
       "name": "KNIP",
@@ -280,7 +280,7 @@
     {
       "name": "MANIAQ/妄想族",
       "slug": "maniaq-妄想族",
-      "workCount": 2
+      "workCount": 3
     },
     {
       "name": "MARLO MEDIA",
@@ -291,6 +291,11 @@
       "name": "MARRION",
       "slug": "marrion",
       "workCount": 7
+    },
+    {
+      "name": "MBM",
+      "slug": "mbm",
+      "workCount": 6
     },
     {
       "name": "MDMA",
@@ -305,7 +310,7 @@
     {
       "name": "Mellow Moon（メロウムーン）",
       "slug": "mellow-moon-メロウムーン",
-      "workCount": 1
+      "workCount": 4
     },
     {
       "name": "MERA",
@@ -315,7 +320,7 @@
     {
       "name": "MERCURY（マーキュリー）",
       "slug": "mercury-マーキュリー",
-      "workCount": 16
+      "workCount": 19
     },
     {
       "name": "MILK",
@@ -410,7 +415,7 @@
     {
       "name": "SHIGEKI",
       "slug": "shigeki",
-      "workCount": 12
+      "workCount": 13
     },
     {
       "name": "SILK LABO",
@@ -460,7 +465,7 @@
     {
       "name": "TICKLE PRODUCTION THRILL",
       "slug": "tickle-production-thrill",
-      "workCount": 2
+      "workCount": 4
     },
     {
       "name": "TMA",
@@ -515,7 +520,7 @@
     {
       "name": "Yellow Moon（イエロームーン）",
       "slug": "yellow-moon-イエロームーン",
-      "workCount": 2
+      "workCount": 3
     },
     {
       "name": "YONAKA",
@@ -565,7 +570,7 @@
     {
       "name": "アマTV",
       "slug": "アマtv",
-      "workCount": 14
+      "workCount": 16
     },
     {
       "name": "アリスJAPAN",
@@ -576,6 +581,11 @@
       "name": "アロマ企画",
       "slug": "アロマ企画",
       "workCount": 15
+    },
+    {
+      "name": "アングラ本舗",
+      "slug": "アングラ本舗",
+      "workCount": 1
     },
     {
       "name": "あんでるへん",
@@ -630,7 +640,7 @@
     {
       "name": "オーロラプロジェクト・アネックス",
       "slug": "オーロラプロジェクト・アネックス",
-      "workCount": 22
+      "workCount": 23
     },
     {
       "name": "おかず研究所",
@@ -645,7 +655,7 @@
     {
       "name": "オフサイドトラップ",
       "slug": "オフサイドトラップ",
-      "workCount": 3
+      "workCount": 5
     },
     {
       "name": "おペニペニワールドフェムボーイ/妄想族",
@@ -678,6 +688,11 @@
       "workCount": 7
     },
     {
+      "name": "カムカムぴゅっ！",
+      "slug": "カムカムぴゅっ",
+      "workCount": 2
+    },
+    {
       "name": "ぎがdeれいん",
       "slug": "ぎがdeれいん",
       "workCount": 4
@@ -691,6 +706,11 @@
       "name": "キチックス/妄想族",
       "slug": "キチックス-妄想族",
       "workCount": 6
+    },
+    {
+      "name": "きゃっち",
+      "slug": "きゃっち",
+      "workCount": 1
     },
     {
       "name": "ギャラリー",
@@ -745,12 +765,12 @@
     {
       "name": "ケー・トライブ",
       "slug": "ケー・トライブ",
-      "workCount": 3
+      "workCount": 5
     },
     {
       "name": "ゲッツ！！ボンボン/妄想族",
       "slug": "ゲッツ-ボンボン-妄想族",
-      "workCount": 9
+      "workCount": 19
     },
     {
       "name": "ゴーゴーズ",
@@ -810,12 +830,12 @@
     {
       "name": "サディヴィレナウ！",
       "slug": "サディヴィレナウ",
-      "workCount": 1
+      "workCount": 4
     },
     {
       "name": "サディスティックヴィレッジ",
       "slug": "サディスティックヴィレッジ",
-      "workCount": 13
+      "workCount": 14
     },
     {
       "name": "ジェントルマン/妄想族",
@@ -825,7 +845,7 @@
     {
       "name": "シネマジック",
       "slug": "シネマジック",
-      "workCount": 4
+      "workCount": 5
     },
     {
       "name": "シネマユニット・ガス",
@@ -840,7 +860,7 @@
     {
       "name": "シャイ企画",
       "slug": "シャイ企画",
-      "workCount": 1
+      "workCount": 2
     },
     {
       "name": "ジュエル",
@@ -860,6 +880,11 @@
     {
       "name": "しろうとヤッホー",
       "slug": "しろうとヤッホー",
+      "workCount": 1
+    },
+    {
+      "name": "しろうと派遣.com",
+      "slug": "しろうと派遣-com",
       "workCount": 1
     },
     {
@@ -885,7 +910,7 @@
     {
       "name": "セレブの友",
       "slug": "セレブの友",
-      "workCount": 21
+      "workCount": 27
     },
     {
       "name": "センタービレッジ",
@@ -900,12 +925,12 @@
     {
       "name": "ダイナマイトエンタープライズ",
       "slug": "ダイナマイトエンタープライズ",
-      "workCount": 1
+      "workCount": 6
     },
     {
       "name": "タカラ映像",
       "slug": "タカラ映像",
-      "workCount": 14
+      "workCount": 19
     },
     {
       "name": "ダスッ！",
@@ -930,7 +955,7 @@
     {
       "name": "チェリーズれぼ/妄想族",
       "slug": "チェリーズれぼ-妄想族",
-      "workCount": 1
+      "workCount": 2
     },
     {
       "name": "チキチキカマー/妄想族",
@@ -955,7 +980,7 @@
     {
       "name": "ディープス",
       "slug": "ディープス",
-      "workCount": 89
+      "workCount": 95
     },
     {
       "name": "デジタルアーク",
@@ -995,7 +1020,7 @@
     {
       "name": "なでしこ",
       "slug": "なでしこ",
-      "workCount": 1
+      "workCount": 3
     },
     {
       "name": "なまなま",
@@ -1063,6 +1088,11 @@
       "workCount": 7
     },
     {
+      "name": "ピーターズ",
+      "slug": "ピーターズ",
+      "workCount": 5
+    },
+    {
       "name": "ビッグモーカル",
       "slug": "ビッグモーカル",
       "workCount": 2
@@ -1098,6 +1128,11 @@
       "workCount": 38
     },
     {
+      "name": "ブラボー！",
+      "slug": "ブラボー",
+      "workCount": 1
+    },
+    {
       "name": "プラム",
       "slug": "プラム",
       "workCount": 22
@@ -1105,7 +1140,7 @@
     {
       "name": "プリモ",
       "slug": "プリモ",
-      "workCount": 2
+      "workCount": 5
     },
     {
       "name": "フレッシュ・ゴードン/妄想族",
@@ -1163,6 +1198,11 @@
       "workCount": 1
     },
     {
+      "name": "マキシング",
+      "slug": "マキシング",
+      "workCount": 8
+    },
+    {
       "name": "まぐろ物産",
       "slug": "まぐろ物産",
       "workCount": 1
@@ -1200,7 +1240,12 @@
     {
       "name": "ムーディーズ",
       "slug": "ムーディーズ",
-      "workCount": 452
+      "workCount": 453
+    },
+    {
+      "name": "ムチムッチ/妄想族",
+      "slug": "ムチムッチ-妄想族",
+      "workCount": 1
     },
     {
       "name": "ムラっch",
@@ -1220,7 +1265,7 @@
     {
       "name": "メディアブランド",
       "slug": "メディアブランド",
-      "workCount": 2
+      "workCount": 3
     },
     {
       "name": "メモリーズ",
@@ -1235,7 +1280,7 @@
     {
       "name": "メンエス・オナクラ盗撮",
       "slug": "メンエス・オナクラ盗撮",
-      "workCount": 10
+      "workCount": 11
     },
     {
       "name": "モグラ/妄想族",
@@ -1263,6 +1308,11 @@
       "workCount": 3
     },
     {
+      "name": "ルーブル",
+      "slug": "ルーブル",
+      "workCount": 6
+    },
+    {
       "name": "るさんちまん/妄想族",
       "slug": "るさんちまん-妄想族",
       "workCount": 2
@@ -1280,7 +1330,7 @@
     {
       "name": "レアルワークス",
       "slug": "レアルワークス",
-      "workCount": 32
+      "workCount": 33
     },
     {
       "name": "レイディックス",
@@ -1300,17 +1350,17 @@
     {
       "name": "ロータス",
       "slug": "ロータス",
-      "workCount": 1
+      "workCount": 3
     },
     {
       "name": "ワー",
       "slug": "ワー",
-      "workCount": 4
+      "workCount": 5
     },
     {
       "name": "ワープエンタテインメント",
       "slug": "ワープエンタテインメント",
-      "workCount": 9
+      "workCount": 10
     },
     {
       "name": "ワンズファクトリー",
@@ -1325,7 +1375,7 @@
     {
       "name": "ヲナサポベスト",
       "slug": "ヲナサポベスト",
-      "workCount": 8
+      "workCount": 14
     },
     {
       "name": "闇録",
@@ -1400,7 +1450,7 @@
     {
       "name": "山と空/妄想族",
       "slug": "山と空-妄想族",
-      "workCount": 22
+      "workCount": 30
     },
     {
       "name": "熟撮/妄想族",
@@ -1468,6 +1518,11 @@
       "workCount": 3
     },
     {
+      "name": "西新宿マッサージ本舗",
+      "slug": "西新宿マッサージ本舗",
+      "workCount": 1
+    },
+    {
       "name": "赤面女子",
       "slug": "赤面女子",
       "workCount": 26
@@ -1475,7 +1530,7 @@
     {
       "name": "切り売りのおかず屋さん",
       "slug": "切り売りのおかず屋さん",
-      "workCount": 1
+      "workCount": 2
     },
     {
       "name": "全日本カメコ協同組合/妄想族",
@@ -1500,7 +1555,7 @@
     {
       "name": "素人ホイホイ/妄想族",
       "slug": "素人ホイホイ-妄想族",
-      "workCount": 22
+      "workCount": 25
     },
     {
       "name": "素人まっちんぐEX/妄想族",
@@ -1516,6 +1571,11 @@
       "name": "綜実社/妄想族",
       "slug": "綜実社-妄想族",
       "workCount": 1
+    },
+    {
+      "name": "即ヌキ",
+      "slug": "即ヌキ",
+      "workCount": 43
     },
     {
       "name": "唾鬼",

@@ -1,124 +1,124 @@
 {
-  "updatedAt": "2026-07-10T09:41:35.802Z",
+  "updatedAt": "2026-07-10T14:21:18.127Z",
   "popularContentIds": [
-    "ssis00821",
-    "juq00503",
-    "sone00091",
-    "ymds00300",
-    "ssis00570",
-    "juq00516",
-    "fway00008",
-    "ipzz00291",
-    "h_237nact00162",
-    "mudr00217",
-    "1sun00063a",
-    "ssis00193",
-    "midv00442",
-    "snos00147",
-    "sone00713",
-    "xvsr00892",
-    "h_1391pbjw00001",
-    "juq00614",
-    "1fns00231",
-    "sone00222",
-    "1rctd00746",
-    "h_1391pcxx00002",
-    "juq00685",
-    "midv00604",
-    "h_1714grace00036",
-    "anb00261",
-    "pkpr00047",
-    "h_1391pwrx00001",
-    "mide00430",
-    "mida00279",
-    "dvaj00705",
-    "agav00123",
-    "juny00038",
-    "ssis00064",
-    "miaa00954",
-    "fway00005",
-    "hnd00981",
-    "juq00423",
-    "mide00886",
-    "ssis00741",
-    "adn00693",
-    "aarm00357",
-    "mimk00122",
-    "mifd00463",
-    "waaa00002",
-    "ipx00991",
-    "snos00140",
-    "hmn00536",
-    "miaa00607",
-    "hmn00548"
+    "waaa00303",
+    "rbb00258",
+    "juq00108",
+    "ipx00571",
+    "mudr00222",
+    "miaa00901",
+    "midv00300",
+    "ssis00507",
+    "sone00312",
+    "miaa00951",
+    "idbd00882",
+    "jur00339",
+    "mida00436",
+    "adn00203",
+    "dass00180",
+    "mida00043",
+    "royd00145",
+    "1start00327",
+    "fway00011",
+    "juq00713",
+    "cjod00406",
+    "ssni00676",
+    "roe00446",
+    "ssis00657",
+    "bf00687",
+    "ure00066",
+    "dazd00172",
+    "mida00194",
+    "ipx00857",
+    "dass00621",
+    "ebwh00026",
+    "atkd00353",
+    "ssis00931",
+    "ofje00352",
+    "ure00054",
+    "mida00460",
+    "1sdjs00328",
+    "mida00107",
+    "snis00704",
+    "mida00150",
+    "sone00064",
+    "mkmp00646",
+    "jufe00483",
+    "miaa00966",
+    "ofje00348",
+    "midv00500",
+    "nima00019",
+    "real00950",
+    "blk00632",
+    "ofje00450"
   ],
   "saleContentIds": [
-    "ssis00821",
-    "juq00503",
-    "sone00091",
-    "ssis00570",
-    "juq00516",
-    "fway00008",
-    "ipzz00291",
-    "mudr00217",
-    "ssis00193",
-    "midv00442",
-    "snos00147",
-    "sone00713",
-    "juq00614",
-    "sone00222",
-    "juq00685",
-    "midv00604",
-    "mide00430",
-    "mida00279",
-    "dvaj00705",
-    "agav00123",
-    "juny00038",
-    "ssis00064",
-    "miaa00954",
-    "fway00005",
-    "hnd00981",
-    "juq00423",
-    "mide00886",
-    "ssis00741",
-    "adn00693",
-    "mimk00122",
-    "mifd00463",
-    "waaa00002",
-    "ipx00991",
-    "snos00140",
-    "hmn00536",
-    "miaa00607",
-    "hmn00548",
-    "jur00342",
-    "ssis00472",
-    "pppd00911",
-    "roe00406",
-    "miaa00889",
-    "bobb00431",
-    "ntrh00009",
-    "pred00368",
-    "pppd00843",
-    "mizd00336",
-    "5642hodv21938",
-    "ssni00322",
-    "idbd00886"
+    "waaa00303",
+    "rbb00258",
+    "juq00108",
+    "ipx00571",
+    "mudr00222",
+    "miaa00901",
+    "midv00300",
+    "ssis00507",
+    "sone00312",
+    "miaa00951",
+    "idbd00882",
+    "jur00339",
+    "mida00436",
+    "adn00203",
+    "dass00180",
+    "mida00043",
+    "royd00145",
+    "1start00327",
+    "fway00011",
+    "juq00713",
+    "cjod00406",
+    "ssni00676",
+    "roe00446",
+    "ssis00657",
+    "bf00687",
+    "ure00066",
+    "dazd00172",
+    "mida00194",
+    "ipx00857",
+    "dass00621",
+    "ebwh00026",
+    "atkd00353",
+    "ssis00931",
+    "ofje00352",
+    "ure00054",
+    "mida00460",
+    "1sdjs00328",
+    "mida00107",
+    "snis00704",
+    "mida00150",
+    "sone00064",
+    "mkmp00646",
+    "jufe00483",
+    "miaa00966",
+    "ofje00348",
+    "midv00500",
+    "nima00019",
+    "real00950",
+    "blk00632",
+    "ofje00450"
   ],
   "rankedMakers": [
     {
       "name": "エスワン ナンバーワンスタイル",
       "slug": "エスワン-ナンバーワンスタイル",
-      "workCount": 293
+      "workCount": 304
     },
     {
       "name": "ムーディーズ",
       "slug": "ムーディーズ",
-      "workCount": 286
+      "workCount": 302
     },
     {
       "name": "マドンナ",
       "slug": "マドンナ",
-      "workCount": 216
+      "workCount": 223
     },
     {
       "name": "S-Cute",
@@ -133,24 +133,24 @@
     {
       "name": "アイデアポケット",
       "slug": "アイデアポケット",
-      "workCount": 90
+      "workCount": 93
     },
     {
       "name": "SODクリエイト",
       "slug": "sodクリエイト",
-      "workCount": 86
+      "workCount": 89
     },
     {
-      "name": "桃太郎映像出版",
-      "slug": "桃太郎映像出版",
-      "workCount": 78
+      "name": "アタッカーズ",
+      "slug": "アタッカーズ",
+      "workCount": 79
     }
   ],
   "rankedSeries": [
     {
       "name": "S1 GIRLS COLLECTION",
       "slug": "s1-girls-collection",
-      "workCount": 42
+      "workCount": 45
     },
     {
       "name": "休日に彼女と。",
@@ -192,50 +192,50 @@
     {
       "name": "ハイビジョン",
       "slug": "ハイビジョン",
-      "workCount": 3129
+      "workCount": 3190
     },
     {
       "name": "単体作品",
       "slug": "単体作品",
-      "workCount": 2167
+      "workCount": 2219
     },
     {
       "name": "独占配信",
       "slug": "独占配信",
-      "workCount": 1806
+      "workCount": 1862
     },
     {
       "name": "中出し",
       "slug": "中出し",
-      "workCount": 1540
+      "workCount": 1566
     },
     {
       "name": "巨乳",
       "slug": "巨乳",
-      "workCount": 1418
+      "workCount": 1458
     },
     {
       "name": "4K",
       "slug": "4k",
-      "workCount": 1199
+      "workCount": 1210
     },
     {
       "name": "人妻・主婦",
       "slug": "人妻・主婦",
-      "workCount": 633
+      "workCount": 644
     },
     {
       "name": "美少女",
       "slug": "美少女",
-      "workCount": 585
+      "workCount": 593
     }
   ],
   "rankedActresses": [
     {
       "name": "逢沢みゆ",
       "slug": "%E9%80%A2%E6%B2%A2%E3%81%BF%E3%82%86",
-      "workCount": 61,
-      "imageUrl": "https://pics.dmm.co.jp/digital/video/5642hodv22054/5642hodv22054pl.jpg",
+      "workCount": 64,
+      "imageUrl": "https://pics.dmm.co.jp/digital/video/dass00621/dass00621pl.jpg",
       "imageFromMultiActressWork": false
     },
     {
@@ -260,6 +260,13 @@
       "imageFromMultiActressWork": false
     },
     {
+      "name": "北岡果林",
+      "slug": "%E5%8C%97%E5%B2%A1%E6%9E%9C%E6%9E%97",
+      "workCount": 36,
+      "imageUrl": "https://pics.dmm.co.jp/digital/video/mkmp00646/mkmp00646pl.jpg",
+      "imageFromMultiActressWork": false
+    },
+    {
       "name": "月野かすみ",
       "slug": "%E6%9C%88%E9%87%8E%E3%81%8B%E3%81%99%E3%81%BF",
       "workCount": 35,
@@ -267,10 +274,10 @@
       "imageFromMultiActressWork": false
     },
     {
-      "name": "北岡果林",
-      "slug": "%E5%8C%97%E5%B2%A1%E6%9E%9C%E6%9E%97",
+      "name": "小日向みゆう（清原みゆう）",
+      "slug": "%E5%B0%8F%E6%97%A5%E5%90%91%E3%81%BF%E3%82%86%E3%81%86%EF%BC%88%E6%B8%85%E5%8E%9F%E3%81%BF%E3%82%86%E3%81%86%EF%BC%89",
       "workCount": 35,
-      "imageUrl": "https://pics.dmm.co.jp/digital/video/ipzz00291/ipzz00291pl.jpg",
+      "imageUrl": "https://pics.dmm.co.jp/digital/video/fway00004/fway00004pl.jpg",
       "imageFromMultiActressWork": false
     },
     {
@@ -281,24 +288,17 @@
       "imageFromMultiActressWork": false
     },
     {
-      "name": "小日向みゆう（清原みゆう）",
-      "slug": "%E5%B0%8F%E6%97%A5%E5%90%91%E3%81%BF%E3%82%86%E3%81%86%EF%BC%88%E6%B8%85%E5%8E%9F%E3%81%BF%E3%82%86%E3%81%86%EF%BC%89",
-      "workCount": 34,
-      "imageUrl": "https://pics.dmm.co.jp/digital/video/fway00004/fway00004pl.jpg",
-      "imageFromMultiActressWork": false
-    },
-    {
       "name": "河北彩花（河北彩伽）",
       "slug": "%E6%B2%B3%E5%8C%97%E5%BD%A9%E8%8A%B1%EF%BC%88%E6%B2%B3%E5%8C%97%E5%BD%A9%E4%BC%BD%EF%BC%89",
-      "workCount": 33,
+      "workCount": 34,
       "imageUrl": "https://pics.dmm.co.jp/digital/video/sone00027/sone00027pl.jpg",
       "imageFromMultiActressWork": false
     },
     {
-      "name": "天馬ゆい",
-      "slug": "%E5%A4%A9%E9%A6%AC%E3%82%86%E3%81%84",
-      "workCount": 33,
-      "imageUrl": "https://pics.dmm.co.jp/digital/video/dvaj00727/dvaj00727pl.jpg",
+      "name": "夢乃あいか",
+      "slug": "%E5%A4%A2%E4%B9%83%E3%81%82%E3%81%84%E3%81%8B",
+      "workCount": 34,
+      "imageUrl": "https://pics.dmm.co.jp/digital/video/ssni00676/ssni00676pl.jpg",
       "imageFromMultiActressWork": false
     }
   ]

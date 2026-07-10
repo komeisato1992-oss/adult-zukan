@@ -165,3 +165,55 @@ GITHUB_BRANCH=main
 - Never expose `GITHUB_TOKEN` to the client or commit it to git.
 - The token is only used in server-side API routes such as `POST /api/admin/import/add-work`.
 - Admin APIs require an authenticated admin session cookie.
+
+## Google Search Console API（SEO管理）
+
+管理画面 `/admin/seo` から Search Console のデータを取得・表示します。環境変数は Next.js 標準どおり **`.env.local`（ローカル）** と **Vercel 環境変数（本番）** から `process.env` 経由で読み込まれます。
+
+### 前提
+
+1. Google Cloud で **Search Console API** を有効化
+2. サービスアカウントを作成し、JSON キーをダウンロード
+3. Search Console → 設定 → ユーザーと権限 で、サービスアカウントのメールアドレスを **フル** 権限で追加
+
+### 環境変数
+
+| Variable | Description |
+| --- | --- |
+| `GOOGLE_SERVICE_ACCOUNT_JSON` | サービスアカウント JSON を **1行** で設定（`client_email` / `private_key` 必須） |
+| `GSC_SITE_URL` | Search Console プロパティ URL（例: `https://adult-zukan.jp/` または `sc-domain:adult-zukan.jp`） |
+| `CRON_SECRET` | 日次自動更新用（Vercel Cron。任意） |
+
+### ローカル設定例（`.env.local`）
+
+```bash
+GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account","project_id":"your-project","private_key_id":"...","private_key":"-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n","client_email":"seo@your-project.iam.gserviceaccount.com","client_id":"...","auth_uri":"https://accounts.google.com/o/oauth2/auth","token_uri":"https://oauth2.googleapis.com/token","auth_provider_x509_cert_url":"https://www.googleapis.com/oauth2/v1/certs","client_x509_cert_url":"..."}
+GSC_SITE_URL=https://adult-zukan.jp/
+CRON_SECRET=your-random-secret
+```
+
+**JSON の設定ポイント**
+
+- `.env.local` では改行を含めず、**1行の JSON** として保存してください
+- `private_key` 内の改行は `\\n` にエスケープしてください
+- `GSC_SITE_URL` は Search Console に表示されているプロパティ URL と **完全一致** させてください
+  - URL-prefix プロパティ: 末尾スラッシュ付き（例: `https://adult-zukan.jp/`）
+  - ドメインプロパティ: `sc-domain:adult-zukan.jp`
+
+### Vercel 設定
+
+1. Vercel → **Settings** → **Environment Variables**
+2. `GOOGLE_SERVICE_ACCOUNT_JSON` と `GSC_SITE_URL` を **Production**（必要なら Preview）に追加
+3. 日次自動更新を使う場合は `CRON_SECRET` も追加
+4. 再デプロイ後、管理画面 `/admin/seo` の **更新** ボタンでデータ取得
+
+### エラー表示
+
+環境変数未設定・認証失敗時は管理画面に原因を表示します。
+
+| 症状 | 確認項目 |
+| --- | --- |
+| JSONが不正 | `GOOGLE_SERVICE_ACCOUNT_JSON` の JSON 形式、`private_key` の `\\n` エスケープ |
+| Search Console権限不足 | サービスアカウントをプロパティにフル権限で追加済みか |
+| GSC_SITE_URLが違う | Search Console のプロパティ URL と完全一致しているか |
+| APIが有効化されていない | Google Cloud Console で Search Console API を有効化したか |

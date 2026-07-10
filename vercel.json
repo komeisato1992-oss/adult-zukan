@@ -1,4 +1,10 @@
 {
+  "crons": [
+    {
+      "path": "/api/admin/seo/cron",
+      "schedule": "0 3 * * *"
+    }
+  ],
   "redirects": [
     {
       "source": "/:path*",

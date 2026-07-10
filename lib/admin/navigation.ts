@@ -26,10 +26,9 @@ export const adminNavItems: AdminNavItem[] = [
   },
   {
     id: "seo",
-    label: "SEO（準備中）",
+    label: "SEO管理",
     icon: "📈",
     href: "/admin/seo",
-    disabled: true,
   },
   {
     id: "analytics",

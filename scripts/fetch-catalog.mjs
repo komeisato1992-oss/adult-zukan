@@ -211,10 +211,43 @@ function loadPreviousSnapshot() {
   if (!existsSync(SNAPSHOT_FILE)) return [];
   try {
     const parsed = JSON.parse(readFileSync(SNAPSHOT_FILE, "utf-8"));
-    return Array.isArray(parsed) ? parsed : [];
+    return Array.isArray(parsed) ? parsed : parsed.works ?? [];
   } catch {
     return [];
   }
+}
+
+function countValidCatalogItems(items) {
+  return items.filter((item) => {
+    if (!item.content_id?.trim() || !item.title?.trim()) return false;
+    if (!item.affiliateURL?.trim() && !item.URL?.trim()) return false;
+    if (item.content_id?.toLowerCase().startsWith("vr")) return false;
+    const image = item.imageURL?.large || item.imageURL?.list || item.imageURL?.small;
+    return Boolean(image && isValidImageUrl(image));
+  }).length;
+}
+
+function shouldSkipFetchCatalog(previous) {
+  if (process.env.FORCE_FETCH_CATALOG === "1") return false;
+
+  const onVercel = process.env.VERCEL === "1";
+  const skipFlag = process.env.SKIP_FETCH_CATALOG === "1";
+  if (!onVercel && !skipFlag) return false;
+
+  if (previous.length === 0) return false;
+
+  const validCount = countValidCatalogItems(previous);
+  if (validCount >= MIN_VALID) {
+    console.log(
+      `[prebuild] fetch-catalog をスキップ: 有効作品 ${validCount} 件（コミット済み snapshot を利用）`,
+    );
+    return true;
+  }
+
+  console.warn(
+    `[prebuild] snapshot の有効作品が ${validCount} 件（最低 ${MIN_VALID} 件未満）のため取得を続行します`,
+  );
+  return false;
 }
 
 async function fetchPage({ apiId, affiliateId, offset, sort = "rank", keyword }) {
@@ -252,6 +285,10 @@ async function main() {
   }
 
   const previous = loadPreviousSnapshot();
+  if (shouldSkipFetchCatalog(previous)) {
+    return;
+  }
+
   const beforeCount = previous.length;
 
   const byContentId = new Set();

@@ -9,7 +9,8 @@ import { ActressWorksSection } from "@/components/actresses/ActressWorksSection"
 import { PageLayout } from "@/components/layout/PageLayout";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { getCatalogActressStaticParams } from "@/lib/dmm/catalog-entities";
+import { getBuildStaticGenerationLimit } from "@/lib/dmm/build-static";
+import { getLimitedSlugStaticParams } from "@/lib/dmm/generate-static-params";
 import {
   getActressSummaryBySlug,
   getActressWorksBySlug,
@@ -31,13 +32,18 @@ import { isValidImageUrl } from "@/lib/works";
 
 export const revalidate = 86400;
 
+export const dynamicParams = true;
+
 type ActressDetailPageProps = {
   params: Promise<{ slug: string }>;
   searchParams: Promise<{ page?: string }>;
 };
 
 export async function generateStaticParams() {
-  return getCatalogActressStaticParams();
+  if (getBuildStaticGenerationLimit() === 0) return [];
+  const { getActressSummaries } = await import("@/lib/catalog");
+  const actresses = await getActressSummaries();
+  return getLimitedSlugStaticParams(actresses.map((a) => a.slug));
 }
 
 export async function generateMetadata({ params }: ActressDetailPageProps) {

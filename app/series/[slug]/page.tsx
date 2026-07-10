@@ -5,7 +5,8 @@ import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { CatalogWorksListSection } from "@/components/works/CatalogWorksListSection";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { getCatalogSeriesStaticParams } from "@/lib/dmm/catalog-entities";
+import { getBuildStaticGenerationLimit } from "@/lib/dmm/build-static";
+import { getLimitedEncodedEntityStaticParams } from "@/lib/dmm/generate-static-params";
 import { getSeriesSummaryBySlug, getSeriesWorksBySlug } from "@/lib/catalog";
 import { parsePageParam } from "@/lib/pagination";
 import { siteConfig } from "@/lib/site-config";
@@ -24,13 +25,18 @@ import {
 
 export const revalidate = 86400;
 
+export const dynamicParams = true;
+
 type SeriesDetailPageProps = {
   params: Promise<{ slug: string }>;
   searchParams: Promise<{ page?: string }>;
 };
 
 export async function generateStaticParams() {
-  return getCatalogSeriesStaticParams();
+  if (getBuildStaticGenerationLimit() === 0) return [];
+  const { getSeriesSummaries } = await import("@/lib/catalog");
+  const series = await getSeriesSummaries();
+  return getLimitedEncodedEntityStaticParams(series.map((s) => s.slug));
 }
 
 export async function generateMetadata({ params }: SeriesDetailPageProps) {

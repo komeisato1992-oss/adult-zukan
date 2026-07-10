@@ -21,14 +21,31 @@ export const DMM_WORKS_REVALIDATE = 86400;
 
 export { DMM_CATALOG_SORT };
 
+let cachedValidWorks: DmmItem[] | null = null;
+let loggedCatalogBuildStats = false;
+
+function logBuildStatsOnce(
+  stats: Parameters<typeof logCatalogBuildStats>[0],
+  extra?: Parameters<typeof logCatalogBuildStats>[1],
+): void {
+  if (loggedCatalogBuildStats) return;
+  logCatalogBuildStats(stats, extra);
+  loggedCatalogBuildStats = true;
+}
+
 async function fetchDmmStaticWorksUncached(): Promise<DmmItem[]> {
+  if (cachedValidWorks) {
+    return cachedValidWorks;
+  }
+
   const snapshot = readCatalogSnapshot();
 
   if (snapshot.length >= CATALOG_MIN_VALID) {
     const items = filterValidCatalogItems(snapshot);
     const stats = analyzeCatalogItems(snapshot);
     stats.validCount = items.length;
-    logCatalogBuildStats(stats, { worksListCount: items.length });
+    logBuildStatsOnce(stats, { worksListCount: items.length });
+    cachedValidWorks = items;
     return items;
   }
 
@@ -39,9 +56,10 @@ async function fetchDmmStaticWorksUncached(): Promise<DmmItem[]> {
       writeCatalogSnapshot(items);
       const validItems = filterValidCatalogItems(items);
       stats.validCount = validItems.length;
-      logCatalogBuildStats(stats, {
+      logBuildStatsOnce(stats, {
         worksListCount: validItems.length,
       });
+      cachedValidWorks = validItems;
       return validItems;
     }
   }
@@ -50,11 +68,12 @@ async function fetchDmmStaticWorksUncached(): Promise<DmmItem[]> {
     const items = filterValidCatalogItems(snapshot);
     const stats = analyzeCatalogItems(snapshot);
     stats.validCount = items.length;
-    logCatalogBuildStats(stats, { worksListCount: items.length });
+    logBuildStatsOnce(stats, { worksListCount: items.length });
+    cachedValidWorks = items;
     return items;
   }
 
-  logCatalogBuildStats({
+  logBuildStatsOnce({
     apiTotal: 0,
     excluded: 0,
     validCount: 0,
@@ -65,6 +84,7 @@ async function fetchDmmStaticWorksUncached(): Promise<DmmItem[]> {
     other: 0,
   });
 
+  cachedValidWorks = [];
   return [];
 }
 

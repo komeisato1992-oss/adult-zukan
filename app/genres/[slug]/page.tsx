@@ -4,7 +4,8 @@ import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { CatalogWorksListSection } from "@/components/works/CatalogWorksListSection";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { getCatalogGenreStaticParams } from "@/lib/dmm/catalog-entities";
+import { getBuildStaticGenerationLimit } from "@/lib/dmm/build-static";
+import { getLimitedEncodedEntityStaticParams } from "@/lib/dmm/generate-static-params";
 import { getGenreSummaryBySlug, getGenreWorksBySlug } from "@/lib/catalog";
 import { parsePageParam } from "@/lib/pagination";
 import { siteConfig } from "@/lib/site-config";
@@ -20,13 +21,18 @@ import {
 
 export const revalidate = 86400;
 
+export const dynamicParams = true;
+
 type GenreDetailPageProps = {
   params: Promise<{ slug: string }>;
   searchParams: Promise<{ page?: string }>;
 };
 
 export async function generateStaticParams() {
-  return getCatalogGenreStaticParams();
+  if (getBuildStaticGenerationLimit() === 0) return [];
+  const { getGenreSummaries } = await import("@/lib/catalog");
+  const genres = await getGenreSummaries();
+  return getLimitedEncodedEntityStaticParams(genres.map((g) => g.slug));
 }
 
 export async function generateMetadata({ params }: GenreDetailPageProps) {

@@ -14,6 +14,12 @@ import type { DmmItem } from "@/lib/dmm/types";
 const SNAPSHOT_DIR = path.join(process.cwd(), "data", "dmm");
 const SNAPSHOT_FILE = path.join(process.cwd(), CATALOG_SNAPSHOT_RELATIVE_PATH);
 
+let cachedSnapshotItems: DmmItem[] | null = null;
+
+export function clearCatalogSnapshotCache(): void {
+  cachedSnapshotItems = null;
+}
+
 function readCatalogSnapshotRaw(): unknown {
   if (!existsSync(SNAPSHOT_FILE)) {
     return [];
@@ -27,7 +33,12 @@ function readCatalogSnapshotRaw(): unknown {
 }
 
 export function readCatalogSnapshot(): DmmItem[] {
-  return parseCatalogSnapshot(readCatalogSnapshotRaw()).items;
+  if (cachedSnapshotItems) {
+    return cachedSnapshotItems;
+  }
+
+  cachedSnapshotItems = parseCatalogSnapshot(readCatalogSnapshotRaw()).items;
+  return cachedSnapshotItems;
 }
 
 export function writeCatalogSnapshot(items: DmmItem[]): void {
@@ -36,6 +47,7 @@ export function writeCatalogSnapshot(items: DmmItem[]): void {
 
   mkdirSync(SNAPSHOT_DIR, { recursive: true });
   writeFileSync(SNAPSHOT_FILE, serializeCatalogSnapshot(saveData), "utf-8");
+  clearCatalogSnapshotCache();
 }
 
 export function normalizeCatalogContentId(value: string): string {

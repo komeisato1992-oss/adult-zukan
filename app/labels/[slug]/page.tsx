@@ -5,7 +5,8 @@ import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { SectionHeader } from "@/components/ui/SectionHeader";
 import { CatalogWorksListSection } from "@/components/works/CatalogWorksListSection";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { getCatalogLabelStaticParams } from "@/lib/dmm/catalog-entities";
+import { getBuildStaticGenerationLimit } from "@/lib/dmm/build-static";
+import { getLimitedEncodedEntityStaticParams } from "@/lib/dmm/generate-static-params";
 import { getLabelSummaryBySlug, getLabelWorksBySlug } from "@/lib/catalog";
 import { parsePageParam } from "@/lib/pagination";
 import { siteConfig } from "@/lib/site-config";
@@ -20,13 +21,18 @@ import {
 
 export const revalidate = 86400;
 
+export const dynamicParams = true;
+
 type LabelDetailPageProps = {
   params: Promise<{ slug: string }>;
   searchParams: Promise<{ page?: string }>;
 };
 
 export async function generateStaticParams() {
-  return getCatalogLabelStaticParams();
+  if (getBuildStaticGenerationLimit() === 0) return [];
+  const { getLabelSummaries } = await import("@/lib/catalog");
+  const labels = await getLabelSummaries();
+  return getLimitedEncodedEntityStaticParams(labels.map((l) => l.slug));
 }
 
 export async function generateMetadata({ params }: LabelDetailPageProps) {

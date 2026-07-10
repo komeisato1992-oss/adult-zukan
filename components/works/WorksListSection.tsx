@@ -1,32 +1,30 @@
 "use client";
 
-import {
-  memo,
-  startTransition,
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-import { useSearchParams } from "next/navigation";
+import { memo, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { Pagination } from "@/components/ui/Pagination";
 import { DmmWorkListCard } from "@/components/works/DmmWorkListCard";
 import { WorksListControlGroup } from "@/components/works/WorksListControlGroup";
 import {
-  buildWorkFilterEntries,
   buildWorksQueryString,
-  filterWorkEntriesByQuery,
-  getWorkFilterOptionsFromEntries,
   WORK_DATE_FILTER_OPTIONS,
   WORK_PRICE_FILTER_OPTIONS,
+  type WorkFilterOption,
   type WorksListQueryState,
 } from "@/lib/works/list-filters";
-import { parsePageParam, paginateItems, WORKS_LIST_PAGE_SIZE } from "@/lib/pagination";
-import { getWorksSortOptions, parseWorkSortParam, sortWorks } from "@/lib/works/sort";
+import type { WorkSortOption } from "@/lib/works/sort";
+import { parseWorkSortParam } from "@/lib/works/sort";
 import type { DmmItem } from "@/lib/dmm/types";
 
 type WorksListSectionProps = {
-  items: DmmItem[];
+  pageItems: DmmItem[];
+  totalItems: number;
+  totalPages: number;
+  currentPage: number;
+  queryState: WorksListQueryState;
+  genreOptions: WorkFilterOption[];
+  makerOptions: WorkFilterOption[];
+  sortOptions: WorkSortOption[];
 };
 
 type WorksListGridProps = {
@@ -43,21 +41,6 @@ const WorksListGrid = memo(function WorksListGrid({ items }: WorksListGridProps)
   );
 });
 
-function parseQueryState(search: string): WorksListQueryState {
-  const params = new URLSearchParams(search);
-  return {
-    q: params.get("q") ?? undefined,
-    sale: params.get("sale") ?? undefined,
-    filter: params.get("filter") ?? undefined,
-    sort: params.get("sort") ?? undefined,
-    genre: params.get("genre") ?? undefined,
-    maker: params.get("maker") ?? undefined,
-    price: params.get("price") ?? "all",
-    date: params.get("date") ?? "all",
-    page: params.get("page") ?? "1",
-  };
-}
-
 function mergeQuery(
   current: WorksListQueryState,
   patch: Partial<WorksListQueryState>,
@@ -72,74 +55,38 @@ function mergeQuery(
   };
 }
 
-export function WorksListSection({ items }: WorksListSectionProps) {
-  const searchParams = useSearchParams();
-  const [queryState, setQueryState] = useState<WorksListQueryState>(() =>
-    parseQueryState(searchParams.toString()),
-  );
-  const [mobileOpen, setMobileOpen] = useState(false);
-
-  useEffect(() => {
-    setQueryState(parseQueryState(searchParams.toString()));
-  }, [searchParams]);
-
-  useEffect(() => {
-    const onPopState = () => {
-      setQueryState(parseQueryState(window.location.search));
-    };
-    window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
-  }, []);
+export function WorksListSection({
+  pageItems,
+  totalItems,
+  totalPages,
+  currentPage,
+  queryState,
+  genreOptions,
+  makerOptions,
+  sortOptions,
+}: WorksListSectionProps) {
+  const router = useRouter();
+  const currentSort = parseWorkSortParam(queryState.sort);
 
   const updateQuery = useCallback(
     (patch: Partial<WorksListQueryState>, resetPage = false) => {
-      startTransition(() => {
-        setQueryState((current) => {
-          const next = mergeQuery(current, patch, resetPage);
-          const qs = buildWorksQueryString(next);
-          const url = qs ? `/works?${qs}` : "/works";
-          window.history.replaceState(null, "", url);
-          return next;
-        });
-      });
+      const next = mergeQuery(queryState, patch, resetPage);
+      const qs = buildWorksQueryString(next);
+      router.push(qs ? `/works?${qs}` : "/works");
     },
-    [],
+    [queryState, router],
   );
 
-  const filterEntries = useMemo(() => buildWorkFilterEntries(items), [items]);
-
-  const { genreOptions, makerOptions } = useMemo(
-    () => getWorkFilterOptionsFromEntries(filterEntries),
-    [filterEntries],
-  );
-  const sortOptions = useMemo(() => getWorksSortOptions(items), [items]);
-  const currentSort = parseWorkSortParam(queryState.sort);
-
-  const filtered = useMemo(
-    () => filterWorkEntriesByQuery(filterEntries, queryState),
-    [filterEntries, queryState],
-  );
-  const sorted = useMemo(() => sortWorks(filtered, currentSort), [filtered, currentSort]);
-  const currentPage = parsePageParam(queryState.page);
-  const pagination = useMemo(
-    () => paginateItems(sorted, currentPage, WORKS_LIST_PAGE_SIZE),
-    [sorted, currentPage],
-  );
-
-  const activeConditions = useMemo(
-    () =>
-      [
-        queryState.genre ? `ジャンル：${queryState.genre}` : null,
-        queryState.maker ? `メーカー：${queryState.maker}` : null,
-        queryState.price && queryState.price !== "all"
-          ? `価格帯：${WORK_PRICE_FILTER_OPTIONS.find((o) => o.key === queryState.price)?.label ?? queryState.price}`
-          : null,
-        queryState.date && queryState.date !== "all"
-          ? `発売日：${WORK_DATE_FILTER_OPTIONS.find((o) => o.key === queryState.date)?.label ?? queryState.date}`
-          : null,
-      ].filter((v): v is string => Boolean(v)),
-    [queryState.genre, queryState.maker, queryState.price, queryState.date],
-  );
+  const activeConditions = [
+    queryState.genre ? `ジャンル：${queryState.genre}` : null,
+    queryState.maker ? `メーカー：${queryState.maker}` : null,
+    queryState.price && queryState.price !== "all"
+      ? `価格帯：${WORK_PRICE_FILTER_OPTIONS.find((o) => o.key === queryState.price)?.label ?? queryState.price}`
+      : null,
+    queryState.date && queryState.date !== "all"
+      ? `発売日：${WORK_DATE_FILTER_OPTIONS.find((o) => o.key === queryState.date)?.label ?? queryState.date}`
+      : null,
+  ].filter((value): value is string => Boolean(value));
 
   const clearFilters = useCallback(() => {
     updateQuery({ genre: undefined, maker: undefined, price: "all", date: "all" }, true);
@@ -154,17 +101,7 @@ export function WorksListSection({ items }: WorksListSectionProps) {
 
   return (
     <>
-      <div className="mb-4 flex items-center justify-between md:hidden">
-        <button
-          type="button"
-          onClick={() => setMobileOpen((prev) => !prev)}
-          className="rounded border border-border bg-white px-3 py-2 text-sm text-foreground"
-        >
-          絞り込み
-        </button>
-      </div>
-
-      <div className={`${mobileOpen ? "block" : "hidden"} mb-5 space-y-4 md:block`}>
+      <div className="mb-5 space-y-4">
         <WorksListControlGroup label="絞り込み">
           <div className="grid w-full gap-3 sm:grid-cols-2 md:flex md:flex-1 md:flex-wrap">
             <select
@@ -260,18 +197,16 @@ export function WorksListSection({ items }: WorksListSectionProps) {
       ) : null}
 
       <p className="mb-6 text-sm text-muted">
-        {pagination.totalItems}件の作品が見つかりました。
-        {pagination.totalPages > 1
-          ? `（${pagination.currentPage}/${pagination.totalPages}ページ目）`
-          : null}
+        {totalItems}件の作品が見つかりました。
+        {totalPages > 1 ? `（${currentPage}/${totalPages}ページ目）` : null}
       </p>
 
-      {pagination.items.length > 0 ? (
+      {pageItems.length > 0 ? (
         <>
-          <WorksListGrid items={pagination.items} />
+          <WorksListGrid items={pageItems} />
           <Pagination
-            currentPage={pagination.currentPage}
-            totalPages={pagination.totalPages}
+            currentPage={currentPage}
+            totalPages={totalPages}
             basePath="/works"
             onPageChange={handlePageChange}
           />

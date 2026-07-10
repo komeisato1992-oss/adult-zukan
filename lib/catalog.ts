@@ -23,7 +23,6 @@ import {
 import { DMM_WORKS_REVALIDATE } from "@/lib/dmm/static-works";
 import { getCatalogSnapshotFingerprint } from "@/lib/dmm/catalog-display";
 import { getDmmStaticWorks } from "@/lib/dmm/static-works";
-import { readCatalogSnapshot } from "@/lib/dmm/catalog-snapshot";
 import type { DmmItem } from "@/lib/dmm/types";
 import { RELATED_WORKS_DISPLAY_LIMIT } from "@/lib/pagination";
 
@@ -79,11 +78,8 @@ export const getLabelSummaries = createSummariesLoader(
 
 export const getCatalogWorkByContentId = cache(
   async (contentId: string): Promise<DmmItem | null> => {
-    const snapshot = readCatalogSnapshot();
-    const item = snapshot.find((entry) => entry.content_id === contentId);
-    if (!item) return null;
-    const [valid] = filterValidCatalogItems([item]);
-    return valid ?? null;
+    const works = await getCatalogWorks();
+    return works.find((entry) => entry.content_id === contentId) ?? null;
   },
 );
 

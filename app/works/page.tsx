@@ -4,7 +4,10 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { WorksListSection } from "@/components/works/WorksListSection";
 import { PageIntro } from "@/components/ui/PageIntro";
 import { getCatalogWorks } from "@/lib/catalog";
-import { filterDisplayableItems } from "@/lib/dmm/filter";
+import {
+  getWorksListPageData,
+  parseWorksListQueryState,
+} from "@/lib/works/list-page";
 import { siteConfig, pageIntros } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import { truncateDescription } from "@/lib/seo/descriptions";
@@ -87,11 +90,12 @@ export default async function WorksPage({ searchParams }: WorksPageProps) {
   const params = await searchParams;
   const pageTitle = getPageTitle(params);
   const catalog = await getCatalogWorks();
-  const displayableItems = filterDisplayableItems(catalog);
+  const queryState = parseWorksListQueryState(params);
+  const listData = await getWorksListPageData(catalog, queryState);
 
   return (
     <>
-      {displayableItems.length > 0 && (
+      {listData.totalItems > 0 && (
         <JsonLd
           data={[
             createBreadcrumbJsonLd([
@@ -116,7 +120,16 @@ export default async function WorksPage({ searchParams }: WorksPageProps) {
           </h1>
           <PageIntro text={pageIntros.works} />
         </header>
-        <WorksListSection items={displayableItems} />
+        <WorksListSection
+          pageItems={listData.pageItems}
+          totalItems={listData.totalItems}
+          totalPages={listData.totalPages}
+          currentPage={listData.currentPage}
+          queryState={queryState}
+          genreOptions={listData.genreOptions}
+          makerOptions={listData.makerOptions}
+          sortOptions={listData.sortOptions}
+        />
       </PageLayout>
     </>
   );

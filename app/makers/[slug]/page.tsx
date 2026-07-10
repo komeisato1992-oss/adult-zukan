@@ -6,9 +6,8 @@ import { SectionHeader } from "@/components/ui/SectionHeader";
 import { CatalogWorksListSection } from "@/components/works/CatalogWorksListSection";
 import { DmmRelatedWorks } from "@/components/works/DmmRelatedWorks";
 import { JsonLd } from "@/components/seo/JsonLd";
-import {
-  getCatalogMakerStaticParams,
-} from "@/lib/dmm/catalog-entities";
+import { getBuildStaticGenerationLimit } from "@/lib/dmm/build-static";
+import { getLimitedEncodedEntityStaticParams } from "@/lib/dmm/generate-static-params";
 import {
   getMakerSummaryBySlug,
   getMakerWorksBySlug,
@@ -32,13 +31,18 @@ import {
 
 export const revalidate = 86400;
 
+export const dynamicParams = true;
+
 type MakerDetailPageProps = {
   params: Promise<{ slug: string }>;
   searchParams: Promise<{ page?: string }>;
 };
 
 export async function generateStaticParams() {
-  return getCatalogMakerStaticParams();
+  if (getBuildStaticGenerationLimit() === 0) return [];
+  const { getMakerSummaries } = await import("@/lib/catalog");
+  const makers = await getMakerSummaries();
+  return getLimitedEncodedEntityStaticParams(makers.map((m) => m.slug));
 }
 
 export async function generateMetadata({ params }: MakerDetailPageProps) {

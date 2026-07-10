@@ -4,7 +4,8 @@ import { SearchBar } from "@/components/ui/SearchBar";
 import { PageIntro } from "@/components/ui/PageIntro";
 import { CatalogWorksListSection } from "@/components/works/CatalogWorksListSection";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { unifiedSearchAll } from "@/lib/search/unified";
+import { unifiedSearch } from "@/lib/search/unified";
+import { parsePageParam } from "@/lib/pagination";
 import { siteConfig, pageIntros } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import { createSearchDescription, truncateDescription } from "@/lib/seo/descriptions";
@@ -46,9 +47,11 @@ export async function generateMetadata({ searchParams }: SearchPageProps) {
 }
 
 export default async function SearchPage({ searchParams }: SearchPageProps) {
-  const { q } = await searchParams;
+  const { q, page, sort } = await searchParams;
   const trimmed = q?.trim().replace(/[\s\u3000]+/g, " ");
-  const results = trimmed ? await unifiedSearchAll(trimmed) : null;
+  const results = trimmed
+    ? await unifiedSearch(trimmed, parsePageParam(page))
+    : null;
 
   return (
     <>
@@ -83,15 +86,21 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         <SearchBar defaultValue={trimmed ?? ""} className="mb-8 max-w-2xl" />
 
         {results ? (
-          results.items.length > 0 ? (
+          results.total > 0 ? (
             <div>
               <p className="mb-6 text-sm text-muted">
-                「{results.query}」の検索結果：{results.items.length}件
+                「{results.query}」の検索結果：{results.total}件
+                {results.totalPages > 1
+                  ? `（${results.currentPage}/${results.totalPages}ページ目）`
+                  : null}
               </p>
               <CatalogWorksListSection
                 items={results.items}
                 paginationBasePath="/search"
-                query={{ q: results.query }}
+                initialPage={results.currentPage}
+                totalItems={results.total}
+                totalPages={results.totalPages}
+                query={{ q: results.query, sort }}
               />
             </div>
           ) : (

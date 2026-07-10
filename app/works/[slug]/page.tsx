@@ -15,7 +15,7 @@ import {
   getRelatedActressesForWork,
 } from "@/lib/works/repository";
 import { getCatalogWorkByContentId } from "@/lib/catalog";
-import { getDmmStaticWorkContentIds } from "@/lib/dmm/static-works";
+import { getLimitedWorkStaticParams } from "@/lib/dmm/generate-static-params";
 import { getGenreBySlug } from "@/data/genres";
 import { getActressDetailPath } from "@/lib/actresses/slug";
 import {
@@ -53,8 +53,7 @@ type WorkDetailPageProps = {
 };
 
 export async function generateStaticParams() {
-  const contentIds = await getDmmStaticWorkContentIds();
-  return contentIds.map((slug) => ({ slug }));
+  return getLimitedWorkStaticParams();
 }
 
 export async function generateMetadata({ params }: WorkDetailPageProps) {

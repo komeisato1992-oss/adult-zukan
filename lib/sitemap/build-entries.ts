@@ -6,14 +6,14 @@ import {
   getLabelDetailPath,
 } from "@/lib/entities/paths";
 import { getAllArticles } from "@/data/articles";
+import { getCatalogWorks } from "@/lib/catalog";
 import {
-  getActressSummaries,
-  getCatalogWorks,
-  getGenreSummaries,
-  getLabelSummaries,
-  getMakerSummaries,
-  getSeriesSummaries,
-} from "@/lib/catalog";
+  readCommittedActressIndex,
+  readCommittedGenreIndex,
+  readCommittedLabelIndex,
+  readCommittedMakerIndex,
+  readCommittedSeriesIndex,
+} from "@/lib/dmm/catalog-index-read";
 import {
   buildSitemapUrl,
   dedupeSitemapEntries,
@@ -30,15 +30,14 @@ function isIncludedPath(path: string): boolean {
 const STATIC_LASTMOD = formatSitemapLastmod(new Date());
 
 export async function getSitemapEntries(): Promise<SitemapEntry[]> {
-  const [items, actresses, makers, series, labels, genres] =
-    await Promise.all([
-      getCatalogWorks(),
-      getActressSummaries(),
-      getMakerSummaries(),
-      getSeriesSummaries(),
-      getLabelSummaries(),
-      getGenreSummaries(),
-    ]);
+  const [works, actresses, makers, series, labels, genres] = await Promise.all([
+    getCatalogWorks(),
+    Promise.resolve(readCommittedActressIndex()),
+    Promise.resolve(readCommittedMakerIndex()),
+    Promise.resolve(readCommittedSeriesIndex()),
+    Promise.resolve(readCommittedLabelIndex()),
+    Promise.resolve(readCommittedGenreIndex()),
+  ]);
 
   const staticPaths = [
     "",
@@ -62,7 +61,7 @@ export async function getSitemapEntries(): Promise<SitemapEntry[]> {
       loc: buildSitemapUrl(path),
       lastmod: STATIC_LASTMOD,
     })),
-    ...items.map((item) => ({
+    ...works.map((item) => ({
       loc: buildSitemapUrl(`/works/${item.content_id}`),
       lastmod: getItemLastmod(item.date),
     })),

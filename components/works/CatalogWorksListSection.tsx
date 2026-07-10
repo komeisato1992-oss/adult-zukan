@@ -24,6 +24,9 @@ type CatalogWorksListSectionProps = {
   initialPage?: number;
   query?: Record<string, string | undefined>;
   className?: string;
+  /** サーバー側でページ分割済みのときに指定 */
+  totalItems?: number;
+  totalPages?: number;
 };
 
 function buildPaginationQuery(
@@ -42,27 +45,39 @@ function CatalogWorksListSectionInner({
   initialPage = 1,
   query = {},
   className = "grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4",
+  totalItems: serverTotalItems,
+  totalPages: serverTotalPages,
 }: CatalogWorksListSectionProps) {
   const searchParams = useSearchParams();
   const currentSort = parseWorkSortParam(searchParams.get("sort"));
   const currentPage = parsePageParam(searchParams.get("page") ?? String(initialPage));
+  const serverPaginated =
+    serverTotalItems !== undefined && serverTotalPages !== undefined;
 
   const displayableItems = useMemo(
-    () => filterDisplayableItems(items),
-    [items],
+    () => (serverPaginated ? items : filterDisplayableItems(items)),
+    [items, serverPaginated],
   );
   const sortOptions = useMemo(
     () => getWorksSortOptions(displayableItems),
     [displayableItems],
   );
   const sortedItems = useMemo(
-    () => sortWorks(displayableItems, currentSort),
-    [displayableItems, currentSort],
+    () => (serverPaginated ? displayableItems : sortWorks(displayableItems, currentSort)),
+    [displayableItems, currentSort, serverPaginated],
   );
-  const pagination = useMemo(
-    () => paginateItems(sortedItems, currentPage, CATALOG_DETAIL_PAGE_SIZE),
-    [sortedItems, currentPage],
-  );
+  const pagination = useMemo(() => {
+    if (serverPaginated) {
+      return {
+        items: sortedItems,
+        currentPage,
+        totalPages: serverTotalPages,
+        totalItems: serverTotalItems,
+      };
+    }
+
+    return paginateItems(sortedItems, currentPage, CATALOG_DETAIL_PAGE_SIZE);
+  }, [sortedItems, currentPage, serverPaginated, serverTotalItems, serverTotalPages]);
   const paginationQuery = useMemo(
     () => buildPaginationQuery(currentSort, query),
     [currentSort, query],

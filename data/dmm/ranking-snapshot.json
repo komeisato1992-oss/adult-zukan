@@ -1,58 +1,75 @@
 {
-  "updatedAt": "2026-07-10T22:53:20.516Z",
+  "updatedAt": "2026-07-10T22:59:58.211Z",
   "popularContentIds": [
-    "h_1724a164f00008",
-    "h_1724a169f00001",
-    "h_1724a177f00002",
-    "h_1724a178f00003",
-    "h_1724p149f00001",
-    "h_1724a171b00006",
-    "h_1724a173b00007",
-    "h_1724a174b00008",
-    "h_1724a175b00010",
-    "h_1724a176b00011",
-    "h_1724v141i00001",
-    "h_1724h090f00004",
-    "h_796san00466",
-    "h_796san00467",
-    "h_796san00468",
-    "h_796san00469",
-    "h_796san00470z",
-    "h_796san00471z",
-    "h_796san00472",
-    "h_796san00473",
-    "h_796san00474",
-    "h_1422tpi00244",
-    "h_1422tpi00245",
-    "h_1422tpi00246",
-    "h_1422tpi00247",
-    "h_1422tpi00248",
-    "h_1422tpi00249",
-    "h_1757olm00323",
-    "h_1757olm00324",
-    "h_1757olm00325",
-    "h_1757olm00326",
-    "h_1757olm00327",
-    "h_1757olm00328",
-    "h_1757olm00329",
-    "h_1757olm00330",
-    "h_1757olm00331e",
-    "yrnknkjdvaj00727a",
-    "yrnknkjdvaj00711",
-    "h_189tsk00011",
-    "h_1757olm00332e",
-    "h_1734oots00029",
-    "h_1732orecs00618",
-    "h_1636myt250007",
-    "h_1596dg00550",
-    "h_1596dg00549",
-    "h_1596dg00548",
-    "h_1596dg00547",
-    "h_1596dg00546",
-    "h_1596dg00545",
-    "h_1596dg00544"
+    "h_1454mcsr63302",
+    "h_1454mcsr63301",
+    "h_1454mcsr52006",
+    "h_1454mcsr52005",
+    "h_1454mcsr52004",
+    "h_1454mcsr52003",
+    "h_1454mcsr52002",
+    "h_1454mcsr52001",
+    "h_1454mcsr43804",
+    "h_1454mcsr43803",
+    "h_1454mcsr43802",
+    "h_1454mcsr43801",
+    "h_1454mcsr43502",
+    "h_1454mcsr43501",
+    "h_1454jksr63903",
+    "h_1454jksr63902",
+    "h_1454jksr63901",
+    "h_1454jksr63803",
+    "h_1454jksr63802",
+    "h_1454jksr63801",
+    "h_1454itsr15303",
+    "h_1454itsr15302",
+    "h_1454itsr15301",
+    "h_1454hust08202",
+    "h_1454hust08201",
+    "h_1454husr30404",
+    "h_1454husr30403",
+    "h_1454husr30402",
+    "h_1454husr30401",
+    "h_1454husr20304",
+    "h_1454husr20303",
+    "h_1454husr20302",
+    "h_1454husr20301",
+    "h_1454husr20203",
+    "h_1454husr20202",
+    "h_1454husr20201",
+    "h_1454bdsr55706",
+    "h_1454bdsr55705",
+    "h_1454bdsr55704",
+    "h_1133yako00095",
+    "h_1133totk00023",
+    "h_1133nine00122",
+    "h_1133honb00492",
+    "h_1133honb00491",
+    "57sgsr00401",
+    "57sgsr00400",
+    "57mcsr00634",
+    "57mcsr00633",
+    "57jksr00740",
+    "57jksr00739"
   ],
   "saleContentIds": [
+    "15wid00064ai",
+    "h_1745hrsm00150",
+    "yrnknkjdvaj00734",
+    "yrnknkjdvaj00733",
+    "yrnknkjdvaj00730a",
+    "sbd00007ai",
+    "sbd00006ai",
+    "sbd00005ai",
+    "sbd00004ai",
+    "sbd00003ai",
+    "kw07053ai",
+    "ks08412ai",
+    "ka02076ai",
+    "ka01847ai",
+    "ka01175ai",
+    "h_1515sdbf00002",
+    "h_1515sdbf00001",
     "yrnknkjdvaj00727a",
     "yrnknkjdvaj00711",
     "2dfe00115",
@@ -85,35 +102,18 @@
     "dss00241",
     "dvmm00216",
     "nnpj00577",
-    "prin00035",
-    "dvmm00292",
-    "katu00126",
-    "ebwh00031",
-    "tikb00218",
-    "huntb00644",
-    "hunta00201",
-    "huntb00698",
-    "hunbl00142",
-    "huntb00620",
-    "real00893",
-    "nnpj00571",
-    "ssis00383",
-    "mide00937",
-    "cjod00399",
-    "mudr00049",
-    "midv00143",
-    "midv00316"
+    "prin00035"
   ],
   "rankedMakers": [
     {
       "name": "エスワン ナンバーワンスタイル",
       "slug": "エスワン-ナンバーワンスタイル",
-      "workCount": 470
+      "workCount": 471
     },
     {
       "name": "ムーディーズ",
       "slug": "ムーディーズ",
-      "workCount": 452
+      "workCount": 453
     },
     {
       "name": "マドンナ",
@@ -128,17 +128,17 @@
     {
       "name": "桃太郎映像出版",
       "slug": "桃太郎映像出版",
-      "workCount": 169
-    },
-    {
-      "name": "アイデアポケット",
-      "slug": "アイデアポケット",
-      "workCount": 153
+      "workCount": 170
     },
     {
       "name": "アリスJAPAN",
       "slug": "アリスjapan",
-      "workCount": 153
+      "workCount": 161
+    },
+    {
+      "name": "アイデアポケット",
+      "slug": "アイデアポケット",
+      "workCount": 154
     },
     {
       "name": "SODクリエイト",
@@ -150,7 +150,7 @@
     {
       "name": "S1 GIRLS COLLECTION",
       "slug": "s1-girls-collection",
-      "workCount": 70
+      "workCount": 71
     },
     {
       "name": "休日に彼女と。",
@@ -192,49 +192,49 @@
     {
       "name": "ハイビジョン",
       "slug": "ハイビジョン",
-      "workCount": 5631
+      "workCount": 5809
     },
     {
       "name": "単体作品",
       "slug": "単体作品",
-      "workCount": 3669
+      "workCount": 3715
     },
     {
       "name": "独占配信",
       "slug": "独占配信",
-      "workCount": 3195
+      "workCount": 3232
     },
     {
       "name": "中出し",
       "slug": "中出し",
-      "workCount": 2803
+      "workCount": 2904
     },
     {
       "name": "巨乳",
       "slug": "巨乳",
-      "workCount": 2466
+      "workCount": 2569
     },
     {
       "name": "4K",
       "slug": "4k",
-      "workCount": 1889
+      "workCount": 1901
     },
     {
       "name": "人妻・主婦",
       "slug": "人妻・主婦",
-      "workCount": 1097
+      "workCount": 1156
     },
     {
       "name": "美少女",
       "slug": "美少女",
-      "workCount": 1089
+      "workCount": 1119
     }
   ],
   "rankedActresses": [
     {
       "name": "逢沢みゆ",
       "slug": "%E9%80%A2%E6%B2%A2%E3%81%BF%E3%82%86",
-      "workCount": 98,
+      "workCount": 99,
       "imageUrl": "https://pics.dmm.co.jp/digital/video/waaa00678/waaa00678pl.jpg",
       "imageFromMultiActressWork": false
     },
@@ -248,7 +248,7 @@
     {
       "name": "天馬ゆい",
       "slug": "%E5%A4%A9%E9%A6%AC%E3%82%86%E3%81%84",
-      "workCount": 59,
+      "workCount": 60,
       "imageUrl": "https://pics.dmm.co.jp/digital/video/yrnknkjdvaj00727a/yrnknkjdvaj00727apl.jpg",
       "imageFromMultiActressWork": false
     },
@@ -267,24 +267,24 @@
       "imageFromMultiActressWork": false
     },
     {
+      "name": "柏木こなつ",
+      "slug": "%E6%9F%8F%E6%9C%A8%E3%81%93%E3%81%AA%E3%81%A4",
+      "workCount": 56,
+      "imageUrl": "https://pics.dmm.co.jp/digital/video/1mgnl00170/1mgnl00170pl.jpg",
+      "imageFromMultiActressWork": false
+    },
+    {
       "name": "北岡果林",
       "slug": "%E5%8C%97%E5%B2%A1%E6%9E%9C%E6%9E%97",
-      "workCount": 55,
+      "workCount": 56,
       "imageUrl": "https://pics.dmm.co.jp/digital/video/xvsr00885/xvsr00885pl.jpg",
       "imageFromMultiActressWork": false
     },
     {
       "name": "小野坂ゆいか",
       "slug": "%E5%B0%8F%E9%87%8E%E5%9D%82%E3%82%86%E3%81%84%E3%81%8B",
-      "workCount": 54,
+      "workCount": 55,
       "imageUrl": "https://pics.dmm.co.jp/digital/video/soav00138/soav00138pl.jpg",
-      "imageFromMultiActressWork": false
-    },
-    {
-      "name": "柏木こなつ",
-      "slug": "%E6%9F%8F%E6%9C%A8%E3%81%93%E3%81%AA%E3%81%A4",
-      "workCount": 54,
-      "imageUrl": "https://pics.dmm.co.jp/digital/video/real00970/real00970pl.jpg",
       "imageFromMultiActressWork": false
     },
     {
@@ -295,10 +295,10 @@
       "imageFromMultiActressWork": false
     },
     {
-      "name": "小日向みゆう（清原みゆう）",
-      "slug": "%E5%B0%8F%E6%97%A5%E5%90%91%E3%81%BF%E3%82%86%E3%81%86%EF%BC%88%E6%B8%85%E5%8E%9F%E3%81%BF%E3%82%86%E3%81%86%EF%BC%89",
+      "name": "月野かすみ",
+      "slug": "%E6%9C%88%E9%87%8E%E3%81%8B%E3%81%99%E3%81%BF",
       "workCount": 52,
-      "imageUrl": "https://pics.dmm.co.jp/digital/video/sone00993/sone00993pl.jpg",
+      "imageUrl": "https://pics.dmm.co.jp/digital/video/5642hodv22078/5642hodv22078pl.jpg",
       "imageFromMultiActressWork": false
     }
   ]

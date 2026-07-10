@@ -1,3 +1,8 @@
 export const IMPORT_COLLECT_MAX = 200;
 export const IMPORT_PAGE_SIZE = 100;
-export const IMPORT_BULK_ADD_MAX = 100;
+export const IMPORT_BULK_ADD_DEFAULT = 200;
+export const IMPORT_BULK_ADD_ABSOLUTE_MAX = 1000;
+export const IMPORT_BULK_ADD_OPTIONS = [100, 200, 500, 1000] as const;
+
+/** @deprecated IMPORT_BULK_ADD_ABSOLUTE_MAX を使用してください */
+export const IMPORT_BULK_ADD_MAX = IMPORT_BULK_ADD_ABSOLUTE_MAX;

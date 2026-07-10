@@ -10,7 +10,11 @@ import { ImportSortBar } from "@/components/admin/ImportSortBar";
 import { ImportSummaryBar } from "@/components/admin/ImportSummaryBar";
 import type { ImportCandidateSortKey } from "@/lib/admin/import-candidate-types";
 import type { ImportCandidatesListResult } from "@/lib/admin/import-candidate-types";
-import { IMPORT_BULK_ADD_MAX } from "@/lib/admin/import-constants";
+import {
+  type BulkAddLimitChoice,
+  resolveBulkAddLimit,
+} from "@/lib/admin/bulk-add-limit";
+import { IMPORT_BULK_ADD_DEFAULT } from "@/lib/admin/import-constants";
 import { formatImportSourceLabel } from "@/lib/admin/import-source-labels";
 import type { ImportBulkConfirmSummary, ImportFilterKey } from "@/lib/admin/import-quality";
 import { getImportQualityFlags } from "@/lib/admin/import-quality";
@@ -38,6 +42,15 @@ export function ImportManagementClient({
   const [page, setPage] = useState(initialData.pagination.page);
   const [sort, setSort] = useState<ImportCandidateSortKey>("collectedAt-desc");
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectedItemById, setSelectedItemById] = useState<Record<string, DmmItem>>(
+    {},
+  );
+  const [addLimit, setAddLimit] = useState<BulkAddLimitChoice>(
+    IMPORT_BULK_ADD_DEFAULT,
+  );
+  const [pendingBulkWorks, setPendingBulkWorks] = useState<
+    Array<{ contentId: string; item: DmmItem }>
+  >([]);
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
   const [activeFilters, setActiveFilters] = useState<Set<ImportFilterKey>>(
     new Set(),
@@ -65,12 +78,24 @@ export function ImportManagementClient({
     [data.candidates],
   );
 
-  const selectedCandidates = useMemo(
+  const selectedCount = selectedIds.size;
+
+  const selectedWorksForBulk = useMemo(
     () =>
-      visibleCandidates.filter((candidate) =>
-        selectedIds.has(candidate.contentId),
-      ),
-    [visibleCandidates, selectedIds],
+      [...selectedIds]
+        .map((contentId) => ({
+          contentId,
+          item: selectedItemById[contentId],
+        }))
+        .filter(
+          (
+            entry,
+          ): entry is {
+            contentId: string;
+            item: DmmItem;
+          } => Boolean(entry.item),
+        ),
+    [selectedIds, selectedItemById],
   );
 
   const comparePool = useMemo(
@@ -83,6 +108,7 @@ export function ImportManagementClient({
       nextPage?: number;
       nextSort?: ImportCandidateSortKey;
       nextFilters?: Set<ImportFilterKey>;
+      preserveSelection?: boolean;
     } = {}) => {
       const targetPage = options.nextPage ?? page;
       const targetSort = options.nextSort ?? sort;
@@ -110,13 +136,14 @@ export function ImportManagementClient({
 
       const payload = (await response.json()) as ImportManagementInitialData;
 
-      console.log("loaded candidates:", payload.candidates);
-      console.log("filtered candidates:", payload.candidates);
-
       setData(payload);
       setPage(payload.pagination.page);
       setSort(targetSort);
-      setSelectedIds(new Set());
+
+      if (!options.preserveSelection) {
+        setSelectedIds(new Set());
+        setSelectedItemById({});
+      }
     },
     [page, sort, activeFilters],
   );
@@ -170,6 +197,11 @@ export function ImportManagementClient({
           next.delete(contentId);
           return next;
         });
+        setSelectedItemById((current) => {
+          const next = { ...current };
+          delete next[contentId];
+          return next;
+        });
         await loadCandidates();
       } catch (excludeError) {
         setError(
@@ -183,13 +215,23 @@ export function ImportManagementClient({
   );
 
   const handleSelectedChange = useCallback(
-    (contentId: string, selected: boolean) => {
+    (contentId: string, selected: boolean, item?: DmmItem) => {
       setSelectedIds((current) => {
         const next = new Set(current);
         if (selected) {
           next.add(contentId);
         } else {
           next.delete(contentId);
+        }
+        return next;
+      });
+
+      setSelectedItemById((current) => {
+        const next = { ...current };
+        if (selected && item) {
+          next[contentId] = item;
+        } else {
+          delete next[contentId];
         }
         return next;
       });
@@ -245,31 +287,53 @@ export function ImportManagementClient({
   }, [loadCandidates]);
 
   const handleSelectAll = useCallback(() => {
-    setSelectedIds(
-      new Set(
-        visibleCandidates
-          .filter((candidate) => !addedIds.has(candidate.contentId))
-          .map((candidate) => candidate.contentId),
-      ),
-    );
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      for (const candidate of visibleCandidates) {
+        if (!addedIds.has(candidate.contentId)) {
+          next.add(candidate.contentId);
+        }
+      }
+      return next;
+    });
+    setSelectedItemById((current) => {
+      const next = { ...current };
+      for (const candidate of visibleCandidates) {
+        if (!addedIds.has(candidate.contentId)) {
+          next[candidate.contentId] = candidate.item;
+        }
+      }
+      return next;
+    });
   }, [visibleCandidates, addedIds]);
 
   const handleClearSelection = useCallback(() => {
     setSelectedIds(new Set());
+    setSelectedItemById({});
   }, []);
 
   const handleSelectByFlag = useCallback(
     (flag: ImportFilterKey) => {
-      setSelectedIds(
-        new Set(
-          visibleCandidates
-            .filter((candidate) => {
-              if (addedIds.has(candidate.contentId)) return false;
-              return getImportQualityFlags(candidate.item)[flag];
-            })
-            .map((candidate) => candidate.contentId),
-        ),
-      );
+      setSelectedIds((current) => {
+        const next = new Set(current);
+        for (const candidate of visibleCandidates) {
+          if (addedIds.has(candidate.contentId)) continue;
+          if (getImportQualityFlags(candidate.item)[flag]) {
+            next.add(candidate.contentId);
+          }
+        }
+        return next;
+      });
+      setSelectedItemById((current) => {
+        const next = { ...current };
+        for (const candidate of visibleCandidates) {
+          if (addedIds.has(candidate.contentId)) continue;
+          if (getImportQualityFlags(candidate.item)[flag]) {
+            next[candidate.contentId] = candidate.item;
+          }
+        }
+        return next;
+      });
     },
     [visibleCandidates, addedIds],
   );
@@ -309,6 +373,7 @@ export function ImportManagementClient({
         }));
         setPage(payload.pagination?.page ?? 1);
         setSelectedIds(new Set());
+        setSelectedItemById({});
         setActiveFilters(new Set());
 
         const displayedCount =
@@ -394,7 +459,7 @@ export function ImportManagementClient({
     setError(null);
 
     try {
-      await loadCandidates({ nextPage });
+      await loadCandidates({ nextPage, preserveSelection: true });
     } catch (loadError) {
       setError(
         loadError instanceof Error
@@ -409,13 +474,16 @@ export function ImportManagementClient({
   async function handleBulkAddRequest() {
     setBulkAddError(null);
 
-    if (selectedCandidates.length === 0) {
+    if (selectedWorksForBulk.length === 0) {
       setBulkAddError("追加する作品を選択してください。");
       return;
     }
 
-    if (selectedCandidates.length > IMPORT_BULK_ADD_MAX) {
-      setBulkAddError("1回で追加できるのは100件までです");
+    const appliedLimit = resolveBulkAddLimit(addLimit, selectedWorksForBulk.length);
+    const worksToPreview = selectedWorksForBulk.slice(0, appliedLimit);
+
+    if (worksToPreview.length === 0) {
+      setBulkAddError("追加する作品を選択してください。");
       return;
     }
 
@@ -428,10 +496,11 @@ export function ImportManagementClient({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          selectedWorks: selectedCandidates.map((candidate) => ({
+          selectedWorks: worksToPreview.map((candidate) => ({
             contentId: candidate.contentId,
             item: candidate.item,
           })),
+          addLimit: appliedLimit,
         }),
       });
 
@@ -465,6 +534,7 @@ export function ImportManagementClient({
         noDescription: payload.qualitySummary.noDescription,
         noSampleImages: payload.qualitySummary.noSampleImages,
       });
+      setPendingBulkWorks(worksToPreview);
       setShowConfirmModal(true);
     } catch (previewError) {
       setBulkAddError(
@@ -478,8 +548,8 @@ export function ImportManagementClient({
   }
 
   async function handleBulkAddConfirm() {
-    if (selectedCandidates.length > IMPORT_BULK_ADD_MAX) {
-      setBulkAddError("1回で追加できるのは100件までです");
+    if (pendingBulkWorks.length === 0) {
+      setBulkAddError("追加する作品を選択してください。");
       setShowConfirmModal(false);
       return;
     }
@@ -494,10 +564,11 @@ export function ImportManagementClient({
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          selectedWorks: selectedCandidates.map((candidate) => ({
+          selectedWorks: pendingBulkWorks.map((candidate) => ({
             contentId: candidate.contentId,
             item: candidate.item,
           })),
+          addLimit: pendingBulkWorks.length,
         }),
       });
 
@@ -516,11 +587,13 @@ export function ImportManagementClient({
       setAddedIds((current) => new Set([...current, ...addedContentIds]));
       setRecentlyAddedIds((current) => new Set([...current, ...addedContentIds]));
       setRecentlyAddedItems(
-        selectedCandidates
+        pendingBulkWorks
           .filter((candidate) => addedContentIds.includes(candidate.contentId))
           .map((candidate) => candidate.item),
       );
       setSelectedIds(new Set());
+      setSelectedItemById({});
+      setPendingBulkWorks([]);
       setBulkAddMessage(
         payload.message ??
           (payload.addedCount && payload.addedCount > 0
@@ -621,8 +694,10 @@ export function ImportManagementClient({
 
       {!isLoading && visibleCandidates.length > 0 ? (
         <ImportBulkToolbar
-          selectedCount={selectedCandidates.length}
+          selectedCount={selectedCount}
+          addLimit={addLimit}
           isBulkAdding={isBulkAdding || isPreviewLoading}
+          onAddLimitChange={setAddLimit}
           onSelectAll={handleSelectAll}
           onClearSelection={handleClearSelection}
           onSelectByFlag={handleSelectByFlag}
@@ -680,6 +755,7 @@ export function ImportManagementClient({
           onCancel={() => {
             setShowConfirmModal(false);
             setConfirmSummary(null);
+            setPendingBulkWorks([]);
           }}
         />
       ) : null}

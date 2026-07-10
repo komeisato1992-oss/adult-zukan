@@ -6,7 +6,7 @@ import {
   GitHubCatalogError,
 } from "@/lib/admin/github-catalog";
 import { markImportCandidatesAdded } from "@/lib/admin/import-candidates-store";
-import { IMPORT_BULK_ADD_MAX } from "@/lib/admin/import-constants";
+import { IMPORT_BULK_ADD_ABSOLUTE_MAX } from "@/lib/admin/import-constants";
 import {
   summarizeImportSelection,
   type ImportSelectionSummary,
@@ -131,8 +131,10 @@ function buildBulkCommitMessage(addedContentIds: string[]): string {
 export async function previewBulkAddWorks(
   works: Array<{ contentId: string; item: DmmItem }>,
 ): Promise<BulkAddPreviewResult> {
-  if (works.length > IMPORT_BULK_ADD_MAX) {
-    throw new AddWorkValidationError("1回で追加できるのは100件までです");
+  if (works.length > IMPORT_BULK_ADD_ABSOLUTE_MAX) {
+    throw new AddWorkValidationError(
+      `1回で追加できるのは${IMPORT_BULK_ADD_ABSOLUTE_MAX}件までです`,
+    );
   }
 
   const { items } = await fetchCatalogFromGitHub();
@@ -155,8 +157,10 @@ export async function previewBulkAddWorks(
 export async function addWorksToCatalog(
   works: Array<{ contentId: string; item: DmmItem }>,
 ): Promise<BulkAddWorksResult> {
-  if (works.length > IMPORT_BULK_ADD_MAX) {
-    throw new AddWorkValidationError("1回で追加できるのは100件までです");
+  if (works.length > IMPORT_BULK_ADD_ABSOLUTE_MAX) {
+    throw new AddWorkValidationError(
+      `1回で追加できるのは${IMPORT_BULK_ADD_ABSOLUTE_MAX}件までです`,
+    );
   }
 
   if (works.length === 0) {

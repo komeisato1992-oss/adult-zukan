@@ -38,7 +38,7 @@ type ImportCandidateCardProps = {
   isAdded: boolean;
   emphasizeSns?: boolean;
   comparePool?: DmmItem[];
-  onSelectedChange: (contentId: string, selected: boolean) => void;
+  onSelectedChange: (contentId: string, selected: boolean, item: DmmItem) => void;
   onExclude: (contentId: string) => void | Promise<void>;
 };
 
@@ -106,7 +106,7 @@ export function ImportCandidateCard({
 
   function handleSelectToAdd() {
     if (isAdded || selected) return;
-    onSelectedChange(item.content_id, true);
+    onSelectedChange(item.content_id, true, item);
   }
 
   function handleGenerateSns() {
@@ -176,7 +176,11 @@ export function ImportCandidateCard({
                 type="checkbox"
                 checked={selected}
                 onChange={(event) =>
-                  onSelectedChange(item.content_id, event.target.checked)
+                  onSelectedChange(
+                    item.content_id,
+                    event.target.checked,
+                    item,
+                  )
                 }
                 className="h-4 w-4 rounded border-border text-accent"
               />

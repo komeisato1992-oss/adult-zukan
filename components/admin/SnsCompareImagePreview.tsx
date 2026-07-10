@@ -1,14 +1,16 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { toPng } from "html-to-image";
 import type { SnsCompareWorkMini } from "@/lib/admin/sns-types";
+import {
+  buildCompareExportFilename,
+  generateComparisonImageBlob,
+  savePngBlob,
+  SNS_COMPARE_EXPORT_WIDTH_PX,
+} from "@/lib/admin/sns-image-export";
 import { buildImageProxyUrl } from "@/lib/image-proxy";
 import { siteConfig } from "@/lib/site-config";
 import { isValidImageUrl } from "@/lib/works";
-
-/** 書き出し専用固定幅（PC・スマホ共通） */
-const EXPORT_WIDTH_PX = 1200;
 
 const COMPARE_PACKAGE_IMAGE_STYLE = {
   objectFit: "cover" as const,
@@ -25,59 +27,7 @@ type SnsCompareImagePreviewProps = {
 
 type CompareLayout = "preview" | "export";
 
-async function waitForFonts(): Promise<void> {
-  if (typeof document !== "undefined" && document.fonts?.ready) {
-    await document.fonts.ready;
-  }
-}
-
-async function waitForImages(container: HTMLElement): Promise<void> {
-  const images = Array.from(container.querySelectorAll("img"));
-
-  if (images.length === 0) {
-    return;
-  }
-
-  await Promise.all(
-    images.map(async (img) => {
-      if (img.complete && img.naturalWidth > 0) {
-        if (typeof img.decode === "function") {
-          try {
-            await img.decode();
-          } catch {
-            // decode 失敗時は load 済みなら続行
-          }
-        }
-        return;
-      }
-
-      await new Promise<void>((resolve, reject) => {
-        const finish = () => {
-          if (img.naturalWidth > 0) {
-            resolve();
-            return;
-          }
-          reject(new Error("画像の読み込みに失敗しました。"));
-        };
-
-        img.addEventListener("load", finish, { once: true });
-        img.addEventListener(
-          "error",
-          () => reject(new Error("画像の読み込みに失敗しました。")),
-          { once: true },
-        );
-      });
-
-      if (typeof img.decode === "function") {
-        try {
-          await img.decode();
-        } catch {
-          // ignore
-        }
-      }
-    }),
-  );
-}
+type ExportStatus = "idle" | "exporting" | "saved";
 
 function ComparePackageImage({
   work,
@@ -259,69 +209,39 @@ function CompareCardBody({
   );
 }
 
-async function savePngBlob(blob: Blob, filename: string): Promise<void> {
-  const file = new File([blob], filename, { type: "image/png" });
-
-  if (
-    typeof navigator !== "undefined" &&
-    typeof navigator.share === "function" &&
-    typeof navigator.canShare === "function" &&
-    navigator.canShare({ files: [file] })
-  ) {
-    try {
-      await navigator.share({
-        files: [file],
-        title: filename,
-      });
-      return;
-    } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") {
-        return;
-      }
-    }
-  }
-
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.download = filename;
-  link.href = url;
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
 export function SnsCompareImagePreview({
   works,
   compareUrl,
 }: SnsCompareImagePreviewProps) {
   const exportRef = useRef<HTMLDivElement>(null);
-  const [exporting, setExporting] = useState(false);
+  const [exportStatus, setExportStatus] = useState<ExportStatus>("idle");
   const [exportError, setExportError] = useState("");
+  const exporting = exportStatus === "exporting";
 
   async function handleExport() {
     if (!exportRef.current || exporting) return;
 
-    setExporting(true);
+    setExportStatus("exporting");
     setExportError("");
 
-    const filename = `compare-${works[0].contentId}-${works[1].contentId}.png`;
+    const filename = buildCompareExportFilename(
+      works[0].contentId,
+      works[1].contentId,
+    );
 
     try {
-      await waitForFonts();
-      await waitForImages(exportRef.current);
+      const blob = await generateComparisonImageBlob(exportRef.current);
+      const result = await savePngBlob(blob, filename);
 
-      const dataUrl = await toPng(exportRef.current, {
-        cacheBust: true,
-        pixelRatio: 2,
-        backgroundColor: "#ffffff",
-        width: EXPORT_WIDTH_PX,
-        style: {
-          width: `${EXPORT_WIDTH_PX}px`,
-        },
-      });
+      if (result === "cancelled") {
+        setExportStatus("idle");
+        return;
+      }
 
-      const response = await fetch(dataUrl);
-      const blob = await response.blob();
-      await savePngBlob(blob, filename);
+      setExportStatus("saved");
+      window.setTimeout(() => {
+        setExportStatus("idle");
+      }, 2000);
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "画像の書き出しに失敗しました。";
@@ -335,10 +255,16 @@ export function SnsCompareImagePreview({
           "画像の書き出しに失敗しました。CORSの可能性があります。再試行してください。",
         );
       }
-    } finally {
-      setExporting(false);
+      setExportStatus("idle");
     }
   }
+
+  const exportButtonLabel =
+    exportStatus === "exporting"
+      ? "書き出し中..."
+      : exportStatus === "saved"
+        ? "保存しました"
+        : "画像を書き出し";
 
   return (
     <div className="w-full max-w-full space-y-3 overflow-hidden">
@@ -357,7 +283,7 @@ export function SnsCompareImagePreview({
         aria-hidden="true"
         className="pointer-events-none overflow-hidden rounded-lg border border-border bg-white"
         style={{
-          width: `${EXPORT_WIDTH_PX}px`,
+          width: `${SNS_COMPARE_EXPORT_WIDTH_PX}px`,
           position: "fixed",
           left: "-99999px",
           top: 0,
@@ -374,10 +300,10 @@ export function SnsCompareImagePreview({
           disabled={exporting}
           className="inline-flex h-11 min-h-[44px] items-center rounded-lg border border-accent bg-white px-3 text-sm font-medium text-accent transition-colors hover:bg-accent-light disabled:opacity-60"
         >
-          {exporting ? "書き出し中..." : "画像を書き出し"}
+          {exportButtonLabel}
         </button>
         <p className="text-xs text-muted">
-          PNG形式で保存できます。スマホでは共有シートが開く場合があります。
+          PNG形式で保存できます。PCではダウンロードフォルダに保存されます。
         </p>
       </div>
 

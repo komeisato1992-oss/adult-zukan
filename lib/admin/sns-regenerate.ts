@@ -10,6 +10,7 @@ import {
   buildRankingPost,
   buildRecommendedWorkPost,
 } from "@/lib/admin/sns-posts";
+import { findRepresentativeWorkForActress } from "@/lib/admin/sns-work-helpers";
 import type {
   SnsPostMeta,
   SnsPostType,
@@ -162,9 +163,13 @@ export async function regenerateSnsPost(
       throw new SnsRegenerateError("別案の女優が見つかりませんでした。");
     }
 
+    const featuredWork = findRepresentativeWorkForActress(items, actress.name);
     return {
-      body: buildActressPost(actress.name, actress.workCount),
-      meta: { actressName: actress.name },
+      body: buildActressPost(actress.name, actress.workCount, featuredWork),
+      meta: {
+        actressName: actress.name,
+        contentId: featuredWork?.content_id,
+      },
     };
   }
 
@@ -186,9 +191,13 @@ export async function regenerateSnsPost(
 
   if (type === "ranking") {
     const variant = pickAlternativeRankingVariant(meta?.rankingVariant);
+    const ranking = buildRankingPost(items, variant);
     return {
-      body: buildRankingPost(items, variant),
-      meta: { rankingVariant: variant },
+      body: ranking.body,
+      meta: {
+        rankingVariant: variant,
+        contentId: ranking.contentId,
+      },
     };
   }
 

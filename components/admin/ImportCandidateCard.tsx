@@ -138,7 +138,10 @@ export function ImportCandidateCard({
 
     setGeneratedPost({
       typeLabel: IMPORT_SNS_POST_TYPE_LABELS.actress,
-      body: buildImportActressPost(actress),
+      body: buildImportActressPost(
+        actress,
+        comparePool && comparePool.length > 0 ? comparePool : [item],
+      ),
     });
   }
 

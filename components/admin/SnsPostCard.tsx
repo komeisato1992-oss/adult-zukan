@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { SnsCompareImagePreview } from "@/components/admin/SnsCompareImagePreview";
 import type { SnsPostHistoryEntry } from "@/lib/admin/sns-post-history-types";
+import { buildSnsPostUrl } from "@/lib/admin/sns-urls";
 import type { SnsScheduledPost } from "@/lib/admin/sns-types";
 
 type SnsPostCardProps = {
@@ -98,7 +99,11 @@ export function SnsPostCard({ post: initialPost, onPosted }: SnsPostCardProps) {
           postType: post.type,
           meta: post.meta,
           postText: post.body,
-          postUrl: post.compareUrl,
+          postUrl: buildSnsPostUrl({
+            type: post.type,
+            compareUrl: post.compareUrl,
+            meta: post.meta,
+          }),
         }),
       });
 

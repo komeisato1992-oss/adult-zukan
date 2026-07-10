@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin/auth";
 import { getCatalogItems } from "@/lib/dmm/catalog-entities";
 import { getRankedGenres } from "@/lib/dmm/home-sections";
-import { buildSnsPostUrl } from "@/lib/admin/sns-posts";
+import { buildSnsPostUrl } from "@/lib/admin/sns-urls";
 import {
   appendSnsPostHistory,
   toSnsPostHistoryStoreErrorMessage,

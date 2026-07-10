@@ -1,4 +1,7 @@
-import { getActressDetailPath } from "@/lib/actresses/slug";
+import {
+  buildSnsComparePostUrl,
+  buildSnsWorkPostUrl,
+} from "@/lib/admin/sns-urls";
 import {
   actressNamesToHashtags,
   buildHashtagLine,
@@ -6,8 +9,8 @@ import {
   SNS_BASE_HASHTAGS,
   SNS_COMPARE_HASHTAGS,
 } from "@/lib/admin/sns-hashtags";
+import { findRepresentativeWorkForActress } from "@/lib/admin/sns-work-helpers";
 import type { SnsCompareWorkMini } from "@/lib/admin/sns-types";
-import { buildSiteUrl } from "@/lib/constants";
 import {
   getDmmItemActressNameList,
   getDmmItemImageUrl,
@@ -36,7 +39,7 @@ function toCompareWorkMini(item: DmmItem): SnsCompareWorkMini {
 export function buildImportRecommendedWorkPost(item: DmmItem): string {
   const actressLine = getDmmItemActressNameList(item).join("、");
   const price = getDmmItemPrice(item);
-  const workUrl = buildSiteUrl(`/works/${item.content_id}`);
+  const workUrl = buildSnsWorkPostUrl(item.content_id);
   const hashtags = buildHashtagLine([
     ...SNS_BASE_HASHTAGS,
     ...actressNamesToHashtags(actressLine),
@@ -57,33 +60,46 @@ export function buildImportRecommendedWorkPost(item: DmmItem): string {
   ].join("\n");
 }
 
-export function buildImportActressPost(actressName: string): string {
-  const actressUrl = buildSiteUrl(getActressDetailPath(actressName));
+export function buildImportActressPost(
+  actressName: string,
+  items: DmmItem[],
+): string {
+  const featuredWork = findRepresentativeWorkForActress(items, actressName);
+  const workUrl = buildSnsWorkPostUrl(featuredWork?.content_id);
   const actressTag = nameToHashtag(actressName);
   const hashtags = buildHashtagLine([
     ...SNS_BASE_HASHTAGS,
     ...(actressTag ? [actressTag] : []),
   ]);
 
-  return [
+  const lines = [
     "【人気女優紹介】💎",
     "",
     actressName,
     "",
     "アダルト図鑑では、出演作品をまとめてチェックできます。",
+  ];
+
+  if (featuredWork?.title) {
+    lines.push("", `紹介作品：${featuredWork.title}`);
+  }
+
+  lines.push(
     "",
-    "出演作品はこちら👇",
-    actressUrl,
+    "作品ページはこちら👇",
+    workUrl,
     "",
     hashtags,
-  ].join("\n");
+  );
+
+  return lines.join("\n");
 }
 
 function buildImportComparePostBody(
   workA: SnsCompareWorkMini,
   workB: SnsCompareWorkMini,
 ): { body: string; compareUrl: string } {
-  const compareUrl = `${buildSiteUrl("/compare")}?ids=${workA.contentId},${workB.contentId}`;
+  const compareUrl = buildSnsComparePostUrl(workA.contentId, workB.contentId);
   const hashtags = buildHashtagLine([
     ...SNS_COMPARE_HASHTAGS,
     ...actressNamesToHashtags(workA.actressNames),

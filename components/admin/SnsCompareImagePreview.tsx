@@ -10,6 +10,14 @@ import { isValidImageUrl } from "@/lib/works";
 /** 書き出し専用固定幅（PC・スマホ共通） */
 const EXPORT_WIDTH_PX = 1200;
 
+const COMPARE_PACKAGE_IMAGE_STYLE = {
+  objectFit: "cover" as const,
+  objectPosition: "right center" as const,
+  width: "100%",
+  height: "100%",
+  display: "block" as const,
+};
+
 type SnsCompareImagePreviewProps = {
   works: [SnsCompareWorkMini, SnsCompareWorkMini];
   compareUrl: string;
@@ -85,8 +93,8 @@ function ComparePackageImage({
 
   const frameClass =
     layout === "export"
-      ? "relative mx-auto h-[320px] w-[240px] overflow-hidden rounded-md border border-border bg-surface"
-      : "relative mx-auto h-[187px] w-[140px] overflow-hidden rounded-md border border-border bg-surface";
+      ? "sns-compare-package-frame relative mx-auto h-[320px] w-[240px] overflow-hidden rounded-md border border-border bg-surface"
+      : "sns-compare-package-frame relative mx-auto h-[187px] w-[140px] overflow-hidden rounded-md border border-border bg-surface";
 
   return (
     <div className={frameClass}>
@@ -96,7 +104,8 @@ function ComparePackageImage({
           src={proxyUrl}
           alt={work.title}
           onError={() => setImageError(true)}
-          className="h-full w-full object-cover object-right"
+          className="absolute inset-0 h-full w-full object-cover object-right"
+          style={COMPARE_PACKAGE_IMAGE_STYLE}
           crossOrigin="anonymous"
         />
       ) : imageError ? (

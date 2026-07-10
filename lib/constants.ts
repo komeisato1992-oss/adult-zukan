@@ -47,9 +47,10 @@ export function getCanonicalHostname(): string {
 
 /** 相対パスから正規URLの絶対URLを生成 */
 export function buildSiteUrl(path = ""): string {
-  if (!path) return SITE_URL;
+  const base = SITE_URL.replace(/\/$/, "");
+  if (!path) return base;
   const normalized = path.startsWith("/") ? path : `/${path}`;
-  return normalizeSiteUrl(`${SITE_URL}${normalized}`);
+  return `${base}${normalized}`;
 }
 
 export function isLocalDevHost(host: string): boolean {

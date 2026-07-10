@@ -1,6 +1,5 @@
 import "server-only";
 
-import { getActressDetailPath } from "@/lib/actresses/slug";
 import { pickComparePairs } from "@/lib/admin/sns-compare-pairs";
 import { loadSnsPostHistory } from "@/lib/admin/sns-post-history-store";
 import { buildHistoryExclusions } from "@/lib/admin/sns-post-history-rules";
@@ -12,6 +11,12 @@ import {
   SNS_COMPARE_HASHTAGS,
   SNS_RANKING_HASHTAGS,
 } from "@/lib/admin/sns-hashtags";
+import { findRepresentativeWorkForActress } from "@/lib/admin/sns-work-helpers";
+import {
+  buildSnsComparePostUrl,
+  buildSnsWorkPostUrl,
+} from "@/lib/admin/sns-urls";
+export { buildSnsPostUrl } from "@/lib/admin/sns-urls";
 import {
   SNS_DAILY_SCHEDULE,
   type SnsCompareWorkMini,
@@ -35,25 +40,6 @@ import {
 } from "@/lib/dmm/home-sections";
 import type { DmmItem } from "@/lib/dmm/types";
 
-const RANKING_URL = "https://adult-zukan.jp/ranking";
-
-export function buildSnsPostUrl(
-  post: Pick<SnsScheduledPost, "type" | "compareUrl" | "meta">,
-): string | undefined {
-  if (post.compareUrl) return post.compareUrl;
-  if (post.meta?.contentId) {
-    return buildSiteUrl(`/works/${post.meta.contentId}`);
-  }
-  if (post.meta?.actressName) {
-    return buildSiteUrl(getActressDetailPath(post.meta.actressName));
-  }
-  if (post.meta?.genreSlug) {
-    return buildSiteUrl(getGenreDetailPath(post.meta.genreSlug));
-  }
-  if (post.type === "ranking") return RANKING_URL;
-  return undefined;
-}
-
 function pickFromPool<T>(items: T[], fallback: T[]): T | undefined {
   const pool = items.length > 0 ? items : fallback;
   if (pool.length === 0) return undefined;
@@ -73,13 +59,13 @@ function getDayOffset(length: number): number {
 }
 
 function buildCompareUrl(workA: SnsCompareWorkMini, workB: SnsCompareWorkMini): string {
-  return `${buildSiteUrl("/compare")}?ids=${workA.contentId},${workB.contentId}`;
+  return buildSnsComparePostUrl(workA.contentId, workB.contentId);
 }
 
 export function buildRecommendedWorkPost(item: DmmItem): string {
   const actressLine = getDmmItemActressNameList(item).join("、");
   const price = getDmmItemPrice(item);
-  const workUrl = buildSiteUrl(`/works/${item.content_id}`);
+  const workUrl = buildSnsWorkPostUrl(item.content_id);
   const hashtags = buildHashtagLine([
     ...SNS_BASE_HASHTAGS,
     ...actressNamesToHashtags(actressLine),
@@ -133,26 +119,39 @@ export function buildComparePost(
   return { body, compareUrl };
 }
 
-export function buildActressPost(name: string, workCount: number): string {
-  const actressUrl = buildSiteUrl(getActressDetailPath(name));
+export function buildActressPost(
+  name: string,
+  workCount: number,
+  featuredWork?: DmmItem | null,
+): string {
+  const workUrl = buildSnsWorkPostUrl(featuredWork?.content_id);
   const actressTag = nameToHashtag(name);
   const hashtags = buildHashtagLine([
     ...SNS_BASE_HASHTAGS,
     ...(actressTag ? [actressTag] : []),
   ]);
 
-  return [
+  const lines = [
     "【人気女優紹介】💎",
     "",
     name,
     "",
     `掲載作品：${workCount}作品`,
+  ];
+
+  if (featuredWork?.title) {
+    lines.push("", `紹介作品：${featuredWork.title}`);
+  }
+
+  lines.push(
     "",
-    "出演作品をまとめてチェック👇",
-    actressUrl,
+    "作品ページはこちら👇",
+    workUrl,
     "",
     hashtags,
-  ].join("\n");
+  );
+
+  return lines.join("\n");
 }
 
 export function buildGenrePost(name: string, slug: string, workCount: number): string {
@@ -223,17 +222,19 @@ function collectRankingActressHashtags(items: DmmItem[]): string[] {
 export function buildRankingPost(
   items: DmmItem[],
   variant: SnsRankingVariant = "popular",
-): string {
+): { body: string; contentId?: string } {
   const topWorks = filterDisplayableItems(getRankingItems(items, variant)).slice(
     0,
     3,
   );
+  const featured = topWorks[0];
+  const workUrl = buildSnsWorkPostUrl(featured?.content_id);
   const hashtags = buildHashtagLine([
     ...SNS_RANKING_HASHTAGS,
     ...collectRankingActressHashtags(topWorks),
   ]);
 
-  return [
+  const body = [
     RANKING_HEADINGS[variant],
     "",
     "注目作品をランキングで確認できます✅",
@@ -242,11 +243,16 @@ export function buildRankingPost(
     `2位：${topWorks[1]?.title ?? "-"}`,
     `3位：${topWorks[2]?.title ?? "-"}`,
     "",
-    "ランキングはこちら👇",
-    RANKING_URL,
+    "作品ページはこちら👇",
+    workUrl,
     "",
     hashtags,
   ].join("\n");
+
+  return {
+    body,
+    contentId: featured?.content_id,
+  };
 }
 
 export async function getSnsScheduledPosts(): Promise<SnsScheduledPost[]> {
@@ -328,12 +334,16 @@ export async function getSnsScheduledPosts(): Promise<SnsScheduledPost[]> {
     }
 
     if (entry.type === "actress" && actress) {
+      const featuredWork = findRepresentativeWorkForActress(items, actress.name);
       return {
         slot: entry.slot,
         type: entry.type,
         typeLabel: entry.typeLabel,
-        body: buildActressPost(actress.name, actress.workCount),
-        meta: { actressName: actress.name },
+        body: buildActressPost(actress.name, actress.workCount, featuredWork),
+        meta: {
+          actressName: actress.name,
+          contentId: featuredWork?.content_id,
+        },
       };
     }
 
@@ -348,12 +358,16 @@ export async function getSnsScheduledPosts(): Promise<SnsScheduledPost[]> {
     }
 
     if (entry.type === "ranking") {
+      const ranking = buildRankingPost(items, "popular");
       return {
         slot: entry.slot,
         type: entry.type,
         typeLabel: entry.typeLabel,
-        body: buildRankingPost(items, "popular"),
-        meta: { rankingVariant: "popular" },
+        body: ranking.body,
+        meta: {
+          rankingVariant: "popular",
+          contentId: ranking.contentId,
+        },
       };
     }
 

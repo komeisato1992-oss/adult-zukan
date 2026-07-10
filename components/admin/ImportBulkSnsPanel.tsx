@@ -70,7 +70,7 @@ export function ImportBulkSnsPanel({ items }: ImportBulkSnsPanelProps) {
     if (!actress) return;
     setGeneratedPost({
       typeLabel: IMPORT_SNS_POST_TYPE_LABELS.actress,
-      body: buildImportActressPost(actress),
+      body: buildImportActressPost(actress, items),
     });
   }
 

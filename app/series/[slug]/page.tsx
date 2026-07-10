@@ -27,6 +27,8 @@ import {
 
 export const revalidate = 86400;
 
+export const dynamic = "force-dynamic";
+
 export const dynamicParams = true;
 
 type SeriesDetailPageProps = {
@@ -41,7 +43,11 @@ export async function generateStaticParams() {
   return getLimitedEncodedEntityStaticParams(series.map((s) => s.slug));
 }
 
-export async function generateMetadata({ params }: SeriesDetailPageProps) {
+export async function generateMetadata({
+  params,
+  searchParams,
+}: SeriesDetailPageProps) {
+  await searchParams;
   const { slug: rawSlug } = await params;
   const slug = decodeEntitySlug(rawSlug);
   const series = await getSeriesSummaryBySlug(slug);

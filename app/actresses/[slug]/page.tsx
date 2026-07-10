@@ -35,6 +35,8 @@ import { isValidImageUrl } from "@/lib/works";
 
 export const revalidate = 86400;
 
+export const dynamic = "force-dynamic";
+
 export const dynamicParams = true;
 
 type ActressDetailPageProps = {
@@ -49,7 +51,11 @@ export async function generateStaticParams() {
   return getLimitedSlugStaticParams(actresses.map((a) => a.slug));
 }
 
-export async function generateMetadata({ params }: ActressDetailPageProps) {
+export async function generateMetadata({
+  params,
+  searchParams,
+}: ActressDetailPageProps) {
+  await searchParams;
   const { slug } = await params;
   const actress = await getActressSummaryBySlug(slug);
 

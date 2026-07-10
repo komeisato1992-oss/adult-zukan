@@ -23,6 +23,8 @@ import {
 
 export const revalidate = 86400;
 
+export const dynamic = "force-dynamic";
+
 export const dynamicParams = true;
 
 type GenreDetailPageProps = {
@@ -37,7 +39,11 @@ export async function generateStaticParams() {
   return getLimitedEncodedEntityStaticParams(genres.map((g) => g.slug));
 }
 
-export async function generateMetadata({ params }: GenreDetailPageProps) {
+export async function generateMetadata({
+  params,
+  searchParams,
+}: GenreDetailPageProps) {
+  await searchParams;
   const { slug: rawSlug } = await params;
   const slug = decodeEntitySlug(rawSlug);
   const genre = await getGenreSummaryBySlug(slug);
@@ -119,13 +125,19 @@ export default async function GenreDetailPage({
 
         <section aria-labelledby="genre-all">
           <SectionHeader title="全作品" id="genre-all" />
-          <PaginatedWorkListSection
-            pageItems={list.pageItems}
-            currentPage={list.currentPage}
-            totalPages={list.totalPages}
-            basePath={getGenreDetailPath(slug)}
-            currentSort={currentSort}
-          />
+          {list.totalItems > 0 ? (
+            <PaginatedWorkListSection
+              pageItems={list.pageItems}
+              currentPage={list.currentPage}
+              totalPages={list.totalPages}
+              basePath={getGenreDetailPath(slug)}
+              currentSort={currentSort}
+            />
+          ) : (
+            <p className="rounded border border-border bg-surface p-8 text-center text-sm text-muted">
+              現在掲載中の作品はありません。
+            </p>
+          )}
         </section>
       </PageLayout>
     </>

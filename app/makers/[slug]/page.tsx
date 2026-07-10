@@ -33,6 +33,8 @@ import {
 
 export const revalidate = 86400;
 
+export const dynamic = "force-dynamic";
+
 export const dynamicParams = true;
 
 type MakerDetailPageProps = {
@@ -47,7 +49,11 @@ export async function generateStaticParams() {
   return getLimitedEncodedEntityStaticParams(makers.map((m) => m.slug));
 }
 
-export async function generateMetadata({ params }: MakerDetailPageProps) {
+export async function generateMetadata({
+  params,
+  searchParams,
+}: MakerDetailPageProps) {
+  await searchParams;
   const { slug: rawSlug } = await params;
   const slug = decodeEntitySlug(rawSlug);
   const maker = await getMakerSummaryBySlug(slug);

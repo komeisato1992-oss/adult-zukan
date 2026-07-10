@@ -1,6 +1,5 @@
 import "server-only";
 
-import { unstable_cache } from "next/cache";
 import { cache } from "react";
 import {
   filterValidCatalogItems,
@@ -20,8 +19,6 @@ import {
   getDmmItemActressNameList,
   getDmmItemMakerName,
 } from "@/lib/dmm/display";
-import { DMM_WORKS_REVALIDATE } from "@/lib/dmm/static-works";
-import { getCatalogSnapshotFingerprint } from "@/lib/dmm/catalog-display";
 import { getDmmStaticWorks } from "@/lib/dmm/static-works";
 import type { DmmItem } from "@/lib/dmm/types";
 import { RELATED_WORKS_DISPLAY_LIMIT } from "@/lib/pagination";
@@ -32,49 +29,23 @@ export const getCatalogWorks = cache(async (): Promise<DmmItem[]> => {
 });
 
 function createSummariesLoader<T>(
-  cacheKey: string,
   compute: (items: DmmItem[]) => T,
 ): () => Promise<T> {
   return cache(async (): Promise<T> => {
     const items = await getCatalogWorks();
-
-    if (process.env.NODE_ENV === "development") {
-      return compute(items);
-    }
-
-    const fingerprint = getCatalogSnapshotFingerprint();
-    return unstable_cache(
-      async () => compute(await getCatalogWorks()),
-      [cacheKey, fingerprint],
-      { revalidate: DMM_WORKS_REVALIDATE },
-    )();
+    return compute(items);
   });
 }
 
-export const getActressSummaries = createSummariesLoader(
-  "catalog-actress-summaries-v2",
-  getCatalogActresses,
-);
+export const getActressSummaries = createSummariesLoader(getCatalogActresses);
 
-export const getMakerSummaries = createSummariesLoader(
-  "catalog-maker-summaries-v1",
-  getCatalogMakers,
-);
+export const getMakerSummaries = createSummariesLoader(getCatalogMakers);
 
-export const getSeriesSummaries = createSummariesLoader(
-  "catalog-series-summaries-v1",
-  getCatalogSeries,
-);
+export const getSeriesSummaries = createSummariesLoader(getCatalogSeries);
 
-export const getGenreSummaries = createSummariesLoader(
-  "catalog-genre-summaries-v1",
-  getCatalogGenres,
-);
+export const getGenreSummaries = createSummariesLoader(getCatalogGenres);
 
-export const getLabelSummaries = createSummariesLoader(
-  "catalog-label-summaries-v1",
-  getCatalogLabels,
-);
+export const getLabelSummaries = createSummariesLoader(getCatalogLabels);
 
 export const getCatalogWorkByContentId = cache(
   async (contentId: string): Promise<DmmItem | null> => {

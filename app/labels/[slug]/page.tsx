@@ -23,6 +23,8 @@ import {
 
 export const revalidate = 86400;
 
+export const dynamic = "force-dynamic";
+
 export const dynamicParams = true;
 
 type LabelDetailPageProps = {
@@ -37,7 +39,11 @@ export async function generateStaticParams() {
   return getLimitedEncodedEntityStaticParams(labels.map((l) => l.slug));
 }
 
-export async function generateMetadata({ params }: LabelDetailPageProps) {
+export async function generateMetadata({
+  params,
+  searchParams,
+}: LabelDetailPageProps) {
+  await searchParams;
   const { slug: rawSlug } = await params;
   const slug = decodeEntitySlug(rawSlug);
   const label = await getLabelSummaryBySlug(slug);
@@ -127,13 +133,19 @@ export default async function LabelDetailPage({
 
         <section aria-labelledby="label-all">
           <SectionHeader title="全作品" id="label-all" />
-          <PaginatedWorkListSection
-            pageItems={list.pageItems}
-            currentPage={list.currentPage}
-            totalPages={list.totalPages}
-            basePath={getLabelDetailPath(slug)}
-            currentSort={currentSort}
-          />
+          {list.totalItems > 0 ? (
+            <PaginatedWorkListSection
+              pageItems={list.pageItems}
+              currentPage={list.currentPage}
+              totalPages={list.totalPages}
+              basePath={getLabelDetailPath(slug)}
+              currentSort={currentSort}
+            />
+          ) : (
+            <p className="rounded border border-border bg-surface p-8 text-center text-sm text-muted">
+              現在掲載中の作品はありません。
+            </p>
+          )}
         </section>
       </PageLayout>
     </>

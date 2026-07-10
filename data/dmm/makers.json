@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-10T14:21:18.252Z",
-  "total": 256,
+  "updatedAt": "2026-07-10T15:11:16.729Z",
+  "total": 258,
   "items": [
     {
       "name": "1113工房/妄想族",
@@ -26,6 +26,11 @@
       "name": "AVS collector’s",
       "slug": "avs-collector-s",
       "workCount": 27
+    },
+    {
+      "name": "BabyEntertainment",
+      "slug": "babyentertainment",
+      "workCount": 1
     },
     {
       "name": "BALTAN＜バルタン＞",
@@ -208,6 +213,11 @@
       "workCount": 1
     },
     {
+      "name": "MAGNOLIA",
+      "slug": "magnolia",
+      "workCount": 1
+    },
+    {
       "name": "MANIAQ/妄想族",
       "slug": "maniaq-妄想族",
       "workCount": 1
@@ -310,7 +320,7 @@
     {
       "name": "S-Cute",
       "slug": "s-cute",
-      "workCount": 112
+      "workCount": 115
     },
     {
       "name": "SEX Agent/妄想族",
@@ -335,7 +345,7 @@
     {
       "name": "SODクリエイト",
       "slug": "sodクリエイト",
-      "workCount": 89
+      "workCount": 91
     },
     {
       "name": "SUN",
@@ -435,7 +445,7 @@
     {
       "name": "アイデアポケット",
       "slug": "アイデアポケット",
-      "workCount": 93
+      "workCount": 94
     },
     {
       "name": "アタッカーズ",
@@ -445,7 +455,7 @@
     {
       "name": "アリスJAPAN",
       "slug": "アリスjapan",
-      "workCount": 107
+      "workCount": 108
     },
     {
       "name": "アロマ企画",
@@ -530,7 +540,7 @@
     {
       "name": "ギャラリー",
       "slug": "ギャラリー",
-      "workCount": 1
+      "workCount": 2
     },
     {
       "name": "クリスタル映像",
@@ -690,7 +700,7 @@
     {
       "name": "ダスッ！",
       "slug": "ダスッ",
-      "workCount": 58
+      "workCount": 59
     },
     {
       "name": "たんぽぽ/妄想族",
@@ -840,7 +850,7 @@
     {
       "name": "プラム",
       "slug": "プラム",
-      "workCount": 8
+      "workCount": 10
     },
     {
       "name": "プリモ",
@@ -915,7 +925,7 @@
     {
       "name": "ムーディーズ",
       "slug": "ムーディーズ",
-      "workCount": 302
+      "workCount": 303
     },
     {
       "name": "ムラっch",
@@ -1130,7 +1140,7 @@
     {
       "name": "素人CLOVER",
       "slug": "素人clover",
-      "workCount": 1
+      "workCount": 2
     },
     {
       "name": "素人ホイホイ/妄想族",
@@ -1190,7 +1200,7 @@
     {
       "name": "桃太郎映像出版",
       "slug": "桃太郎映像出版",
-      "workCount": 78
+      "workCount": 80
     },
     {
       "name": "同人AV倶楽部/妄想族",

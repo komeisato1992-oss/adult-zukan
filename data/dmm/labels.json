@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-10T14:21:18.252Z",
-  "total": 393,
+  "updatedAt": "2026-07-10T15:11:16.729Z",
+  "total": 395,
   "items": [
     {
       "name": "-沌-CHAOS-",
@@ -719,7 +719,7 @@
     {
       "name": "MOODYZ DIVA",
       "slug": "moodyz-diva",
-      "workCount": 178,
+      "workCount": 179,
       "makerName": "ムーディーズ",
       "makerSlug": "ムーディーズ"
     },
@@ -915,7 +915,7 @@
     {
       "name": "S-Cute",
       "slug": "s-cute",
-      "workCount": 109,
+      "workCount": 112,
       "makerName": "S-Cute",
       "makerSlug": "s-cute"
     },
@@ -1013,7 +1013,14 @@
     {
       "name": "SOD素人",
       "slug": "sod素人",
-      "workCount": 6,
+      "workCount": 7,
+      "makerName": "SODクリエイト",
+      "makerSlug": "sodクリエイト"
+    },
+    {
+      "name": "STARみぃつけた！",
+      "slug": "starみぃつけた",
+      "workCount": 1,
       "makerName": "SODクリエイト",
       "makerSlug": "sodクリエイト"
     },
@@ -1188,7 +1195,7 @@
     {
       "name": "アリスJAPAN",
       "slug": "アリスjapan",
-      "workCount": 98,
+      "workCount": 99,
       "makerName": "アリスJAPAN",
       "makerSlug": "アリスjapan"
     },
@@ -1363,7 +1370,7 @@
     {
       "name": "ギャラリー",
       "slug": "ギャラリー",
-      "workCount": 1,
+      "workCount": 2,
       "makerName": "ギャラリー",
       "makerSlug": "ギャラリー"
     },
@@ -1482,7 +1489,7 @@
     {
       "name": "ダスッ！",
       "slug": "ダスッ",
-      "workCount": 56,
+      "workCount": 57,
       "makerName": "ダスッ！",
       "makerSlug": "ダスッ"
     },
@@ -1524,7 +1531,7 @@
     {
       "name": "ティッシュ",
       "slug": "ティッシュ",
-      "workCount": 76,
+      "workCount": 77,
       "makerName": "アイデアポケット",
       "makerSlug": "アイデアポケット"
     },
@@ -2126,7 +2133,7 @@
     {
       "name": "若桃",
       "slug": "若桃",
-      "workCount": 51,
+      "workCount": 53,
       "makerName": "桃太郎映像出版",
       "makerSlug": "桃太郎映像出版"
     },
@@ -2322,7 +2329,7 @@
     {
       "name": "素人only プラム",
       "slug": "素人only-プラム",
-      "workCount": 8,
+      "workCount": 10,
       "makerName": "プラム",
       "makerSlug": "プラム"
     },
@@ -2367,6 +2374,13 @@
       "workCount": 1,
       "makerName": "サディスティックヴィレッジ",
       "makerSlug": "サディスティックヴィレッジ"
+    },
+    {
+      "name": "素人娘狂騒局",
+      "slug": "素人娘狂騒局",
+      "workCount": 1,
+      "makerName": "BabyEntertainment",
+      "makerSlug": "babyentertainment"
     },
     {
       "name": "綜実社/妄想族",

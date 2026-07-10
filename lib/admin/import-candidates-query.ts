@@ -16,6 +16,7 @@ import {
   isVisibleStoredCandidate,
   storedRecordToListItem,
 } from "@/lib/admin/import-candidates-visibility";
+import { loadImportCollectionState } from "@/lib/admin/import-collection-state-store";
 import {
   getImportQualityFlags,
   matchesImportFilters,
@@ -28,10 +29,12 @@ export type { ImportCandidatesListResult } from "@/lib/admin/import-candidate-ty
 async function buildSummary(records: StoredImportCandidate[]): Promise<ImportCandidatesSummary> {
   const listItems = records.map(storedRecordToListItem);
   const counts = await getImportWorkCounts();
+  const { state } = await loadImportCollectionState();
   return buildSummaryFromListItems(
     listItems,
     counts.publishedCount,
     counts.catalogTotalCount,
+    state,
   );
 }
 
@@ -164,12 +167,14 @@ export async function getAllImportCandidateListItems(): Promise<{
   const { records } = await loadImportCandidates();
   const listItems = records.map(storedRecordToListItem);
   const counts = await getImportWorkCounts();
+  const { state } = await loadImportCollectionState();
   return {
     candidates: listItems,
     summary: buildSummaryFromListItems(
       listItems,
       counts.publishedCount,
       counts.catalogTotalCount,
+      state,
     ),
   };
 }

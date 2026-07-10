@@ -153,6 +153,7 @@ function CompareCardBody({
             width={isExport ? 36 : 28}
             height={isExport ? 36 : 28}
             className={isExport ? "h-9 w-9 shrink-0" : "h-7 w-7 shrink-0"}
+            crossOrigin={isExport ? "anonymous" : undefined}
           />
           <span
             className={
@@ -246,10 +247,14 @@ export function SnsCompareImagePreview({
       const message =
         error instanceof Error ? error.message : "画像の書き出しに失敗しました。";
 
-      if (message.includes("読み込み")) {
+      if (message.includes("読み込み") || message.includes("白紙")) {
         setExportError(
-          "画像の読み込みに失敗しました。プレビュー内の画像を確認して再試行してください。",
+          message.includes("白紙")
+            ? message
+            : "画像の読み込みに失敗しました。プレビュー内の画像を確認して再試行してください。",
         );
+      } else if (message.includes("サイズが0")) {
+        setExportError(message);
       } else {
         setExportError(
           "画像の書き出しに失敗しました。CORSの可能性があります。再試行してください。",
@@ -277,17 +282,22 @@ export function SnsCompareImagePreview({
         </div>
       </div>
 
-      {/* 書き出し専用（固定幅・常に2カラム・画面外配置） */}
+      {/* 書き出し専用（固定幅・常に2カラム・背面に描画可能な状態で配置） */}
       <div
         ref={exportRef}
         aria-hidden="true"
         className="pointer-events-none overflow-hidden rounded-lg border border-border bg-white"
         style={{
-          width: `${SNS_COMPARE_EXPORT_WIDTH_PX}px`,
           position: "fixed",
-          left: "-99999px",
           top: 0,
+          left: 0,
+          width: `${SNS_COMPARE_EXPORT_WIDTH_PX}px`,
+          height: "auto",
           zIndex: -1,
+          opacity: 1,
+          visibility: "visible",
+          transform: "none",
+          background: "#ffffff",
         }}
       >
         <CompareCardBody works={works} compareUrl={compareUrl} layout="export" />

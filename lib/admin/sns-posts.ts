@@ -12,6 +12,7 @@ import {
   SNS_RANKING_HASHTAGS,
 } from "@/lib/admin/sns-hashtags";
 import { findRepresentativeWorkForActress } from "@/lib/admin/sns-work-helpers";
+import { generateRecommendedWorkPost } from "@/lib/admin/sns-product-post";
 import {
   buildSnsComparePostUrl,
   buildSnsWorkPostUrl,
@@ -28,7 +29,6 @@ import { getGenreDetailPath } from "@/lib/entities/paths";
 import { getCatalogItems } from "@/lib/dmm/catalog-entities";
 import {
   getDmmItemActressNameList,
-  getDmmItemPrice,
 } from "@/lib/dmm/display";
 import { filterDisplayableItems } from "@/lib/dmm/filter";
 import {
@@ -63,27 +63,7 @@ function buildCompareUrl(workA: SnsCompareWorkMini, workB: SnsCompareWorkMini): 
 }
 
 export function buildRecommendedWorkPost(item: DmmItem): string {
-  const actressLine = getDmmItemActressNameList(item).join("、");
-  const price = getDmmItemPrice(item);
-  const workUrl = buildSnsWorkPostUrl(item.content_id);
-  const hashtags = buildHashtagLine([
-    ...SNS_BASE_HASHTAGS,
-    ...actressNamesToHashtags(actressLine),
-  ]);
-
-  return [
-    "【今日のおすすめ作品】✨",
-    "",
-    item.title,
-    "",
-    `女優：${actressLine || "-"}`,
-    `価格：${price || "-"}`,
-    "",
-    "作品ページはこちら👇",
-    workUrl,
-    "",
-    hashtags,
-  ].join("\n");
+  return generateRecommendedWorkPost(item);
 }
 
 export function buildComparePost(

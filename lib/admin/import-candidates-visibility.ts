@@ -4,6 +4,9 @@ import type {
   ImportCandidatesSummary,
   StoredImportCandidate,
 } from "@/lib/admin/import-candidate-types";
+import type { ImportCollectionState } from "@/lib/admin/import-collection-state";
+import { createDefaultImportCollectionState } from "@/lib/admin/import-collection-state";
+import { IMPORT_COLLECT_PAGE_SIZE } from "@/lib/admin/import-constants";
 
 export function isAddedImportCandidate(
   candidate: Pick<
@@ -61,6 +64,7 @@ export function buildSummaryFromListItems(
   candidates: ImportCandidateListItem[],
   publishedCount: number,
   catalogTotalCount: number,
+  collectionState?: ImportCollectionState,
 ): ImportCandidatesSummary {
   let lastCollectedAt: string | null = null;
 
@@ -70,6 +74,9 @@ export function buildSummaryFromListItems(
     }
   }
 
+  const state =
+    collectionState ?? createDefaultImportCollectionState(IMPORT_COLLECT_PAGE_SIZE);
+
   return {
     publishedCount,
     catalogTotalCount,
@@ -77,5 +84,13 @@ export function buildSummaryFromListItems(
     addedCount: candidates.filter(isAddedImportCandidate).length,
     excludedCount: candidates.filter(isExcludedImportCandidate).length,
     lastCollectedAt,
+    lastNewCollectedAt: state.lastNewCollectedAt,
+    lastPastCollectedAt: state.lastPastCollectedAt,
+    collectionState: {
+      pastOffset: state.pastOffset,
+      nextPastOffset: state.pastOffset,
+      pageSize: state.pageSize || IMPORT_COLLECT_PAGE_SIZE,
+      cycleCount: state.cycleCount,
+    },
   };
 }

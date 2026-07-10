@@ -11,11 +11,13 @@ import {
 } from "@/lib/dmm/display";
 import { getDmmReleaseDateInfo } from "@/lib/dmm/release-date";
 import type { DmmItem } from "@/lib/dmm/types";
+import type { ImportCollectionMode } from "@/lib/admin/import-collect-types";
 import type { StoredImportCandidate } from "@/lib/admin/import-candidate-types";
 
 export function dmmItemToStoredCandidate(
   item: DmmItem,
   source: string,
+  options?: { collectionMode?: ImportCollectionMode },
 ): StoredImportCandidate {
   const duration = item.volume?.trim() ? Number.parseInt(item.volume, 10) : null;
 
@@ -37,6 +39,7 @@ export function dmmItemToStoredCandidate(
     source,
     collectedAt: new Date().toISOString(),
     status: "candidate",
+    collectionMode: options?.collectionMode,
     item,
   };
 }

@@ -10,6 +10,7 @@ import { ImportSortBar } from "@/components/admin/ImportSortBar";
 import { ImportSummaryBar } from "@/components/admin/ImportSummaryBar";
 import type { ImportCandidateSortKey } from "@/lib/admin/import-candidate-types";
 import type { ImportCandidatesListResult } from "@/lib/admin/import-candidate-types";
+import type { ImportCollectionMode } from "@/lib/admin/import-collect-types";
 import {
   type BulkAddLimitChoice,
   resolveBulkAddLimit,
@@ -63,8 +64,10 @@ export function ImportManagementClient({
   const [bulkAddMessage, setBulkAddMessage] = useState<string | null>(null);
   const [bulkAddError, setBulkAddError] = useState<string | null>(null);
   const [collectMessage, setCollectMessage] = useState<string | null>(null);
+  const [collectingMode, setCollectingMode] = useState<ImportCollectionMode | null>(
+    null,
+  );
   const [isLoading, setIsLoading] = useState(false);
-  const [isCollecting, setIsCollecting] = useState(false);
   const [isBulkAdding, setIsBulkAdding] = useState(false);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -338,14 +341,18 @@ export function ImportManagementClient({
     [visibleCandidates, addedIds],
   );
 
-  async function handleCollect() {
-    setIsCollecting(true);
+  async function handleCollect(mode: ImportCollectionMode) {
+    setCollectingMode(mode);
     setError(null);
     setCollectMessage(null);
 
     try {
       const response = await fetch("/api/admin/import/collect-candidates", {
         method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ mode }),
       });
 
       const payload = (await response.json()) as ImportManagementInitialData & {
@@ -356,8 +363,6 @@ export function ImportManagementClient({
         message?: string;
         candidates?: ImportCandidatesListResult["candidates"];
       };
-
-      console.log("collect result:", payload);
 
       if (!response.ok) {
         throw new Error(payload.error ?? "候補の収集に失敗しました。");
@@ -377,10 +382,9 @@ export function ImportManagementClient({
         setActiveFilters(new Set());
 
         const displayedCount =
-          payload.displayedCount ?? payload.pagination?.totalCount ?? payload.candidates.length;
-
-        console.log("loaded candidates:", payload.candidates);
-        console.log("filtered candidates:", payload.candidates);
+          payload.displayedCount ??
+          payload.pagination?.totalCount ??
+          payload.candidates.length;
 
         setCollectMessage(
           payload.message ??
@@ -400,7 +404,7 @@ export function ImportManagementClient({
           : "候補の収集に失敗しました。",
       );
     } finally {
-      setIsCollecting(false);
+      setCollectingMode(null);
     }
   }
 
@@ -636,7 +640,7 @@ export function ImportManagementClient({
         summary={data.summary}
         visibleCount={data.summary.candidateCount}
         displayedCount={data.pagination.totalCount}
-        isCollecting={isCollecting}
+        collectingMode={collectingMode}
         onCollect={handleCollect}
       />
 
@@ -671,7 +675,7 @@ export function ImportManagementClient({
       ) : null}
 
       {collectMessage ? (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm whitespace-pre-wrap text-emerald-800">
           {collectMessage}
         </div>
       ) : null}
@@ -726,7 +730,7 @@ export function ImportManagementClient({
         </div>
       ) : visibleCandidates.length === 0 ? (
         <div className="rounded-xl border border-border bg-white p-8 text-center text-sm text-muted">
-          表示できる候補作品がありません。「候補を収集」で FANZA から未掲載作品を蓄積してください。
+          表示できる候補作品がありません。「新作を収集」または「過去作品を収集」で FANZA から未掲載作品を蓄積してください。
         </div>
       ) : (
         <div className="space-y-4">

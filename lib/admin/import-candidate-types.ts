@@ -1,3 +1,4 @@
+import type { ImportCollectionMode } from "@/lib/admin/import-collect-types";
 import type { DmmItem } from "@/lib/dmm/types";
 
 export type ImportCandidateStatus = "candidate" | "added" | "excluded";
@@ -20,6 +21,7 @@ export type StoredImportCandidate = {
   source: string;
   collectedAt: string;
   status: ImportCandidateStatus;
+  collectionMode?: ImportCollectionMode;
   /** カタログ追加用の完全な DMM 作品データ */
   item: DmmItem;
 };
@@ -49,6 +51,14 @@ export type ImportCandidatesSummary = {
   addedCount: number;
   excludedCount: number;
   lastCollectedAt: string | null;
+  lastNewCollectedAt: string | null;
+  lastPastCollectedAt: string | null;
+  collectionState: {
+    pastOffset: number;
+    nextPastOffset: number;
+    pageSize: number;
+    cycleCount: number;
+  };
 };
 
 export type ImportCandidateListItem = {

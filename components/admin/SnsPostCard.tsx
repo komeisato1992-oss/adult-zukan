@@ -5,6 +5,8 @@ import { SnsCompareImagePreview } from "@/components/admin/SnsCompareImagePrevie
 import type { SnsPostHistoryEntry } from "@/lib/admin/sns-post-history-types";
 import { buildSnsPostUrl } from "@/lib/admin/sns-urls";
 import type { SnsScheduledPost } from "@/lib/admin/sns-types";
+import { buildImageProxyUrl } from "@/lib/image-proxy";
+import { isValidImageUrl } from "@/lib/works";
 
 type SnsPostCardProps = {
   post: SnsScheduledPost;
@@ -23,6 +25,31 @@ function getCharCountClass(length: number): string {
 
 const actionButtonClassName =
   "inline-flex h-11 min-h-[44px] min-w-0 flex-1 items-center justify-center rounded-lg px-3 text-sm sm:flex-none";
+
+function WorkPreviewImage({
+  imageUrl,
+  title,
+}: {
+  imageUrl: string;
+  title: string;
+}) {
+  const [failed, setFailed] = useState(false);
+  const src =
+    imageUrl && isValidImageUrl(imageUrl) && !failed
+      ? buildImageProxyUrl(imageUrl)
+      : null;
+
+  if (!src) return null;
+
+  return (
+    <img
+      src={src}
+      alt={title}
+      className="max-h-72 w-full max-w-xs rounded-lg border border-border object-cover"
+      onError={() => setFailed(true)}
+    />
+  );
+}
 
 export function SnsPostCard({ post: initialPost, onPosted }: SnsPostCardProps) {
   const [post, setPost] = useState(initialPost);
@@ -138,7 +165,7 @@ export function SnsPostCard({ post: initialPost, onPosted }: SnsPostCardProps) {
           </h3>
         </div>
         <span className="shrink-0 rounded-full bg-accent-light px-3 py-1 text-xs font-medium text-accent">
-          {post.slot}
+          {post.isManual ? "手動作成" : post.slot}
         </span>
       </div>
 
@@ -172,6 +199,28 @@ export function SnsPostCard({ post: initialPost, onPosted }: SnsPostCardProps) {
               {post.compareUrl}
             </a>
           </p>
+        </div>
+      ) : null}
+
+      {post.type === "recommended-work" && post.previewImageUrl ? (
+        <div className="mt-5 max-w-full space-y-3 overflow-hidden rounded-lg border border-border bg-surface p-3 sm:p-4">
+          <WorkPreviewImage
+            imageUrl={post.previewImageUrl}
+            title={post.meta?.contentId ?? "作品画像"}
+          />
+          {post.workDetailUrl ? (
+            <p className="break-all text-xs text-muted">
+              作品ページ：
+              <a
+                href={post.workDetailUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="break-all text-accent hover:underline"
+              >
+                {post.workDetailUrl}
+              </a>
+            </p>
+          ) : null}
         </div>
       ) : null}
 

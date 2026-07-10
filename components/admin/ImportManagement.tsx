@@ -5,7 +5,29 @@ import {
   logGitHubEnvDiagnostics,
 } from "@/lib/admin/github-config";
 import { isImportCandidatesJsonCorruptError } from "@/lib/admin/import-candidates-json";
+import { createDefaultImportCollectionState } from "@/lib/admin/import-collection-state";
+import { IMPORT_COLLECT_PAGE_SIZE } from "@/lib/admin/import-constants";
 import { isDmmConfigured } from "@/lib/dmm/client";
+
+function createEmptySummary() {
+  const state = createDefaultImportCollectionState(IMPORT_COLLECT_PAGE_SIZE);
+  return {
+    publishedCount: 0,
+    catalogTotalCount: 0,
+    candidateCount: 0,
+    addedCount: 0,
+    excludedCount: 0,
+    lastCollectedAt: null,
+    lastNewCollectedAt: null,
+    lastPastCollectedAt: null,
+    collectionState: {
+      pastOffset: state.pastOffset,
+      nextPastOffset: state.pastOffset,
+      pageSize: state.pageSize,
+      cycleCount: state.cycleCount,
+    },
+  };
+}
 
 export async function ImportManagement() {
   logGitHubEnvDiagnostics();
@@ -22,14 +44,7 @@ export async function ImportManagement() {
     };
   } catch (error) {
     initialData = {
-      summary: {
-        publishedCount: 0,
-        catalogTotalCount: 0,
-        candidateCount: 0,
-        addedCount: 0,
-        excludedCount: 0,
-        lastCollectedAt: null,
-      },
+      summary: createEmptySummary(),
       candidates: [],
       pagination: {
         page: 1,

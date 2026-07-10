@@ -25,6 +25,15 @@ export type SnsCompareWorkMini = {
   genres?: string;
 };
 
+export type ProductCodeCandidate = {
+  contentId: string;
+  productId: string;
+  title: string;
+  actressNames?: string;
+  price?: string;
+  imageUrl?: string;
+};
+
 export type SnsScheduledPost = {
   slot: SnsPostSlot;
   type: SnsPostType;
@@ -33,6 +42,14 @@ export type SnsScheduledPost = {
   compareWorks?: [SnsCompareWorkMini, SnsCompareWorkMini];
   compareUrl?: string;
   meta?: SnsPostMeta;
+  /** 製品番号から手動生成した投稿 */
+  isManual?: boolean;
+  /** 手動投稿の React key 用 */
+  customId?: string;
+  /** おすすめ作品のプレビュー画像 */
+  previewImageUrl?: string;
+  /** 作品詳細ページURL */
+  workDetailUrl?: string;
 };
 
 export type SnsRankingVariant = "popular" | "new" | "sale" | "random";

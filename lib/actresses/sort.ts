@@ -36,6 +36,16 @@ export type ActressListItem = {
   popularOrder: number;
 };
 
+export type ActressListPageData = {
+  pageItems: ActressListItem[];
+  totalItems: number;
+  totalPages: number;
+  currentPage: number;
+  sort: ActressSortKey;
+  limit: ActressLimit;
+  q: string;
+};
+
 function compareActressByReading(a: ActressListItem, b: ActressListItem): number {
   const readingA = a.reading ?? a.name;
   const readingB = b.reading ?? b.name;

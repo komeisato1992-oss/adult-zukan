@@ -1,4 +1,5 @@
 import type { DmmItem } from "@/lib/dmm/types";
+import { getActressNamesFromItem } from "@/lib/dmm/actress-names";
 import { getActressDetailPath } from "@/lib/actresses/slug";
 import {
   getGenreDetailPath,
@@ -43,8 +44,7 @@ export function getDmmItemActressNames(item: DmmItem): string | undefined {
 }
 
 export function getDmmItemActressNameList(item: DmmItem): string[] {
-  const actresses = item.actress ?? item.iteminfo?.actress ?? [];
-  return actresses.map((actress) => actress.name).filter(Boolean);
+  return getActressNamesFromItem(item);
 }
 
 export function getDmmItemPrice(item: DmmItem): string | undefined {

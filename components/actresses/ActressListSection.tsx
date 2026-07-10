@@ -1,124 +1,87 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { FormEvent, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { ActressGridCard } from "@/components/actresses/ActressGridCard";
 import { Pagination } from "@/components/ui/Pagination";
+import type { ActressListPageData } from "@/lib/actresses/sort";
 import {
   ACTRESS_LIMIT_OPTIONS,
   buildActressListUrl,
-  parseActressLimitParam,
-  parseActressSortParam,
-  sortActresses,
   type ActressLimit,
-  type ActressListItem,
   type ActressSortKey,
 } from "@/lib/actresses/sort";
-import { paginateItems, parsePageParam } from "@/lib/pagination";
-
-type ActressListParams = {
-  sort: ActressSortKey;
-  limit: ActressLimit;
-  page: number;
-  q: string;
-};
 
 const BASE_PATH = "/actresses";
 
-function parseActressListParams(search: string): ActressListParams {
-  const searchParams = new URLSearchParams(search);
-
-  return {
-    sort: parseActressSortParam(searchParams.get("sort")),
-    limit: parseActressLimitParam(searchParams.get("limit")),
-    page: parsePageParam(searchParams.get("page") ?? undefined),
-    q: searchParams.get("q")?.trim() ?? "",
-  };
-}
-
-function replaceActressListUrl(params: ActressListParams) {
-  const url = buildActressListUrl(BASE_PATH, params);
-  window.history.replaceState(null, "", url);
-}
-
 type ActressListSectionProps = {
-  actresses: ActressListItem[];
+  listData: ActressListPageData;
 };
 
-export function ActressListSection({ actresses }: ActressListSectionProps) {
-  const searchParams = useSearchParams();
-  const [params, setParams] = useState<ActressListParams>(() =>
-    parseActressListParams(searchParams.toString()),
-  );
-  const [searchInput, setSearchInput] = useState(
-    () => parseActressListParams(searchParams.toString()).q,
-  );
+export function ActressListSection({ listData }: ActressListSectionProps) {
+  const router = useRouter();
+  const {
+    pageItems,
+    totalItems,
+    totalPages,
+    currentPage,
+    sort,
+    limit,
+    q,
+  } = listData;
 
-  useEffect(() => {
-    const handlePopState = () => {
-      const nextParams = parseActressListParams(window.location.search);
-      setParams(nextParams);
-      setSearchInput(nextParams.q);
-    };
-
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
-
-  const updateParams = useCallback(
-    (patch: Partial<ActressListParams>, resetPage = false) => {
-      setParams((current) => {
-        const next: ActressListParams = {
-          ...current,
-          ...patch,
-          page: resetPage ? 1 : (patch.page ?? current.page),
-        };
-        replaceActressListUrl(next);
-        return next;
+  const navigate = useCallback(
+    (
+      patch: {
+        sort?: ActressSortKey;
+        limit?: ActressLimit;
+        currentPage?: number;
+        q?: string;
+      },
+      resetPage = false,
+    ) => {
+      const url = buildActressListUrl(BASE_PATH, {
+        sort: patch.sort ?? sort,
+        limit: patch.limit ?? limit,
+        page: resetPage ? 1 : (patch.currentPage ?? currentPage),
+        q: patch.q ?? q,
       });
+      router.push(url);
     },
-    [],
+    [router, sort, limit, currentPage, q],
   );
 
   const handleSearchSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      updateParams({ q: searchInput.trim() }, true);
+      const formData = new FormData(event.currentTarget);
+      const nextQuery = String(formData.get("q") ?? "").trim();
+      navigate({ q: nextQuery }, true);
     },
-    [searchInput, updateParams],
+    [navigate],
   );
 
   const handleLimitChange = useCallback(
     (event: React.ChangeEvent<HTMLSelectElement>) => {
-      updateParams(
-        { limit: parseActressLimitParam(event.target.value) },
+      const nextLimit = Number(event.target.value);
+      navigate(
+        {
+          limit:
+            nextLimit === 50 || nextLimit === 100
+              ? nextLimit
+              : 20,
+        },
         true,
       );
     },
-    [updateParams],
+    [navigate],
   );
 
   const handlePageChange = useCallback(
     (page: number) => {
-      updateParams({ page });
+      navigate({ currentPage: page });
     },
-    [updateParams],
-  );
-
-  const visibleActresses = useMemo(() => {
-    const keyword = params.q.trim().toLowerCase();
-    const filtered = keyword
-      ? actresses.filter((actress) =>
-          actress.name.toLowerCase().includes(keyword),
-        )
-      : actresses;
-
-    return sortActresses(filtered, params.sort);
-  }, [actresses, params.q, params.sort]);
-
-  const pagination = useMemo(
-    () => paginateItems(visibleActresses, params.page, params.limit),
-    [visibleActresses, params.page, params.limit],
+    [navigate],
   );
 
   return (
@@ -140,8 +103,7 @@ export function ActressListSection({ actresses }: ActressListSectionProps) {
             id="actress-search"
             type="search"
             name="q"
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
+            defaultValue={q}
             placeholder="女優名で検索"
             autoComplete="off"
             className="h-10 w-full rounded border border-border bg-white px-4 text-sm text-foreground placeholder:text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20"
@@ -160,30 +122,42 @@ export function ActressListSection({ actresses }: ActressListSectionProps) {
           </label>
           <select
             id="actress-limit"
-            value={params.limit}
+            value={limit}
             onChange={handleLimitChange}
             className="h-10 min-w-[88px] rounded border border-border bg-white px-3 text-sm text-foreground"
           >
-            {ACTRESS_LIMIT_OPTIONS.map((limit) => (
-              <option key={limit} value={limit}>
-                {limit}件
+            {ACTRESS_LIMIT_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}件
               </option>
             ))}
           </select>
         </div>
       </div>
 
-      {pagination.items.length > 0 ? (
+      {q ? (
+        <p className="mb-4 text-sm text-muted">
+          「{q}」の検索結果：{totalItems}名
+          {totalPages > 1 ? `（${currentPage}/${totalPages}ページ目）` : null}
+        </p>
+      ) : null}
+
+      {pageItems.length > 0 ? (
         <>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-            {pagination.items.map((actress) => (
+            {pageItems.map((actress) => (
               <ActressGridCard key={actress.slug} actress={actress} />
             ))}
           </div>
           <Pagination
-            currentPage={pagination.currentPage}
-            totalPages={pagination.totalPages}
+            currentPage={currentPage}
+            totalPages={totalPages}
             basePath={BASE_PATH}
+            query={{
+              sort: sort === "popular" ? undefined : sort,
+              limit: limit === 20 ? undefined : String(limit),
+              q: q || undefined,
+            }}
             onPageChange={handlePageChange}
           />
         </>

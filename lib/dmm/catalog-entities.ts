@@ -10,6 +10,7 @@ import { getDmmFanzaUrl } from "@/lib/dmm/fanza-url";
 import type { DmmItem } from "@/lib/dmm/types";
 import { encodeActressSlug, decodeActressSlug, matchesActressSlug } from "@/lib/actresses/slug";
 import { getActressReading } from "@/lib/actresses/readings";
+import { iterateItemActresses } from "@/lib/dmm/actress-names";
 import { buildActressRepresentativeImageMap } from "@/lib/dmm/actress-representative-image";
 import { encodeEntitySlug } from "@/lib/entities/paths";
 import { slugify } from "@/lib/utils";
@@ -144,12 +145,10 @@ export function getCatalogActresses(items: DmmItem[]): CatalogActressEntity[] {
   >();
 
   for (const item of valid) {
-    const actresses = item.actress ?? item.iteminfo?.actress ?? [];
-
-    for (const actress of actresses) {
-      if (!actress.name) continue;
-
+    for (const actress of iterateItemActresses(item)) {
       const slug = encodeActressSlug(actress.name);
+      if (!slug) continue;
+
       const existing = map.get(actress.name);
       const ruby = actress.ruby?.trim();
 
@@ -204,11 +203,10 @@ export function getCatalogWorksByActressSlug(
   return sortByCatalogOrder(
     items,
     filterValidCatalogItems(items).filter((item) => {
-      const actresses = item.actress ?? item.iteminfo?.actress ?? [];
-      return actresses.some(
+      return iterateItemActresses(item).some(
         (actress) =>
-          actress.name &&
-          (actress.name === actressName || matchesActressSlug(actress.name, slug)),
+          actress.name === actressName ||
+          matchesActressSlug(actress.name, slug),
       );
     }),
   );

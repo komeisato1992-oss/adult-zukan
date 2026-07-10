@@ -4,7 +4,7 @@ import { ActressSortSelect } from "@/components/actresses/ActressSortSelect";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { getActressListItems } from "@/lib/actresses/list";
+import { getActressListPageData } from "@/lib/actresses/list";
 import { siteConfig, pageIntros } from "@/lib/site-config";
 import { PageIntro } from "@/components/ui/PageIntro";
 import { createPageMetadata } from "@/lib/seo/metadata";
@@ -16,6 +16,15 @@ import {
 } from "@/lib/seo/json-ld";
 
 export const revalidate = 86400;
+
+type ActressesPageProps = {
+  searchParams: Promise<{
+    sort?: string;
+    limit?: string;
+    page?: string;
+    q?: string;
+  }>;
+};
 
 export const metadata = createPageMetadata({
   title: seoTitles.actresses,
@@ -43,8 +52,9 @@ function ActressListFallback() {
   );
 }
 
-export default async function ActressesPage() {
-  const actresses = await getActressListItems();
+export default async function ActressesPage({ searchParams }: ActressesPageProps) {
+  const params = await searchParams;
+  const listData = await getActressListPageData(params);
 
   return (
     <>
@@ -70,6 +80,9 @@ export default async function ActressesPage() {
             女優一覧
           </h1>
           <PageIntro text={pageIntros.actresses} />
+          {listData.totalItems > 0 ? (
+            <p className="mt-2 text-sm text-muted">{listData.totalItems}名</p>
+          ) : null}
         </header>
 
         <Suspense fallback={null}>
@@ -77,7 +90,7 @@ export default async function ActressesPage() {
         </Suspense>
 
         <Suspense fallback={<ActressListFallback />}>
-          <ActressListSection actresses={actresses} />
+          <ActressListSection listData={listData} />
         </Suspense>
       </PageLayout>
     </>

@@ -7,6 +7,7 @@ import {
 import { isValidDmmListItem } from "@/lib/dmm/filter";
 import type { DmmItem } from "@/lib/dmm/types";
 import { encodeActressSlug } from "@/lib/actresses/slug";
+import { iterateItemActresses } from "@/lib/dmm/actress-names";
 import { buildActressRepresentativeImageMap } from "@/lib/dmm/actress-representative-image";
 import { parseDmmPrice, slugify } from "@/lib/utils";
 import { parseWorkSortParam, sortWorks } from "@/lib/works/sort";
@@ -191,11 +192,7 @@ export function getRankedActresses(
   const map = new Map<string, { count: number }>();
 
   for (const item of valid) {
-    const actresses = item.actress ?? item.iteminfo?.actress ?? [];
-
-    for (const actress of actresses) {
-      if (!actress.name) continue;
-
+    for (const actress of iterateItemActresses(item)) {
       const existing = map.get(actress.name);
       map.set(actress.name, {
         count: (existing?.count ?? 0) + 1,

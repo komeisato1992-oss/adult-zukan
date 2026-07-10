@@ -1,4 +1,5 @@
 import type { DmmItem } from "@/lib/dmm/types";
+import { getActressNamesFromItem } from "@/lib/dmm/actress-names";
 import { getValidImageUrl, isValidImageUrl } from "@/lib/works";
 
 type WorkCandidate = {
@@ -23,9 +24,7 @@ function parseReleaseTimestamp(item: DmmItem): number {
 }
 
 function getActressNames(item: DmmItem): string[] {
-  return (item.actress ?? item.iteminfo?.actress ?? [])
-    .map((actress) => actress.name)
-    .filter(Boolean);
+  return getActressNamesFromItem(item);
 }
 
 function buildCatalogIndexMap(items: DmmItem[]): Map<string, number> {

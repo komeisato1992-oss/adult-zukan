@@ -1,52 +1,34 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ACTRESS_SORT_SELECT_OPTIONS,
   buildActressListUrl,
   parseActressLimitParam,
   parseActressSortParam,
-  type ActressSortKey,
 } from "@/lib/actresses/sort";
 
 const BASE_PATH = "/actresses";
 
-function readSortFromSearch(search: string): ActressSortKey {
-  return parseActressSortParam(new URLSearchParams(search).get("sort"));
-}
-
 export function ActressSortSelect() {
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const [sort, setSort] = useState<ActressSortKey>(() =>
-    readSortFromSearch(searchParams.toString()),
-  );
-
-  useEffect(() => {
-    const handlePopState = () => {
-      setSort(readSortFromSearch(window.location.search));
-    };
-
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
-  }, []);
+  const sort = parseActressSortParam(searchParams.get("sort"));
 
   const handleSortChange = useCallback(
     (event: React.ChangeEvent<HTMLSelectElement>) => {
       const nextSort = parseActressSortParam(event.target.value);
-      const search = new URLSearchParams(window.location.search);
       const url = buildActressListUrl(BASE_PATH, {
         sort: nextSort,
-        limit: parseActressLimitParam(search.get("limit")),
+        limit: parseActressLimitParam(searchParams.get("limit")),
         page: 1,
-        q: search.get("q")?.trim() ?? "",
+        q: searchParams.get("q")?.trim() ?? "",
       });
 
-      window.history.replaceState(null, "", url);
-      setSort(nextSort);
-      window.dispatchEvent(new PopStateEvent("popstate"));
+      router.push(url);
     },
-    [],
+    [router, searchParams],
   );
 
   return (

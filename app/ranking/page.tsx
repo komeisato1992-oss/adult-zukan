@@ -13,6 +13,9 @@ import { siteConfig } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import { createBreadcrumbJsonLd } from "@/lib/seo/json-ld";
 import {
+  toRankingWorkCardItems,
+} from "@/lib/ranking/work-card-item";
+import {
   getMonthlyRankingWorks,
   getPopularWorks,
   getRankedActresses,
@@ -21,7 +24,8 @@ import {
   getSharedCatalogWorks,
   getWeeklyRankingWorks,
 } from "@/lib/works/catalog";
-import { filterItemsWithValidImage } from "@/lib/works";
+
+export const revalidate = 3600;
 
 export const metadata = createPageMetadata({
   title: "ランキング",
@@ -32,9 +36,9 @@ export const metadata = createPageMetadata({
 
 export default async function RankingPage() {
   const catalog = await getSharedCatalogWorks();
-  const popularWorks = filterItemsWithValidImage(getPopularWorks(catalog, 10));
-  const weeklyWorks = filterItemsWithValidImage(getWeeklyRankingWorks(catalog, 10));
-  const monthlyWorks = filterItemsWithValidImage(getMonthlyRankingWorks(catalog, 10));
+  const popularWorks = toRankingWorkCardItems(getPopularWorks(catalog, 10));
+  const weeklyWorks = toRankingWorkCardItems(getWeeklyRankingWorks(catalog, 10));
+  const monthlyWorks = toRankingWorkCardItems(getMonthlyRankingWorks(catalog, 10));
   const rankedMakers = getRankedMakers(catalog, 10);
   const rankedSeries = getRankedSeries(catalog, 10);
   const popularActresses = getRankedActresses(catalog, 10);

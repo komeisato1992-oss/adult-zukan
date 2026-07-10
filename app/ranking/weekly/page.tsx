@@ -6,12 +6,17 @@ import { RankingNav } from "@/components/ranking/RankingNav";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import { createBreadcrumbJsonLd, createItemListJsonLd } from "@/lib/seo/json-ld";
+import {
+  toRankingJsonLdEntries,
+  toRankingWorkCardItems,
+} from "@/lib/ranking/work-card-item";
 import { siteConfig } from "@/lib/site-config";
 import {
   getSharedCatalogWorks,
   getWeeklyRankingWorks,
 } from "@/lib/works/catalog";
-import { filterItemsWithValidImage } from "@/lib/works";
+
+export const revalidate = 3600;
 
 export const metadata = createPageMetadata({
   title: "週間ランキング",
@@ -21,7 +26,7 @@ export const metadata = createPageMetadata({
 
 export default async function RankingWeeklyPage() {
   const catalog = await getSharedCatalogWorks();
-  const items = filterItemsWithValidImage(getWeeklyRankingWorks(catalog, 20));
+  const items = toRankingWorkCardItems(getWeeklyRankingWorks(catalog, 20));
 
   return (
     <>
@@ -34,9 +39,9 @@ export default async function RankingWeeklyPage() {
           ]),
           createItemListJsonLd(
             "週間ランキング",
-            items.map((item) => ({
-              name: item.title,
-              url: `${siteConfig.url}/works/${item.content_id}`,
+            toRankingJsonLdEntries(items).map((entry) => ({
+              name: entry.name,
+              url: `${siteConfig.url}${entry.url}`,
             })),
           ),
         ]}

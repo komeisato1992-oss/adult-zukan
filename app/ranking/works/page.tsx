@@ -6,12 +6,17 @@ import { RankingNav } from "@/components/ranking/RankingNav";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import { createBreadcrumbJsonLd, createItemListJsonLd } from "@/lib/seo/json-ld";
+import {
+  toRankingJsonLdEntries,
+  toRankingWorkCardItems,
+} from "@/lib/ranking/work-card-item";
 import { siteConfig } from "@/lib/site-config";
 import {
   getPopularWorks,
   getSharedCatalogWorks,
 } from "@/lib/works/catalog";
-import { filterItemsWithValidImage } from "@/lib/works";
+
+export const revalidate = 3600;
 
 export const metadata = createPageMetadata({
   title: "人気作品ランキング",
@@ -21,7 +26,7 @@ export const metadata = createPageMetadata({
 
 export default async function RankingWorksPage() {
   const catalog = await getSharedCatalogWorks();
-  const items = filterItemsWithValidImage(
+  const rankedWorks = toRankingWorkCardItems(
     getPopularWorks(catalog, catalog.length),
   );
 
@@ -36,9 +41,9 @@ export default async function RankingWorksPage() {
           ]),
           createItemListJsonLd(
             "人気作品ランキング",
-            items.map((item) => ({
-              name: item.title,
-              url: `${siteConfig.url}/works/${item.content_id}`,
+            toRankingJsonLdEntries(rankedWorks).map((entry) => ({
+              name: entry.name,
+              url: `${siteConfig.url}${entry.url}`,
             })),
           ),
         ]}
@@ -58,7 +63,7 @@ export default async function RankingWorksPage() {
           <PageIntro text="視聴者の評価とアクセス数をもとに集計した人気作品ランキングです。" />
         </header>
         <RankingNav current="/ranking/works" />
-        <DmmRankedWorkList items={items} />
+        <DmmRankedWorkList items={rankedWorks} />
       </PageLayout>
     </>
   );

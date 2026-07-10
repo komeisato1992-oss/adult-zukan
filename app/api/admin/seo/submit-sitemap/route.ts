@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin/auth";
 import { toSeoCacheStoreErrorMessage } from "@/lib/admin/seo-cache-store";
+import { buildSeoEnvDiagnostics } from "@/lib/admin/seo-env-diagnostics";
 import { refreshSeoDashboardData, submitDefaultSitemap } from "@/lib/admin/seo-service";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +14,8 @@ export async function POST() {
   try {
     await submitDefaultSitemap();
     const data = await refreshSeoDashboardData();
-    return NextResponse.json({ success: true, data });
+    const envDiagnostics = buildSeoEnvDiagnostics();
+    return NextResponse.json({ success: true, data, envDiagnostics });
   } catch (error) {
     const { message, status } = toSeoCacheStoreErrorMessage(error);
     return NextResponse.json({ error: message }, { status });

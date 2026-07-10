@@ -1,46 +1,38 @@
 import "server-only";
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
-import path from "path";
-import {
-  createEmptySeoCache,
-  parseSeoCacheJson,
-  serializeSeoCache,
-  SeoCacheJsonError,
-} from "@/lib/admin/seo-cache-json";
+import { createEmptySeoCache } from "@/lib/admin/seo-cache-json";
 import type { SeoCachePayload } from "@/lib/admin/seo-types";
+import { SeoCacheJsonError } from "@/lib/admin/seo-cache-json";
 import { toGoogleSearchConsoleErrorMessage } from "@/lib/admin/google-search-console-errors";
 import { getSiteUrl } from "@/lib/constants";
 
-const ADMIN_DATA_DIR = path.join(process.cwd(), "data", "admin");
-const SEO_CACHE_FILE = path.join(ADMIN_DATA_DIR, "seo-cache.json");
+type SeoMemoryStore = typeof globalThis & {
+  __seoMemoryCache?: SeoCachePayload | null;
+};
 
-export function readSeoCacheLocal(): SeoCachePayload {
-  if (!existsSync(SEO_CACHE_FILE)) {
-    return createEmptySeoCache(getSiteUrl());
-  }
-
-  try {
-    return parseSeoCacheJson(readFileSync(SEO_CACHE_FILE, "utf-8"));
-  } catch (error) {
-    if (error instanceof SeoCacheJsonError) {
-      throw error;
-    }
-    return createEmptySeoCache(getSiteUrl());
-  }
+function getMemoryStore(): SeoMemoryStore {
+  return globalThis as SeoMemoryStore;
 }
 
-export function writeSeoCacheLocal(payload: SeoCachePayload): void {
-  mkdirSync(ADMIN_DATA_DIR, { recursive: true });
-  writeFileSync(SEO_CACHE_FILE, serializeSeoCache(payload), "utf-8");
+/** Production / Vercel 含め常にメモリキャッシュのみ使用 */
+export function getSeoCacheBackend(): "memory" {
+  return "memory";
 }
 
 export async function loadSeoCache(): Promise<SeoCachePayload> {
-  return readSeoCacheLocal();
+  const store = getMemoryStore();
+  if (store.__seoMemoryCache) {
+    return store.__seoMemoryCache;
+  }
+
+  const empty = createEmptySeoCache(getSiteUrl());
+  store.__seoMemoryCache = empty;
+  return empty;
 }
 
 export async function saveSeoCache(payload: SeoCachePayload): Promise<void> {
-  writeSeoCacheLocal(payload);
+  const store = getMemoryStore();
+  store.__seoMemoryCache = payload;
 }
 
 export function toSeoCacheStoreErrorMessage(error: unknown): {

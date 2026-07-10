@@ -181,8 +181,17 @@ GITHUB_BRANCH=main
 | Variable | Description |
 | --- | --- |
 | `GOOGLE_SERVICE_ACCOUNT_JSON` | サービスアカウント JSON を **1行** で設定（`client_email` / `private_key` 必須） |
+| `GOOGLE_SERVICE_ACCOUNT_JSON_BASE64` | 上記 JSON を Base64 エンコードした値（Vercel 向け） |
+| `GOOGLE_SERVICE_ACCOUNT_JSON_PATH` | ローカル開発のみ: JSON ファイルへのパス |
+| `GOOGLE_SERVICE_ACCOUNT_EMAIL` | 分割設定: サービスアカウントのメール |
+| `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` | 分割設定: private key（`\\n` エスケープ） |
 | `GSC_SITE_URL` | Search Console プロパティ URL（例: `https://adult-zukan.jp/` または `sc-domain:adult-zukan.jp`） |
 | `CRON_SECRET` | 日次自動更新用（Vercel Cron。任意） |
+
+### キャッシュ
+
+- **常にメモリキャッシュのみ**（Production / Vercel 含む）
+- JSON ファイル（`data/admin/seo-cache.json`）への保存は行いません
 
 ### ローカル設定例（`.env.local`）
 

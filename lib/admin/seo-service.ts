@@ -21,6 +21,11 @@ import {
 } from "@/lib/admin/google-service-account";
 import { getSeoConfigStatus } from "@/lib/admin/seo-config";
 import { loadSeoCache, saveSeoCache } from "@/lib/admin/seo-cache-store";
+import {
+  buildSeoEnvDiagnostics,
+  logSeoGscConnectionResult,
+  type SeoEnvDiagnostics,
+} from "@/lib/admin/seo-env-diagnostics";
 import { getPublishedWorkCount } from "@/lib/admin/stats";
 import { getSitemapEntries } from "@/lib/sitemap/build-entries";
 import type {
@@ -164,29 +169,39 @@ function buildAiSuggestions(
   return suggestions;
 }
 
-export async function getSeoDashboardData(): Promise<SeoCachePayload> {
-  const [cache, config, totalWorks, sitemapEntries] = await Promise.all([
-    loadSeoCache(),
-    Promise.resolve(getSeoConfigStatus()),
-    getPublishedWorkCount(),
-    getSitemapEntries(),
-  ]);
+export type SeoDashboardData = {
+  data: SeoCachePayload;
+  envDiagnostics: SeoEnvDiagnostics;
+};
+
+export async function getSeoDashboardData(): Promise<SeoDashboardData> {
+  const [cache, config, totalWorks, sitemapEntries, envDiagnostics] =
+    await Promise.all([
+      loadSeoCache(),
+      Promise.resolve(getSeoConfigStatus()),
+      getPublishedWorkCount(),
+      getSitemapEntries(),
+      Promise.resolve(buildSeoEnvDiagnostics()),
+    ]);
 
   return {
-    ...cache,
-    siteUrl: config.gscSiteUrl ?? cache.siteUrl,
-    configured: config.configured,
-    configMessage: config.configured ? undefined : config.configMessage,
-    overview: {
-      ...cache.overview,
-      totalWorks,
-    },
-    index: {
-      ...cache.index,
-      totalSitePages:
-        cache.index.totalSitePages > 0
-          ? cache.index.totalSitePages
-          : sitemapEntries.length,
+    envDiagnostics,
+    data: {
+      ...cache,
+      siteUrl: config.gscSiteUrl ?? cache.siteUrl,
+      configured: config.configured,
+      configMessage: config.configured ? undefined : config.configMessage,
+      overview: {
+        ...cache.overview,
+        totalWorks,
+      },
+      index: {
+        ...cache.index,
+        totalSitePages:
+          cache.index.totalSitePages > 0
+            ? cache.index.totalSitePages
+            : sitemapEntries.length,
+      },
     },
   };
 }
@@ -197,6 +212,11 @@ export async function refreshSeoDashboardData(): Promise<SeoCachePayload> {
   const base = createEmptySeoCache(siteUrl);
 
   if (!config.configured) {
+    logSeoGscConnectionResult({
+      success: false,
+      error: config.configMessage ?? "認証情報が未設定です",
+    });
+
     const [totalWorks, sitemapEntries] = await Promise.all([
       getPublishedWorkCount(),
       getSitemapEntries(),
@@ -221,94 +241,115 @@ export async function refreshSeoDashboardData(): Promise<SeoCachePayload> {
   }
 
   const resolvedSiteUrl = getSearchConsoleSiteUrl();
-  await getGoogleAccessToken();
 
-  const [
-    totalWorks,
-    sitemapEntries,
-    daily28Rows,
-    daily90Rows,
-    queryRows,
-    pageRows,
-    sitemapApiRows,
-  ] = await Promise.all([
-    getPublishedWorkCount(),
-    getSitemapEntries(),
-    fetchDailySearchAnalytics(resolvedSiteUrl, 28),
-    fetchDailySearchAnalytics(resolvedSiteUrl, 90),
-    fetchQuerySearchAnalytics(resolvedSiteUrl, 28),
-    fetchPageSearchAnalytics(resolvedSiteUrl, 28),
-    fetchSitemaps(resolvedSiteUrl),
-  ]);
+  try {
+    await getGoogleAccessToken();
+    console.info("[seo-gsc] Google OAuth token acquired");
 
-  const daily28 = mapDailyRows(daily28Rows);
-  const daily90 = mapDailyRows(daily90Rows);
-  const overviewAgg = aggregateAnalyticsRows(daily28Rows);
-  const queries = mapQueryRows(queryRows);
-  const pages = await enrichPageRows(mapPageRows(pageRows));
-  const sitemaps = mapSitemapRows(sitemapApiRows);
-  const crawlErrors = buildCrawlErrorGroups(sitemaps);
+    const [
+      totalWorks,
+      sitemapEntries,
+      daily28Rows,
+      daily90Rows,
+      queryRows,
+      pageRows,
+      sitemapApiRows,
+    ] = await Promise.all([
+      getPublishedWorkCount(),
+      getSitemapEntries(),
+      fetchDailySearchAnalytics(resolvedSiteUrl, 28),
+      fetchDailySearchAnalytics(resolvedSiteUrl, 90),
+      fetchQuerySearchAnalytics(resolvedSiteUrl, 28),
+      fetchPageSearchAnalytics(resolvedSiteUrl, 28),
+      fetchSitemaps(resolvedSiteUrl),
+    ]);
 
-  const indexedFromSitemap = sitemaps.reduce(
-    (sum, row) => sum + row.indexedCount,
-    0,
-  );
-  const indexedFromPages = new Set(
-    pages.filter((page) => page.impressions > 0).map((page) => page.url),
-  ).size;
-  const indexedPages = Math.max(
-    indexedFromSitemap,
-    indexedFromPages,
-    pages.length > 0 ? pages.length : 0,
-  );
-  const totalSitePages = sitemapEntries.length;
-  const excludedPages = crawlErrors.reduce((sum, group) => sum + group.count, 0);
-  const notIndexedPages = Math.max(totalSitePages - indexedPages, 0);
+    const daily28 = mapDailyRows(daily28Rows);
+    const daily90 = mapDailyRows(daily90Rows);
+    const overviewAgg = aggregateAnalyticsRows(daily28Rows);
+    const queries = mapQueryRows(queryRows);
+    const pages = await enrichPageRows(mapPageRows(pageRows));
+    const sitemaps = mapSitemapRows(sitemapApiRows);
+    const crawlErrors = buildCrawlErrorGroups(sitemaps);
 
-  const dailyStats = (daily90.length > 0 ? daily90 : daily28).map((stat) => ({
-    ...stat,
-    indexedPages,
-  }));
+    const indexedFromSitemap = sitemaps.reduce(
+      (sum, row) => sum + row.indexedCount,
+      0,
+    );
+    const indexedFromPages = new Set(
+      pages.filter((page) => page.impressions > 0).map((page) => page.url),
+    ).size;
+    const indexedPages = Math.max(
+      indexedFromSitemap,
+      indexedFromPages,
+      pages.length > 0 ? pages.length : 0,
+    );
+    const totalSitePages = sitemapEntries.length;
+    const excludedPages = crawlErrors.reduce((sum, group) => sum + group.count, 0);
+    const notIndexedPages = Math.max(totalSitePages - indexedPages, 0);
 
-  const indexHistory = buildIndexHistory(
-    dailyStats,
-    indexedPages,
-    totalSitePages,
-  );
-
-  const overview = {
-    totalWorks,
-    indexedPages,
-    clicks28d: overviewAgg.clicks,
-    impressions28d: overviewAgg.impressions,
-    ctr28d: overviewAgg.ctr,
-    position28d: overviewAgg.position,
-  };
-
-  const payload: SeoCachePayload = {
-    version: 1,
-    source: "google_search_console",
-    siteUrl: resolvedSiteUrl,
-    updatedAt: new Date().toISOString(),
-    configured: true,
-    overview,
-    dailyStats,
-    queries,
-    pages,
-    index: {
+    const dailyStats = (daily90.length > 0 ? daily90 : daily28).map((stat) => ({
+      ...stat,
       indexedPages,
-      notIndexedPages,
-      excludedPages,
-      totalSitePages,
-      history: indexHistory,
-    },
-    sitemaps,
-    crawlErrors,
-    aiSuggestions: buildAiSuggestions(overview, queries, pages),
-  };
+    }));
 
-  await saveSeoCache(payload);
-  return payload;
+    const indexHistory = buildIndexHistory(
+      dailyStats,
+      indexedPages,
+      totalSitePages,
+    );
+
+    const overview = {
+      totalWorks,
+      indexedPages,
+      clicks28d: overviewAgg.clicks,
+      impressions28d: overviewAgg.impressions,
+      ctr28d: overviewAgg.ctr,
+      position28d: overviewAgg.position,
+    };
+
+    const payload: SeoCachePayload = {
+      version: 1,
+      source: "google_search_console",
+      siteUrl: resolvedSiteUrl,
+      updatedAt: new Date().toISOString(),
+      configured: true,
+      overview,
+      dailyStats,
+      queries,
+      pages,
+      index: {
+        indexedPages,
+        notIndexedPages,
+        excludedPages,
+        totalSitePages,
+        history: indexHistory,
+      },
+      sitemaps,
+      crawlErrors,
+      aiSuggestions: buildAiSuggestions(overview, queries, pages),
+    };
+
+    logSeoGscConnectionResult({
+      success: true,
+      siteUrl: resolvedSiteUrl,
+      summary: {
+        clicks28d: overview.clicks28d,
+        impressions28d: overview.impressions28d,
+        queries: queries.length,
+        pages: pages.length,
+        sitemaps: sitemaps.length,
+      },
+    });
+
+    await saveSeoCache(payload);
+    return payload;
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Search Console API 接続に失敗しました";
+    logSeoGscConnectionResult({ success: false, error: message });
+    throw error;
+  }
 }
 
 export function getDefaultSitemapSubmitUrl(): string {

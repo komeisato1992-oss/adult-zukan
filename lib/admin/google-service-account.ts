@@ -3,8 +3,8 @@ import "server-only";
 import { createSign } from "crypto";
 import {
   assertGoogleSearchConsoleConfigured,
-  getServiceAccountCredentialsFromEnv,
 } from "@/lib/admin/seo-config";
+import { getServiceAccountCredentialsFromEnv } from "@/lib/admin/seo-env";
 import {
   classifyGoogleAuthError,
   GoogleSearchConsoleError,

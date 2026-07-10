@@ -8,15 +8,22 @@ import { SeoPagesTab } from "@/components/admin/seo/SeoPagesTab";
 import { SeoQueriesTab } from "@/components/admin/seo/SeoQueriesTab";
 import { SeoSitemapsTab } from "@/components/admin/seo/SeoSitemapsTab";
 import { formatSeoDateTime } from "@/components/admin/seo/format";
+import { SeoEnvDiagnosticsPanel } from "@/components/admin/seo/SeoEnvDiagnosticsPanel";
+import type { SeoEnvDiagnostics } from "@/lib/admin/seo-env-diagnostics";
 import type { SeoCachePayload, SeoTabId } from "@/lib/admin/seo-types";
 import { SEO_TABS } from "@/lib/admin/seo-types";
 
 type SeoDashboardClientProps = {
   initialData: SeoCachePayload;
+  envDiagnostics: SeoEnvDiagnostics;
 };
 
-export function SeoDashboardClient({ initialData }: SeoDashboardClientProps) {
+export function SeoDashboardClient({
+  initialData,
+  envDiagnostics: initialEnvDiagnostics,
+}: SeoDashboardClientProps) {
   const [data, setData] = useState(initialData);
+  const [envDiagnostics, setEnvDiagnostics] = useState(initialEnvDiagnostics);
   const [activeTab, setActiveTab] = useState<SeoTabId>("overview");
   const [refreshing, setRefreshing] = useState(false);
   const [submittingSitemap, setSubmittingSitemap] = useState(false);
@@ -29,6 +36,7 @@ export function SeoDashboardClient({ initialData }: SeoDashboardClientProps) {
       const response = await fetch("/api/admin/seo/refresh", { method: "POST" });
       const payload = (await response.json()) as {
         data?: SeoCachePayload;
+        envDiagnostics?: SeoEnvDiagnostics;
         error?: string;
         configured?: boolean;
       };
@@ -37,6 +45,9 @@ export function SeoDashboardClient({ initialData }: SeoDashboardClientProps) {
       }
       if (payload.data) {
         setData(payload.data);
+        if (payload.envDiagnostics) {
+          setEnvDiagnostics(payload.envDiagnostics);
+        }
         if (!payload.data.configured && payload.data.configMessage) {
           setError(null);
         }
@@ -61,6 +72,7 @@ export function SeoDashboardClient({ initialData }: SeoDashboardClientProps) {
       });
       const payload = (await response.json()) as {
         data?: SeoCachePayload;
+        envDiagnostics?: SeoEnvDiagnostics;
         error?: string;
       };
       if (!response.ok) {
@@ -68,6 +80,9 @@ export function SeoDashboardClient({ initialData }: SeoDashboardClientProps) {
       }
       if (payload.data) {
         setData(payload.data);
+      }
+      if (payload.envDiagnostics) {
+        setEnvDiagnostics(payload.envDiagnostics);
       }
     } catch (submitError) {
       throw submitError;
@@ -103,6 +118,8 @@ export function SeoDashboardClient({ initialData }: SeoDashboardClientProps) {
           {error}
         </p>
       ) : null}
+
+      <SeoEnvDiagnosticsPanel diagnostics={envDiagnostics} />
 
       <div className="overflow-x-auto">
         <div className="inline-flex min-w-full gap-2 rounded-xl border border-border bg-white p-2 dark:border-zinc-700 dark:bg-zinc-900">

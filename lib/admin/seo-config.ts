@@ -1,11 +1,13 @@
 import "server-only";
 
 import { GoogleSearchConsoleError } from "@/lib/admin/google-search-console-errors";
-
-type ServiceAccountCredentials = {
-  client_email: string;
-  private_key: string;
-};
+import {
+  getServiceAccountCredentialsFromEnv,
+  parseServiceAccountJson,
+  readGscSiteUrlFromEnv,
+  readServiceAccountJsonRaw,
+} from "@/lib/admin/seo-env";
+import { buildSeoEnvDiagnostics } from "@/lib/admin/seo-env-diagnostics";
 
 export type SeoConfigStatus = {
   configured: boolean;
@@ -16,52 +18,13 @@ export type SeoConfigStatus = {
   configMessage?: string;
 };
 
-function parseServiceAccountJson(raw: string): ServiceAccountCredentials | null {
-  try {
-    const parsed = JSON.parse(raw) as Partial<ServiceAccountCredentials>;
-    if (!parsed.client_email || !parsed.private_key) return null;
-    return {
-      client_email: parsed.client_email,
-      private_key: parsed.private_key.replace(/\\n/g, "\n"),
-    };
-  } catch {
-    return null;
-  }
-}
-
-/** `.env.local` / Vercel 環境変数からサービスアカウント JSON を読み込む */
-export function readServiceAccountJsonFromEnv(): string | null {
-  const json = process.env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim();
-  return json || null;
-}
-
-/** `.env.local` / Vercel 環境変数から GSC プロパティ URL を読み込む */
-export function readGscSiteUrlFromEnv(): string | null {
-  const siteUrl = process.env.GSC_SITE_URL?.trim();
-  return siteUrl || null;
-}
-
-export function getServiceAccountCredentialsFromEnv(): ServiceAccountCredentials | null {
-  const json = readServiceAccountJsonFromEnv();
-  if (json) {
-    return parseServiceAccountJson(json);
-  }
-
-  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL?.trim();
-  const privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.trim();
-  if (!email || !privateKey) return null;
-
-  return {
-    client_email: email,
-    private_key: privateKey.replace(/\\n/g, "\n"),
-  };
-}
-
 export function getSeoConfigStatus(): SeoConfigStatus {
-  const rawJson = readServiceAccountJsonFromEnv();
+  buildSeoEnvDiagnostics();
+
+  const { raw: rawJson } = readServiceAccountJsonRaw();
   const hasSplitCredentials = Boolean(
-    process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL?.trim() &&
-      process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.trim(),
+    readServiceAccountJsonRaw().source ===
+      "GOOGLE_SERVICE_ACCOUNT_EMAIL+PRIVATE_KEY",
   );
   const hasServiceAccountJson = Boolean(rawJson || hasSplitCredentials);
   const gscSiteUrl = readGscSiteUrlFromEnv();
@@ -73,7 +36,7 @@ export function getSeoConfigStatus(): SeoConfigStatus {
       hasServiceAccountJson: false,
       hasGscSiteUrl: false,
       configMessage:
-        "Google Search Console API の認証情報が未設定です。`.env.local` に GOOGLE_SERVICE_ACCOUNT_JSON と GSC_SITE_URL を設定してください。",
+        "Google Search Console API の認証情報が未設定です。`.env.local` または Vercel Environment Variables に GOOGLE_SERVICE_ACCOUNT_JSON と GSC_SITE_URL を設定してください。",
     };
   }
 
@@ -84,7 +47,7 @@ export function getSeoConfigStatus(): SeoConfigStatus {
       hasGscSiteUrl,
       gscSiteUrl: gscSiteUrl ?? undefined,
       configMessage:
-        "GOOGLE_SERVICE_ACCOUNT_JSON が未設定です。`.env.local` にサービスアカウント JSON を1行で設定してください。",
+        "GOOGLE_SERVICE_ACCOUNT_JSON が未設定です。JSON 本体、BASE64、または EMAIL+PRIVATE_KEY のいずれかを設定してください。",
     };
   }
 
@@ -118,7 +81,7 @@ export function getSeoConfigStatus(): SeoConfigStatus {
       hasGscSiteUrl: false,
       serviceAccountEmail: credentials.client_email,
       configMessage:
-        "GSC_SITE_URL が未設定です。`.env.local` に Search Console プロパティ URL（例: https://adult-zukan.jp/）を設定してください。",
+        "GSC_SITE_URL が未設定です。`.env.local` または Vercel Environment Variables に Search Console プロパティ URL（例: https://adult-zukan.jp/）を設定してください。",
     };
   }
 
@@ -151,7 +114,7 @@ export function assertGoogleSearchConsoleConfigured(): SeoConfigStatus {
     throw new GoogleSearchConsoleError(
       "missing_gsc_site_url",
       status.configMessage ??
-        "GSC_SITE_URL が未設定です。`.env.local` に Search Console プロパティ URL を設定してください。",
+        "GSC_SITE_URL が未設定です。`.env.local` または Vercel Environment Variables に Search Console プロパティ URL を設定してください。",
       400,
     );
   }
@@ -159,7 +122,9 @@ export function assertGoogleSearchConsoleConfigured(): SeoConfigStatus {
   throw new GoogleSearchConsoleError(
     "missing_config",
     status.configMessage ??
-      "Google Search Console API の認証情報が未設定です。`.env.local` に GOOGLE_SERVICE_ACCOUNT_JSON と GSC_SITE_URL を設定してください。",
+      "Google Search Console API の認証情報が未設定です。`.env.local` または Vercel Environment Variables に GOOGLE_SERVICE_ACCOUNT_JSON と GSC_SITE_URL を設定してください。",
     400,
   );
 }
+
+export { readGscSiteUrlFromEnv, readServiceAccountJsonFromEnv } from "@/lib/admin/seo-env";

@@ -11,8 +11,11 @@ export async function GET() {
   }
 
   try {
-    const data = await getSeoDashboardData();
-    return NextResponse.json({ data });
+    const dashboard = await getSeoDashboardData();
+    return NextResponse.json({
+      data: dashboard.data,
+      envDiagnostics: dashboard.envDiagnostics,
+    });
   } catch (error) {
     const { message, status } = toSeoCacheStoreErrorMessage(error);
     return NextResponse.json({ error: message }, { status });

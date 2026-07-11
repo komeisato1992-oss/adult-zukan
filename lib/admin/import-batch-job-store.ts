@@ -21,6 +21,7 @@ import {
   IMPORT_BATCH_JOB_UPDATE_MAX_RETRIES,
 } from "@/lib/admin/import-constants";
 import { GitHubBatchJobError } from "@/lib/admin/github-import-batch-job";
+import { assertLocalProjectDataWriteAllowed } from "@/lib/admin/runtime-fs";
 
 const JOB_FILE = path.join(process.cwd(), IMPORT_BATCH_JOB_RELATIVE_PATH);
 
@@ -54,6 +55,7 @@ function readLocal(): ImportBatchJob {
 }
 
 function writeLocal(job: ImportBatchJob): void {
+  assertLocalProjectDataWriteAllowed("import-batch-job");
   mkdirSync(path.dirname(JOB_FILE), { recursive: true });
   writeFileSync(JOB_FILE, serializeBatchJob(job), "utf-8");
 }

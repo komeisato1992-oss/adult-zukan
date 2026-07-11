@@ -16,6 +16,7 @@ import {
   type ImportCollectionState,
 } from "@/lib/admin/import-collection-state";
 import type { StoredImportCandidate } from "@/lib/admin/import-candidate-types";
+import { assertLocalProjectDataWriteAllowed } from "@/lib/admin/runtime-fs";
 
 const STATE_FILE = path.join(
   process.cwd(),
@@ -38,6 +39,7 @@ export function readImportCollectionStateLocal(): ImportCollectionState {
 export function writeImportCollectionStateLocal(
   state: ImportCollectionState,
 ): void {
+  assertLocalProjectDataWriteAllowed("import-collection-state");
   mkdirSync(path.dirname(STATE_FILE), { recursive: true });
   writeFileSync(STATE_FILE, serializeImportCollectionState(state), "utf-8");
 }

@@ -20,6 +20,7 @@ import type {
   StoredImportCandidate,
 } from "@/lib/admin/import-candidate-types";
 import { IMPORT_CANDIDATES_RELATIVE_PATH } from "@/lib/admin/import-candidates-path";
+import { assertLocalProjectDataWriteAllowed } from "@/lib/admin/runtime-fs";
 
 const SNAPSHOT_DIR = path.join(process.cwd(), "data", "dmm");
 const IMPORT_CANDIDATES_FILE = path.join(
@@ -47,6 +48,7 @@ export function readImportCandidatesLocal(): StoredImportCandidate[] {
 export function writeImportCandidatesLocal(
   records: StoredImportCandidate[],
 ): void {
+  assertLocalProjectDataWriteAllowed("import-candidates");
   mkdirSync(SNAPSHOT_DIR, { recursive: true });
   writeFileSync(IMPORT_CANDIDATES_FILE, serializeImportCandidates(records), "utf-8");
 }

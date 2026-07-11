@@ -8,7 +8,7 @@ import {
   getExistingCatalogKeySet,
 } from "@/lib/admin/import-collect-filters";
 import {
-  appendImportCollectLog,
+  saveImportCollectLog,
 } from "@/lib/admin/import-collect-log-store";
 import { summarizeSeoScores } from "@/lib/admin/import-collect-log";
 import {
@@ -625,15 +625,19 @@ export async function collectImportCandidates(
             ? nextState.popularOffset
             : 1;
 
-      await appendImportCollectLog({
-        collectedAt: new Date().toISOString(),
-        mode,
-        requestedCount: requestCount,
-        addedCandidateCount: 0,
-        validCandidateCount: 0,
-        averageSeoScore: seoSummary.averageSeoScore,
-        topSeoScore: seoSummary.topSeoScore,
-      });
+      try {
+        await saveImportCollectLog({
+          collectedAt: new Date().toISOString(),
+          mode,
+          requestedCount: requestCount,
+          addedCandidateCount: 0,
+          validCandidateCount: 0,
+          averageSeoScore: seoSummary.averageSeoScore,
+          topSeoScore: seoSummary.topSeoScore,
+        });
+      } catch (error) {
+        console.warn("[import-collect] debug log save failed", error);
+      }
 
       return {
         ...(await buildEmptyConfiguredResult(
@@ -684,15 +688,19 @@ export async function collectImportCandidates(
     );
 
     if (addedCount > 0 || loopResult.selected.length > 0) {
-      await appendImportCollectLog({
-        collectedAt: new Date().toISOString(),
-        mode,
-        requestedCount: requestCount,
-        addedCandidateCount: addedCount,
-        validCandidateCount: loopResult.selected.length,
-        averageSeoScore: seoSummary.averageSeoScore,
-        topSeoScore: seoSummary.topSeoScore,
-      });
+      try {
+        await saveImportCollectLog({
+          collectedAt: new Date().toISOString(),
+          mode,
+          requestedCount: requestCount,
+          addedCandidateCount: addedCount,
+          validCandidateCount: loopResult.selected.length,
+          averageSeoScore: seoSummary.averageSeoScore,
+          topSeoScore: seoSummary.topSeoScore,
+        });
+      } catch (error) {
+        console.warn("[import-collect] debug log save failed", error);
+      }
     }
 
     return buildSuccessResult(

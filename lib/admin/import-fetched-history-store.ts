@@ -10,6 +10,7 @@ import {
   type ImportFetchedHistory,
 } from "@/lib/admin/import-fetched-history";
 import { IMPORT_FETCHED_HISTORY_RELATIVE_PATH } from "@/lib/admin/import-fetched-history-path";
+import { assertLocalProjectDataWriteAllowed } from "@/lib/admin/runtime-fs";
 
 const HISTORY_FILE = path.join(
   process.cwd(),
@@ -29,6 +30,7 @@ function readLocal(): ImportFetchedHistory {
 }
 
 function writeLocal(history: ImportFetchedHistory): void {
+  assertLocalProjectDataWriteAllowed("import-fetched-history");
   mkdirSync(path.dirname(HISTORY_FILE), { recursive: true });
   writeFileSync(HISTORY_FILE, serializeFetchedHistory(history), "utf-8");
 }

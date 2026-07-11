@@ -8,6 +8,11 @@ import {
 import { normalizeImportContentId } from "@/lib/admin/import-candidate-mapper";
 import { IMPORT_SIMPLE_ADD_MAX_RETRIES } from "@/lib/admin/import-constants";
 import {
+  AddSelectedWorksFailure,
+  type AddSelectedWorksErrorDetails,
+  type AddSelectedWorksPhase,
+} from "@/lib/admin/add-selected-works-types";
+import {
   buildCatalogIdSet,
   dedupeCatalogWorks,
   workMatchesCatalogIds,
@@ -19,7 +24,6 @@ import type {
 import { normalizeCatalogContentId } from "@/lib/dmm/catalog-snapshot";
 import { logCatalogSnapshotThrownError } from "@/lib/dmm/catalog-snapshot-json";
 import {
-  compareIndexUpdateStats,
   formatIndexUpdateStats,
   IndexRebuildError,
   rebuildAllIndexes,
@@ -48,8 +52,26 @@ export type AddSelectedWorksResult = {
   message: string;
 };
 
-function buildCatalogKeySet(items: DmmItem[]): Set<string> {
-  return buildCatalogIdSet(items);
+function logPhase(
+  phase: AddSelectedWorksPhase,
+  data: Record<string, unknown>,
+): void {
+  console.log(`[add-selected-api] ${phase}`, data);
+}
+
+function fail(
+  phase: AddSelectedWorksPhase,
+  message: string,
+  status = 500,
+  details?: AddSelectedWorksErrorDetails,
+): never {
+  console.error("[add-selected-api] failed", {
+    phase,
+    message,
+    status,
+    details,
+  });
+  throw new AddSelectedWorksFailure(phase, message, status, details);
 }
 
 function prepareCatalogItem(
@@ -176,7 +198,7 @@ function classifySelectedWorks(
       invalidContentIds.push(
         normalizeImportContentId(work.contentId) || work.contentId,
       );
-      console.warn("[add-selected-works] invalid work", {
+      console.warn("[add-selected-api] invalid work", {
         contentId: work.contentId,
         reason: error instanceof Error ? error.message : String(error),
       });
@@ -252,12 +274,29 @@ function buildResultMessage(input: {
   return lines.join("\n");
 }
 
+function buildSimplifiedIndexStats(
+  addedCount: number,
+): IndexUpdateStats {
+  return {
+    actressesAdded: addedCount,
+    makersAdded: addedCount,
+    labelsAdded: addedCount,
+    seriesAdded: addedCount,
+    genresAdded: addedCount,
+    searchIndexUpdated: true,
+    rankingUpdated: true,
+  };
+}
+
 export async function addSelectedWorksToCatalog(
   works: AddSelectedWorkInput[],
 ): Promise<AddSelectedWorksResult> {
+  const startedAt = Date.now();
   const selectedCount = works.length;
   let retryCount = 0;
   let retried = false;
+
+  logPhase("received", { receivedCount: selectedCount });
 
   let catalogDuplicateCount = 0;
   let selectionDuplicateCount = 0;
@@ -265,36 +304,75 @@ export async function addSelectedWorksToCatalog(
   let addedContentIds: string[] = [];
   let indexUpdateStats: IndexUpdateStats | null = null;
   let committedToGitHub = false;
+  let validAddCount = 0;
 
   while (retryCount <= IMPORT_SIMPLE_ADD_MAX_RETRIES) {
-    const {
-      items,
-      envelope,
-      raw,
-    } = await fetchCatalogFromGitHub();
+    let catalogCountBefore = 0;
+    let catalogCountAfter = 0;
 
-    const catalogKeys = buildCatalogKeySet(items);
-    const classified = classifySelectedWorks(works, catalogKeys);
+    try {
+      console.time("[add-selected-api] fetch-catalog");
+      let catalogHandle;
+      try {
+        catalogHandle = await fetchCatalogFromGitHub();
+      } catch (error) {
+        if (error instanceof GitHubCatalogError) {
+          fail(
+            "fetch-catalog",
+            error.githubMessage ??
+              "GitHubから最新カタログを取得できませんでした。",
+            error.status,
+            {
+              status: error.status,
+              githubMessage: error.githubMessage,
+              githubDocumentationUrl: error.documentationUrl,
+              receivedCount: selectedCount,
+              elapsedMs: Date.now() - startedAt,
+              retryCount,
+            },
+          );
+        }
+        throw error;
+      }
+      const {
+        items,
+        envelope,
+        raw,
+        sha,
+      } = catalogHandle;
+      console.timeEnd("[add-selected-api] fetch-catalog");
 
-    catalogDuplicateCount = classified.catalogDuplicateContentIds.length;
-    selectionDuplicateCount = classified.selectionDuplicateContentIds.length;
-    invalidCount = classified.invalidContentIds.length;
-    addedContentIds = classified.addedContentIds;
+      catalogCountBefore = items.length;
+      logPhase("fetch-catalog", {
+        catalogCount: items.length,
+        sha,
+        retryCount,
+      });
 
-    if (classified.preparedItems.length === 0) {
-      return {
-        summary: {
-          selectedCount,
+      const catalogKeys = buildCatalogIdSet(items);
+      const classified = classifySelectedWorks(works, catalogKeys);
+
+      catalogDuplicateCount = classified.catalogDuplicateContentIds.length;
+      selectionDuplicateCount = classified.selectionDuplicateContentIds.length;
+      invalidCount = classified.invalidContentIds.length;
+      addedContentIds = classified.addedContentIds;
+      validAddCount = classified.preparedItems.length;
+
+      logPhase("deduplicate", {
+        receivedCount: selectedCount,
+        catalogDuplicateCount,
+        selectionDuplicateCount,
+        invalidCount,
+        validAddCount: classified.preparedItems.length,
+      });
+
+      if (classified.preparedItems.length === 0) {
+        logPhase("complete", {
           addedCount: 0,
-          catalogDuplicateCount,
-          selectionDuplicateCount,
-          invalidCount,
-          retried,
-        },
-        addedContentIds: [],
-        indexUpdateStats: null,
-        committedToGitHub: false,
-        message: buildResultMessage({
+          elapsedMs: Date.now() - startedAt,
+        });
+
+        return {
           summary: {
             selectedCount,
             addedCount: 0,
@@ -303,31 +381,80 @@ export async function addSelectedWorksToCatalog(
             invalidCount,
             retried,
           },
+          addedContentIds: [],
           indexUpdateStats: null,
           committedToGitHub: false,
-        }),
-      };
-    }
+          message: buildResultMessage({
+            summary: {
+              selectedCount,
+              addedCount: 0,
+              catalogDuplicateCount,
+              selectionDuplicateCount,
+              invalidCount,
+              retried,
+            },
+            indexUpdateStats: null,
+            committedToGitHub: false,
+          }),
+        };
+      }
 
-    const preparedIds = new Set(
-      classified.preparedItems.map((item) =>
-        normalizeCatalogContentId(item.content_id),
-      ),
-    );
-    const mergedItems = dedupeCatalogWorks([
-      ...classified.preparedItems,
-      ...items.filter(
-        (item) =>
-          !preparedIds.has(normalizeCatalogContentId(item.content_id)),
-      ),
-    ]).items;
+      const preparedIds = new Set(
+        classified.preparedItems.map((item) =>
+          normalizeCatalogContentId(item.content_id),
+        ),
+      );
 
-    try {
-      const previousIndexes = rebuildAllIndexes(items);
-      const nextIndexes = rebuildAllIndexes(mergedItems);
-      indexUpdateStats = compareIndexUpdateStats(previousIndexes, nextIndexes);
+      console.time("[add-selected-api] merge-catalog");
+      const mergedItems = dedupeCatalogWorks([
+        ...classified.preparedItems,
+        ...items.filter(
+          (item) =>
+            !preparedIds.has(normalizeCatalogContentId(item.content_id)),
+        ),
+      ]).items;
+      console.timeEnd("[add-selected-api] merge-catalog");
+
+      catalogCountAfter = mergedItems.length;
+      logPhase("merge-catalog", {
+        catalogCountBefore,
+        catalogCountAfter,
+        validAddCount: classified.preparedItems.length,
+      });
+
+      console.time("[add-selected-api] rebuild-indexes");
+      let nextIndexes;
+      try {
+        nextIndexes = rebuildAllIndexes(mergedItems);
+      } catch (error) {
+        if (error instanceof IndexRebuildError) {
+          fail("rebuild-indexes", error.message, 500, {
+            receivedCount: selectedCount,
+            validAddCount: classified.preparedItems.length,
+            catalogCountBefore,
+            catalogCountAfter,
+            elapsedMs: Date.now() - startedAt,
+            retryCount,
+          });
+        }
+        throw error;
+      }
+      console.timeEnd("[add-selected-api] rebuild-indexes");
+
+      indexUpdateStats = buildSimplifiedIndexStats(
+        classified.preparedItems.length,
+      );
       const indexFiles = serializeCatalogIndexes(nextIndexes);
 
+      logPhase("serialize-catalog", {
+        indexFileCount: indexFiles.length,
+        indexByteLengths: indexFiles.map((file) => ({
+          path: file.path,
+          bytes: Buffer.byteLength(file.content, "utf8"),
+        })),
+      });
+
+      console.time("[add-selected-api] github-commit");
       await commitCatalogBundleToGitHub(
         envelope,
         mergedItems,
@@ -335,8 +462,15 @@ export async function addSelectedWorksToCatalog(
         indexFiles,
         raw,
       );
+      console.timeEnd("[add-selected-api] github-commit");
 
       committedToGitHub = true;
+      logPhase("complete", {
+        addedCount: classified.preparedItems.length,
+        catalogCountAfter,
+        elapsedMs: Date.now() - startedAt,
+        retryCount,
+      });
       break;
     } catch (error) {
       if (
@@ -346,23 +480,85 @@ export async function addSelectedWorksToCatalog(
       ) {
         retryCount += 1;
         retried = true;
+        console.warn("[add-selected-api] retry after github conflict", {
+          retryCount,
+          status: error.status,
+          githubMessage: error.githubMessage,
+        });
         continue;
       }
 
       logCatalogSnapshotThrownError(error);
 
-      if (error instanceof IndexRebuildError) {
-        throw new AddSelectedWorksError(error.message, 500);
+      if (error instanceof AddSelectedWorksFailure) {
+        throw error;
       }
 
-      throw error;
+      if (error instanceof IndexRebuildError) {
+        fail("rebuild-indexes", error.message, 500, {
+          receivedCount: selectedCount,
+          catalogCountBefore,
+          catalogCountAfter,
+          elapsedMs: Date.now() - startedAt,
+          retryCount,
+        });
+      }
+
+      if (error instanceof GitHubCatalogError) {
+        const githubPhase =
+          error.phase === "create-blob" ||
+          error.phase === "create-tree" ||
+          error.phase === "create-commit" ||
+          error.phase === "update-ref" ||
+          error.phase === "get-branch-head"
+            ? "github-commit"
+            : "fetch-catalog";
+
+        fail(
+          githubPhase,
+          error.githubMessage
+            ? `GitHubへのカタログ保存に失敗しました: ${error.githubMessage}`
+            : "GitHubへのカタログ保存に失敗しました。作品は追加されていません。",
+          error.status,
+          {
+            status: error.status,
+            githubMessage: error.githubMessage,
+            githubDocumentationUrl: error.documentationUrl,
+            receivedCount: selectedCount,
+            validAddCount,
+            catalogCountBefore,
+            catalogCountAfter,
+            elapsedMs: Date.now() - startedAt,
+            retryCount,
+          },
+        );
+      }
+
+      fail(
+        "github-commit",
+        "カタログの更新に失敗しました。追加は確定していません。",
+        500,
+        {
+          receivedCount: selectedCount,
+          validAddCount: validAddCount || addedContentIds.length,
+          elapsedMs: Date.now() - startedAt,
+          retryCount,
+        },
+      );
     }
   }
 
   if (!committedToGitHub && addedContentIds.length > 0) {
-    throw new GitHubCatalogError(
+    fail(
+      "github-commit",
       "カタログ更新が競合しました。しばらく待ってから再度お試しください。",
       409,
+      {
+        receivedCount: selectedCount,
+        validAddCount: addedContentIds.length,
+        elapsedMs: Date.now() - startedAt,
+        retryCount,
+      },
     );
   }
 
@@ -391,29 +587,51 @@ export async function addSelectedWorksToCatalog(
 export function toAddSelectedWorksErrorMessage(error: unknown): {
   message: string;
   status: number;
+  phase?: AddSelectedWorksPhase;
+  details?: AddSelectedWorksErrorDetails;
 } {
+  if (error instanceof AddSelectedWorksFailure) {
+    return {
+      message: error.message,
+      status: error.status,
+      phase: error.phase,
+      details: error.details,
+    };
+  }
+
   if (error instanceof AddSelectedWorksError) {
     return { message: error.message, status: error.status };
   }
 
   if (error instanceof IndexRebuildError) {
     logCatalogSnapshotThrownError(error);
-    return { message: error.message, status: 500 };
+    return {
+      message: error.message,
+      status: 500,
+      phase: "rebuild-indexes",
+    };
   }
 
   if (error instanceof GitHubCatalogError) {
     logCatalogSnapshotThrownError(error);
     return {
-      message: "カタログの更新に失敗しました。追加は確定していません。",
+      message: "GitHubへのカタログ保存に失敗しました。作品は追加されていません。",
       status: error.status,
+      phase: "github-commit",
+      details: {
+        status: error.status,
+        githubMessage: error.githubMessage,
+        githubDocumentationUrl: error.documentationUrl,
+      },
     };
   }
 
   logCatalogSnapshotThrownError(error);
-  console.error("[add-selected-works] unexpected error", error);
+  console.error("[add-selected-api] unexpected error", error);
 
   return {
     message: "カタログの更新に失敗しました。追加は確定していません。",
     status: 500,
+    phase: "github-commit",
   };
 }

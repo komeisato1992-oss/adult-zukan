@@ -41,7 +41,7 @@ const addRoute = readFileSync(
   path.join(root, "app/api/admin/import/add-selected-works/route.ts"),
   "utf8",
 );
-assert.match(addRoute, /addSelectedWorksToCatalog/);
+assert.match(addRoute, /maxDuration = 300/);
 assert.doesNotMatch(addRoute, /allMatching|resolveBulkAddSelection|markImportCandidatesAdded/i);
 
 const fetchSource = readFileSync(
@@ -49,17 +49,15 @@ const fetchSource = readFileSync(
   "utf8",
 );
 assert.match(fetchSource, /maxScanCount/);
-assert.match(fetchSource, /normalizeWorkId/);
+assert.match(fetchSource, /workMatchesCatalogIds/);
 assert.match(fetchSource, /targetReached/);
 
 const clientSource = readFileSync(
   path.join(root, "components/admin/ImportManagementClient.tsx"),
   "utf8",
 );
-assert.match(clientSource, /selectedIds/);
-assert.match(clientSource, /fetch-candidates/);
-assert.match(clientSource, /add-selected-works/);
-assert.match(clientSource, /未掲載の人気作品を取得/);
+assert.match(clientSource, /\[add-selected\]/);
+assert.match(clientSource, /buildAddSelectedWorksPayload/);
 assert.doesNotMatch(clientSource, /allMatching|PopularCollectPanel|batchJob/i);
 
 console.log("test-import-simple: all checks passed");

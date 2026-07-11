@@ -34,11 +34,28 @@ type GitHubBlobResponse = {
 
 export class GitHubCatalogError extends Error {
   status: number;
+  phase?: string;
+  responseBody?: string;
+  githubMessage?: string;
+  documentationUrl?: string;
 
-  constructor(message: string, status = 500) {
+  constructor(
+    message: string,
+    status = 500,
+    options?: {
+      phase?: string;
+      responseBody?: string;
+      githubMessage?: string;
+      documentationUrl?: string;
+    },
+  ) {
     super(message);
     this.name = "GitHubCatalogError";
     this.status = status;
+    this.phase = options?.phase;
+    this.responseBody = options?.responseBody;
+    this.githubMessage = options?.githubMessage;
+    this.documentationUrl = options?.documentationUrl;
   }
 }
 
@@ -71,10 +88,13 @@ function getBlobUrl(sha: string): string {
 async function githubRequest<T>(
   url: string,
   init: RequestInit = {},
+  phase = "github-request",
 ): Promise<T> {
   const config = getGitHubConfig();
   if (!config) {
-    throw new GitHubCatalogError("GitHub連携の設定が未完了です。", 503);
+    throw new GitHubCatalogError("GitHub連携の設定が未完了です。", 503, {
+      phase,
+    });
   }
 
   const response = await fetch(url, {
@@ -90,23 +110,52 @@ async function githubRequest<T>(
   });
 
   if (!response.ok) {
+    const responseBody = await response.text();
+    let githubMessage: string | undefined;
+    let documentationUrl: string | undefined;
+
+    try {
+      const parsed = JSON.parse(responseBody) as {
+        message?: string;
+        documentation_url?: string;
+      };
+      githubMessage = parsed.message;
+      documentationUrl = parsed.documentation_url;
+    } catch {
+      // keep raw body
+    }
+
+    console.error("[github catalog update failed]", {
+      phase,
+      status: response.status,
+      url,
+      githubMessage,
+      documentationUrl,
+      body: responseBody.slice(0, 4000),
+    });
+
     if (response.status === 404) {
       throw new GitHubCatalogError(
         "catalog-snapshot.json が GitHub 上に見つかりません。",
         404,
+        { phase, responseBody, githubMessage, documentationUrl },
       );
     }
 
     if (response.status === 409 || response.status === 422) {
       throw new GitHubCatalogError(
-        "カタログ更新が競合しました。しばらく待ってから再度お試しください。",
-        409,
+        githubMessage ??
+          "カタログ更新が競合しました。しばらく待ってから再度お試しください。",
+        response.status,
+        { phase, responseBody, githubMessage, documentationUrl },
       );
     }
 
     throw new GitHubCatalogError(
-      "GitHub API からカタログを取得・更新できませんでした。",
-      response.status >= 500 ? 502 : 500,
+      githubMessage ??
+        "GitHub API からカタログを取得・更新できませんでした。",
+      response.status >= 500 ? 502 : response.status,
+      { phase, responseBody, githubMessage, documentationUrl },
     );
   }
 
@@ -317,6 +366,7 @@ async function createGitBlob(content: string): Promise<string> {
         encoding: "utf-8",
       }),
     },
+    "create-blob",
   );
 
   return blob.sha;
@@ -341,19 +391,39 @@ export async function commitCatalogBundleToGitHub(
 ): Promise<void> {
   const config = getGitHubConfig();
   if (!config) {
-    throw new GitHubCatalogError("GitHub連携の設定が未完了です。", 503);
+    throw new GitHubCatalogError("GitHub連携の設定が未完了です。", 503, {
+      phase: "github-commit",
+    });
   }
+
+  const catalogContent = buildCatalogSaveContent(
+    envelope,
+    mergedItems,
+    originalRaw,
+  );
+  const catalogByteLength = Buffer.byteLength(catalogContent, "utf8");
+
+  console.log("[github-commit] catalog serialized", {
+    catalogByteLength,
+    catalogMb: (catalogByteLength / 1024 / 1024).toFixed(2),
+    itemCount: mergedItems.length,
+    indexFileCount: indexFiles.length,
+  });
 
   const files: GitHubFileCommit[] = [
     {
       path: CATALOG_FILE_PATH,
-      content: buildCatalogSaveContent(envelope, mergedItems, originalRaw),
+      content: catalogContent,
     },
     ...indexFiles,
   ];
 
+  console.time("[github-commit] total");
+  console.time("[github-commit] get-branch-head");
   const { commitSha, treeSha } = await getBranchHead();
+  console.timeEnd("[github-commit] get-branch-head");
 
+  console.time("[github-commit] create-blobs");
   const treeEntries = await Promise.all(
     files.map(async (file) => ({
       path: file.path,
@@ -362,7 +432,9 @@ export async function commitCatalogBundleToGitHub(
       sha: await createGitBlob(file.content),
     })),
   );
+  console.timeEnd("[github-commit] create-blobs");
 
+  console.time("[github-commit] create-tree");
   const newTree = await githubRequest<GitTreeResponse>(
     `https://api.github.com/repos/${config.owner}/${config.repo}/git/trees`,
     {
@@ -372,8 +444,11 @@ export async function commitCatalogBundleToGitHub(
         tree: treeEntries,
       }),
     },
+    "create-tree",
   );
+  console.timeEnd("[github-commit] create-tree");
 
+  console.time("[github-commit] create-commit");
   const newCommit = await githubRequest<GitCommitResponse>(
     `https://api.github.com/repos/${config.owner}/${config.repo}/git/commits`,
     {
@@ -384,9 +459,12 @@ export async function commitCatalogBundleToGitHub(
         parents: [commitSha],
       }),
     },
+    "create-commit",
   );
+  console.timeEnd("[github-commit] create-commit");
 
   try {
+    console.time("[github-commit] update-ref");
     await githubRequest(
       `https://api.github.com/repos/${config.owner}/${config.repo}/git/refs/heads/${encodeURIComponent(config.branch)}`,
       {
@@ -396,9 +474,15 @@ export async function commitCatalogBundleToGitHub(
           force: false,
         }),
       },
+      "update-ref",
     );
+    console.timeEnd("[github-commit] update-ref");
+    console.timeEnd("[github-commit] total");
   } catch (error) {
-    if (error instanceof GitHubCatalogError && error.status === 409) {
+    console.timeEnd("[github-commit] update-ref");
+    console.timeEnd("[github-commit] total");
+
+    if (error instanceof GitHubCatalogError) {
       throw error;
     }
 
@@ -406,6 +490,7 @@ export async function commitCatalogBundleToGitHub(
     throw new GitHubCatalogError(
       "カタログ更新が競合しました。しばらく待ってから再度お試しください。",
       409,
+      { phase: "update-ref" },
     );
   }
 }

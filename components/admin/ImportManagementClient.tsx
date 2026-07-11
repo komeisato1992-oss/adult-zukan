@@ -26,6 +26,7 @@ import {
   matchesImportFilters,
   type ImportFilterKey,
 } from "@/lib/admin/import-quality";
+import { buildAddSelectedWorksPayload } from "@/lib/admin/import-add-payload";
 import { parseJsonResponseBody } from "@/lib/admin/bulk-add-safe";
 import type { DmmItem } from "@/lib/dmm/types";
 
@@ -125,6 +126,7 @@ export function ImportManagementClient({
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [addMessage, setAddMessage] = useState<string | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
+  const [addDebug, setAddDebug] = useState<string | null>(null);
   const [isFetchingCandidates, setIsFetchingCandidates] = useState(false);
   const [isAddingWorks, setIsAddingWorks] = useState(false);
   const candidateListRef = useRef<HTMLDivElement>(null);
@@ -239,10 +241,17 @@ export function ImportManagementClient({
   const handleAddSelected = useCallback(async () => {
     setAddError(null);
     setAddMessage(null);
+    setAddDebug(null);
 
     const selectedCandidates = candidates.filter((candidate) =>
       selectedIds.has(getCandidateSelectionId(candidate)),
     );
+
+    console.log("[add-selected] start", {
+      selectedCount: selectedIds.size,
+      candidateCount: candidates.length,
+      sendingCount: selectedCandidates.length,
+    });
 
     if (selectedCandidates.length === 0) {
       setAddError("追加する作品が選択されていません。");
@@ -252,23 +261,35 @@ export function ImportManagementClient({
     setIsAddingWorks(true);
 
     try {
-      const works = selectedCandidates.map((candidate) => ({
-        contentId: getCandidateSelectionId(candidate),
-        item: candidate.item,
-        sourcePopularityRank:
-          candidate.candidateMeta?.absolutePopularityPosition ??
-          candidate.rankPosition,
-      }));
+      const payload = buildAddSelectedWorksPayload(selectedCandidates);
+
+      console.log("[add-selected] payload built", {
+        workCount: payload.works.length,
+        payloadSize: JSON.stringify(payload).length,
+      });
+
+      console.log("[add-selected] request start");
 
       const response = await fetch("/api/admin/import/add-selected-works", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ works }),
+        body: JSON.stringify(payload),
       });
 
-      const parsed = await parseJsonResponseBody<{
+      const responseText = await response.text();
+
+      console.log("[add-selected] response", {
+        status: response.status,
+        statusText: response.statusText,
+      });
+      console.log("[add-selected] response body", responseText);
+
+      type AddSelectedResponseBody = {
         success?: boolean;
         message?: string;
+        error?: string;
+        phase?: string;
+        details?: Record<string, unknown>;
         addedContentIds?: string[];
         summary?: {
           addedCount: number;
@@ -276,26 +297,58 @@ export function ImportManagementClient({
           selectionDuplicateCount: number;
           invalidCount: number;
         };
-        error?: string;
-      }>(response);
+      };
 
-      if (!response.ok || !parsed.ok) {
-        const serverError =
-          parsed.ok && parsed.data.error ? parsed.data.error : null;
+      let parsedBody: AddSelectedResponseBody | null = null;
+
+      if (responseText.trim()) {
+        try {
+          parsedBody = JSON.parse(responseText) as AddSelectedResponseBody;
+        } catch (parseError) {
+          console.error("[add-selected] json parse failed", parseError);
+        }
+      }
+
+      const requestFailed =
+        !response.ok || (parsedBody !== null && parsedBody.success === false);
+
+      if (requestFailed) {
+        const phase = parsedBody?.phase ?? "unknown";
+        const details = parsedBody?.details;
+        const debugLine = [
+          `処理段階：${phase}`,
+          details?.status ? `HTTP：${String(details.status)}` : null,
+          details?.githubMessage
+            ? `GitHub：${String(details.githubMessage)}`
+            : null,
+          details?.elapsedMs
+            ? `処理時間：${String(details.elapsedMs)}ms`
+            : null,
+          details?.payloadByteLength
+            ? `payload：${String(details.payloadByteLength)} bytes`
+            : null,
+        ]
+          .filter(Boolean)
+          .join("\n");
+
+        setAddDebug(debugLine || responseText.slice(0, 2000));
+
         throw new Error(
-          serverError ??
-            (!parsed.ok ? parsed.error.message : undefined) ??
-            "カタログの更新に失敗しました。追加は確定していません。",
+          parsedBody?.message ??
+            parsedBody?.error ??
+            `カタログの更新に失敗しました（HTTP ${response.status}）。追加は確定していません。`,
         );
       }
 
-      const payload = parsed.data;
+      if (!parsedBody) {
+        throw new Error("サーバーから空の応答が返されました。");
+      }
 
-      setAddMessage(payload.message ?? "追加が完了しました。");
+      setAddMessage(parsedBody.message ?? "追加が完了しました。");
 
-      if (payload.addedContentIds && payload.addedContentIds.length > 0) {
+      if (parsedBody.addedContentIds && parsedBody.addedContentIds.length > 0) {
         const addedIdSet = new Set(
-          payload.addedContentIds.map((id) => id.toLowerCase()),
+          parsedBody.addedContentIds.map((id) => id.toLowerCase()),
         );
 
         setCandidates((current) =>
@@ -313,7 +366,10 @@ export function ImportManagementClient({
         });
       }
     } catch (error) {
-      console.error("[import] add selected failed", error);
+      console.error("[add-selected] failed", {
+        error,
+        stack: error instanceof Error ? error.stack : undefined,
+      });
       setAddError(
         error instanceof Error
           ? error.message
@@ -647,6 +703,11 @@ export function ImportManagementClient({
         ) : null}
         {addError ? (
           <p className="mt-3 text-sm text-red-600">{addError}</p>
+        ) : null}
+        {addDebug ? (
+          <pre className="mt-2 whitespace-pre-wrap rounded-lg bg-surface p-3 text-xs text-muted">
+            {addDebug}
+          </pre>
         ) : null}
       </section>
 

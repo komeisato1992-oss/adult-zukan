@@ -14,7 +14,8 @@ import {
   getRelatedWorks,
   getRelatedActressesForWork,
 } from "@/lib/works/repository";
-import { getCatalogWorkByContentId } from "@/lib/catalog";
+import { getCatalogWorkByContentId, getUnavailableCatalogWorkByContentId } from "@/lib/catalog";
+import { UnavailableWorkDetailView } from "@/components/works/UnavailableWorkDetailView";
 import { getLimitedWorkStaticParams } from "@/lib/dmm/generate-static-params";
 import { getGenreBySlug } from "@/data/genres";
 import { getActressDetailPath } from "@/lib/actresses/slug";
@@ -83,6 +84,21 @@ export async function generateMetadata({ params }: WorkDetailPageProps) {
     });
   }
 
+  const unavailableItem = await getUnavailableCatalogWorkByContentId(slug);
+
+  if (unavailableItem) {
+    return createPageMetadata({
+      title: "この作品は現在販売されていません",
+      description:
+        "この作品はFANZAでの販売を確認できないため、現在一覧には掲載していません。",
+      path: `/works/${unavailableItem.content_id}`,
+      canonicalPath: `/works/${unavailableItem.content_id}`,
+      noIndex: true,
+      absoluteTitle: true,
+      ogImage: getDmmItemImageUrl(unavailableItem),
+    });
+  }
+
   const work = await getWorkBySlug(slug);
 
   if (work) {
@@ -116,6 +132,12 @@ export default async function WorkDetailPage({ params }: WorkDetailPageProps) {
 
   if (dmmItem) {
     return <DmmWorkDetailView item={dmmItem} />;
+  }
+
+  const unavailableItem = await getUnavailableCatalogWorkByContentId(slug);
+
+  if (unavailableItem) {
+    return <UnavailableWorkDetailView item={unavailableItem} />;
   }
 
   const work = await getWorkBySlug(slug);

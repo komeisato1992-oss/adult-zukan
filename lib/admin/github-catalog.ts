@@ -326,9 +326,77 @@ function buildCatalogSaveContent(
 }
 
 function normalizeCommitMessage(commitLabel: string): string {
-  return commitLabel.startsWith("Add ")
-    ? commitLabel
-    : `Add work ${commitLabel} via admin import`;
+  if (
+    commitLabel.startsWith("Add ") ||
+    commitLabel.startsWith("FANZA ") ||
+    commitLabel.startsWith("Refresh ")
+  ) {
+    return commitLabel;
+  }
+
+  return `Add work ${commitLabel} via admin import`;
+}
+
+/** カタログ以外の補助ファイルだけを GitHub にコミット */
+export async function commitGitHubFilesBundle(
+  files: GitHubFileCommit[],
+  commitLabel: string,
+): Promise<void> {
+  const config = getGitHubConfig();
+  if (!config) {
+    throw new GitHubCatalogError("GitHub連携の設定が未完了です。", 503, {
+      phase: "github-commit",
+    });
+  }
+
+  if (files.length === 0) return;
+
+  const { commitSha, treeSha } = await getBranchHead();
+  const treeEntries = await Promise.all(
+    files.map(async (file) => ({
+      path: file.path,
+      mode: "100644" as const,
+      type: "blob" as const,
+      sha: await createGitBlob(file.content),
+    })),
+  );
+
+  const newTree = await githubRequest<GitTreeResponse>(
+    `https://api.github.com/repos/${config.owner}/${config.repo}/git/trees`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        base_tree: treeSha,
+        tree: treeEntries,
+      }),
+    },
+    "create-tree",
+  );
+
+  const newCommit = await githubRequest<GitCommitResponse>(
+    `https://api.github.com/repos/${config.owner}/${config.repo}/git/commits`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        message: normalizeCommitMessage(commitLabel),
+        tree: newTree.sha,
+        parents: [commitSha],
+      }),
+    },
+    "create-commit",
+  );
+
+  await githubRequest(
+    `https://api.github.com/repos/${config.owner}/${config.repo}/git/refs/heads/${encodeURIComponent(config.branch)}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify({
+        sha: newCommit.sha,
+        force: false,
+      }),
+    },
+    "update-ref",
+  );
 }
 
 async function getBranchHead(): Promise<{ commitSha: string; treeSha: string }> {

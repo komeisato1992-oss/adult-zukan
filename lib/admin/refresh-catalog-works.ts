@@ -22,18 +22,15 @@ import {
   type CatalogSnapshotHandle,
 } from "@/lib/admin/github-catalog";
 import { isGitHubCatalogConfigured } from "@/lib/admin/github-config";
-import {
-  mergeRefreshedWork,
-  markWorkFetchFailed,
-  markWorkUnavailable,
-} from "@/lib/dmm/catalog-refresh-fields";
+import { filterPublicCatalogWorks } from "@/lib/dmm/catalog-visibility";
 import type {
   CatalogRefreshBatchSummary,
   CatalogRefreshState,
   CatalogRefreshStrategy,
 } from "@/lib/dmm/catalog-refresh-types";
 import { normalizeCatalogContentId, readCatalogSnapshot } from "@/lib/dmm/catalog-snapshot";
-import { fetchDmmItemByContentId, isDmmConfigured } from "@/lib/dmm/client";
+import { isDmmConfigured } from "@/lib/dmm/client";
+import { syncFanzaProduct } from "@/lib/dmm/fanza-sync-product";
 import {
   IndexRebuildError,
   rebuildAllIndexes,
@@ -129,12 +126,6 @@ async function loadCatalogForRefresh(): Promise<CatalogSnapshotHandle> {
   };
 }
 
-async function fetchApiWork(contentId: string): Promise<DmmItem | null> {
-  const response = await fetchDmmItemByContentId(contentId);
-  const item = response.result.items?.[0];
-  return item ?? null;
-}
-
 type ProcessedRefreshResult = {
   status: "updated" | "unchanged" | "unavailable" | "failed";
   contentId: string;
@@ -170,65 +161,54 @@ function applyRefreshResults(
 
 async function refreshSingleWork(existing: DmmItem): Promise<ProcessedRefreshResult> {
   const contentId = existing.content_id;
+  const result = await syncFanzaProduct(existing);
 
-  try {
-    const apiItem = await fetchApiWork(contentId);
-
-    if (!apiItem) {
-      const { work, availabilityChanged } = markWorkUnavailable(
-        existing,
-        "APIに作品が見つかりませんでした",
-      );
-
+  switch (result.outcome) {
+    case "updated":
+    case "republished":
       return {
-        status: "unavailable",
+        status: "updated",
         contentId,
-        reason: "APIに作品が見つかりませんでした",
-        work,
-        priceChanged: false,
-        saleStarted: false,
-        saleEnded: false,
-        availabilityChanged,
+        work: result.work,
+        priceChanged: result.priceChanged,
+        saleStarted: result.saleStarted,
+        saleEnded: result.saleEnded,
+        availabilityChanged: result.republished || result.hidden,
       };
-    }
-
-    const merged = mergeRefreshedWork(existing, apiItem);
-
-    if (!merged.changed) {
+    case "unchanged":
       return {
         status: "unchanged",
         contentId,
-        work: merged.work,
+        work: result.work,
         priceChanged: false,
         saleStarted: false,
         saleEnded: false,
         availabilityChanged: false,
       };
-    }
-
-    return {
-      status: "updated",
-      contentId,
-      work: merged.work,
-      priceChanged: merged.priceChanged,
-      saleStarted: merged.saleStarted,
-      saleEnded: merged.saleEnded,
-      availabilityChanged: merged.availabilityChanged,
-    };
-  } catch (error) {
-    const reason =
-      error instanceof Error ? error.message : "作品の再取得に失敗しました";
-
-    return {
-      status: "failed",
-      contentId,
-      reason,
-      work: markWorkFetchFailed(existing),
-      priceChanged: false,
-      saleStarted: false,
-      saleEnded: false,
-      availabilityChanged: false,
-    };
+    case "not_found":
+    case "hidden":
+      return {
+        status: "unavailable",
+        contentId,
+        reason: "APIに作品が見つかりませんでした",
+        work: result.work,
+        priceChanged: false,
+        saleStarted: false,
+        saleEnded: false,
+        availabilityChanged: result.hidden,
+      };
+    case "transport_error":
+    default:
+      return {
+        status: "failed",
+        contentId,
+        reason: result.work.syncErrorMessage ?? "作品の再取得に失敗しました",
+        work: result.work,
+        priceChanged: false,
+        saleStarted: false,
+        saleEnded: false,
+        availabilityChanged: false,
+      };
   }
 }
 
@@ -409,7 +389,7 @@ export async function refreshCatalogWorks(
 
     try {
       console.time("[catalog-refresh] rebuild-indexes");
-      const nextIndexes = rebuildAllIndexes(mergedItems);
+      const nextIndexes = rebuildAllIndexes(filterPublicCatalogWorks(mergedItems));
       console.timeEnd("[catalog-refresh] rebuild-indexes");
 
       const indexFiles = [

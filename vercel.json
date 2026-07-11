@@ -3,6 +3,10 @@
     {
       "path": "/api/admin/seo/cron",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/fanza-sync",
+      "schedule": "0 20,8 * * *"
     }
   ],
   "redirects": [

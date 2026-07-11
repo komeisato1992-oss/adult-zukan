@@ -20,6 +20,8 @@ import {
   getDmmItemMakerName,
 } from "@/lib/dmm/display";
 import { getDmmStaticWorks } from "@/lib/dmm/static-works";
+import { readCatalogSnapshot } from "@/lib/dmm/catalog-snapshot";
+import { shouldShowUnavailableDetailPage } from "@/lib/dmm/catalog-visibility";
 import type { DmmItem } from "@/lib/dmm/types";
 import { buildCatalogOrderMap } from "@/lib/works/sort";
 import { RELATED_WORKS_DISPLAY_LIMIT } from "@/lib/pagination";
@@ -60,6 +62,28 @@ export const getCatalogWorkByContentId = cache(
     return works.find((entry) => entry.content_id === contentId) ?? null;
   },
 );
+
+/** 非公開作品を含むカタログから作品を取得（販売終了詳細ページ用） */
+export const getCatalogWorkRawByContentId = cache(
+  async (contentId: string): Promise<DmmItem | null> => {
+    const snapshot = readCatalogSnapshot();
+    const item = snapshot.find((entry) => entry.content_id === contentId);
+    if (!item || !filterValidCatalogItems([item]).length) {
+      return null;
+    }
+    return item;
+  },
+);
+
+export async function getUnavailableCatalogWorkByContentId(
+  contentId: string,
+): Promise<DmmItem | null> {
+  const raw = await getCatalogWorkRawByContentId(contentId);
+  if (!raw || !shouldShowUnavailableDetailPage(raw)) {
+    return null;
+  }
+  return raw;
+}
 
 export const getActressWorksBySlug = cache(async (slug: string) => {
   const items = await getCatalogWorks();

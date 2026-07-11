@@ -1,4 +1,5 @@
 import { ImportManagementClient } from "@/components/admin/ImportManagementClient";
+import { FanzaSyncPanel } from "@/components/admin/FanzaSyncPanel";
 import {
   isGitHubCatalogConfigured,
   logGitHubEnvDiagnostics,
@@ -7,11 +8,16 @@ import { isDmmConfigured } from "@/lib/dmm/client";
 
 export async function ImportManagement() {
   logGitHubEnvDiagnostics();
+  const configured = isGitHubCatalogConfigured();
+  const dmmConfigured = isDmmConfigured();
 
   return (
-    <ImportManagementClient
-      configured={isGitHubCatalogConfigured()}
-      dmmConfigured={isDmmConfigured()}
-    />
+    <>
+      <FanzaSyncPanel configured={configured} dmmConfigured={dmmConfigured} />
+      <ImportManagementClient
+        configured={configured}
+        dmmConfigured={dmmConfigured}
+      />
+    </>
   );
 }

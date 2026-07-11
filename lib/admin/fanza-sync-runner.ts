@@ -1,0 +1,453 @@
+import "server-only";
+
+import {
+  FANZA_SYNC_COMMIT_MAX_RETRIES,
+  FANZA_SYNC_DEFAULT_CONCURRENCY,
+  FANZA_SYNC_HISTORY_LIMIT,
+  FANZA_SYNC_JOB_STALE_MS,
+} from "@/lib/admin/fanza-sync-constants";
+import {
+  createFanzaSyncJob,
+  isFanzaSyncJobRunning,
+  isFanzaSyncJobStale,
+  toHistoryEntry,
+} from "@/lib/admin/fanza-sync-job";
+import {
+  finalizeSnapshotWithHistory,
+  loadFanzaSyncSnapshot,
+  persistFanzaSyncSnapshotLocally,
+  serializeFanzaSyncJobFile,
+} from "@/lib/admin/github-fanza-sync-storage";
+import {
+  selectFanzaSyncBatch,
+  sortWorksForFanzaSync,
+} from "@/lib/admin/fanza-sync-priority";
+import {
+  commitCatalogBundleToGitHub,
+  commitGitHubFilesBundle,
+  fetchCatalogFromGitHub,
+  GitHubCatalogError,
+  type CatalogSnapshotHandle,
+} from "@/lib/admin/github-catalog";
+import { isGitHubCatalogConfigured } from "@/lib/admin/github-config";
+import { isDmmConfigured } from "@/lib/dmm/client";
+import { filterPublicCatalogWorks } from "@/lib/dmm/catalog-visibility";
+import { normalizeCatalogContentId, readCatalogSnapshot } from "@/lib/dmm/catalog-snapshot";
+import { syncFanzaProduct } from "@/lib/dmm/fanza-sync-product";
+import {
+  IndexRebuildError,
+  rebuildAllIndexes,
+  serializeCatalogIndexes,
+} from "@/lib/dmm/index-builders";
+import type { FanzaSyncJob, FanzaSyncJobSnapshot, FanzaSyncTrigger } from "@/lib/admin/fanza-sync-types";
+import type { DmmItem } from "@/lib/dmm/types";
+
+export class FanzaSyncError extends Error {
+  status: number;
+
+  constructor(message: string, status = 400) {
+    super(message);
+    this.name = "FanzaSyncError";
+    this.status = status;
+  }
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  concurrency: number,
+  worker: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let nextIndex = 0;
+
+  async function runWorker(): Promise<void> {
+    while (nextIndex < items.length) {
+      const current = nextIndex;
+      nextIndex += 1;
+      results[current] = await worker(items[current]);
+    }
+  }
+
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, items.length) }, () => runWorker()),
+  );
+  return results;
+}
+
+async function loadCatalogForSync(): Promise<CatalogSnapshotHandle> {
+  if (isGitHubCatalogConfigured()) {
+    try {
+      return await fetchCatalogFromGitHub();
+    } catch (error) {
+      console.warn("[fanza-sync] GitHub catalog read failed; using local", error);
+    }
+  }
+
+  const items = readCatalogSnapshot();
+  return {
+    items,
+    sha: null,
+    envelope: { format: "array" },
+    raw: items,
+    rebuilt: false,
+  };
+}
+
+function applySyncResults(
+  catalogItems: DmmItem[],
+  orderedBatch: DmmItem[],
+  results: Awaited<ReturnType<typeof syncFanzaProduct>>[],
+): DmmItem[] {
+  const byId = new Map<string, number>();
+  for (let index = 0; index < catalogItems.length; index += 1) {
+    byId.set(normalizeCatalogContentId(catalogItems[index].content_id), index);
+  }
+
+  const nextItems = [...catalogItems];
+
+  for (let i = 0; i < orderedBatch.length; i += 1) {
+    const contentId = normalizeCatalogContentId(orderedBatch[i].content_id);
+    const catalogIndex = byId.get(contentId);
+    if (catalogIndex == null) continue;
+    nextItems[catalogIndex] = results[i].work;
+  }
+
+  return nextItems;
+}
+
+function buildSnapshotAfterBatch(
+  updatedJob: FanzaSyncJob,
+  history: FanzaSyncJobSnapshot["history"],
+): FanzaSyncJobSnapshot {
+  if (updatedJob.status === "running") {
+    return { currentJob: updatedJob, history };
+  }
+
+  return finalizeSnapshotWithHistory({
+    currentJob: updatedJob,
+    history: [
+      toHistoryEntry(updatedJob),
+      ...history.filter((entry) => entry.jobId !== updatedJob.jobId),
+    ].slice(0, FANZA_SYNC_HISTORY_LIMIT),
+  });
+}
+
+function updateJobFromBatch(
+  job: FanzaSyncJob,
+  batch: DmmItem[],
+  results: Awaited<ReturnType<typeof syncFanzaProduct>>[],
+): FanzaSyncJob {
+  const now = new Date().toISOString();
+  let updatedCount = job.updatedCount;
+  let unchangedCount = job.unchangedCount;
+  let unconfirmedCount = job.unconfirmedCount;
+  let hiddenCount = job.hiddenCount;
+  let republishedCount = job.republishedCount;
+  let errorCount = job.errorCount;
+  let successCount = job.successCount;
+
+  for (const result of results) {
+    switch (result.outcome) {
+      case "updated":
+      case "republished":
+        updatedCount += 1;
+        successCount += 1;
+        break;
+      case "unchanged":
+        unchangedCount += 1;
+        successCount += 1;
+        break;
+      case "not_found":
+        unconfirmedCount += 1;
+        successCount += 1;
+        break;
+      case "hidden":
+        hiddenCount += 1;
+        successCount += 1;
+        break;
+      case "transport_error":
+        errorCount += 1;
+        break;
+      default:
+        break;
+    }
+
+    if (result.republished) {
+      republishedCount += 1;
+    }
+  }
+
+  const processedCount = job.processedCount + batch.length;
+  const cursor = job.cursor + batch.length;
+  const completed = processedCount >= job.targetCount;
+  const lastItem = batch[batch.length - 1];
+
+  return {
+    ...job,
+    processedCount,
+    cursor,
+    successCount,
+    updatedCount,
+    unchangedCount,
+    unconfirmedCount,
+    hiddenCount,
+    republishedCount,
+    errorCount,
+    lastProcessedContentId: lastItem?.content_id ?? job.lastProcessedContentId,
+    updatedAt: now,
+    completedAt: completed ? now : null,
+    status: completed
+      ? errorCount > 0
+        ? "partial_failed"
+        : "completed"
+      : "running",
+    message: completed
+      ? "全作品の同期が完了しました。"
+      : `同期中… ${processedCount.toLocaleString()} / ${job.targetCount.toLocaleString()} 件`,
+    lockOwner: completed ? null : job.lockOwner,
+  };
+}
+
+async function persistJobSnapshotToGitHub(
+  snapshot: FanzaSyncJobSnapshot,
+  message: string,
+): Promise<void> {
+  if (!isGitHubCatalogConfigured()) return;
+
+  await commitGitHubFilesBundle(
+    [serializeFanzaSyncJobFile(snapshot)],
+    message,
+  );
+}
+
+export async function startFanzaSyncJob(input: {
+  trigger: FanzaSyncTrigger;
+  batchSize?: number;
+}): Promise<{ job: FanzaSyncJob; alreadyRunning: boolean }> {
+  if (!isDmmConfigured()) {
+    throw new FanzaSyncError("FANZA API の設定が未完了です。", 503);
+  }
+
+  const snapshot = await loadFanzaSyncSnapshot();
+  const current = snapshot.currentJob;
+
+  if (
+    current &&
+    isFanzaSyncJobRunning(current) &&
+    !isFanzaSyncJobStale(current, FANZA_SYNC_JOB_STALE_MS)
+  ) {
+    return { job: current, alreadyRunning: true };
+  }
+
+  const { items } = await loadCatalogForSync();
+  const job = createFanzaSyncJob({
+    trigger: input.trigger,
+    targetCount: items.length,
+    batchSize: input.batchSize,
+  });
+
+  const nextSnapshot: FanzaSyncJobSnapshot = {
+    currentJob: job,
+    history: snapshot.history,
+  };
+
+  persistFanzaSyncSnapshotLocally(nextSnapshot);
+
+  try {
+    await persistJobSnapshotToGitHub(nextSnapshot, "FANZA sync job started");
+  } catch (error) {
+    console.warn("[fanza-sync] failed to persist job start to GitHub", error);
+  }
+
+  return { job, alreadyRunning: false };
+}
+
+export async function processFanzaSyncBatch(options?: {
+  dryRun?: boolean;
+}): Promise<{
+  job: FanzaSyncJob | null;
+  processedInBatch: number;
+  committedToGitHub: boolean;
+}> {
+  const snapshot = await loadFanzaSyncSnapshot();
+  const job = snapshot.currentJob;
+
+  if (!job || !isFanzaSyncJobRunning(job)) {
+    return { job: null, processedInBatch: 0, committedToGitHub: false };
+  }
+
+  if (isFanzaSyncJobStale(job, FANZA_SYNC_JOB_STALE_MS)) {
+    const failedJob: FanzaSyncJob = {
+      ...job,
+      status: "failed",
+      message: "同期ジョブがタイムアウトしました。",
+      completedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      lockOwner: null,
+    };
+    const finalized = finalizeSnapshotWithHistory({
+      currentJob: failedJob,
+      history: snapshot.history,
+    });
+    persistFanzaSyncSnapshotLocally(finalized);
+    try {
+      await persistJobSnapshotToGitHub(finalized, "FANZA sync job timed out");
+    } catch (error) {
+      console.warn("[fanza-sync] failed to persist timed-out job", error);
+    }
+    return { job: failedJob, processedInBatch: 0, committedToGitHub: false };
+  }
+
+  const sorted = sortWorksForFanzaSync((await loadCatalogForSync()).items);
+  const batch = selectFanzaSyncBatch(sorted, job.cursor, job.batchSize);
+
+  if (batch.length === 0) {
+    const completedJob: FanzaSyncJob = {
+      ...job,
+      status: job.errorCount > 0 ? "partial_failed" : "completed",
+      completedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      message: "全作品の同期が完了しました。",
+      lockOwner: null,
+    };
+    const finalized = finalizeSnapshotWithHistory({
+      currentJob: completedJob,
+      history: snapshot.history,
+    });
+    persistFanzaSyncSnapshotLocally(finalized);
+    try {
+      await persistJobSnapshotToGitHub(finalized, "FANZA sync completed");
+    } catch (error) {
+      console.warn("[fanza-sync] failed to persist completed job", error);
+    }
+    return { job: completedJob, processedInBatch: 0, committedToGitHub: false };
+  }
+
+  console.log("[fanza-sync] batch start", {
+    jobId: job.jobId,
+    cursor: job.cursor,
+    batchSize: batch.length,
+  });
+
+  const results = await mapWithConcurrency(
+    batch,
+    FANZA_SYNC_DEFAULT_CONCURRENCY,
+    syncFanzaProduct,
+  );
+
+  const updatedJob = updateJobFromBatch(job, batch, results);
+  const nextSnapshot = buildSnapshotAfterBatch(updatedJob, snapshot.history);
+
+  if (options?.dryRun) {
+    persistFanzaSyncSnapshotLocally(nextSnapshot);
+    return {
+      job: updatedJob,
+      processedInBatch: batch.length,
+      committedToGitHub: false,
+    };
+  }
+
+  if (!isGitHubCatalogConfigured()) {
+    throw new FanzaSyncError("GitHub連携の設定が未完了です。", 503);
+  }
+
+  let retryCount = 0;
+  let committedToGitHub = false;
+
+  while (retryCount <= FANZA_SYNC_COMMIT_MAX_RETRIES) {
+    try {
+      const { items, envelope, raw } = await loadCatalogForSync();
+      const mergedItems = applySyncResults(items, batch, results);
+      const publicItems = filterPublicCatalogWorks(mergedItems);
+      const indexes = rebuildAllIndexes(publicItems);
+      const indexFiles = [
+        ...serializeCatalogIndexes(indexes),
+        serializeFanzaSyncJobFile(nextSnapshot),
+      ];
+
+      await commitCatalogBundleToGitHub(
+        envelope,
+        mergedItems,
+        `FANZA sync batch ${updatedJob.processedCount}/${updatedJob.targetCount}`,
+        indexFiles,
+        raw,
+      );
+
+      committedToGitHub = true;
+      persistFanzaSyncSnapshotLocally(nextSnapshot);
+      break;
+    } catch (error) {
+      if (
+        error instanceof GitHubCatalogError &&
+        (error.status === 409 || error.status === 422) &&
+        retryCount < FANZA_SYNC_COMMIT_MAX_RETRIES
+      ) {
+        retryCount += 1;
+        continue;
+      }
+
+      if (error instanceof IndexRebuildError) {
+        throw new FanzaSyncError(error.message, 500);
+      }
+
+      throw error;
+    }
+  }
+
+  console.log("[fanza-sync] batch complete", {
+    jobId: updatedJob.jobId,
+    processed: updatedJob.processedCount,
+    target: updatedJob.targetCount,
+    status: updatedJob.status,
+  });
+
+  return {
+    job: updatedJob,
+    processedInBatch: batch.length,
+    committedToGitHub,
+  };
+}
+
+export async function runFanzaSyncUntilDeadline(
+  deadlineMs: number,
+  trigger: FanzaSyncTrigger = "auto",
+): Promise<{ job: FanzaSyncJob | null; alreadyRunning: boolean }> {
+  const started = Date.now();
+  let snapshot = await loadFanzaSyncSnapshot();
+  let alreadyRunning = false;
+
+  if (
+    snapshot.currentJob &&
+    isFanzaSyncJobRunning(snapshot.currentJob) &&
+    !isFanzaSyncJobStale(snapshot.currentJob, FANZA_SYNC_JOB_STALE_MS)
+  ) {
+    alreadyRunning = true;
+  } else {
+    const startedJob = await startFanzaSyncJob({ trigger });
+    if (startedJob.alreadyRunning) {
+      alreadyRunning = true;
+    }
+    snapshot = await loadFanzaSyncSnapshot();
+  }
+
+  let lastJob: FanzaSyncJob | null = snapshot.currentJob;
+
+  while (Date.now() - started < deadlineMs) {
+    const result = await processFanzaSyncBatch();
+    lastJob = result.job;
+
+    if (!result.job || result.job.status !== "running") {
+      break;
+    }
+
+    if (result.processedInBatch === 0) {
+      break;
+    }
+  }
+
+  return { job: lastJob, alreadyRunning };
+}
+
+export async function getFanzaSyncStatus(): Promise<FanzaSyncJobSnapshot> {
+  return loadFanzaSyncSnapshot();
+}

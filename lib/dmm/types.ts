@@ -127,6 +127,32 @@ export type DmmItem = {
   availability?: "available" | "unavailable";
   /** サイト側の最終更新日時 */
   updatedAt?: string;
+  /** サイト上に表示するか（false = 非表示） */
+  isActive?: boolean;
+  /** セール状態: on_sale / normal / unknown */
+  saleStatus?: "on_sale" | "normal" | "unknown";
+  /** 現在のセール価格（数値・円） */
+  salePrice?: number | null;
+  /** 通常価格（数値・円） */
+  regularPrice?: number | null;
+  /** 割引率（%） */
+  discountRate?: number | null;
+  /** セール終了日時（API campaign から取得可能な場合のみ） */
+  saleEndAt?: string | null;
+  /** 販売状態 */
+  availabilityStatus?: "available" | "temporarily_unconfirmed" | "unavailable";
+  /** FANZA との最終同期成功日時 */
+  lastSyncedAt?: string;
+  /** 最終同期試行日時 */
+  lastSyncAttemptAt?: string;
+  /** FANZA側で連続して確認できなかった回数 */
+  consecutiveNotFoundCount?: number;
+  /** 販売終了の可能性を最初に検知した日時 */
+  unavailableDetectedAt?: string;
+  /** 最後の同期エラー */
+  syncErrorMessage?: string | null;
+  /** 非表示理由 */
+  hiddenReason?: "fanza_unavailable" | "manual" | null;
 };
 
 export type DmmTestApiResponse = {

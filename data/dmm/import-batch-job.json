@@ -1,7 +1,7 @@
 {
   "processId": "batch-1783744365926-9jigua",
-  "status": "running",
-  "phase": "collecting",
+  "status": "failed",
+  "phase": "failed",
   "targetTotalCount": 10000,
   "startOffset": 701,
   "requestCount": 500,
@@ -11,7 +11,7 @@
   "currentCatalogCount": 6500,
   "works": [],
   "runStats": null,
-  "progressMessage": "現在処理中です（500件取得済み）",
+  "progressMessage": "失敗",
   "validatingProgress": 0,
   "validatingTotal": 0,
   "currentPage": 5,
@@ -20,11 +20,11 @@
   "fetchedCount": 500,
   "estimatedRemainingCount": 0,
   "createdAt": "2026-07-11T04:32:47.106Z",
-  "updatedAt": "2026-07-11T04:33:05.454Z",
-  "completedAt": null,
-  "errorCode": null,
+  "updatedAt": "2026-07-11T04:33:07.357Z",
+  "completedAt": "2026-07-11T04:33:07.357Z",
+  "errorCode": "GitHub API から候補データを取得・更新できませんでした。",
   "startSha": "e1ef1a2515ba27e7baeee7c9c379122c30333532",
   "saveSha": null,
   "retryCount": 0,
-  "durationMs": null
+  "durationMs": 21431
 }

@@ -1,8 +1,8 @@
 {
   "version": 1,
-  "totalCount": 10955,
+  "totalCount": 11005,
   "shardSize": 500,
-  "updatedAt": "2026-07-11T21:18:51.999Z",
+  "updatedAt": "2026-07-11T21:59:47.116Z",
   "shards": [
     {
       "file": "catalog-0001.json",
@@ -90,7 +90,11 @@
     },
     {
       "file": "catalog-0022.json",
-      "count": 455
+      "count": 500
+    },
+    {
+      "file": "catalog-0023.json",
+      "count": 5
     }
   ]
 }

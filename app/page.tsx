@@ -76,7 +76,7 @@ export default async function HomePage() {
             id="new-works"
             title="🆕 新着作品"
             items={newWorks}
-            href="/works?sort=new"
+            href="/works?sort=release-desc"
           />
         </LazySection>
 

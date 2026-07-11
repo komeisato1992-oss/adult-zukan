@@ -50,7 +50,7 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
   const { q, page, sort } = await searchParams;
   const trimmed = q?.trim().replace(/[\s\u3000]+/g, " ");
   const results = trimmed
-    ? await unifiedSearch(trimmed, parsePageParam(page))
+    ? await unifiedSearch(trimmed, parsePageParam(page), parseWorkSortParam(sort))
     : null;
 
   return (

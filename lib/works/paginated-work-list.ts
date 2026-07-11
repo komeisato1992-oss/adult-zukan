@@ -12,6 +12,7 @@ import {
   DEFAULT_WORK_SORT,
   parseWorkSortParam,
   sortWorks,
+  type SortWorksOptions,
   type WorkSortKey,
 } from "@/lib/works/sort";
 import {
@@ -32,6 +33,7 @@ export type PaginatedWorkListOptions = {
   page?: number | string;
   pageSize?: number;
   sort?: WorkSortKey;
+  catalogOrder?: SortWorksOptions["catalogOrder"];
 };
 
 function paginateToWorkCards(
@@ -41,7 +43,9 @@ function paginateToWorkCards(
 ): PaginatedWorkCardList {
   const pageSize = options.pageSize ?? defaultPageSize;
   const sort = options.sort ?? DEFAULT_WORK_SORT;
-  const sorted = sortWorks(items, sort);
+  const sorted = sortWorks(items, sort, {
+    catalogOrder: options.catalogOrder,
+  });
   const pagination = paginateItems(sorted, parsePageParam(options.page), pageSize);
 
   return {

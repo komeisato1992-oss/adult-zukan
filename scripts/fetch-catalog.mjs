@@ -313,7 +313,7 @@ async function main() {
   let fetchFailed = 0;
   let saleSeeded = 0;
 
-  const tryAddItem = (item) => {
+  const tryAddItem = (item, sourcePopularityRank = null) => {
     const makerName = getMakerName(item);
     const key3 = duplicateKey3(item, makerName);
 
@@ -341,7 +341,16 @@ async function main() {
       return false;
     }
 
-    finalItems.push(item);
+    const nextItem =
+      typeof sourcePopularityRank === "number" && sourcePopularityRank > 0
+        ? {
+            ...item,
+            sourcePopularityRank,
+            popularityUpdatedAt: new Date().toISOString(),
+          }
+        : item;
+
+    finalItems.push(nextItem);
     if (item.content_id) byContentId.add(item.content_id);
     if (item.product_id) byProductId.add(item.product_id);
     byComposite.add(key3);
@@ -366,8 +375,9 @@ async function main() {
       if (pageItems.length === 0) break;
       apiTotal += pageItems.length;
 
-      for (const item of pageItems) {
-        const added = tryAddItem(item);
+      for (let index = 0; index < pageItems.length; index += 1) {
+        const item = pageItems[index];
+        const added = tryAddItem(item, sort === "rank" ? offset + index : null);
         if (added && isOnSale(item)) saleSeeded += 1;
         if (remainingSlots() <= 0) break;
       }
@@ -405,8 +415,8 @@ async function main() {
         if (pageItems.length === 0) break;
         apiTotal += pageItems.length;
 
-        for (const item of pageItems) {
-          tryAddItem(item);
+        for (let index = 0; index < pageItems.length; index += 1) {
+          tryAddItem(pageItems[index], offset + index);
           if (remainingSlots() <= 0) break;
         }
 

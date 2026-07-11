@@ -14,6 +14,7 @@ import {
   type WorksListQueryState,
 } from "@/lib/works/list-filters";
 import {
+  buildCatalogOrderMap,
   getWorksSortOptions,
   parseWorkSortParam,
   SALE_DEFAULT_WORK_SORT,
@@ -84,7 +85,8 @@ export async function getWorksListPageData(
     getWorkFilterOptionsFromEntries(entriesForOptions);
   const filtered = filterWorkEntriesByQuery(filterEntries, query);
   const currentSort = resolveWorksListSort(query, isSalePage);
-  const sorted = sortWorks(filtered, currentSort);
+  const catalogOrder = buildCatalogOrderMap(catalog);
+  const sorted = sortWorks(filtered, currentSort, { catalogOrder });
   const currentPage = parsePageParam(query.page);
   const pagination = paginateItems(sorted, currentPage, WORKS_LIST_PAGE_SIZE);
 

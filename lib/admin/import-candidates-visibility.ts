@@ -67,6 +67,7 @@ export function storedRecordToListItem(
     seoScore: record.seoScore,
     seoReasons: record.seoReasons,
     seoFlags: record.seoFlags,
+    rankPosition: record.rankPosition ?? null,
   };
 }
 

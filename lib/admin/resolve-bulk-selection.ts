@@ -197,6 +197,7 @@ async function resolveAllMatchingWorks(
   const works = filtered.candidates.map((candidate) => ({
     contentId: candidate.contentId,
     item: candidate.item,
+    sourcePopularityRank: candidate.rankPosition ?? null,
   }));
 
   return { works, stages: filtered.stages };

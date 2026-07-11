@@ -97,6 +97,12 @@ export type DmmItem = {
     count?: number;
     average?: string;
   };
+  /** FANZA人気順取得時の順位（1位が最も人気） */
+  sourcePopularityRank?: number;
+  /** sourcePopularityRank の最終更新日時 */
+  popularityUpdatedAt?: string;
+  /** サイトカタログへ追加した日時 */
+  addedAt?: string;
 };
 
 export type DmmTestApiResponse = {

@@ -27,6 +27,7 @@ import {
   type IndexUpdateStats,
 } from "@/lib/dmm/index-builders";
 import { isValidDmmListItem } from "@/lib/dmm/filter";
+import { enrichCatalogItemMetadata } from "@/lib/dmm/catalog-metadata";
 import type { DmmItem } from "@/lib/dmm/types";
 
 export type BulkAddWorksResult = {
@@ -62,7 +63,11 @@ export class AddWorkValidationError extends Error {
   }
 }
 
-function prepareCatalogItem(item: DmmItem, contentId: string): DmmItem {
+function prepareCatalogItem(
+  item: DmmItem,
+  contentId: string,
+  metadata?: { sourcePopularityRank?: number | null },
+): DmmItem {
   const normalizedId = normalizeCatalogContentId(contentId);
 
   if (!normalizedId) {
@@ -77,15 +82,24 @@ function prepareCatalogItem(item: DmmItem, contentId: string): DmmItem {
     throw new AddWorkValidationError("作品データがカタログ追加条件を満たしていません。");
   }
 
-  return {
-    ...item,
-    content_id: normalizedId,
-    product_id: item.product_id?.trim() || normalizedId,
-  };
+  return enrichCatalogItemMetadata(
+    {
+      ...item,
+      content_id: normalizedId,
+      product_id: item.product_id?.trim() || normalizedId,
+    },
+    {
+      sourcePopularityRank: metadata?.sourcePopularityRank,
+    },
+  );
 }
 
 function classifyBulkWorks(
-  works: Array<{ contentId: string; item: DmmItem }>,
+  works: Array<{
+    contentId: string;
+    item: DmmItem;
+    sourcePopularityRank?: number | null;
+  }>,
   existingIds: Set<string>,
 ): {
   preparedItems: DmmItem[];
@@ -99,9 +113,12 @@ function classifyBulkWorks(
   const invalidContentIds: string[] = [];
   const batchIds = new Set<string>();
 
-  for (const { contentId, item } of works) {
+  for (const work of works) {
+    const { contentId, item } = work;
     try {
-      const prepared = prepareCatalogItem(item, contentId);
+      const prepared = prepareCatalogItem(item, contentId, {
+        sourcePopularityRank: work.sourcePopularityRank,
+      });
 
       if (
         existingIds.has(prepared.content_id) ||

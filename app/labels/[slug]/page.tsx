@@ -7,7 +7,7 @@ import { PaginatedWorkListSection } from "@/components/works/PaginatedWorkListSe
 import { JsonLd } from "@/components/seo/JsonLd";
 import { getBuildStaticGenerationLimit } from "@/lib/dmm/build-static";
 import { getLimitedEncodedEntityStaticParams } from "@/lib/dmm/generate-static-params";
-import { getLabelSummaryBySlug, getLabelWorksBySlug } from "@/lib/catalog";
+import { getLabelSummaryBySlug, getLabelWorksBySlug, getCatalogOrderMap } from "@/lib/catalog";
 import { parsePageParam } from "@/lib/pagination";
 import { getPaginatedDisplayableWorkCardList } from "@/lib/works/paginated-work-list";
 import { parseWorkSortParam } from "@/lib/works/sort";
@@ -84,9 +84,11 @@ export default async function LabelDetailPage({
 
   const works = await getLabelWorksBySlug(slug);
   const currentSort = parseWorkSortParam(sort);
+  const catalogOrder = await getCatalogOrderMap();
   const list = getPaginatedDisplayableWorkCardList(works, {
     page: parsePageParam(page),
     sort: currentSort,
+    catalogOrder,
   });
 
   return (

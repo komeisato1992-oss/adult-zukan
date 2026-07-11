@@ -27,6 +27,7 @@ import {
   type IndexUpdateStats,
 } from "@/lib/dmm/index-builders";
 import { isValidDmmListItem } from "@/lib/dmm/filter";
+import { enrichCatalogItemMetadata } from "@/lib/dmm/catalog-metadata";
 import type { DmmItem } from "@/lib/dmm/types";
 
 export type CatalogBatchWorkStatus = {
@@ -49,7 +50,11 @@ export type CatalogBatchAddResult = {
   retryCount: number;
 };
 
-function prepareCatalogItem(item: DmmItem, contentId: string): DmmItem {
+function prepareCatalogItem(
+  item: DmmItem,
+  contentId: string,
+  metadata?: { sourcePopularityRank?: number | null },
+): DmmItem {
   const normalizedId = normalizeCatalogContentId(contentId);
 
   if (!normalizedId) {
@@ -64,11 +69,16 @@ function prepareCatalogItem(item: DmmItem, contentId: string): DmmItem {
     throw new Error("INVALID_ITEM");
   }
 
-  return {
-    ...item,
-    content_id: normalizedId,
-    product_id: item.product_id?.trim() || normalizedId,
-  };
+  return enrichCatalogItemMetadata(
+    {
+      ...item,
+      content_id: normalizedId,
+      product_id: item.product_id?.trim() || normalizedId,
+    },
+    {
+      sourcePopularityRank: metadata?.sourcePopularityRank,
+    },
+  );
 }
 
 function buildCatalogKeySet(items: DmmItem[]): Set<string> {
@@ -202,7 +212,11 @@ async function commitMergedCatalog(
 }
 
 export async function addWorksToCatalogInBatches(input: {
-  works: Array<{ contentId: string; item: DmmItem }>;
+  works: Array<{
+    contentId: string;
+    item: DmmItem;
+    sourcePopularityRank?: number | null;
+  }>;
   startOffset: number;
   processId: string;
 }): Promise<CatalogBatchAddResult> {
@@ -241,7 +255,9 @@ export async function addWorksToCatalogInBatches(input: {
     }
 
     try {
-      const prepared = prepareCatalogItem(work.item, work.contentId);
+      const prepared = prepareCatalogItem(work.item, work.contentId, {
+        sourcePopularityRank: work.sourcePopularityRank,
+      });
       preparedItems.push(prepared);
       statusEntry.status = "ready";
     } catch (error) {

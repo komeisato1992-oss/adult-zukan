@@ -12,7 +12,7 @@ export const campaigns: Campaign[] = [
     id: "new-release",
     title: "最新作続々入荷",
     description: "今週リリースの新作作品をいち早くチェック。",
-    href: "/works?sort=new",
+    href: "/works?sort=release-desc",
     badge: "NEW",
   },
   {

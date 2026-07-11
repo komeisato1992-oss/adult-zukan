@@ -10,6 +10,12 @@ import {
 } from "@/lib/pagination";
 import { mapPageItemsToWorkCards } from "@/lib/works/paginated-work-list";
 import type { WorkListCardItem } from "@/lib/works/work-list-card-item";
+import {
+  buildCatalogOrderMap,
+  parseWorkSortParam,
+  sortWorks,
+  type WorkSortKey,
+} from "@/lib/works/sort";
 import { getSearchIndex } from "@/lib/search/index";
 import {
   normalizeSearchInput,
@@ -54,6 +60,7 @@ export async function searchCatalogAll(query: string): Promise<{
 export async function searchCatalog(
   query: string,
   page = 1,
+  sort: WorkSortKey = parseWorkSortParam(null),
 ): Promise<CatalogSearchResults> {
   const { trimmed, normalized } = normalizeSearchInput(query);
 
@@ -79,7 +86,9 @@ export async function searchCatalog(
   }
 
   const displayableWorks = filterDisplayableItems(matchedWorks);
-  const total = displayableWorks.length;
+  const catalogOrder = buildCatalogOrderMap(works);
+  const sortedWorks = sortWorks(displayableWorks, sort, { catalogOrder });
+  const total = sortedWorks.length;
 
   if (total === 0) {
     return {
@@ -93,7 +102,7 @@ export async function searchCatalog(
 
   const currentPage = parsePageParam(page);
   const pagination = paginateItems(
-    displayableWorks,
+    sortedWorks,
     currentPage,
     WORKS_LIST_PAGE_SIZE,
   );

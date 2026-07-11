@@ -72,16 +72,14 @@ export function getPopularWorks(
   items: DmmItem[],
   limit = HOME_SECTION_LIMIT,
 ): DmmItem[] {
-  return filterDisplayableItems(items).slice(0, limit);
+  return sortWorks(filterDisplayableItems(items), "popular").slice(0, limit);
 }
 
 export function getNewWorks(
   items: DmmItem[],
   limit = HOME_SECTION_LIMIT,
 ): DmmItem[] {
-  return [...filterDisplayableItems(items)]
-    .sort((a, b) => parseReleaseTimestamp(b) - parseReleaseTimestamp(a))
-    .slice(0, limit);
+  return sortWorks(filterDisplayableItems(items), "release-desc").slice(0, limit);
 }
 
 export function getSaleWorks(

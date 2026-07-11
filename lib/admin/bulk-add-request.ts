@@ -6,6 +6,7 @@ import type { DmmItem } from "@/lib/dmm/types";
 export type BulkAddWorkInput = {
   contentId: string;
   item: DmmItem;
+  sourcePopularityRank?: number | null;
 };
 
 type BulkAddRequestBody = {

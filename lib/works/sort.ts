@@ -1,10 +1,13 @@
 import type { DmmItem } from "@/lib/dmm/types";
 import { getSalePriceInfo } from "@/lib/dmm/sale-price";
 import { parseDmmPrice } from "@/lib/utils";
+import { comparePopularWorks } from "@/lib/works/popularity";
 
 export type WorkSortKey =
   | "popular"
+  | "added"
   | "new"
+  | "release-desc"
   | "price-desc"
   | "price-asc"
   | "discount-desc"
@@ -18,19 +21,22 @@ export const SALE_DEFAULT_WORK_SORT: WorkSortKey = "discount-desc";
 
 export const WORK_SORT_LABELS: Record<WorkSortKey, string> = {
   popular: "人気順",
-  new: "新着順",
-  "price-desc": "価格高い順",
-  "price-asc": "価格安い順",
+  added: "追加順",
+  new: "発売日が新しい順",
+  "release-desc": "発売日が新しい順",
+  "price-desc": "価格が高い順",
+  "price-asc": "価格が安い順",
   "discount-desc": "割引率が高い順",
   "today-views": "本日の再生数順",
   "total-views": "総再生数順",
-  "duration-desc": "再生時間長い順",
+  "duration-desc": "再生時間が長い順",
   random: "🎲 ランダム",
 };
 
 export const HOME_WORK_SORT_KEYS: WorkSortKey[] = [
   "popular",
-  "new",
+  "added",
+  "release-desc",
   "price-desc",
   "price-asc",
   "duration-desc",
@@ -39,7 +45,8 @@ export const HOME_WORK_SORT_KEYS: WorkSortKey[] = [
 
 export const DEFAULT_CATALOG_SORT_OPTIONS: WorkSortOption[] = [
   { key: "popular", label: WORK_SORT_LABELS.popular },
-  { key: "new", label: WORK_SORT_LABELS.new },
+  { key: "added", label: WORK_SORT_LABELS.added },
+  { key: "release-desc", label: WORK_SORT_LABELS["release-desc"] },
   { key: "price-desc", label: WORK_SORT_LABELS["price-desc"] },
   { key: "price-asc", label: WORK_SORT_LABELS["price-asc"] },
   { key: "duration-desc", label: WORK_SORT_LABELS["duration-desc"] },
@@ -51,16 +58,64 @@ export type WorkSortOption = {
   label: string;
 };
 
+export type SortWorksOptions = {
+  /** index 0 = 最近 catalog へ追加。added 順のフォールバック用 */
+  catalogOrder?: Map<string, number>;
+};
+
 type DmmItemWithViews = DmmItem & {
   todayViewCount?: number;
   totalViewCount?: number;
 };
 
-function parseReleaseTimestamp(item: DmmItem): number {
+export function buildCatalogOrderMap(items: DmmItem[]): Map<string, number> {
+  return new Map(items.map((item, index) => [item.content_id, index]));
+}
+
+export function parseReleaseTimestamp(item: DmmItem): number {
   const raw = item.date?.trim();
   if (!raw) return 0;
   const parsed = new Date(raw.replace(" ", "T"));
   return Number.isNaN(parsed.getTime()) ? 0 : parsed.getTime();
+}
+
+function parseAddedTimestamp(item: DmmItem): number {
+  const raw = item.addedAt?.trim();
+  if (!raw) return 0;
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function getCatalogAddedIndex(
+  item: DmmItem,
+  catalogOrder?: Map<string, number>,
+): number {
+  return catalogOrder?.get(item.content_id) ?? Number.MAX_SAFE_INTEGER;
+}
+
+function compareReleaseDateDesc(a: DmmItem, b: DmmItem): number {
+  return parseReleaseTimestamp(b) - parseReleaseTimestamp(a);
+}
+
+function compareAddedDesc(
+  a: DmmItem,
+  b: DmmItem,
+  catalogOrder?: Map<string, number>,
+): number {
+  const addedDiff = parseAddedTimestamp(b) - parseAddedTimestamp(a);
+  if (addedDiff !== 0) return addedDiff;
+
+  const indexA = getCatalogAddedIndex(a, catalogOrder);
+  const indexB = getCatalogAddedIndex(b, catalogOrder);
+  if (indexA !== indexB) return indexA - indexB;
+
+  return compareReleaseDateDesc(a, b);
+}
+
+function comparePopularSort(a: DmmItem, b: DmmItem): number {
+  const popularDiff = comparePopularWorks(a, b);
+  if (popularDiff !== 0) return popularDiff;
+  return compareReleaseDateDesc(a, b);
 }
 
 function getItemPrice(item: DmmItem): number {
@@ -97,8 +152,14 @@ function shuffleItems<T>(items: T[]): T[] {
 
 export function parseWorkSortParam(value?: string | null): WorkSortKey {
   switch (value) {
+    case "added":
+    case "added-desc":
+      return "added";
     case "new":
-      return "new";
+    case "latest":
+    case "release-desc":
+    case "release_desc":
+      return "release-desc";
     case "price-desc":
     case "price_desc":
       return "price-desc";
@@ -129,8 +190,8 @@ export function getWorksSortOptions(
   options: { includeDiscountSort?: boolean } = {},
 ): WorkSortOption[] {
   const keys: WorkSortKey[] = options.includeDiscountSort
-    ? ["discount-desc", "popular", "new", "price-desc", "price-asc"]
-    : ["popular", "new", "price-desc", "price-asc"];
+    ? ["discount-desc", "popular", "added", "release-desc", "price-desc", "price-asc"]
+    : ["popular", "added", "release-desc", "price-desc", "price-asc"];
 
   if (items.some((item) => getTodayViewCount(item) !== null)) {
     keys.push("today-views");
@@ -141,22 +202,32 @@ export function getWorksSortOptions(
 
   keys.push("duration-desc", "random");
 
-  return keys.map((key) => ({ key, label: WORK_SORT_LABELS[key] }));
+  const seen = new Set<WorkSortKey>();
+  return keys
+    .filter((key) => {
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .map((key) => ({ key, label: WORK_SORT_LABELS[key] }));
 }
 
 export function sortWorks(
   items: DmmItem[],
   sort: WorkSortKey = DEFAULT_WORK_SORT,
+  options: SortWorksOptions = {},
 ): DmmItem[] {
-  if (sort === DEFAULT_WORK_SORT) return items;
-
   const sorted = [...items];
+  const catalogOrder = options.catalogOrder;
 
   switch (sort) {
+    case "popular":
+      return sorted.sort(comparePopularSort);
+    case "added":
+      return sorted.sort((a, b) => compareAddedDesc(a, b, catalogOrder));
     case "new":
-      return sorted.sort(
-        (a, b) => parseReleaseTimestamp(b) - parseReleaseTimestamp(a),
-      );
+    case "release-desc":
+      return sorted.sort((a, b) => compareReleaseDateDesc(a, b));
     case "price-desc":
       return sorted.sort((a, b) => getItemPrice(b) - getItemPrice(a));
     case "price-asc":
@@ -187,7 +258,7 @@ export function sortWorks(
     case "random":
       return shuffleItems(sorted);
     default:
-      return items;
+      return sorted.sort(comparePopularSort);
   }
 }
 
@@ -220,8 +291,11 @@ export function getWorksCanonicalPath(
 
 export function getWorksSortPageTitle(sort: WorkSortKey): string | null {
   switch (sort) {
+    case "added":
+      return "追加順 作品一覧";
     case "new":
-      return "新着作品一覧";
+    case "release-desc":
+      return "発売日が新しい順 作品一覧";
     case "price-desc":
       return "価格が高い順 作品一覧";
     case "price-asc":

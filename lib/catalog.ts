@@ -21,7 +21,14 @@ import {
 } from "@/lib/dmm/display";
 import { getDmmStaticWorks } from "@/lib/dmm/static-works";
 import type { DmmItem } from "@/lib/dmm/types";
+import { buildCatalogOrderMap } from "@/lib/works/sort";
 import { RELATED_WORKS_DISPLAY_LIMIT } from "@/lib/pagination";
+
+/** リクエスト内で1回だけ構築する catalog 追加順マップ（index 0 = 最近追加） */
+export const getCatalogOrderMap = cache(async (): Promise<Map<string, number>> => {
+  const works = await getCatalogWorks();
+  return buildCatalogOrderMap(works);
+});
 
 /** リクエスト内で1回だけ読み込むカタログ作品一覧 */
 export const getCatalogWorks = cache(async (): Promise<DmmItem[]> => {

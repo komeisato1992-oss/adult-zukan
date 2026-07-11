@@ -93,6 +93,7 @@ export type ImportCandidateListItem = {
   seoScore?: number;
   seoReasons?: string[];
   seoFlags?: StoredImportCandidate["seoFlags"];
+  rankPosition?: number | null;
 };
 
 export type ImportCandidatesListResult = {

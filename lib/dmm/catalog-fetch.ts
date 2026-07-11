@@ -1,6 +1,7 @@
 import "server-only";
 
 import { fetchDmmItemList, isDmmConfigured } from "@/lib/dmm/client";
+import { assignSourcePopularityRank } from "@/lib/dmm/catalog-metadata";
 import {
   analyzeCatalogItems,
   pickValidCatalogItems,
@@ -63,10 +64,13 @@ export async function fetchDmmCatalogFromApi(): Promise<CatalogFetchResult> {
 
     apiTotal += pageItems.length;
 
-    for (const item of pageItems) {
+    for (let index = 0; index < pageItems.length; index += 1) {
+      const item = pageItems[index];
       if (!item.content_id || seen.has(item.content_id)) continue;
       seen.add(item.content_id);
-      raw.push(item);
+      raw.push(
+        assignSourcePopularityRank(item, offset + index),
+      );
     }
 
     if (pageItems.length < FETCH_BATCH_SIZE) {

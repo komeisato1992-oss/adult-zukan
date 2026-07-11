@@ -11,6 +11,7 @@ import { getLimitedEncodedEntityStaticParams } from "@/lib/dmm/generate-static-p
 import {
   getMakerSummaryBySlug,
   getMakerWorksBySlug,
+  getCatalogOrderMap,
 } from "@/lib/catalog";
 import {
   decodeEntitySlug,
@@ -96,9 +97,11 @@ export default async function MakerDetailPage({
   const { popularWorks, topSeries, topActresses } =
     await getMakerInternalLinks(slug);
   const currentSort = parseWorkSortParam(sort);
+  const catalogOrder = await getCatalogOrderMap();
   const list = getPaginatedDisplayableWorkCardList(works, {
     page: parsePageParam(page),
     sort: currentSort,
+    catalogOrder,
   });
   const makerUrl = `${siteConfig.url}${getMakerDetailPath(maker.slug)}`;
 

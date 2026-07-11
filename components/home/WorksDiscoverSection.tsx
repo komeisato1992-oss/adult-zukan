@@ -7,7 +7,9 @@ import {
 
 const HOME_SORT_HREFS: Record<WorkSortKey, string> = {
   popular: "/works?sort=popular",
-  new: "/works?sort=new",
+  added: "/works?sort=added",
+  new: "/works?sort=release-desc",
+  "release-desc": "/works?sort=release-desc",
   "price-desc": "/works?sort=price_desc",
   "price-asc": "/works?sort=price_asc",
   "discount-desc": "/works?sale=1",

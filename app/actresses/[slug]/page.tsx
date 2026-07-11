@@ -14,6 +14,7 @@ import { getLimitedSlugStaticParams } from "@/lib/dmm/generate-static-params";
 import {
   getActressSummaryBySlug,
   getActressWorksBySlug,
+  getCatalogOrderMap,
 } from "@/lib/catalog";
 import { getActressDetailPath } from "@/lib/actresses/slug";
 import { buildActressPageSections } from "@/lib/dmm/actress-page";
@@ -109,9 +110,11 @@ export default async function ActressDetailPage({
         )
       : displayableWorks;
   const currentSort = parseWorkSortParam(sort);
+  const catalogOrder = await getCatalogOrderMap();
   const list = getPaginatedWorkCardList(filteredWorks, {
     page: parsePageParam(page),
     sort: currentSort,
+    catalogOrder,
   });
   const actressUrl = `${siteConfig.url}${getActressDetailPath(actress.name)}`;
 

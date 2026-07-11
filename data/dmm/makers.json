@@ -1,6 +1,6 @@
 {
-  "updatedAt": "2026-07-11T01:24:11.561Z",
-  "total": 382,
+  "updatedAt": "2026-07-11T03:34:18.468Z",
+  "total": 383,
   "items": [
     {
       "name": "1113工房/妄想族",
@@ -135,7 +135,7 @@
     {
       "name": "DOC",
       "slug": "doc",
-      "workCount": 88
+      "workCount": 89
     },
     {
       "name": "E-BODY",
@@ -225,7 +225,7 @@
     {
       "name": "Hime.STYLE",
       "slug": "hime-style",
-      "workCount": 1
+      "workCount": 2
     },
     {
       "name": "HMN WORKS",
@@ -265,7 +265,7 @@
     {
       "name": "JUKUJO99",
       "slug": "jukujo99",
-      "workCount": 20
+      "workCount": 21
     },
     {
       "name": "kawaii",
@@ -605,7 +605,7 @@
     {
       "name": "あいすまん",
       "slug": "あいすまん",
-      "workCount": 23
+      "workCount": 24
     },
     {
       "name": "アイデアポケット",
@@ -810,7 +810,7 @@
     {
       "name": "グーニーズ",
       "slug": "グーニーズ",
-      "workCount": 15
+      "workCount": 17
     },
     {
       "name": "グラフィティジャパン",
@@ -1260,7 +1260,7 @@
     {
       "name": "プラム",
       "slug": "プラム",
-      "workCount": 33
+      "workCount": 34
     },
     {
       "name": "プリモ",
@@ -1305,7 +1305,7 @@
     {
       "name": "ホットエンターテイメント",
       "slug": "ホットエンターテイメント",
-      "workCount": 27
+      "workCount": 34
     },
     {
       "name": "ボニータ/妄想族",
@@ -1475,7 +1475,7 @@
     {
       "name": "レアルワークス",
       "slug": "レアルワークス",
-      "workCount": 37
+      "workCount": 39
     },
     {
       "name": "レイディックス",
@@ -1535,12 +1535,12 @@
     {
       "name": "宇宙企画",
       "slug": "宇宙企画",
-      "workCount": 7
+      "workCount": 16
     },
     {
       "name": "俺の素人-Z- SECOND IMPACT",
       "slug": "俺の素人-z-second-impact",
-      "workCount": 20
+      "workCount": 21
     },
     {
       "name": "下半身タイガース/妄想族",
@@ -1735,7 +1735,7 @@
     {
       "name": "即ヌキ",
       "slug": "即ヌキ",
-      "workCount": 114
+      "workCount": 134
     },
     {
       "name": "即ハメちゃん",
@@ -1800,7 +1800,7 @@
     {
       "name": "桃太郎映像出版",
       "slug": "桃太郎映像出版",
-      "workCount": 172
+      "workCount": 173
     },
     {
       "name": "同人AV倶楽部/妄想族",
@@ -1831,6 +1831,11 @@
       "name": "日本橋映像EX/エマニエル",
       "slug": "日本橋映像ex-エマニエル",
       "workCount": 2
+    },
+    {
+      "name": "忍",
+      "slug": "忍",
+      "workCount": 3
     },
     {
       "name": "濡壺/妄想族",

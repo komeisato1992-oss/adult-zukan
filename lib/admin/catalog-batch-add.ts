@@ -8,9 +8,10 @@ import {
 } from "@/lib/admin/github-catalog";
 import { markImportCandidatesAdded } from "@/lib/admin/import-candidates-store";
 import {
-  buildWorkIdentityKeys,
-  keysMatchAny,
-} from "@/lib/admin/import-identity";
+  buildCatalogIdSet,
+  dedupeCatalogWorks,
+  workMatchesCatalogIds,
+} from "@/lib/dmm/catalog-dedupe";
 import { logImportBatchAdd } from "@/lib/admin/import-batch-log";
 import type { ImportWorkAddStatus } from "@/lib/admin/import-batch-job";
 import {
@@ -82,13 +83,7 @@ function prepareCatalogItem(
 }
 
 function buildCatalogKeySet(items: DmmItem[]): Set<string> {
-  const keys = new Set<string>();
-  for (const item of items) {
-    for (const key of buildWorkIdentityKeys(item).allKeys) {
-      keys.add(key);
-    }
-  }
-  return keys;
+  return buildCatalogIdSet(items);
 }
 
 function isDuplicateInCatalog(
@@ -96,10 +91,9 @@ function isDuplicateInCatalog(
   catalogKeys: Set<string>,
   batchKeys: Set<string>,
 ): boolean {
-  const identity = buildWorkIdentityKeys(item);
   return (
-    keysMatchAny(identity.allKeys, catalogKeys) ||
-    keysMatchAny(identity.allKeys, batchKeys)
+    workMatchesCatalogIds(item, catalogKeys) ||
+    workMatchesCatalogIds(item, batchKeys)
   );
 }
 
@@ -149,7 +143,7 @@ async function commitMergedCatalog(
         continue;
       }
 
-      for (const key of buildWorkIdentityKeys(item).allKeys) {
+      for (const key of buildCatalogIdSet([item])) {
         batchKeys.add(key);
       }
       uniquePrepared.push(item);
@@ -162,13 +156,13 @@ async function commitMergedCatalog(
     const preparedIds = new Set(
       uniquePrepared.map((item) => normalizeCatalogContentId(item.content_id)),
     );
-    const mergedItems = [
+    const mergedItems = dedupeCatalogWorks([
       ...uniquePrepared,
       ...items.filter(
         (item) =>
           !preparedIds.has(normalizeCatalogContentId(item.content_id)),
       ),
-    ];
+    ]).items;
 
     let indexUpdateStats: IndexUpdateStats | null = null;
     try {
@@ -247,8 +241,8 @@ export async function addWorksToCatalogInBatches(input: {
     if (!statusEntry) continue;
     statusEntry.status = "validating";
 
-    const identity = buildWorkIdentityKeys(work.item);
-    if (keysMatchAny(identity.allKeys, catalogKeys)) {
+    const identity = buildCatalogIdSet([work.item]);
+    if ([...identity].some((key) => catalogKeys.has(key))) {
       duplicateContentIds.push(normalizeCatalogContentId(work.contentId));
       statusEntry.status = "skipped_existing";
       continue;

@@ -28,6 +28,11 @@ import {
 } from "@/lib/dmm/index-builders";
 import { isValidDmmListItem } from "@/lib/dmm/filter";
 import { enrichCatalogItemMetadata } from "@/lib/dmm/catalog-metadata";
+import {
+  buildCatalogIdSet,
+  dedupeCatalogWorks,
+  workMatchesCatalogIds,
+} from "@/lib/dmm/catalog-dedupe";
 import type { DmmItem } from "@/lib/dmm/types";
 
 export type BulkAddWorksResult = {
@@ -100,7 +105,7 @@ function classifyBulkWorks(
     item: DmmItem;
     sourcePopularityRank?: number | null;
   }>,
-  existingIds: Set<string>,
+  existingCatalogIds: Set<string>,
 ): {
   preparedItems: DmmItem[];
   addedContentIds: string[];
@@ -116,19 +121,24 @@ function classifyBulkWorks(
   for (const work of works) {
     const { contentId, item } = work;
     try {
+      if (workMatchesCatalogIds(item, existingCatalogIds)) {
+        duplicateContentIds.push(normalizeCatalogContentId(contentId));
+        continue;
+      }
+
+      if (workMatchesCatalogIds(item, batchIds)) {
+        duplicateContentIds.push(normalizeCatalogContentId(contentId));
+        continue;
+      }
+
       const prepared = prepareCatalogItem(item, contentId, {
         sourcePopularityRank: work.sourcePopularityRank,
       });
 
-      if (
-        existingIds.has(prepared.content_id) ||
-        batchIds.has(prepared.content_id)
-      ) {
-        duplicateContentIds.push(prepared.content_id);
-        continue;
+      for (const key of buildCatalogIdSet([prepared])) {
+        batchIds.add(key);
       }
 
-      batchIds.add(prepared.content_id);
       preparedItems.push(prepared);
       addedContentIds.push(prepared.content_id);
     } catch (error) {
@@ -179,12 +189,10 @@ export async function previewBulkAddWorks(
   const { items } = await fetchCatalogFromGitHub();
   console.log("[bulk-add] catalog loaded", { catalogCount: items.length });
 
-  const existingIds = new Set(
-    items.map((entry) => normalizeCatalogContentId(entry.content_id)),
-  );
+  const existingCatalogIds = buildCatalogIdSet(items);
 
   const { preparedItems, duplicateContentIds, invalidContentIds } =
-    classifyBulkWorks(works, existingIds);
+    classifyBulkWorks(works, existingCatalogIds);
 
   console.log("[bulk-add] preview classified", {
     preparedCount: preparedItems.length,
@@ -222,16 +230,14 @@ export async function addWorksToCatalog(
     rebuilt,
   } = await fetchCatalogFromGitHub();
 
-  const existingIds = new Set(
-    items.map((entry) => normalizeCatalogContentId(entry.content_id)),
-  );
+  const existingCatalogIds = buildCatalogIdSet(items);
 
   const {
     preparedItems,
     addedContentIds,
     duplicateContentIds,
     invalidContentIds,
-  } = classifyBulkWorks(works, existingIds);
+  } = classifyBulkWorks(works, existingCatalogIds);
 
   let indexUpdateStats: IndexUpdateStats | null = null;
   let committedToGitHub = false;
@@ -242,12 +248,12 @@ export async function addWorksToCatalog(
     const preparedIds = new Set(
       preparedItems.map((item) => normalizeCatalogContentId(item.content_id)),
     );
-    const mergedItems = [
+    const mergedItems = dedupeCatalogWorks([
       ...preparedItems,
       ...items.filter(
         (item) => !preparedIds.has(normalizeCatalogContentId(item.content_id)),
       ),
-    ];
+    ]).items;
 
     let previousIndexes;
     let nextIndexes;

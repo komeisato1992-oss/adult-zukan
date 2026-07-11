@@ -9,6 +9,7 @@ import {
   fetchDmmCatalogFromApi,
 } from "@/lib/dmm/catalog-fetch";
 import { filterValidCatalogItems } from "@/lib/dmm/catalog-entities";
+import { dedupeWorksForDisplay } from "@/lib/dmm/catalog-dedupe";
 import {
   readCatalogSnapshot,
   writeCatalogSnapshot,
@@ -41,7 +42,7 @@ async function fetchDmmStaticWorksUncached(): Promise<DmmItem[]> {
   const snapshot = readCatalogSnapshot();
 
   if (snapshot.length >= CATALOG_MIN_VALID) {
-    const items = filterValidCatalogItems(snapshot);
+    const items = dedupeWorksForDisplay(filterValidCatalogItems(snapshot));
     const stats = analyzeCatalogItems(snapshot);
     stats.validCount = items.length;
     logBuildStatsOnce(stats, { worksListCount: items.length });
@@ -54,7 +55,7 @@ async function fetchDmmStaticWorksUncached(): Promise<DmmItem[]> {
 
     if (items.length > 0) {
       writeCatalogSnapshot(items);
-      const validItems = filterValidCatalogItems(items);
+      const validItems = dedupeWorksForDisplay(filterValidCatalogItems(items));
       stats.validCount = validItems.length;
       logBuildStatsOnce(stats, {
         worksListCount: validItems.length,
@@ -65,7 +66,7 @@ async function fetchDmmStaticWorksUncached(): Promise<DmmItem[]> {
   }
 
   if (snapshot.length > 0) {
-    const items = filterValidCatalogItems(snapshot);
+    const items = dedupeWorksForDisplay(filterValidCatalogItems(snapshot));
     const stats = analyzeCatalogItems(snapshot);
     stats.validCount = items.length;
     logBuildStatsOnce(stats, { worksListCount: items.length });

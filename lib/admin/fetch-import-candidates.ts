@@ -1,7 +1,6 @@
 import "server-only";
 
 import {
-  getExistingCatalogKeySet,
   hasCollectibleImage,
 } from "@/lib/admin/import-collect-filters";
 import { fetchCatalogFromGitHub } from "@/lib/admin/github-catalog";
@@ -24,12 +23,11 @@ import {
   IMPORT_FETCH_REQUEST_DEFAULT,
   IMPORT_FETCH_REQUEST_MAX,
 } from "@/lib/admin/import-constants";
-import {
-  buildWorkIdentityKeys,
-  keysMatchAny,
-} from "@/lib/admin/import-identity";
 import { normalizeImportContentId } from "@/lib/admin/import-candidate-mapper";
-import { normalizeWorkId } from "@/lib/admin/normalize-work-id";
+import {
+  buildCatalogIdSet,
+  workMatchesCatalogIds,
+} from "@/lib/dmm/catalog-dedupe";
 import { fetchDmmItemList, isDmmConfigured } from "@/lib/dmm/client";
 import { readCatalogSnapshot } from "@/lib/dmm/catalog-snapshot";
 import { isValidDmmListItem } from "@/lib/dmm/filter";
@@ -119,34 +117,11 @@ function parseFetchSort(value: unknown): ImportFetchSort {
   );
 }
 
-function addNormalizedIdKeys(
-  target: Set<string>,
-  item: Pick<DmmItem, "content_id" | "product_id">,
-): void {
-  const contentId = normalizeWorkId(item.content_id);
-  const productId = normalizeWorkId(item.product_id);
-
-  if (contentId) target.add(`nid:${contentId}`);
-  if (productId) target.add(`nid:${productId}`);
-}
-
-function addItemMatchKeys(target: Set<string>, item: DmmItem): void {
-  const identity = buildWorkIdentityKeys(item);
-  for (const key of identity.allKeys) {
-    target.add(key);
-  }
-  addNormalizedIdKeys(target, item);
-}
-
 async function loadCatalogKeysForFetch(): Promise<CatalogKeyLoadResult> {
   if (isGitHubCatalogConfigured()) {
     try {
       const { items } = await fetchCatalogFromGitHub();
-      const keys = new Set<string>();
-      for (const item of items) {
-        addItemMatchKeys(keys, item);
-      }
-      return { keys, catalogCount: items.length };
+      return { keys: buildCatalogIdSet(items), catalogCount: items.length };
     } catch (error) {
       console.warn(
         "[fetch-candidates] GitHub catalog read failed; falling back to local snapshot",
@@ -156,44 +131,19 @@ async function loadCatalogKeysForFetch(): Promise<CatalogKeyLoadResult> {
   }
 
   const items = readCatalogSnapshot();
-  const keys = getExistingCatalogKeySet();
-  for (const item of items) {
-    addNormalizedIdKeys(keys, item);
-  }
-
-  return { keys, catalogCount: items.length };
-}
-
-function itemMatchesKnownKeys(
-  item: DmmItem,
-  known: Set<string>,
-): boolean {
-  const identity = buildWorkIdentityKeys(item);
-  if (keysMatchAny(identity.allKeys, known)) {
-    return true;
-  }
-
-  const normalizedKeys = [
-    normalizeWorkId(item.content_id),
-    normalizeWorkId(item.product_id),
-  ]
-    .filter(Boolean)
-    .map((id) => `nid:${id}`);
-
-  return normalizedKeys.some((key) => known.has(key));
+  return { keys: buildCatalogIdSet(items), catalogCount: items.length };
 }
 
 function classifyFetchItem(
   item: DmmItem,
   context: FetchBlockContext,
 ): FetchRejectReason | null {
-  const identity = buildWorkIdentityKeys(item);
-  if (!identity.contentId && !identity.productId) return "invalid";
+  if (!item.content_id?.trim() && !item.product_id?.trim()) return "invalid";
 
-  if (itemMatchesKnownKeys(item, context.catalogKeys)) {
+  if (workMatchesCatalogIds(item, context.catalogKeys)) {
     return "catalogPublished";
   }
-  if (itemMatchesKnownKeys(item, context.batchKeys)) {
+  if (workMatchesCatalogIds(item, context.batchKeys)) {
     return "duplicate";
   }
   if (!hasCollectibleImage(item)) return "noImage";
@@ -225,7 +175,9 @@ function recordFetchExclusion(
 }
 
 function rememberBatchKeys(item: DmmItem, context: FetchBlockContext): void {
-  addItemMatchKeys(context.batchKeys, item);
+  for (const key of buildCatalogIdSet([item])) {
+    context.batchKeys.add(key);
+  }
 }
 
 function acceptFetchItem(

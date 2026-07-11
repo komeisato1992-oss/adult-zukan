@@ -15,6 +15,8 @@
     "fetch-catalog": "node scripts/fetch-catalog.mjs",
     "test:import-filters": "node scripts/test-import-candidate-filters.mjs",
     "test:import-simple": "node scripts/test-import-simple.mjs",
+    "dedupe-catalog": "node scripts/dedupe-catalog.mjs --dry-run",
+    "dedupe-catalog:apply": "node scripts/dedupe-catalog.mjs --apply",
     "test:works-sort": "node scripts/verify-works-sort.mjs"
   },
   "dependencies": {

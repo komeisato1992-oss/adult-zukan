@@ -9,7 +9,13 @@ import {
   IMPORT_FETCH_REQUEST_DEFAULT,
   IMPORT_FETCH_REQUEST_OPTIONS,
   IMPORT_PAGE_SIZE,
+  ADD_BATCH_SIZE,
 } from "@/lib/admin/import-constants";
+import {
+  chunkItems,
+  createAddProcessId,
+  plannedBatchCount,
+} from "@/lib/admin/add-batch-client";
 import { CATALOG_REFRESH_BATCH_OPTIONS } from "@/lib/admin/catalog-refresh-constants";
 import type { CatalogRefreshBatchSummary, CatalogRefreshState } from "@/lib/dmm/catalog-refresh-types";
 import type { ImportCandidateSortKey } from "@/lib/admin/import-candidate-types";
@@ -37,6 +43,35 @@ import type { DmmItem } from "@/lib/dmm/types";
 type ImportManagementClientProps = {
   configured: boolean;
   dmmConfigured: boolean;
+};
+
+type AddBatchProgress = {
+  processId: string;
+  totalSelected: number;
+  batchCount: number;
+  currentBatch: number;
+  processedCount: number;
+  status: "running" | "partial" | "done";
+  batchStatuses: Array<"pending" | "running" | "done" | "failed">;
+};
+
+type AddSelectedResponseBody = {
+  success?: boolean;
+  message?: string;
+  error?: string;
+  phase?: string;
+  details?: Record<string, unknown>;
+  addedContentIds?: string[];
+  sitemap?: SitemapPostImportResult;
+  summary?: {
+    addedCount: number;
+    catalogDuplicateCount: number;
+    selectionDuplicateCount: number;
+    invalidCount: number;
+    catalogCountAfter?: number;
+    updatedShardFiles?: string[];
+    newShardFiles?: string[];
+  };
 };
 
 const PAGE_SIZE = IMPORT_PAGE_SIZE;
@@ -132,13 +167,21 @@ export function ImportManagementClient({
   const [addSummary, setAddSummary] = useState<{
     addedCount: number;
     duplicateCount: number;
+    invalidCount: number;
     catalogCount: number | null;
     updatedShardFiles: string[];
     newShardFiles: string[];
+    batchCount: number;
+    commitCount: number;
     sitemap: SitemapPostImportResult | null;
   } | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
   const [addDebug, setAddDebug] = useState<string | null>(null);
+  const [addProgress, setAddProgress] = useState<AddBatchProgress | null>(null);
+  const [pendingResumeCandidates, setPendingResumeCandidates] = useState<
+    FetchedImportCandidate[] | null
+  >(null);
+  const activeAddProcessIdRef = useRef<string | null>(null);
   const [isFetchingCandidates, setIsFetchingCandidates] = useState(false);
   const [isAddingWorks, setIsAddingWorks] = useState(false);
   const [refreshState, setRefreshState] = useState<CatalogRefreshState | null>(
@@ -294,169 +337,385 @@ export function ImportManagementClient({
     }
   }, [requestedCount, resolveStartOffset]);
 
-  const handleAddSelected = useCallback(async () => {
-    setAddError(null);
-    setAddMessage(null);
-    setAddSummary(null);
-    setAddDebug(null);
+  const runAddBatches = useCallback(
+    async (
+      candidatesToAdd: FetchedImportCandidate[],
+      options?: { resume?: boolean },
+    ) => {
+      const processId = createAddProcessId();
+      if (activeAddProcessIdRef.current) {
+        setAddError("追加処理が既に実行中です。完了するまでお待ちください。");
+        return;
+      }
 
+      activeAddProcessIdRef.current = processId;
+      setAddError(null);
+      setAddMessage(null);
+      setAddSummary(null);
+      setAddDebug(null);
+      setPendingResumeCandidates(null);
+
+      const totalSelected = candidatesToAdd.length;
+      const batches = chunkItems(candidatesToAdd, ADD_BATCH_SIZE);
+      const batchCount = batches.length;
+
+      if (totalSelected === 0) {
+        activeAddProcessIdRef.current = null;
+        setAddError("追加する作品が選択されていません。");
+        return;
+      }
+
+      setIsAddingWorks(true);
+      setAddProgress({
+        processId,
+        totalSelected,
+        batchCount,
+        currentBatch: 0,
+        processedCount: 0,
+        status: "running",
+        batchStatuses: batches.map(() => "pending"),
+      });
+
+      let addedCount = 0;
+      let catalogDuplicateCount = 0;
+      let selectionDuplicateCount = 0;
+      let invalidCount = 0;
+      let catalogCountAfter: number | null = null;
+      const updatedShardFiles = new Set<string>();
+      const newShardFiles = new Set<string>();
+      const allAddedIds: string[] = [];
+      let commitCount = 0;
+      let failedBatchIndex: number | null = null;
+      let remainingCandidates: FetchedImportCandidate[] = [];
+
+      try {
+        for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
+          if (activeAddProcessIdRef.current !== processId) {
+            break;
+          }
+
+          const batch = batches[batchIndex];
+          setAddProgress((current) => {
+            if (!current || current.processId !== processId) return current;
+            const batchStatuses = [...current.batchStatuses];
+            batchStatuses[batchIndex] = "running";
+            return {
+              ...current,
+              currentBatch: batchIndex + 1,
+              batchStatuses,
+            };
+          });
+
+          const payload = {
+            ...buildAddSelectedWorksPayload(batch),
+            updateSitemap: false,
+            processId,
+            batchIndex: batchIndex + 1,
+            batchCount,
+          };
+
+          console.log("[add-selected] batch request", {
+            processId,
+            batchIndex: batchIndex + 1,
+            batchCount,
+            workCount: payload.works.length,
+            payloadBytes: JSON.stringify(payload).length,
+          });
+
+          const response = await fetch("/api/admin/import/add-selected-works", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+          const responseText = await response.text();
+
+          let parsedBody: AddSelectedResponseBody | null = null;
+          if (responseText.trim()) {
+            try {
+              parsedBody = JSON.parse(responseText) as AddSelectedResponseBody;
+            } catch (parseError) {
+              console.error("[add-selected] json parse failed", parseError);
+            }
+          }
+
+          const requestFailed =
+            !response.ok ||
+            (parsedBody !== null && parsedBody.success === false);
+
+          if (requestFailed) {
+            failedBatchIndex = batchIndex;
+            remainingCandidates = batches
+              .slice(batchIndex)
+              .flatMap((entries) => entries);
+
+            const phase = parsedBody?.phase ?? "unknown";
+            const details = parsedBody?.details;
+            setAddDebug(
+              [
+                `処理段階：${phase}`,
+                details?.status ? `HTTP：${String(details.status)}` : null,
+                details?.githubMessage
+                  ? `GitHub：${String(details.githubMessage)}`
+                  : null,
+                `失敗バッチ：${batchIndex + 1} / ${batchCount}`,
+                details?.elapsedMs
+                  ? `処理時間：${String(details.elapsedMs)}ms`
+                  : null,
+                details?.payloadByteLength
+                  ? `request payload：${String(details.payloadByteLength)} bytes`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join("\n"),
+            );
+
+            setAddProgress((current) => {
+              if (!current || current.processId !== processId) return current;
+              const batchStatuses = [...current.batchStatuses];
+              batchStatuses[batchIndex] = "failed";
+              return {
+                ...current,
+                status: "partial",
+                batchStatuses,
+                processedCount: Math.min(
+                  totalSelected,
+                  batchIndex * ADD_BATCH_SIZE,
+                ),
+              };
+            });
+
+            break;
+          }
+
+          if (!parsedBody?.summary) {
+            failedBatchIndex = batchIndex;
+            remainingCandidates = batches
+              .slice(batchIndex)
+              .flatMap((entries) => entries);
+            setAddDebug("サーバーから空の応答が返されました。");
+            setAddProgress((current) => {
+              if (!current || current.processId !== processId) return current;
+              const batchStatuses = [...current.batchStatuses];
+              batchStatuses[batchIndex] = "failed";
+              return { ...current, status: "partial", batchStatuses };
+            });
+            break;
+          }
+
+          addedCount += parsedBody.summary.addedCount;
+          catalogDuplicateCount += parsedBody.summary.catalogDuplicateCount;
+          selectionDuplicateCount +=
+            parsedBody.summary.selectionDuplicateCount;
+          invalidCount += parsedBody.summary.invalidCount;
+          if (typeof parsedBody.summary.catalogCountAfter === "number") {
+            catalogCountAfter = parsedBody.summary.catalogCountAfter;
+          }
+          for (const file of parsedBody.summary.updatedShardFiles ?? []) {
+            updatedShardFiles.add(file);
+          }
+          for (const file of parsedBody.summary.newShardFiles ?? []) {
+            newShardFiles.add(file);
+          }
+          if ((parsedBody.summary.addedCount ?? 0) > 0) {
+            commitCount += 1;
+          }
+          if (parsedBody.addedContentIds?.length) {
+            allAddedIds.push(...parsedBody.addedContentIds);
+          }
+
+          setAddProgress((current) => {
+            if (!current || current.processId !== processId) return current;
+            const batchStatuses = [...current.batchStatuses];
+            batchStatuses[batchIndex] = "done";
+            return {
+              ...current,
+              batchStatuses,
+              processedCount: Math.min(
+                totalSelected,
+                (batchIndex + 1) * ADD_BATCH_SIZE,
+              ),
+            };
+          });
+        }
+
+        if (allAddedIds.length > 0) {
+          const addedIdSet = new Set(
+            allAddedIds.map((id) => id.toLowerCase()),
+          );
+          setCandidates((current) =>
+            current.filter(
+              (candidate) =>
+                !addedIdSet.has(
+                  getCandidateSelectionId(candidate).toLowerCase(),
+                ),
+            ),
+          );
+          setSelectedIds((current) => {
+            const next = new Set(current);
+            for (const id of addedIdSet) next.delete(id);
+            return next;
+          });
+        }
+
+        let sitemap: SitemapPostImportResult | null = null;
+        if (addedCount > 0 && failedBatchIndex == null) {
+          try {
+            const sitemapResponse = await fetch(
+              "/api/admin/import/post-add-sitemap",
+              { method: "POST" },
+            );
+            const sitemapBody = await sitemapResponse.json();
+            if (sitemapResponse.ok && sitemapBody.sitemap) {
+              sitemap = sitemapBody.sitemap as SitemapPostImportResult;
+            } else {
+              sitemap = {
+                sitemapUpdated: false,
+                sitemapError:
+                  sitemapBody.error ??
+                  "サイトマップ更新に失敗しました。SEO管理画面から再実行してください。",
+                googleSubmission: {
+                  submitted: false,
+                  skipped: true,
+                  reason: "sitemap-update-failed",
+                },
+              };
+            }
+          } catch (sitemapError) {
+            sitemap = {
+              sitemapUpdated: false,
+              sitemapError:
+                sitemapError instanceof Error
+                  ? sitemapError.message
+                  : "サイトマップ更新に失敗しました。",
+              googleSubmission: {
+                submitted: false,
+                skipped: true,
+                reason: "sitemap-update-failed",
+              },
+            };
+          }
+        } else if (addedCount > 0 && failedBatchIndex != null) {
+          // 一部成功時も成功分だけ sitemap を1回更新
+          try {
+            const sitemapResponse = await fetch(
+              "/api/admin/import/post-add-sitemap",
+              { method: "POST" },
+            );
+            const sitemapBody = await sitemapResponse.json();
+            if (sitemapResponse.ok && sitemapBody.sitemap) {
+              sitemap = sitemapBody.sitemap as SitemapPostImportResult;
+            }
+          } catch {
+            // keep null; partial message below explains resume
+          }
+        }
+
+        const duplicateCount =
+          catalogDuplicateCount + selectionDuplicateCount;
+
+        if (failedBatchIndex != null) {
+          setPendingResumeCandidates(remainingCandidates);
+          setAddError(
+            [
+              `${totalSelected}件の一括追加に失敗しました。`,
+              `${addedCount.toLocaleString()}件は追加済みです。`,
+              `残り${remainingCandidates.length.toLocaleString()}件から再開できます。`,
+            ].join("\n"),
+          );
+          setAddMessage("一部追加に成功しました。");
+          setAddSummary({
+            addedCount,
+            duplicateCount,
+            invalidCount,
+            catalogCount: catalogCountAfter,
+            updatedShardFiles: [...updatedShardFiles],
+            newShardFiles: [...newShardFiles],
+            batchCount,
+            commitCount,
+            sitemap,
+          });
+          setAddProgress((current) =>
+            current && current.processId === processId
+              ? { ...current, status: "partial" }
+              : current,
+          );
+          return;
+        }
+
+        setAddProgress((current) =>
+          current && current.processId === processId
+            ? {
+                ...current,
+                status: "done",
+                processedCount: totalSelected,
+              }
+            : current,
+        );
+
+        const messageLines = [
+          options?.resume
+            ? "残り作品の追加が完了しました。"
+            : `${addedCount.toLocaleString()}件を追加しました。`,
+          `選択：${totalSelected.toLocaleString()}件`,
+          `追加成功：${addedCount.toLocaleString()}件`,
+          `掲載済み：${catalogDuplicateCount.toLocaleString()}件`,
+          selectionDuplicateCount > 0
+            ? `重複：${selectionDuplicateCount.toLocaleString()}件`
+            : null,
+          `無効：${invalidCount.toLocaleString()}件`,
+          `処理バッチ：${batchCount}回`,
+          `GitHub commit：${commitCount}回`,
+          catalogCountAfter != null
+            ? `現在の総作品数：${catalogCountAfter.toLocaleString()}件`
+            : null,
+        ].filter(Boolean);
+
+        setAddMessage(messageLines.join("\n"));
+        setAddSummary({
+          addedCount,
+          duplicateCount,
+          invalidCount,
+          catalogCount: catalogCountAfter,
+          updatedShardFiles: [...updatedShardFiles],
+          newShardFiles: [...newShardFiles],
+          batchCount,
+          commitCount,
+          sitemap,
+        });
+      } catch (error) {
+        console.error("[add-selected] failed", {
+          error,
+          stack: error instanceof Error ? error.stack : undefined,
+        });
+        setAddError(
+          error instanceof Error
+            ? error.message
+            : "カタログの更新に失敗しました。追加は確定していません。",
+        );
+      } finally {
+        if (activeAddProcessIdRef.current === processId) {
+          activeAddProcessIdRef.current = null;
+        }
+        setIsAddingWorks(false);
+      }
+    },
+    [],
+  );
+
+  const handleAddSelected = useCallback(async () => {
     const selectedCandidates = candidates.filter((candidate) =>
       selectedIds.has(getCandidateSelectionId(candidate)),
     );
+    await runAddBatches(selectedCandidates);
+  }, [candidates, selectedIds, runAddBatches]);
 
-    console.log("[add-selected] start", {
-      selectedCount: selectedIds.size,
-      candidateCount: candidates.length,
-      sendingCount: selectedCandidates.length,
-    });
-
-    if (selectedCandidates.length === 0) {
-      setAddError("追加する作品が選択されていません。");
+  const handleResumeAdd = useCallback(async () => {
+    if (!pendingResumeCandidates || pendingResumeCandidates.length === 0) {
+      setAddError("再開できる未処理作品がありません。");
       return;
     }
-
-    setIsAddingWorks(true);
-
-    try {
-      const payload = buildAddSelectedWorksPayload(selectedCandidates);
-
-      console.log("[add-selected] payload built", {
-        workCount: payload.works.length,
-        payloadSize: JSON.stringify(payload).length,
-      });
-
-      console.log("[add-selected] request start");
-
-      const response = await fetch("/api/admin/import/add-selected-works", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const responseText = await response.text();
-
-      console.log("[add-selected] response", {
-        status: response.status,
-        statusText: response.statusText,
-      });
-      console.log("[add-selected] response body", responseText);
-
-      type AddSelectedResponseBody = {
-        success?: boolean;
-        message?: string;
-        error?: string;
-        phase?: string;
-        details?: Record<string, unknown>;
-        addedContentIds?: string[];
-        sitemap?: SitemapPostImportResult;
-        summary?: {
-          addedCount: number;
-          catalogDuplicateCount: number;
-          selectionDuplicateCount: number;
-          invalidCount: number;
-          catalogCountAfter?: number;
-          updatedShardFiles?: string[];
-          newShardFiles?: string[];
-        };
-      };
-
-      let parsedBody: AddSelectedResponseBody | null = null;
-
-      if (responseText.trim()) {
-        try {
-          parsedBody = JSON.parse(responseText) as AddSelectedResponseBody;
-        } catch (parseError) {
-          console.error("[add-selected] json parse failed", parseError);
-        }
-      }
-
-      const requestFailed =
-        !response.ok || (parsedBody !== null && parsedBody.success === false);
-
-      if (requestFailed) {
-        const phase = parsedBody?.phase ?? "unknown";
-        const details = parsedBody?.details;
-        const debugLine = [
-          `処理段階：${phase}`,
-          details?.status ? `HTTP：${String(details.status)}` : null,
-          details?.githubMessage
-            ? `GitHub：${String(details.githubMessage)}`
-            : null,
-          details?.elapsedMs
-            ? `処理時間：${String(details.elapsedMs)}ms`
-            : null,
-          details?.payloadByteLength
-            ? `payload：${String(details.payloadByteLength)} bytes`
-            : null,
-        ]
-          .filter(Boolean)
-          .join("\n");
-
-        setAddDebug(debugLine || responseText.slice(0, 2000));
-
-        throw new Error(
-          parsedBody?.message ??
-            parsedBody?.error ??
-            `カタログの更新に失敗しました（HTTP ${response.status}）。追加は確定していません。`,
-        );
-      }
-
-      if (!parsedBody) {
-        throw new Error("サーバーから空の応答が返されました。");
-      }
-
-      setAddMessage(parsedBody.message ?? "追加が完了しました。");
-
-      if (parsedBody.summary) {
-        const duplicateCount =
-          parsedBody.summary.catalogDuplicateCount +
-          parsedBody.summary.selectionDuplicateCount;
-        setAddSummary({
-          addedCount: parsedBody.summary.addedCount,
-          duplicateCount,
-          catalogCount:
-            typeof parsedBody.summary.catalogCountAfter === "number"
-              ? parsedBody.summary.catalogCountAfter
-              : null,
-          updatedShardFiles: parsedBody.summary.updatedShardFiles ?? [],
-          newShardFiles: parsedBody.summary.newShardFiles ?? [],
-          sitemap: parsedBody.sitemap ?? null,
-        });
-      }
-
-      if (parsedBody.addedContentIds && parsedBody.addedContentIds.length > 0) {
-        const addedIdSet = new Set(
-          parsedBody.addedContentIds.map((id) => id.toLowerCase()),
-        );
-
-        setCandidates((current) =>
-          current.filter(
-            (candidate) =>
-              !addedIdSet.has(getCandidateSelectionId(candidate).toLowerCase()),
-          ),
-        );
-        setSelectedIds((current) => {
-          const next = new Set(current);
-          for (const id of addedIdSet) {
-            next.delete(id);
-          }
-          return next;
-        });
-      }
-    } catch (error) {
-      console.error("[add-selected] failed", {
-        error,
-        stack: error instanceof Error ? error.stack : undefined,
-      });
-      setAddError(
-        error instanceof Error
-          ? error.message
-          : "カタログの更新に失敗しました。追加は確定していません。",
-      );
-    } finally {
-      setIsAddingWorks(false);
-    }
-  }, [candidates, selectedIds]);
+    await runAddBatches(pendingResumeCandidates, { resume: true });
+  }, [pendingResumeCandidates, runAddBatches]);
 
   const handleRefreshWorks = useCallback(async () => {
     setRefreshError(null);
@@ -659,6 +918,7 @@ export function ImportManagementClient({
               value={startOffsetInput}
               onChange={(event) => setStartOffsetInput(event.target.value)}
               placeholder={String(readStoredOffset("popular") ?? 0)}
+              disabled={isAddingWorks}
             />
           </label>
           <label className="block text-sm">
@@ -669,6 +929,7 @@ export function ImportManagementClient({
               onChange={(event) =>
                 setRequestedCount(Number(event.target.value))
               }
+              disabled={isAddingWorks}
             >
               {IMPORT_FETCH_REQUEST_OPTIONS.map((count) => (
                 <option key={count} value={count}>
@@ -682,21 +943,23 @@ export function ImportManagementClient({
           <button
             type="button"
             onClick={applyNextOffsetToInput}
-            className="rounded-lg border border-border px-3 py-1.5 text-xs"
+            disabled={isAddingWorks}
+            className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
           >
             次回offsetを入力
           </button>
           <button
             type="button"
             onClick={resetOffsetToZero}
-            className="rounded-lg border border-border px-3 py-1.5 text-xs"
+            disabled={isAddingWorks}
+            className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
           >
             0に戻す
           </button>
           <button
             type="button"
             onClick={restorePreviousOffset}
-            disabled={previousOffset == null}
+            disabled={isAddingWorks || previousOffset == null}
             className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
           >
             前回offsetに戻す
@@ -792,11 +1055,17 @@ export function ImportManagementClient({
           {pageCandidates.length.toLocaleString()}件 / 選択中：
           {selectedCount.toLocaleString()}件
         </p>
+        {selectedCount > 0 ? (
+          <p className="mt-2 text-sm text-foreground">
+            {ADD_BATCH_SIZE}件ずつ安全に追加します / 予定バッチ数：
+            {plannedBatchCount(selectedCount)}回
+          </p>
+        ) : null}
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             type="button"
             onClick={selectPage}
-            disabled={pageCandidates.length === 0}
+            disabled={isAddingWorks || pageCandidates.length === 0}
             className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
           >
             このページを選択
@@ -804,7 +1073,7 @@ export function ImportManagementClient({
           <button
             type="button"
             onClick={selectAllCandidates}
-            disabled={candidates.length === 0}
+            disabled={isAddingWorks || candidates.length === 0}
             className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
           >
             全候補を選択
@@ -812,7 +1081,7 @@ export function ImportManagementClient({
           <button
             type="button"
             onClick={clearSelection}
-            disabled={selectedCount === 0}
+            disabled={isAddingWorks || selectedCount === 0}
             className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
           >
             選択解除
@@ -820,7 +1089,7 @@ export function ImportManagementClient({
           <button
             type="button"
             onClick={() => selectByPredicate(candidateHasImage)}
-            disabled={candidates.length === 0}
+            disabled={isAddingWorks || candidates.length === 0}
             className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
           >
             画像ありだけ選択
@@ -828,7 +1097,7 @@ export function ImportManagementClient({
           <button
             type="button"
             onClick={() => selectByPredicate(candidateHasActress)}
-            disabled={candidates.length === 0}
+            disabled={isAddingWorks || candidates.length === 0}
             className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
           >
             女優ありだけ選択
@@ -836,7 +1105,7 @@ export function ImportManagementClient({
           <button
             type="button"
             onClick={() => selectByPredicate(candidateHasPrice)}
-            disabled={candidates.length === 0}
+            disabled={isAddingWorks || candidates.length === 0}
             className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
           >
             価格ありだけ選択
@@ -850,6 +1119,51 @@ export function ImportManagementClient({
         >
           {isAddingWorks ? "追加中..." : "選択した作品を追加"}
         </button>
+
+        {addProgress && addProgress.status === "running" ? (
+          <div className="mt-4 rounded-lg border border-border bg-surface p-3 text-sm">
+            <p className="font-medium">
+              {addProgress.totalSelected.toLocaleString()}件を追加中
+            </p>
+            <p className="mt-1 text-muted">
+              バッチ {addProgress.currentBatch} / {addProgress.batchCount}
+              {" ・ "}
+              {addProgress.processedCount.toLocaleString()} /{" "}
+              {addProgress.totalSelected.toLocaleString()}件処理済み
+              {" ・ "}
+              {Math.round(
+                (addProgress.processedCount / addProgress.totalSelected) * 100,
+              )}
+              %
+            </p>
+            <div className="mt-2 h-2 overflow-hidden rounded bg-white">
+              <div
+                className="h-full bg-accent transition-all"
+                style={{
+                  width: `${Math.round(
+                    (addProgress.processedCount / addProgress.totalSelected) *
+                      100,
+                  )}%`,
+                }}
+              />
+            </div>
+            <ul className="mt-3 space-y-1 text-xs text-muted">
+              {addProgress.batchStatuses.map((status, index) => (
+                <li key={`batch-${index + 1}`}>
+                  バッチ{index + 1}：
+                  {status === "done"
+                    ? "完了"
+                    : status === "running"
+                      ? "処理中"
+                      : status === "failed"
+                        ? "失敗"
+                        : "待機"}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+
         {addMessage ? (
           <div className="mt-3 space-y-3">
             <p className="whitespace-pre-line text-sm text-green-700">
@@ -865,10 +1179,24 @@ export function ImportManagementClient({
                     </dd>
                   </div>
                   <div>
-                    <dt className="text-green-800">重複除外</dt>
+                    <dt className="text-green-800">掲載済み・重複</dt>
                     <dd className="font-medium">
                       {addSummary.duplicateCount.toLocaleString()}件
                     </dd>
+                  </div>
+                  <div>
+                    <dt className="text-green-800">無効</dt>
+                    <dd className="font-medium">
+                      {addSummary.invalidCount.toLocaleString()}件
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-green-800">処理バッチ</dt>
+                    <dd className="font-medium">{addSummary.batchCount}回</dd>
+                  </div>
+                  <div>
+                    <dt className="text-green-800">GitHub commit</dt>
+                    <dd className="font-medium">{addSummary.commitCount}回</dd>
                   </div>
                   {addSummary.catalogCount != null ? (
                     <div>
@@ -931,16 +1259,37 @@ export function ImportManagementClient({
           </div>
         ) : null}
         {addError ? (
-          <p className="mt-3 text-sm text-red-600">{addError}</p>
+          <div className="mt-3 space-y-2">
+            <p className="whitespace-pre-line text-sm text-red-600">{addError}</p>
+            {pendingResumeCandidates && pendingResumeCandidates.length > 0 ? (
+              <button
+                type="button"
+                onClick={handleResumeAdd}
+                disabled={isAddingWorks}
+                className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+              >
+                残り{pendingResumeCandidates.length.toLocaleString()}件を再開
+              </button>
+            ) : null}
+          </div>
         ) : null}
         {addDebug ? (
-          <pre className="mt-2 whitespace-pre-wrap rounded-lg bg-surface p-3 text-xs text-muted">
-            {addDebug}
-          </pre>
+          <details className="mt-2">
+            <summary className="cursor-pointer text-xs text-muted">
+              開発者詳細
+            </summary>
+            <pre className="mt-2 whitespace-pre-wrap rounded-lg bg-surface p-3 text-xs text-muted">
+              {addDebug}
+            </pre>
+          </details>
         ) : null}
       </section>
 
-      <section className="rounded-xl border border-border bg-white p-4 shadow-sm">
+      <section
+        className={`rounded-xl border border-border bg-white p-4 shadow-sm ${
+          isAddingWorks ? "pointer-events-none opacity-50" : ""
+        }`}
+      >
         <h2 className="text-sm font-bold text-foreground">④ フィルター・並び替え</h2>
         <div className="mt-4 space-y-4">
           <ImportFilterBar

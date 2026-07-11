@@ -3,11 +3,16 @@ import "server-only";
 import {
   commitCatalogShardAppendToGitHub,
   fetchCatalogShardsFromGitHub,
+  type CommitCatalogShardsResult,
 } from "@/lib/admin/github-catalog-shards";
 import { GitHubCatalogError } from "@/lib/admin/github-catalog";
 import { getGitHubConfig } from "@/lib/admin/github-config";
 import { normalizeImportContentId } from "@/lib/admin/import-candidate-mapper";
-import { IMPORT_SIMPLE_ADD_MAX_RETRIES } from "@/lib/admin/import-constants";
+import {
+  ADD_API_MAX_WORKS,
+  ADD_BATCH_MIN_SIZE,
+  IMPORT_SIMPLE_ADD_MAX_RETRIES,
+} from "@/lib/admin/import-constants";
 import {
   AddSelectedWorksFailure,
   type AddSelectedWorksErrorDetails,
@@ -23,13 +28,7 @@ import type {
 } from "@/lib/admin/import-simple-types";
 import { normalizeCatalogContentId } from "@/lib/dmm/catalog-snapshot";
 import { logCatalogSnapshotThrownError } from "@/lib/dmm/catalog-snapshot-json";
-import {
-  formatIndexUpdateStats,
-  IndexRebuildError,
-  rebuildAllIndexes,
-  serializeCatalogIndexes,
-  type IndexUpdateStats,
-} from "@/lib/dmm/index-builders";
+import type { IndexUpdateStats } from "@/lib/dmm/index-builders";
 import { isValidDmmListItem } from "@/lib/dmm/filter";
 import { enrichCatalogItemMetadata } from "@/lib/dmm/catalog-metadata";
 import {
@@ -38,6 +37,8 @@ import {
   getAllCatalogWorks,
   getCatalogManifest,
   getCatalogShard,
+  serializeCatalogShardJson,
+  shardRelativePath,
   writeCatalogShardsLocally,
   type CatalogManifest,
 } from "@/lib/dmm/catalog-shards";
@@ -53,6 +54,11 @@ export class AddSelectedWorksError extends Error {
   }
 }
 
+export type AddSelectedWorksOptions = {
+  /** バッチ処理時は false。サイトマップはクライアントが最後に1回呼ぶ */
+  updateSitemap?: boolean;
+};
+
 export type AddSelectedWorksResult = {
   summary: AddSelectedWorksSummary;
   addedContentIds: string[];
@@ -60,6 +66,22 @@ export type AddSelectedWorksResult = {
   committedToGitHub: boolean;
   message: string;
   sitemap?: import("@/lib/admin/seo-types").SitemapPostImportResult;
+};
+
+type CatalogState = {
+  manifest: CatalogManifest;
+  items: DmmItem[];
+  catalogKeys: Set<string>;
+  lastShardWorks: DmmItem[];
+};
+
+type ShardCommitOutcome = {
+  addedContentIds: string[];
+  catalogCountAfter: number;
+  updatedShardFiles: string[];
+  newShardFiles: string[];
+  committedToGitHub: boolean;
+  commitCount: number;
 };
 
 function logPhase(
@@ -82,6 +104,13 @@ function fail(
     details,
   });
   throw new AddSelectedWorksFailure(phase, message, status, details);
+}
+
+function isGithubPayloadTooLarge(error: unknown): boolean {
+  if (!(error instanceof GitHubCatalogError)) return false;
+  if (error.status !== 422) return false;
+  const message = `${error.githubMessage ?? ""} ${error.message}`.toLowerCase();
+  return message.includes("too large");
 }
 
 function prepareCatalogItem(
@@ -148,19 +177,27 @@ function parseWorkEntries(entries: unknown): AddSelectedWorkInput[] {
   });
 }
 
-export function parseAddSelectedWorksRequest(body: unknown): AddSelectedWorkInput[] {
+export function parseAddSelectedWorksRequest(body: unknown): {
+  works: AddSelectedWorkInput[];
+  updateSitemap: boolean;
+} {
   if (!body || typeof body !== "object") {
     throw new AddSelectedWorksError("リクエスト形式が不正です。");
   }
 
-  const payload = body as { works?: unknown };
+  const payload = body as { works?: unknown; updateSitemap?: unknown };
   const works = parseWorkEntries(payload.works);
 
-  if (works.length > 500) {
-    throw new AddSelectedWorksError("1回で追加できるのは500件までです。");
+  if (works.length > ADD_API_MAX_WORKS) {
+    throw new AddSelectedWorksError(
+      `1回のAPIで追加できるのは${ADD_API_MAX_WORKS}件までです。クライアント側で分割してください。`,
+    );
   }
 
-  return works;
+  return {
+    works,
+    updateSitemap: payload.updateSitemap === true,
+  };
 }
 
 function classifySelectedWorks(
@@ -231,11 +268,10 @@ function buildCommitMessage(addedCount: number): string {
 
 function buildResultMessage(input: {
   summary: AddSelectedWorksSummary;
-  indexUpdateStats: IndexUpdateStats | null;
   committedToGitHub: boolean;
   sitemap?: AddSelectedWorksResult["sitemap"];
 }): string {
-  const { summary, indexUpdateStats, committedToGitHub, sitemap } = input;
+  const { summary, committedToGitHub, sitemap } = input;
 
   if (summary.addedCount === 0) {
     if (
@@ -261,9 +297,7 @@ function buildResultMessage(input: {
   }
 
   const lines = [
-    summary.retried
-      ? "最新カタログと再照合して追加しました。"
-      : `${summary.addedCount}件を追加しました。`,
+    `${summary.addedCount}件を追加しました。`,
     `受信：${summary.selectedCount}件`,
     `掲載済み除外：${summary.catalogDuplicateCount}件`,
     summary.selectionDuplicateCount > 0
@@ -284,10 +318,6 @@ function buildResultMessage(input: {
 
   if (committedToGitHub || summary.githubCommitSucceeded) {
     lines.push("GitHub commit：成功");
-  }
-
-  if (indexUpdateStats && committedToGitHub) {
-    lines.push("", formatIndexUpdateStats(indexUpdateStats));
   }
 
   if (sitemap) {
@@ -311,29 +341,12 @@ function buildResultMessage(input: {
   return lines.join("\n");
 }
 
-function buildSimplifiedIndexStats(addedCount: number): IndexUpdateStats {
-  return {
-    actressesAdded: addedCount,
-    makersAdded: addedCount,
-    labelsAdded: addedCount,
-    seriesAdded: addedCount,
-    genresAdded: addedCount,
-    searchIndexUpdated: true,
-    rankingUpdated: true,
-  };
-}
-
 function shouldWriteLocally(): boolean {
   if (process.env.CATALOG_ADD_LOCAL === "1") return true;
   return !getGitHubConfig();
 }
 
-function loadLocalCatalogState(): {
-  manifest: CatalogManifest;
-  items: DmmItem[];
-  catalogKeys: Set<string>;
-  lastShardWorks: DmmItem[];
-} {
+function loadLocalCatalogState(): CatalogState {
   const manifest = getCatalogManifest();
   if (!manifest) {
     throw new AddSelectedWorksError(
@@ -354,37 +367,205 @@ function loadLocalCatalogState(): {
   };
 }
 
+async function loadCatalogState(localMode: boolean): Promise<CatalogState> {
+  return localMode
+    ? loadLocalCatalogState()
+    : await fetchCatalogShardsFromGitHub();
+}
+
+function logCatalogBlobPlan(input: {
+  selectedCount: number;
+  validAddCount: number;
+  catalogCountBefore: number;
+  catalogCountAfter: number;
+  files: Array<{ path: string; bytes: number }>;
+}): void {
+  console.log("[catalog-blob]", {
+    selectedCount: input.selectedCount,
+    validAddCount: input.validAddCount,
+    catalogCountBefore: input.catalogCountBefore,
+    catalogCountAfter: input.catalogCountAfter,
+    files: input.files,
+    maxBlobBytes: Math.max(0, ...input.files.map((file) => file.bytes)),
+    note: "request payload bytes are logged separately by the route; these are GitHub blob sizes",
+  });
+}
+
+async function commitPreparedItemsOnce(input: {
+  itemsToAdd: DmmItem[];
+  localMode: boolean;
+  selectedCount: number;
+}): Promise<ShardCommitOutcome> {
+  const preCommitState = await loadCatalogState(input.localMode);
+  const itemsToAdd = input.itemsToAdd.filter(
+    (item) => !workMatchesCatalogIds(item, preCommitState.catalogKeys),
+  );
+
+  if (itemsToAdd.length === 0) {
+    return {
+      addedContentIds: [],
+      catalogCountAfter: preCommitState.manifest.totalCount,
+      updatedShardFiles: [],
+      newShardFiles: [],
+      committedToGitHub: false,
+      commitCount: 0,
+    };
+  }
+
+  const append = appendWorksToCatalogShards(
+    preCommitState.manifest,
+    preCommitState.lastShardWorks,
+    itemsToAdd,
+  );
+
+  const filePlans = [
+    {
+      path: "data/dmm/catalog/manifest.json",
+      bytes: Buffer.byteLength(
+        serializeCatalogShardJson(append.manifest),
+        "utf8",
+      ),
+    },
+    ...append.changedShards.map((shard) => ({
+      path: shardRelativePath(shard.file),
+      bytes: Buffer.byteLength(serializeCatalogShardJson(shard.works), "utf8"),
+    })),
+  ];
+
+  logCatalogBlobPlan({
+    selectedCount: input.selectedCount,
+    validAddCount: itemsToAdd.length,
+    catalogCountBefore: preCommitState.manifest.totalCount,
+    catalogCountAfter: append.manifest.totalCount,
+    files: filePlans,
+  });
+
+  if (input.localMode) {
+    writeCatalogShardsLocally(
+      append.manifest,
+      append.changedShards.map((shard) => ({
+        file: shard.file,
+        works: shard.works,
+      })),
+    );
+    clearCatalogShardCache();
+    return {
+      addedContentIds: itemsToAdd.map((item) => item.content_id),
+      catalogCountAfter: append.manifest.totalCount,
+      updatedShardFiles: append.updatedShardFiles,
+      newShardFiles: append.newShardFiles,
+      committedToGitHub: false,
+      commitCount: 1,
+    };
+  }
+
+  const commitResult: CommitCatalogShardsResult =
+    await commitCatalogShardAppendToGitHub({
+      manifest: preCommitState.manifest,
+      lastShardWorks: preCommitState.lastShardWorks,
+      newWorks: itemsToAdd,
+      commitLabel: buildCommitMessage(itemsToAdd.length),
+      // 変更 shard + manifest のみ。巨大 index は書かない
+      indexFiles: [],
+    });
+
+  clearCatalogShardCache();
+
+  return {
+    addedContentIds: itemsToAdd.map((item) => item.content_id),
+    catalogCountAfter: commitResult.totalCount,
+    updatedShardFiles: commitResult.append.updatedShardFiles,
+    newShardFiles: commitResult.append.newShardFiles,
+    committedToGitHub: true,
+    commitCount: 1,
+  };
+}
+
+async function commitPreparedItemsAdaptive(input: {
+  itemsToAdd: DmmItem[];
+  localMode: boolean;
+  selectedCount: number;
+}): Promise<ShardCommitOutcome> {
+  try {
+    return await commitPreparedItemsOnce(input);
+  } catch (error) {
+    if (
+      !input.localMode &&
+      isGithubPayloadTooLarge(error) &&
+      input.itemsToAdd.length > ADD_BATCH_MIN_SIZE
+    ) {
+      const middle = Math.ceil(input.itemsToAdd.length / 2);
+      console.warn("[add-selected-api] adaptive split after 422", {
+        from: input.itemsToAdd.length,
+        first: middle,
+        second: input.itemsToAdd.length - middle,
+      });
+
+      const first = await commitPreparedItemsAdaptive({
+        itemsToAdd: input.itemsToAdd.slice(0, middle),
+        localMode: input.localMode,
+        selectedCount: input.selectedCount,
+      });
+      const second = await commitPreparedItemsAdaptive({
+        itemsToAdd: input.itemsToAdd.slice(middle),
+        localMode: input.localMode,
+        selectedCount: input.selectedCount,
+      });
+
+      return {
+        addedContentIds: [...first.addedContentIds, ...second.addedContentIds],
+        catalogCountAfter: second.catalogCountAfter || first.catalogCountAfter,
+        updatedShardFiles: [
+          ...new Set([...first.updatedShardFiles, ...second.updatedShardFiles]),
+        ],
+        newShardFiles: [
+          ...new Set([...first.newShardFiles, ...second.newShardFiles]),
+        ],
+        committedToGitHub:
+          first.committedToGitHub || second.committedToGitHub,
+        commitCount: first.commitCount + second.commitCount,
+      };
+    }
+
+    throw error;
+  }
+}
+
 export async function addSelectedWorksToCatalog(
   works: AddSelectedWorkInput[],
+  options: AddSelectedWorksOptions = {},
 ): Promise<AddSelectedWorksResult> {
   const startedAt = Date.now();
   const selectedCount = works.length;
+  const updateSitemap = options.updateSitemap === true;
   let retryCount = 0;
   let retried = false;
   const localMode = shouldWriteLocally();
 
-  logPhase("received", { receivedCount: selectedCount, localMode });
+  logPhase("received", {
+    receivedCount: selectedCount,
+    localMode,
+    updateSitemap,
+    apiMax: ADD_API_MAX_WORKS,
+  });
 
   let catalogDuplicateCount = 0;
   let selectionDuplicateCount = 0;
   let invalidCount = 0;
   let addedContentIds: string[] = [];
-  let indexUpdateStats: IndexUpdateStats | null = null;
   let committedToGitHub = false;
   let validAddCount = 0;
   let finalCatalogCount = 0;
   let updatedShardFiles: string[] = [];
   let newShardFiles: string[] = [];
+  let commitCount = 0;
 
   while (retryCount <= IMPORT_SIMPLE_ADD_MAX_RETRIES) {
     let catalogCountBefore = 0;
-    let catalogCountAfter = 0;
 
     try {
       console.time("[add-selected-api] fetch-catalog");
-      const catalogState = localMode
-        ? loadLocalCatalogState()
-        : await fetchCatalogShardsFromGitHub();
+      const catalogState = await loadCatalogState(localMode);
       console.timeEnd("[add-selected-api] fetch-catalog");
 
       catalogCountBefore = catalogState.items.length;
@@ -400,7 +581,6 @@ export async function addSelectedWorksToCatalog(
       catalogDuplicateCount = classified.catalogDuplicateContentIds.length;
       selectionDuplicateCount = classified.selectionDuplicateContentIds.length;
       invalidCount = classified.invalidContentIds.length;
-      addedContentIds = classified.addedContentIds;
       validAddCount = classified.preparedItems.length;
 
       logPhase("deduplicate", {
@@ -412,11 +592,6 @@ export async function addSelectedWorksToCatalog(
       });
 
       if (classified.preparedItems.length === 0) {
-        logPhase("complete", {
-          addedCount: 0,
-          elapsedMs: Date.now() - startedAt,
-        });
-
         const summary: AddSelectedWorksSummary = {
           selectedCount,
           addedCount: 0,
@@ -435,127 +610,38 @@ export async function addSelectedWorksToCatalog(
           committedToGitHub: false,
           message: buildResultMessage({
             summary,
-            indexUpdateStats: null,
             committedToGitHub: false,
           }),
         };
       }
-
-      // 保存直前に再取得して競合を吸収
-      console.time("[add-selected-api] precommit-refetch");
-      const preCommitState = localMode
-        ? loadLocalCatalogState()
-        : await fetchCatalogShardsFromGitHub();
-      console.timeEnd("[add-selected-api] precommit-refetch");
-
-      const itemsToAdd = classified.preparedItems.filter(
-        (item) => !workMatchesCatalogIds(item, preCommitState.catalogKeys),
-      );
-
-      if (itemsToAdd.length === 0) {
-        const summary: AddSelectedWorksSummary = {
-          selectedCount,
-          addedCount: 0,
-          catalogDuplicateCount:
-            catalogDuplicateCount + classified.preparedItems.length,
-          selectionDuplicateCount,
-          invalidCount,
-          retried,
-          catalogCountAfter: preCommitState.items.length,
-          githubCommitSucceeded: false,
-        };
-
-        return {
-          summary,
-          addedContentIds: [],
-          indexUpdateStats: null,
-          committedToGitHub: false,
-          message: buildResultMessage({
-            summary,
-            indexUpdateStats: null,
-            committedToGitHub: false,
-          }),
-        };
-      }
-
-      addedContentIds = itemsToAdd.map((item) => item.content_id);
-      validAddCount = itemsToAdd.length;
-      catalogCountAfter =
-        preCommitState.manifest.totalCount + itemsToAdd.length;
-      finalCatalogCount = catalogCountAfter;
-
-      logPhase("merge-catalog", {
-        catalogCountBefore: preCommitState.items.length,
-        catalogCountAfter,
-        validAddCount: itemsToAdd.length,
-        mode: "shard-append",
-      });
-
-      console.time("[add-selected-api] rebuild-indexes");
-      let indexFiles: Array<{ path: string; content: string }> = [];
-      try {
-        const mergedForIndex = [...itemsToAdd, ...preCommitState.items];
-        const indexes = rebuildAllIndexes(mergedForIndex);
-        // 巨大 search-index.json は GitHub へ書かない（実行時生成）
-        indexFiles = serializeCatalogIndexes(indexes, {
-          includeSearchIndex: false,
-        });
-        indexUpdateStats = buildSimplifiedIndexStats(itemsToAdd.length);
-      } catch (error) {
-        if (error instanceof IndexRebuildError) {
-          fail("rebuild-indexes", error.message, 500, {
-            receivedCount: selectedCount,
-            validAddCount: itemsToAdd.length,
-            catalogCountBefore: preCommitState.items.length,
-            catalogCountAfter,
-            elapsedMs: Date.now() - startedAt,
-            retryCount,
-          });
-        }
-        throw error;
-      }
-      console.timeEnd("[add-selected-api] rebuild-indexes");
 
       console.time("[add-selected-api] github-commit");
-      if (localMode) {
-        const append = appendWorksToCatalogShards(
-          preCommitState.manifest,
-          preCommitState.lastShardWorks,
-          itemsToAdd,
-        );
-        writeCatalogShardsLocally(
-          append.manifest,
-          append.changedShards.map((shard) => ({
-            file: shard.file,
-            works: shard.works,
-          })),
-        );
-        updatedShardFiles = append.updatedShardFiles;
-        newShardFiles = append.newShardFiles;
-        finalCatalogCount = append.manifest.totalCount;
-        committedToGitHub = false;
-      } else {
-        const commitResult = await commitCatalogShardAppendToGitHub({
-          manifest: preCommitState.manifest,
-          lastShardWorks: preCommitState.lastShardWorks,
-          newWorks: itemsToAdd,
-          commitLabel: buildCommitMessage(itemsToAdd.length),
-          indexFiles,
-        });
-        updatedShardFiles = commitResult.append.updatedShardFiles;
-        newShardFiles = commitResult.append.newShardFiles;
-        finalCatalogCount = commitResult.totalCount;
-        committedToGitHub = true;
-      }
+      const outcome = await commitPreparedItemsAdaptive({
+        itemsToAdd: classified.preparedItems,
+        localMode,
+        selectedCount,
+      });
       console.timeEnd("[add-selected-api] github-commit");
 
-      clearCatalogShardCache();
+      addedContentIds = outcome.addedContentIds;
+      validAddCount = outcome.addedContentIds.length;
+      finalCatalogCount = outcome.catalogCountAfter;
+      updatedShardFiles = outcome.updatedShardFiles;
+      newShardFiles = outcome.newShardFiles;
+      committedToGitHub = outcome.committedToGitHub;
+      commitCount = outcome.commitCount;
+
+      // 追加直前の再判定で全件スキップされた場合
+      if (outcome.addedContentIds.length === 0) {
+        catalogDuplicateCount += classified.preparedItems.length;
+      }
 
       logPhase("complete", {
-        addedCount: itemsToAdd.length,
+        addedCount: outcome.addedContentIds.length,
         catalogCountAfter: finalCatalogCount,
         updatedShardFiles,
         newShardFiles,
+        commitCount,
         elapsedMs: Date.now() - startedAt,
         retryCount,
         localMode,
@@ -579,25 +665,26 @@ export async function addSelectedWorksToCatalog(
         continue;
       }
 
-      // 巨大 blob 422 はリトライしない
-      if (
-        error instanceof GitHubCatalogError &&
-        error.status === 422 &&
-        error.githubMessage?.includes("too large")
-      ) {
+      if (isGithubPayloadTooLarge(error)) {
         fail(
           "github-commit",
           "変更shardの保存に失敗しました。巨大catalogへの書き戻しは行いません。",
           422,
           {
-            status: error.status,
-            githubMessage: error.githubMessage,
-            githubDocumentationUrl: error.documentationUrl,
-            githubPhase: String(error.phase ?? "create-catalog-blob"),
+            status:
+              error instanceof GitHubCatalogError ? error.status : 422,
+            githubMessage:
+              error instanceof GitHubCatalogError
+                ? error.githubMessage
+                : undefined,
+            githubDocumentationUrl:
+              error instanceof GitHubCatalogError
+                ? error.documentationUrl
+                : undefined,
+            githubPhase: "create-catalog-blob",
             receivedCount: selectedCount,
             validAddCount,
             catalogCountBefore,
-            catalogCountAfter,
             elapsedMs: Date.now() - startedAt,
             retryCount,
           },
@@ -610,19 +697,8 @@ export async function addSelectedWorksToCatalog(
         throw error;
       }
 
-      if (error instanceof IndexRebuildError) {
-        fail("rebuild-indexes", error.message, 500, {
-          receivedCount: selectedCount,
-          catalogCountBefore,
-          catalogCountAfter,
-          elapsedMs: Date.now() - startedAt,
-          retryCount,
-        });
-      }
-
       if (error instanceof GitHubCatalogError) {
         const githubPhase = error.phase ?? "github-commit";
-
         fail(
           githubPhase === "fetch-ref" || githubPhase === "fetch-commit"
             ? "fetch-catalog"
@@ -640,7 +716,6 @@ export async function addSelectedWorksToCatalog(
             receivedCount: selectedCount,
             validAddCount,
             catalogCountBefore,
-            catalogCountAfter,
             elapsedMs: Date.now() - startedAt,
             retryCount,
           },
@@ -685,11 +760,12 @@ export async function addSelectedWorksToCatalog(
     catalogCountAfter: finalCatalogCount > 0 ? finalCatalogCount : undefined,
     updatedShardFiles,
     newShardFiles,
-    githubCommitSucceeded: committedToGitHub || localMode,
+    githubCommitSucceeded: committedToGitHub || (localMode && commitCount > 0),
   };
 
   let sitemap: AddSelectedWorksResult["sitemap"];
   if (
+    updateSitemap &&
     (committedToGitHub || localMode) &&
     addedContentIds.length > 0
   ) {
@@ -737,12 +813,11 @@ export async function addSelectedWorksToCatalog(
   return {
     summary,
     addedContentIds,
-    indexUpdateStats,
+    indexUpdateStats: null,
     committedToGitHub,
     sitemap,
     message: buildResultMessage({
       summary,
-      indexUpdateStats,
       committedToGitHub: committedToGitHub || localMode,
       sitemap,
     }),
@@ -766,15 +841,6 @@ export function toAddSelectedWorksErrorMessage(error: unknown): {
 
   if (error instanceof AddSelectedWorksError) {
     return { message: error.message, status: error.status };
-  }
-
-  if (error instanceof IndexRebuildError) {
-    logCatalogSnapshotThrownError(error);
-    return {
-      message: error.message,
-      status: 500,
-      phase: "rebuild-indexes",
-    };
   }
 
   if (error instanceof GitHubCatalogError) {

@@ -40,9 +40,26 @@ const addSelected = readFileSync(
   "utf8",
 );
 assert.match(addSelected, /commitCatalogShardAppendToGitHub/);
-assert.match(addSelected, /precommit-refetch/);
+assert.match(addSelected, /ADD_API_MAX_WORKS/);
+assert.match(addSelected, /isGithubPayloadTooLarge/);
+assert.match(addSelected, /adaptive split/);
 assert.doesNotMatch(addSelected, /method:\s*"PUT"/);
 assert.doesNotMatch(addSelected, /commitCatalogBundleToGitHub/);
+
+const importClient = readFileSync(
+  path.join(root, "components/admin/ImportManagementClient.tsx"),
+  "utf8",
+);
+assert.match(importClient, /ADD_BATCH_SIZE/);
+assert.match(importClient, /chunkItems/);
+assert.match(importClient, /post-add-sitemap/);
+assert.match(importClient, /updateSitemap: false/);
+
+const constants = readFileSync(
+  path.join(root, "lib/admin/import-constants.ts"),
+  "utf8",
+);
+assert.match(constants, /export const ADD_BATCH_SIZE = 100/);
 
 const shardDir = path.join(root, "data/dmm/catalog");
 const manifestPath = path.join(shardDir, "manifest.json");

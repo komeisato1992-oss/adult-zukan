@@ -31,8 +31,16 @@ export async function POST(request: Request) {
     });
 
     const body = rawBody ? JSON.parse(rawBody) : null;
-    const works = parseAddSelectedWorksRequest(body);
-    const result = await addSelectedWorksToCatalog(works);
+    const { works, updateSitemap } = parseAddSelectedWorksRequest(body);
+
+    console.log("[add-selected-api] request payload", {
+      requestPayloadBytes: payloadByteLength,
+      workCount: works.length,
+      updateSitemap,
+      note: "requestPayloadBytes is the candidate POST body, not the GitHub catalog blob size",
+    });
+
+    const result = await addSelectedWorksToCatalog(works, { updateSitemap });
 
     return NextResponse.json({
       success: true,

@@ -42,5 +42,15 @@ export const IMPORT_FETCH_MAX_SCAN_MULTIPLIER = 10;
 /** 簡易インポート：カタログ追加時の最大再試行回数 */
 export const IMPORT_SIMPLE_ADD_MAX_RETRIES = 2;
 
+/**
+ * 管理画面の一括追加：クライアントが API を呼ぶ単位。
+ * 500件選択時はブラウザ側からこの件数ずつ順次 POST する。
+ */
+export const ADD_BATCH_SIZE = 100;
+/** 422 時の自動縮小の最小単位 */
+export const ADD_BATCH_MIN_SIZE = 10;
+/** 1 API リクエストあたりの作品上限（ADD_BATCH_SIZE と同値） */
+export const ADD_API_MAX_WORKS = ADD_BATCH_SIZE;
+
 /** @deprecated IMPORT_BULK_ADD_ABSOLUTE_MAX を使用してください */
 export const IMPORT_BULK_ADD_MAX = IMPORT_BULK_ADD_ABSOLUTE_MAX;

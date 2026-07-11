@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ImportBatchJob } from "@/lib/admin/import-batch-job";
+import type { ImportCandidatesListResult } from "@/lib/admin/import-candidate-types";
 import {
   IMPORT_POPULAR_ADD_LIMIT,
   IMPORT_POPULAR_REQUEST_COUNT,
@@ -13,9 +14,12 @@ type PopularCollectPanelProps = {
   popularOffset: number;
   lastPopularStartOffset: number | null;
   disabled: boolean;
-  onComplete: (message: string) => void;
+  onComplete: (
+    message: string,
+    collectResult?: ImportCandidatesListResult,
+  ) => void;
   onError: (message: string) => void;
-  onRefresh: () => Promise<void>;
+  onRefresh: () => Promise<ImportCandidatesListResult | null>;
 };
 
 const ADD_LIMIT_OPTIONS = [50, 100, 200, 500, 1000] as const;
@@ -121,7 +125,7 @@ export function PopularCollectPanel({
         error?: string;
         message?: string;
         job?: ImportBatchJob;
-        collectResult?: { message?: string };
+        collectResult?: ImportCandidatesListResult & { message?: string };
       };
 
       if (!response.ok) {
@@ -131,11 +135,12 @@ export function PopularCollectPanel({
       if (payload.job) setJob(payload.job);
       setStartOffsetInput("");
       idempotencyKeyRef.current = `popular-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      await onRefresh();
+      const refreshed = await onRefresh();
       onComplete(
         payload.message ??
           payload.collectResult?.message ??
           "人気順バッチ収集が完了しました。",
+        payload.collectResult ?? refreshed ?? undefined,
       );
     } catch (error) {
       onError(
@@ -291,14 +296,20 @@ export function PopularCollectPanel({
           >
             前回offsetに戻す
           </button>
-          <label className="inline-flex items-center gap-2 text-xs text-muted">
+          <label className="inline-flex max-w-full items-start gap-2 text-xs text-muted">
             <input
               type="checkbox"
               checked={collectOnly}
               onChange={(event) => setCollectOnly(event.target.checked)}
               disabled={isDisabled}
+              className="mt-0.5"
             />
-            候補取得のみ（追加しない）
+            <span>
+              候補取得のみ（カタログへ自動追加しない）
+              <span className="mt-0.5 block text-[11px] text-muted/80">
+                取得後は候補一覧から手動で一括追加できます
+              </span>
+            </span>
           </label>
         </div>
 

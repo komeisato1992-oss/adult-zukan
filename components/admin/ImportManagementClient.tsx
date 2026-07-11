@@ -103,6 +103,7 @@ export function ImportManagementClient({
   const [batchJob, setBatchJob] = useState<ImportBatchJob | null>(null);
   const [serverBatchInProgress, setServerBatchInProgress] = useState(false);
   const collectInFlightRef = useRef(false);
+  const candidateListRef = useRef<HTMLDivElement>(null);
 
   const visibleCandidates = useMemo(
     () => data.candidates,
@@ -110,7 +111,40 @@ export function ImportManagementClient({
   );
 
   const filteredTotalCount = data.pagination.totalCount;
+  const candidateTotalCount = Math.max(
+    filteredTotalCount,
+    data.summary.candidateCount,
+  );
+  const hasPendingCandidates = candidateTotalCount > 0;
   const selectedCount = countSelected(selection, filteredTotalCount);
+
+  const scrollToCandidateList = useCallback(() => {
+    window.requestAnimationFrame(() => {
+      candidateListRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  }, []);
+
+  const applyCandidatesPayload = useCallback(
+    (payload: ImportManagementInitialData, options?: { resetSelection?: boolean }) => {
+      setData((current) => ({
+        ...current,
+        ...payload,
+        configured: payload.configured ?? current.configured,
+        dmmConfigured: payload.dmmConfigured ?? current.dmmConfigured,
+        message: undefined,
+      }));
+      setPage(payload.pagination?.page ?? 1);
+
+      if (options?.resetSelection !== false) {
+        setSelection(clearSelectionState());
+        setSelectedItemById({});
+      }
+    },
+    [],
+  );
 
   const selectedWorksForBulk = useMemo(
     () =>
@@ -170,16 +204,12 @@ export function ImportManagementClient({
 
       const payload = (await response.json()) as ImportManagementInitialData;
 
-      setData(payload);
-      setPage(payload.pagination.page);
+      applyCandidatesPayload(payload, {
+        resetSelection: !options.preserveSelection,
+      });
       setSort(targetSort);
-
-      if (!options.preserveSelection) {
-        setSelection(clearSelectionState());
-        setSelectedItemById({});
-      }
     },
-    [page, sort, activeFilters],
+    [page, sort, activeFilters, applyCandidatesPayload],
   );
 
   useEffect(() => {
@@ -220,11 +250,7 @@ export function ImportManagementClient({
       })
       .then((payload) => {
         if (!payload || cancelled) return;
-        setData((current) => ({
-          ...current,
-          configured: payload.configured,
-          dmmConfigured: payload.dmmConfigured,
-        }));
+        applyCandidatesPayload(payload, { resetSelection: false });
       })
       .catch(() => {
         // 初期表示はサーバー描画の値を維持
@@ -233,7 +259,7 @@ export function ImportManagementClient({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [applyCandidatesPayload]);
 
   const handleExclude = useCallback(
     async (contentId: string) => {
@@ -488,16 +514,14 @@ export function ImportManagementClient({
       }
 
       if (payload.summary) {
-        setData((current) => ({
-          ...current,
-          summary: payload.summary ?? current.summary,
-          candidates: payload.candidates ?? current.candidates,
-          pagination: payload.pagination ?? current.pagination,
-          message: undefined,
-        }));
-        setPage(payload.pagination?.page ?? 1);
-        setSelection(clearSelectionState());
-        setSelectedItemById({});
+        applyCandidatesPayload(
+          {
+            ...payload,
+            configured: data.configured,
+            dmmConfigured: data.dmmConfigured,
+          },
+          { resetSelection: true },
+        );
         setActiveFilters(new Set());
       } else {
         await loadCandidates({ nextPage: 1, nextFilters: new Set() });
@@ -513,6 +537,7 @@ export function ImportManagementClient({
             ? `${payload.displayedCount}件の候補を表示しました。`
             : "候補を収集しましたが、表示できる候補がありません。"),
       );
+      scrollToCandidateList();
     } catch (collectError) {
       setError(
         collectError instanceof Error
@@ -764,7 +789,9 @@ export function ImportManagementClient({
   }
 
   return (
-    <div className="space-y-6">
+    <div
+      className={`space-y-6${hasPendingCandidates ? " pb-28 md:pb-6" : ""}`}
+    >
       <ImportDebugPanel
         job={batchJob}
         serverInProgress={serverBatchInProgress}
@@ -772,7 +799,7 @@ export function ImportManagementClient({
         persistedPastOffset={data.summary.collectionState.pastOffset}
         persistedNextPastOffset={data.summary.collectionState.nextPastOffset}
         persistedPopularOffset={data.summary.collectionState.nextPopularOffset}
-        candidateTotalCount={data.summary.candidateCount}
+        candidateTotalCount={candidateTotalCount}
         visibleCount={visibleCandidates.length}
         filteredTotalCount={filteredTotalCount}
         selection={selection}
@@ -819,10 +846,45 @@ export function ImportManagementClient({
           data.summary.collectionState.lastPopularStartOffset
         }
         disabled={collectingMode !== null}
-        onComplete={(message) => setCollectMessage(message)}
+        onComplete={(message, collectResult) => {
+          setCollectMessage(message);
+          if (collectResult?.summary) {
+            applyCandidatesPayload(
+              {
+                ...collectResult,
+                configured: data.configured,
+                dmmConfigured: data.dmmConfigured,
+              },
+              { resetSelection: true },
+            );
+            setActiveFilters(new Set());
+          }
+          scrollToCandidateList();
+        }}
         onError={(message) => setError(message)}
         onRefresh={async () => {
-          await loadCandidates({ nextPage: 1, nextFilters: new Set() });
+          const params = new URLSearchParams({
+            page: "1",
+            sort,
+          });
+          const filtersQuery = buildFiltersQuery(activeFilters);
+          if (filtersQuery) {
+            params.set("filters", filtersQuery);
+          }
+
+          const response = await fetch(
+            `/api/admin/import/get-candidates?${params.toString()}`,
+            { cache: "no-store" },
+          );
+
+          if (!response.ok) {
+            return null;
+          }
+
+          const payload = (await response.json()) as ImportManagementInitialData;
+          applyCandidatesPayload(payload, { resetSelection: true });
+          setActiveFilters(new Set());
+          return payload;
         }}
       />
 
@@ -878,7 +940,7 @@ export function ImportManagementClient({
         <ImportBulkSnsPanel items={recentlyAddedItems} />
       ) : null}
 
-      {!isLoading && visibleCandidates.length > 0 ? (
+      {hasPendingCandidates ? (
         <ImportBulkToolbar
           selectedCount={selectedCount}
           filteredTotalCount={filteredTotalCount}
@@ -909,13 +971,16 @@ export function ImportManagementClient({
         onPageChange={handlePageChange}
       />
 
+      <div ref={candidateListRef}>
       {isLoading ? (
         <div className="rounded-xl border border-border bg-white p-6 text-center text-sm text-muted">
           読み込み中...
         </div>
       ) : visibleCandidates.length === 0 ? (
         <div className="rounded-xl border border-border bg-white p-8 text-center text-sm text-muted">
-          表示できる候補作品がありません。「新作を収集」または「過去作品を収集」で FANZA から未掲載作品を蓄積してください。
+          {hasPendingCandidates
+            ? "フィルター条件に一致する候補がありません。フィルターを解除してください。"
+            : "表示できる候補作品がありません。「新作を収集」または「過去作品を収集」で FANZA から未掲載作品を蓄積してください。"}
         </div>
       ) : (
         <div className="space-y-4">
@@ -938,6 +1003,7 @@ export function ImportManagementClient({
           ))}
         </div>
       )}
+      </div>
 
       {showConfirmModal && confirmSummary ? (
         <ImportBulkConfirmModal
@@ -950,6 +1016,25 @@ export function ImportManagementClient({
             setPendingBulkWorks([]);
           }}
         />
+      ) : null}
+
+      {hasPendingCandidates ? (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-white/95 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] backdrop-blur-sm md:hidden pb-[max(env(safe-area-inset-bottom),0px)]">
+          <ImportBulkToolbar
+            selectedCount={selectedCount}
+            filteredTotalCount={filteredTotalCount}
+            visibleCount={visibleCandidates.length}
+            addLimit={addLimit}
+            isBulkAdding={isBulkAdding || isPreviewLoading}
+            compact
+            onAddLimitChange={setAddLimit}
+            onSelectPage={handleSelectPage}
+            onSelectAllMatching={handleSelectAllMatching}
+            onClearSelection={handleClearSelection}
+            onSelectByFlag={handleSelectByFlag}
+            onBulkAdd={handleBulkAddRequest}
+          />
+        </div>
       ) : null}
     </div>
   );

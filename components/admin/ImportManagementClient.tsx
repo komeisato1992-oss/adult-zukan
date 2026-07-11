@@ -9,6 +9,8 @@ import {
   IMPORT_FETCH_REQUEST_OPTIONS,
   IMPORT_PAGE_SIZE,
 } from "@/lib/admin/import-constants";
+import { CATALOG_REFRESH_BATCH_OPTIONS } from "@/lib/admin/catalog-refresh-constants";
+import type { CatalogRefreshBatchSummary, CatalogRefreshState } from "@/lib/dmm/catalog-refresh-types";
 import type { ImportCandidateSortKey } from "@/lib/admin/import-candidate-types";
 import {
   getCandidateSelectionId,
@@ -129,7 +131,51 @@ export function ImportManagementClient({
   const [addDebug, setAddDebug] = useState<string | null>(null);
   const [isFetchingCandidates, setIsFetchingCandidates] = useState(false);
   const [isAddingWorks, setIsAddingWorks] = useState(false);
+  const [refreshState, setRefreshState] = useState<CatalogRefreshState | null>(
+    null,
+  );
+  const [refreshCatalogCount, setRefreshCatalogCount] = useState<number | null>(
+    null,
+  );
+  const [refreshBatchSize, setRefreshBatchSize] = useState(500);
+  const [refreshPrioritizeSale, setRefreshPrioritizeSale] = useState(true);
+  const [refreshPrioritizeStale, setRefreshPrioritizeStale] = useState(true);
+  const [refreshPrioritizePopular, setRefreshPrioritizePopular] = useState(true);
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
+  const [refreshError, setRefreshError] = useState<string | null>(null);
+  const [refreshSummary, setRefreshSummary] =
+    useState<CatalogRefreshBatchSummary | null>(null);
+  const [isRefreshingWorks, setIsRefreshingWorks] = useState(false);
   const candidateListRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadRefreshState() {
+      try {
+        const response = await fetch("/api/admin/import/refresh-state");
+        const payload = await response.json();
+        if (!response.ok || cancelled) return;
+        setRefreshState(payload.state ?? null);
+        setRefreshCatalogCount(
+          typeof payload.catalogCount === "number" ? payload.catalogCount : null,
+        );
+        if (payload.state?.batchSize) {
+          setRefreshBatchSize(payload.state.batchSize);
+        }
+        if (payload.state?.lastBatchSummary) {
+          setRefreshSummary(payload.state.lastBatchSummary);
+        }
+      } catch (error) {
+        console.error("[import] refresh state load failed", error);
+      }
+    }
+
+    void loadRefreshState();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (candidates.length === 0) return;
@@ -380,6 +426,73 @@ export function ImportManagementClient({
     }
   }, [candidates, selectedIds]);
 
+  const handleRefreshWorks = useCallback(async () => {
+    setRefreshError(null);
+    setRefreshMessage(null);
+    setIsRefreshingWorks(true);
+
+    try {
+      const response = await fetch("/api/admin/import/refresh-works", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          batchSize: refreshBatchSize,
+          prioritizeSale: refreshPrioritizeSale,
+          prioritizeStale: refreshPrioritizeStale,
+          prioritizePopular: refreshPrioritizePopular,
+        }),
+      });
+
+      const responseText = await response.text();
+      type RefreshResponseBody = {
+        success?: boolean;
+        message?: string;
+        error?: string;
+        summary?: CatalogRefreshBatchSummary;
+        state?: CatalogRefreshState;
+      };
+
+      let payload: RefreshResponseBody | null = null;
+
+      if (responseText.trim()) {
+        payload = JSON.parse(responseText) as RefreshResponseBody;
+      }
+
+      const requestFailed =
+        !response.ok || (payload !== null && payload.success === false);
+
+      if (requestFailed) {
+        throw new Error(
+          payload?.message ??
+            payload?.error ??
+            `掲載済み作品の更新に失敗しました（HTTP ${response.status}）`,
+        );
+      }
+
+      if (!payload) {
+        throw new Error("サーバーから空の応答が返されました。");
+      }
+
+      setRefreshMessage(payload.message ?? "更新が完了しました。");
+      if (payload.summary) setRefreshSummary(payload.summary);
+      if (payload.state) setRefreshState(payload.state);
+    } catch (error) {
+      console.error("[import] refresh works failed", error);
+      setRefreshError(
+        error instanceof Error
+          ? error.message
+          : "掲載済み作品の更新に失敗しました。",
+      );
+    } finally {
+      setIsRefreshingWorks(false);
+    }
+  }, [
+    refreshBatchSize,
+    refreshPrioritizePopular,
+    refreshPrioritizeSale,
+    refreshPrioritizeStale,
+  ]);
+
   const selectPage = useCallback(() => {
     setSelectedIds((current) => {
       const next = new Set(current);
@@ -480,6 +593,15 @@ export function ImportManagementClient({
 
   return (
     <div className="space-y-6">
+      <section className="rounded-xl border border-border bg-white p-4 shadow-sm">
+        <h2 className="text-sm font-bold text-foreground">
+          A. 未掲載作品を取得・追加
+        </h2>
+        <p className="mt-2 text-sm text-muted">
+          FANZA人気順から未掲載作品だけを候補取得し、選択した作品のみカタログへ追加します。
+        </p>
+      </section>
+
       <section className="rounded-xl border border-border bg-white p-4 shadow-sm">
         <h2 className="text-sm font-bold text-foreground">① 候補取得</h2>
         <p className="mt-2 text-sm text-muted">
@@ -779,6 +901,143 @@ export function ImportManagementClient({
             );
           })
         )}
+      </section>
+
+      <section className="rounded-xl border border-emerald-300 bg-emerald-50/40 p-4 shadow-sm">
+        <h2 className="text-sm font-bold text-foreground">
+          B. 掲載済み作品の最新情報更新
+        </h2>
+        <p className="mt-2 text-sm text-muted">
+          カタログに存在する作品だけを FANZA API から再取得し、価格・セール・販売状態などを更新します。新規作品は追加しません。
+        </p>
+        <dl className="mt-4 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <dt className="text-muted">掲載作品数</dt>
+            <dd>{(refreshCatalogCount ?? summary?.catalogCount ?? 0).toLocaleString()}件</dd>
+          </div>
+          <div>
+            <dt className="text-muted">最終更新日時</dt>
+            <dd>{refreshState?.lastCompletedAt ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-muted">前回更新件数</dt>
+            <dd>
+              {refreshState?.lastBatchSummary?.updatedCount?.toLocaleString() ??
+                "—"}
+              件
+            </dd>
+          </div>
+          <div>
+            <dt className="text-muted">次回開始位置</dt>
+            <dd>{(refreshState?.nextRefreshOffset ?? 0).toLocaleString()}</dd>
+          </div>
+        </dl>
+        <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <label className="block text-sm">
+            <span className="text-muted">1回の更新件数</span>
+            <select
+              className="mt-1 w-full rounded-lg border border-border px-3 py-2"
+              value={refreshBatchSize}
+              onChange={(event) =>
+                setRefreshBatchSize(Number(event.target.value))
+              }
+            >
+              {CATALOG_REFRESH_BATCH_OPTIONS.map((count) => (
+                <option key={count} value={count}>
+                  {count}件
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="space-y-2 text-sm">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={refreshPrioritizeSale}
+                onChange={(event) =>
+                  setRefreshPrioritizeSale(event.target.checked)
+                }
+              />
+              セール作品を優先
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={refreshPrioritizeStale}
+                onChange={(event) =>
+                  setRefreshPrioritizeStale(event.target.checked)
+                }
+              />
+              更新日時が古い順
+            </label>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={refreshPrioritizePopular}
+                onChange={(event) =>
+                  setRefreshPrioritizePopular(event.target.checked)
+                }
+              />
+              人気作品を優先
+            </label>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={handleRefreshWorks}
+          disabled={
+            isRefreshingWorks || isAddingWorks || isFetchingCandidates
+          }
+          className="mt-4 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+        >
+          {isRefreshingWorks
+            ? `掲載済み作品を更新中…（${refreshBatchSize}件）`
+            : `既存作品${refreshBatchSize}件を更新`}
+        </button>
+        {refreshMessage ? (
+          <pre className="mt-3 whitespace-pre-wrap rounded-lg bg-white p-3 text-sm text-foreground">
+            {refreshMessage}
+          </pre>
+        ) : null}
+        {refreshError ? (
+          <p className="mt-3 text-sm text-red-600">{refreshError}</p>
+        ) : null}
+        {refreshSummary ? (
+          <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <dt className="text-muted">更新対象</dt>
+              <dd>{refreshSummary.targetCount.toLocaleString()}件</dd>
+            </div>
+            <div>
+              <dt className="text-muted">更新成功</dt>
+              <dd>{refreshSummary.updatedCount.toLocaleString()}件</dd>
+            </div>
+            <div>
+              <dt className="text-muted">価格変更</dt>
+              <dd>{refreshSummary.priceChangedCount.toLocaleString()}件</dd>
+            </div>
+            <div>
+              <dt className="text-muted">セール開始</dt>
+              <dd>{refreshSummary.saleStartedCount.toLocaleString()}件</dd>
+            </div>
+            <div>
+              <dt className="text-muted">セール終了</dt>
+              <dd>{refreshSummary.saleEndedCount.toLocaleString()}件</dd>
+            </div>
+            <div>
+              <dt className="text-muted">変更なし</dt>
+              <dd>{refreshSummary.unchangedCount.toLocaleString()}件</dd>
+            </div>
+            <div>
+              <dt className="text-muted">取得不可</dt>
+              <dd>{refreshSummary.unavailableCount.toLocaleString()}件</dd>
+            </div>
+            <div>
+              <dt className="text-muted">取得失敗</dt>
+              <dd>{refreshSummary.failedCount.toLocaleString()}件</dd>
+            </div>
+          </dl>
+        ) : null}
       </section>
 
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-white/95 p-3 shadow-lg md:hidden">

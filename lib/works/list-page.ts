@@ -1,7 +1,7 @@
 import "server-only";
 
 import { filterDisplayableItems } from "@/lib/dmm/filter";
-import { isDmmItemOnSale, isWorksListSaleQuery } from "@/lib/dmm/sale-price";
+import { isWorkOnSale, isWorksListSaleQuery } from "@/lib/dmm/sale-price";
 import type { DmmItem } from "@/lib/dmm/types";
 import { paginateItems, parsePageParam, WORKS_LIST_PAGE_SIZE } from "@/lib/pagination";
 import { mapPageItemsToWorkCards } from "@/lib/works/paginated-work-list";
@@ -79,7 +79,7 @@ export async function getWorksListPageData(
   const displayableItems = filterDisplayableItems(catalog);
   const filterEntries = buildWorkFilterEntries(displayableItems);
   const entriesForOptions = isSalePage
-    ? filterEntries.filter((entry) => isDmmItemOnSale(entry.item))
+    ? filterEntries.filter((entry) => isWorkOnSale(entry.item))
     : filterEntries;
   const { genreOptions, makerOptions } =
     getWorkFilterOptionsFromEntries(entriesForOptions);

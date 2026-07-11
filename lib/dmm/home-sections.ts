@@ -10,6 +10,7 @@ import { encodeActressSlug } from "@/lib/actresses/slug";
 import { iterateItemActresses } from "@/lib/dmm/actress-names";
 import { buildActressRepresentativeImageMap } from "@/lib/dmm/actress-representative-image";
 import { parseDmmPrice, slugify } from "@/lib/utils";
+import { isWorkOnSale } from "@/lib/dmm/work-sale-info";
 import { parseWorkSortParam, sortWorks } from "@/lib/works/sort";
 import { getValidImageUrl, hasValidImage } from "@/lib/works";
 
@@ -31,9 +32,7 @@ export type RankedActress = {
 };
 
 function isDmmItemOnSale(item: DmmItem): boolean {
-  const price = parseDmmPrice(item.prices?.price);
-  const listPrice = parseDmmPrice(item.prices?.list_price);
-  return listPrice > 0 && price > 0 && price < listPrice;
+  return isWorkOnSale(item);
 }
 
 function parseReleaseTimestamp(item: DmmItem): number {

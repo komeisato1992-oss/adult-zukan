@@ -118,6 +118,9 @@ export function isDmmItemOnSale(item: DmmItem): boolean {
   return getSalePriceInfo(item) !== null;
 }
 
+export { getWorkSaleInfo, isWorkOnSale } from "@/lib/dmm/work-sale-info";
+export type { WorkSaleInfo } from "@/lib/dmm/work-sale-info";
+
 export function isWorksListSaleQuery(query: {
   sale?: string;
   filter?: string;

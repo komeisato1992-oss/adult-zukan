@@ -1,0 +1,8 @@
+export const CATALOG_REFRESH_STATE_RELATIVE_PATH =
+  "data/dmm/catalog-refresh-state.json";
+
+export const CATALOG_REFRESH_DEFAULT_BATCH_SIZE = 500;
+export const CATALOG_REFRESH_BATCH_OPTIONS = [10, 50, 100, 500, 1000] as const;
+export const CATALOG_REFRESH_MAX_BATCH_SIZE = 1000;
+export const CATALOG_REFRESH_FETCH_CONCURRENCY = 8;
+export const CATALOG_REFRESH_COMMIT_MAX_RETRIES = 2;

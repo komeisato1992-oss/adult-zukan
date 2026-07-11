@@ -6,7 +6,7 @@ import {
 } from "@/lib/dmm/display";
 import { getDmmFanzaUrl } from "@/lib/dmm/fanza-url";
 import { formatDmmPriceString } from "@/lib/dmm/format-price";
-import { getSalePriceInfo } from "@/lib/dmm/sale-price";
+import { getWorkSaleInfo } from "@/lib/dmm/work-sale-info";
 import type { DmmItem } from "@/lib/dmm/types";
 import { hasValidImage } from "@/lib/works";
 import type { WorkListCardItem } from "@/lib/works/work-list-card-item.types";
@@ -22,7 +22,14 @@ export function toWorkListCardItem(
     return null;
   }
 
-  const saleInfo = getSalePriceInfo(item);
+  const sale = getWorkSaleInfo(item);
+  const saleInfo = sale.isSale
+    ? {
+        regularPrice: sale.regularPrice ?? 0,
+        currentPrice: sale.currentPrice ?? 0,
+        discountRate: sale.discountRate ?? 0,
+      }
+    : null;
 
   return {
     contentId: item.content_id,

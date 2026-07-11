@@ -34,6 +34,12 @@ export type DmmPrices = {
   };
 };
 
+export type DmmCampaign = {
+  date_begin: string;
+  date_end: string;
+  title: string;
+};
+
 export type DmmLabel = {
   id: number;
   name: string;
@@ -103,6 +109,24 @@ export type DmmItem = {
   popularityUpdatedAt?: string;
   /** サイトカタログへ追加した日時 */
   addedAt?: string;
+  /** DMM API の campaign（セール期間等） */
+  campaign?: DmmCampaign[];
+  /** カタログへ取り込んだ日時 */
+  importedAt?: string;
+  /** 最後に API から再取得して反映した日時 */
+  lastRefreshedAt?: string;
+  /** 価格が変わった最終日時 */
+  priceUpdatedAt?: string;
+  /** セール状態が変わった最終日時 */
+  saleUpdatedAt?: string;
+  /** 取得不可を確認した日時 */
+  unavailableCheckedAt?: string;
+  /** 連続取得失敗回数 */
+  consecutiveFetchFailures?: number;
+  /** 販売状態（サイト管理） */
+  availability?: "available" | "unavailable";
+  /** サイト側の最終更新日時 */
+  updatedAt?: string;
 };
 
 export type DmmTestApiResponse = {

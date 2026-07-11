@@ -7,22 +7,26 @@ export default function AdminImportPage() {
     <div className="space-y-8">
       <section>
         <h1 className="border-l-4 border-accent pl-3 text-2xl font-bold text-foreground">
-          作品追加管理
+          作品管理
         </h1>
         <p className="mt-2 text-sm text-muted">
-          FANZA から候補を取得し、確認・選択した作品だけをカタログへ追加します。
+          未掲載作品の追加と、掲載済み作品の価格・セール情報更新を分けて実行します。
         </p>
       </section>
 
       <section className="rounded-xl border border-border bg-surface p-4 text-sm text-muted">
-        <p className="font-medium text-foreground">簡易インポート</p>
+        <p className="font-medium text-foreground">2つの独立したフロー</p>
         <ul className="mt-2 list-inside list-disc space-y-1">
-          <li>FANZA人気順から未掲載作品を優先取得（掲載済みは候補に表示しません）</li>
-          <li>候補取得は読み取り専用（GitHub へ書き込みません）</li>
-          <li>未掲載候補の目標件数は 10〜500 件から選択（初期値 50 件）</li>
-          <li>offset は localStorage に保存（GitHub へ保存しません）</li>
-          <li>選択した作品だけを追加 API へ送信（allMatching は使いません）</li>
-          <li>追加時のみ最新カタログを再取得し、GitHub へ 1 回 commit</li>
+          <li>
+            <strong className="text-foreground">A. 未掲載作品を取得・追加</strong>
+            ：FANZA人気順から未掲載作品だけ候補取得 → 選択した作品のみ追加
+          </li>
+          <li>
+            <strong className="text-foreground">B. 掲載済み作品の最新情報更新</strong>
+            ：カタログ既存作品の価格・セール・販売状態のみ更新（新規追加なし）
+          </li>
+          <li>追加・更新とも GitHub へ 1 バッチ 1 commit</li>
+          <li>更新状態（次回開始位置など）は catalog-refresh-state.json に保存</li>
         </ul>
       </section>
 

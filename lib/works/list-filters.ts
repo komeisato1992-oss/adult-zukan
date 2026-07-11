@@ -5,7 +5,7 @@ import {
 import {
   getCurrentPrice,
   getRegularPrice,
-  isDmmItemOnSale,
+  isWorkOnSale,
   isWorksListSaleQuery,
 } from "@/lib/dmm/sale-price";
 import type { DmmItem } from "@/lib/dmm/types";
@@ -322,7 +322,7 @@ export function filterWorkEntriesByQuery(
     if (makers.length > 0 && !makers.includes(entry.maker)) continue;
 
     if (saleOnly) {
-      if (!isDmmItemOnSale(entry.item)) {
+      if (!isWorkOnSale(entry.item)) {
         continue;
       }
     }
@@ -399,7 +399,7 @@ export function filterWorksByQuery(
     }
 
     if (saleOnly) {
-      if (!isDmmItemOnSale(item)) return false;
+      if (!isWorkOnSale(item)) return false;
     }
 
     if (!matchesPriceFilter(item, price)) return false;

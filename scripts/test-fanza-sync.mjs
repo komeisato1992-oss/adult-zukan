@@ -83,7 +83,7 @@ assert.match(cronRoute, /CRON_SECRET/);
 assert.match(cronRoute, /runFanzaSyncUntilDeadline/);
 
 const vercel = read("vercel.json");
-assert.match(vercel, /"schedule": "0 20,8 \* \* \*"/);
+assert.match(vercel, /"schedule": "0 20 \* \* \*"/);
 assert.match(vercel, /\/api\/cron\/fanza-sync/);
 
 const staticWorks = read("lib/dmm/static-works.ts");

@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { runFanzaSyncUntilDeadline } from "@/lib/admin/fanza-sync-runner";
 import { fanzaSyncProgressPercent } from "@/lib/admin/fanza-sync-job";
 
+/** Vercel Hobby は cron 1日1回まで。vercel.json は UTC 20:00 (= JST 05:00)。
+ *  JST 17:00 の2回目は Pro プランか、外部 cron から同一エンドポイントを呼ぶ。 */
+
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 

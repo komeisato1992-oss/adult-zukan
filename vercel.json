@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/cron/fanza-sync",
-      "schedule": "0 20,8 * * *"
+      "schedule": "0 20 * * *"
     }
   ],
   "redirects": [

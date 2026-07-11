@@ -4,8 +4,13 @@ import { readGscSiteUrlFromEnv } from "@/lib/admin/seo-config";
 import {
   classifySearchConsoleApiError,
   GoogleSearchConsoleError,
+  logGoogleApiError,
+  parseGoogleApiErrorBody,
 } from "@/lib/admin/google-search-console-errors";
-import { getGoogleAccessToken } from "@/lib/admin/google-service-account";
+import {
+  getGoogleAccessToken,
+  getServiceAccountEmail,
+} from "@/lib/admin/google-service-account";
 
 const SEARCH_CONSOLE_BASE =
   "https://www.googleapis.com/webmasters/v3/sites";
@@ -39,6 +44,31 @@ type SitemapsListResponse = {
   sitemap?: SitemapEntry[];
 };
 
+type SitesListResponse = {
+  siteEntry?: Array<{
+    siteUrl?: string;
+    permissionLevel?: string;
+  }>;
+};
+
+export type SearchConsoleConnectionProbe = {
+  siteUrl: string;
+  serviceAccountEmail: string | null;
+  sitesListOk: boolean;
+  sitesListCount: number;
+  configuredSiteFound: boolean;
+  configuredSitePermission?: string;
+  availableSites: string[];
+  searchAnalyticsOk: boolean;
+  error?: {
+    apiMethod: string;
+    message: string;
+    status: number;
+    googleStatus?: string;
+    errors: Array<{ message?: string; domain?: string; reason?: string }>;
+  };
+};
+
 function formatDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
@@ -65,11 +95,22 @@ function encodeSiteUrl(siteUrl: string): string {
   return encodeURIComponent(siteUrl);
 }
 
+function logSearchConsoleRequest(apiMethod: string, siteUrl?: string): void {
+  console.info("[seo-gsc] Search Console API request", {
+    apiMethod,
+    siteUrl: siteUrl ?? "(n/a)",
+    serviceAccountEmail: getServiceAccountEmail(),
+  });
+}
+
 async function searchConsoleFetch<T>(
   path: string,
+  apiMethod: string,
   init?: RequestInit,
   siteUrl?: string,
 ): Promise<T> {
+  logSearchConsoleRequest(apiMethod, siteUrl);
+
   const token = await getGoogleAccessToken();
   const response = await fetch(`${SEARCH_CONSOLE_BASE}${path}`, {
     ...init,
@@ -83,7 +124,15 @@ async function searchConsoleFetch<T>(
 
   if (!response.ok) {
     const text = await response.text();
-    throw classifySearchConsoleApiError(response.status, text, siteUrl);
+    const parsed = parseGoogleApiErrorBody(text, response.status);
+    logGoogleApiError("Search Console API request failed", apiMethod, parsed, {
+      siteUrl,
+      serviceAccountEmail: getServiceAccountEmail(),
+    });
+    throw classifySearchConsoleApiError(response.status, text, {
+      siteUrl,
+      apiMethod,
+    });
   }
 
   if (response.status === 204) {
@@ -91,6 +140,133 @@ async function searchConsoleFetch<T>(
   }
 
   return (await response.json()) as T;
+}
+
+/** searchconsole.sites.list() 相当 */
+export async function listSearchConsoleSites(): Promise<
+  NonNullable<SitesListResponse["siteEntry"]>
+> {
+  const data = await searchConsoleFetch<SitesListResponse>(
+    "",
+    "sites.list",
+  );
+  return data.siteEntry ?? [];
+}
+
+function normalizeSiteUrlForCompare(value: string): string {
+  return value.trim().replace(/\/+$/, "").toLowerCase();
+}
+
+export function findConfiguredSiteInList(
+  siteUrl: string,
+  sites: NonNullable<SitesListResponse["siteEntry"]>,
+): { found: boolean; permissionLevel?: string } {
+  const normalizedTarget = normalizeSiteUrlForCompare(siteUrl);
+  const match = sites.find(
+    (entry) =>
+      entry.siteUrl &&
+      normalizeSiteUrlForCompare(entry.siteUrl) === normalizedTarget,
+  );
+
+  return {
+    found: Boolean(match),
+    permissionLevel: match?.permissionLevel,
+  };
+}
+
+/** sites.list → searchAnalytics.query の順で接続診断 */
+export async function probeSearchConsoleConnection(
+  siteUrl: string,
+): Promise<SearchConsoleConnectionProbe> {
+  const serviceAccountEmail = getServiceAccountEmail();
+  console.info("[seo-gsc] probing Search Console connection", {
+    siteUrl,
+    serviceAccountEmail,
+  });
+
+  const probe: SearchConsoleConnectionProbe = {
+    siteUrl,
+    serviceAccountEmail,
+    sitesListOk: false,
+    sitesListCount: 0,
+    configuredSiteFound: false,
+    availableSites: [],
+    searchAnalyticsOk: false,
+  };
+
+  try {
+    const sites = await listSearchConsoleSites();
+    probe.sitesListOk = true;
+    probe.sitesListCount = sites.length;
+    probe.availableSites = sites
+      .map((entry) => entry.siteUrl)
+      .filter((value): value is string => Boolean(value));
+
+    const siteMatch = findConfiguredSiteInList(siteUrl, sites);
+    probe.configuredSiteFound = siteMatch.found;
+    probe.configuredSitePermission = siteMatch.permissionLevel;
+
+    if (!siteMatch.found) {
+      probe.error = {
+        apiMethod: "sites.list",
+        status: 404,
+        message: `GSC_SITE_URL (${siteUrl}) が Search Console のプロパティ一覧に見つかりません。利用可能: ${probe.availableSites.join(", ") || "なし"}`,
+        googleStatus: "NOT_FOUND",
+        errors: [],
+      };
+      return probe;
+    }
+  } catch (error) {
+    if (error instanceof GoogleSearchConsoleError) {
+      probe.error = {
+        apiMethod: error.apiMethod ?? "sites.list",
+        status: error.status,
+        message: error.message,
+        googleStatus: error.googleError?.status,
+        errors: error.googleError?.errors ?? [],
+      };
+    } else {
+      probe.error = {
+        apiMethod: "sites.list",
+        status: 500,
+        message: error instanceof Error ? error.message : String(error),
+        errors: [],
+      };
+    }
+    return probe;
+  }
+
+  try {
+    const endDate = new Date();
+    const startDate = subtractDays(endDate, 2);
+    await fetchSearchAnalyticsRows({
+      siteUrl,
+      startDate: formatDate(startDate),
+      endDate: formatDate(endDate),
+      dimensions: ["date"],
+      rowLimit: 1,
+    });
+    probe.searchAnalyticsOk = true;
+  } catch (error) {
+    if (error instanceof GoogleSearchConsoleError) {
+      probe.error = {
+        apiMethod: error.apiMethod ?? "searchAnalytics.query",
+        status: error.status,
+        message: error.message,
+        googleStatus: error.googleError?.status,
+        errors: error.googleError?.errors ?? [],
+      };
+    } else {
+      probe.error = {
+        apiMethod: "searchAnalytics.query",
+        status: 500,
+        message: error instanceof Error ? error.message : String(error),
+        errors: [],
+      };
+    }
+  }
+
+  return probe;
 }
 
 export async function fetchSearchAnalyticsRows(options: {
@@ -104,6 +280,7 @@ export async function fetchSearchAnalyticsRows(options: {
   const site = encodeSiteUrl(options.siteUrl);
   const data = await searchConsoleFetch<SearchAnalyticsResponse>(
     `/${site}/searchAnalytics/query`,
+    "searchAnalytics.query",
     {
       method: "POST",
       body: JSON.stringify({
@@ -169,6 +346,7 @@ export async function fetchSitemaps(siteUrl: string): Promise<SitemapEntry[]> {
   const site = encodeSiteUrl(siteUrl);
   const data = await searchConsoleFetch<SitemapsListResponse>(
     `/${site}/sitemaps`,
+    "sitemaps.list",
     undefined,
     siteUrl,
   );
@@ -183,6 +361,7 @@ export async function submitSitemap(
   const feedpath = encodeURIComponent(sitemapPath);
   await searchConsoleFetch<Record<string, never>>(
     `/${site}/sitemaps/${feedpath}`,
+    "sitemaps.submit",
     { method: "PUT" },
     siteUrl,
   );

@@ -8,6 +8,8 @@ import {
 } from "@/lib/admin/seo-env";
 import { getSeoCacheBackend } from "@/lib/admin/seo-cache-store";
 
+import type { SearchConsoleConnectionProbe } from "@/lib/admin/google-search-console";
+
 export type SeoEnvDiagnostics = {
   nodeEnv: string;
   vercelEnv: string | null;
@@ -30,6 +32,7 @@ export type SeoEnvDiagnostics = {
     emailPresent: boolean;
     privateKeyPresent: boolean;
   };
+  connectionProbe?: SearchConsoleConnectionProbe | null;
   logs: string[];
 };
 
@@ -86,7 +89,9 @@ export function logSeoEnvPresence(): Record<string, boolean> {
   return presence;
 }
 
-export function buildSeoEnvDiagnostics(): SeoEnvDiagnostics {
+export function buildSeoEnvDiagnostics(options?: {
+  connectionProbe?: SearchConsoleConnectionProbe | null;
+}): SeoEnvDiagnostics {
   const envPresence = logSeoEnvPresence();
   const { raw, source } = readServiceAccountJsonRaw();
   const parsed = raw ? parseServiceAccountJson(raw) : null;
@@ -101,6 +106,19 @@ export function buildSeoEnvDiagnostics(): SeoEnvDiagnostics {
     ...TRACKED_ENV_VARS.map((name) => `[seo-env] ${name}=${envPresence[name]}`),
     `[seo-env] resolved service account source=${source ?? "none"} rawLength=${raw?.length ?? 0} parseOk=${Boolean(parsed)}`,
     `[seo-env] GSC_SITE_URL value=${gscSiteUrl ?? "(unset)"}`,
+    ...(options?.connectionProbe
+      ? [
+          `[seo-gsc] probe sites.list=${options.connectionProbe.sitesListOk ? "OK" : "NG"} count=${options.connectionProbe.sitesListCount}`,
+          `[seo-gsc] probe configuredSiteFound=${options.connectionProbe.configuredSiteFound}`,
+          `[seo-gsc] probe searchAnalytics.query=${options.connectionProbe.searchAnalyticsOk ? "OK" : "NG"}`,
+          ...(options.connectionProbe.error
+            ? [
+                `[seo-gsc] probe error apiMethod=${options.connectionProbe.error.apiMethod} status=${options.connectionProbe.error.status}`,
+                `[seo-gsc] probe error message=${options.connectionProbe.error.message}`,
+              ]
+            : []),
+        ]
+      : []),
   ];
 
   return {
@@ -125,6 +143,7 @@ export function buildSeoEnvDiagnostics(): SeoEnvDiagnostics {
       emailPresent: envPresence.GOOGLE_SERVICE_ACCOUNT_EMAIL,
       privateKeyPresent: envPresence.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY,
     },
+    connectionProbe: options?.connectionProbe ?? null,
     logs,
   };
 }
@@ -154,7 +173,8 @@ export function logSeoGscConnectionResult(options: {
     return;
   }
 
-  console.error(
-    `[seo-gsc] Google Search Console API connection: FAILED${options.error ? ` - ${options.error}` : ""}`,
-  );
+  console.error("[seo-gsc] Google Search Console API connection: FAILED", {
+    siteUrl: options.siteUrl,
+    error: options.error,
+  });
 }

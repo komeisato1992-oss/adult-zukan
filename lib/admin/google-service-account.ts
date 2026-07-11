@@ -22,6 +22,11 @@ function base64Url(value: string | Buffer): string {
 
 export { getSeoConfigStatus, isGoogleSearchConsoleConfigured } from "@/lib/admin/seo-config";
 
+export function getServiceAccountEmail(): string | null {
+  const credentials = getServiceAccountCredentialsFromEnv();
+  return credentials?.client_email ?? null;
+}
+
 function createSignedJwt(clientEmail: string, privateKey: string): string {
   const header = base64Url(JSON.stringify({ alg: "RS256", typ: "JWT" }));
   const now = Math.floor(Date.now() / 1000);
@@ -84,7 +89,7 @@ export async function getGoogleAccessToken(): Promise<string> {
 
   if (!response.ok) {
     const text = await response.text();
-    throw classifyGoogleAuthError(text);
+    throw classifyGoogleAuthError(text, response.status);
   }
 
   const data = (await response.json()) as {

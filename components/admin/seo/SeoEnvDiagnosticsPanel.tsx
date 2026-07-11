@@ -75,6 +75,50 @@ export function SeoEnvDiagnosticsPanel({
         </div>
       </dl>
 
+      {diagnostics.connectionProbe ? (
+        <div className="mt-4 rounded-lg border border-border bg-surface p-3">
+          <h3 className="font-medium text-foreground">Search Console 接続診断</h3>
+          <dl className="mt-2 grid gap-2 text-xs sm:grid-cols-2">
+            <div>
+              <dt className="text-muted">sites.list</dt>
+              <dd className="font-medium text-foreground">
+                {diagnostics.connectionProbe.sitesListOk ? "成功" : "失敗"} (
+                {diagnostics.connectionProbe.sitesListCount} 件)
+              </dd>
+            </div>
+            <div>
+              <dt className="text-muted">searchAnalytics.query</dt>
+              <dd className="font-medium text-foreground">
+                {diagnostics.connectionProbe.searchAnalyticsOk ? "成功" : "未確認/失敗"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-muted">GSC_SITE_URL 一致</dt>
+              <dd className="font-medium text-foreground">
+                {diagnostics.connectionProbe.configuredSiteFound ? "あり" : "なし"}
+                {diagnostics.connectionProbe.configuredSitePermission
+                  ? ` (${diagnostics.connectionProbe.configuredSitePermission})`
+                  : ""}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-muted">利用可能プロパティ</dt>
+              <dd className="break-all font-medium text-foreground">
+                {diagnostics.connectionProbe.availableSites.join(", ") || "—"}
+              </dd>
+            </div>
+          </dl>
+          {diagnostics.connectionProbe.error ? (
+            <pre className="mt-3 whitespace-pre-wrap rounded bg-white p-2 text-xs text-red-700">
+              {diagnostics.connectionProbe.error.apiMethod}: HTTP{" "}
+              {diagnostics.connectionProbe.error.status}
+              {"\n"}
+              {diagnostics.connectionProbe.error.message}
+            </pre>
+          ) : null}
+        </div>
+      ) : null}
+
       <details className="mt-4">
         <summary className="cursor-pointer text-muted">サーバーログ</summary>
         <pre className="mt-2 overflow-x-auto rounded-lg bg-surface p-3 text-xs text-foreground">

@@ -28,20 +28,44 @@ export function SeoDashboardClient({
   const [refreshing, setRefreshing] = useState(false);
   const [submittingSitemap, setSubmittingSitemap] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorDetails, setErrorDetails] = useState<{
+    phase?: string;
+    apiMethod?: string;
+    googleStatus?: string;
+    status?: number;
+    errors?: Array<{ message?: string; reason?: string }>;
+  } | null>(null);
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
     setError(null);
+    setErrorDetails(null);
     try {
       const response = await fetch("/api/admin/seo/refresh", { method: "POST" });
       const payload = (await response.json()) as {
         data?: SeoCachePayload;
         envDiagnostics?: SeoEnvDiagnostics;
         error?: string;
+        message?: string;
+        phase?: string;
+        apiMethod?: string;
+        googleStatus?: string;
+        githubStatus?: number;
+        errors?: Array<{ message?: string; reason?: string }>;
         configured?: boolean;
       };
       if (!response.ok) {
-        throw new Error(payload.error ?? "更新に失敗しました。");
+        setErrorDetails({
+          phase: payload.phase,
+          apiMethod: payload.apiMethod,
+          googleStatus: payload.googleStatus,
+          status: payload.githubStatus,
+          errors: payload.errors,
+        });
+        if (payload.envDiagnostics) {
+          setEnvDiagnostics(payload.envDiagnostics);
+        }
+        throw new Error(payload.message ?? payload.error ?? "更新に失敗しました。");
       }
       if (payload.data) {
         setData(payload.data);
@@ -114,9 +138,44 @@ export function SeoDashboardClient({
       </div>
 
       {error ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </p>
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <p className="whitespace-pre-wrap">{error}</p>
+          {errorDetails ? (
+            <dl className="mt-3 space-y-1 text-xs">
+              {errorDetails.apiMethod ? (
+                <div>
+                  <dt className="inline font-medium">API: </dt>
+                  <dd className="inline">{errorDetails.apiMethod}</dd>
+                </div>
+              ) : null}
+              {errorDetails.status ? (
+                <div>
+                  <dt className="inline font-medium">HTTP: </dt>
+                  <dd className="inline">{errorDetails.status}</dd>
+                </div>
+              ) : null}
+              {errorDetails.googleStatus ? (
+                <div>
+                  <dt className="inline font-medium">Google status: </dt>
+                  <dd className="inline">{errorDetails.googleStatus}</dd>
+                </div>
+              ) : null}
+              {errorDetails.errors?.length ? (
+                <div>
+                  <dt className="font-medium">errors:</dt>
+                  <dd className="mt-1 whitespace-pre-wrap font-mono">
+                    {errorDetails.errors
+                      .map(
+                        (entry) =>
+                          [entry.reason, entry.message].filter(Boolean).join(": "),
+                      )
+                      .join("\n")}
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
+          ) : null}
+        </div>
       ) : null}
 
       <SeoEnvDiagnosticsPanel diagnostics={envDiagnostics} />

@@ -15,10 +15,13 @@ import {
   mapPageRows,
   mapQueryRows,
   mapSitemapRows,
+  probeSearchConsoleConnection,
 } from "@/lib/admin/google-search-console";
 import {
   getGoogleAccessToken,
+  getServiceAccountEmail,
 } from "@/lib/admin/google-service-account";
+import { GoogleSearchConsoleError } from "@/lib/admin/google-search-console-errors";
 import { getSeoConfigStatus } from "@/lib/admin/seo-config";
 import { loadSeoCache, saveSeoCache } from "@/lib/admin/seo-cache-store";
 import {
@@ -243,8 +246,38 @@ export async function refreshSeoDashboardData(): Promise<SeoCachePayload> {
   const resolvedSiteUrl = getSearchConsoleSiteUrl();
 
   try {
+    console.info("[seo-gsc] starting Search Console refresh", {
+      siteUrl: resolvedSiteUrl,
+      serviceAccountEmail: getServiceAccountEmail(),
+    });
+
     await getGoogleAccessToken();
-    console.info("[seo-gsc] Google OAuth token acquired");
+    console.info("[seo-gsc] Google OAuth token acquired", {
+      serviceAccountEmail: getServiceAccountEmail(),
+    });
+
+    const connectionProbe = await probeSearchConsoleConnection(resolvedSiteUrl);
+    if (connectionProbe.error) {
+      const methodHint =
+        connectionProbe.sitesListOk && !connectionProbe.searchAnalyticsOk
+          ? `sites.list は成功しましたが、${connectionProbe.error.apiMethod} で失敗しました。`
+          : `${connectionProbe.error.apiMethod} で失敗しました。`;
+
+      throw new GoogleSearchConsoleError(
+        connectionProbe.error.status === 403
+          ? "permission_denied"
+          : connectionProbe.error.status === 404
+            ? "site_not_found"
+            : connectionProbe.error.status === 429
+              ? "quota_exceeded"
+              : connectionProbe.error.status === 401
+                ? "auth_failed"
+                : "unknown",
+        `${methodHint}\n${connectionProbe.error.message}`,
+        connectionProbe.error.status,
+        { apiMethod: connectionProbe.error.apiMethod },
+      );
+    }
 
     const [
       totalWorks,
@@ -346,8 +379,16 @@ export async function refreshSeoDashboardData(): Promise<SeoCachePayload> {
     return payload;
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "Search Console API 接続に失敗しました";
-    logSeoGscConnectionResult({ success: false, error: message });
+      error instanceof GoogleSearchConsoleError
+        ? error.message
+        : error instanceof Error
+          ? error.message
+          : "Search Console API 接続に失敗しました";
+    logSeoGscConnectionResult({
+      success: false,
+      error: message,
+      siteUrl: resolvedSiteUrl,
+    });
     throw error;
   }
 }

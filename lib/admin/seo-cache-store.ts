@@ -38,9 +38,13 @@ export async function saveSeoCache(payload: SeoCachePayload): Promise<void> {
 export function toSeoCacheStoreErrorMessage(error: unknown): {
   message: string;
   status: number;
+  code?: string;
+  apiMethod?: string;
+  googleStatus?: string;
+  googleErrors?: Array<{ message?: string; domain?: string; reason?: string }>;
 } {
   const gscError = toGoogleSearchConsoleErrorMessage(error);
-  if (gscError.code) {
+  if (gscError.code || gscError.apiMethod) {
     return gscError;
   }
 

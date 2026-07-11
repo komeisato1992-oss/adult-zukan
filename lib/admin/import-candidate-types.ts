@@ -40,6 +40,7 @@ export type StoredImportCandidate = {
 };
 
 export type ImportCandidateSortKey =
+  | "popular-desc"
   | "seoScore-desc"
   | "collectedAt-desc"
   | "releaseDate-desc"
@@ -49,6 +50,7 @@ export type ImportCandidateSortKey =
   | "random";
 
 export const IMPORT_CANDIDATE_SORT_LABELS: Record<ImportCandidateSortKey, string> = {
+  "popular-desc": "FANZA人気順",
   "seoScore-desc": "SEO Score順",
   "collectedAt-desc": "収集日が新しい順",
   "releaseDate-desc": "発売日が新しい順",

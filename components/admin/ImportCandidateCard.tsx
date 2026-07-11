@@ -39,6 +39,7 @@ type ImportCandidateCardProps = {
   isAdded: boolean;
   seoScore?: number;
   seoReasons?: string[];
+  popularityRank?: number | null;
   emphasizeSns?: boolean;
   comparePool?: DmmItem[];
   onSelectedChange: (contentId: string, selected: boolean, item: DmmItem) => void;
@@ -79,6 +80,7 @@ export function ImportCandidateCard({
   isAdded,
   seoScore,
   seoReasons = [],
+  popularityRank,
   emphasizeSns = false,
   comparePool = [],
   onSelectedChange,
@@ -202,6 +204,11 @@ export function ImportCandidateCard({
           >
             {sourceLabel}
           </span>
+          {typeof popularityRank === "number" ? (
+            <span className="rounded-full bg-surface px-3 py-1 text-xs font-semibold text-muted">
+              FANZA人気順：{popularityRank.toLocaleString()}位
+            </span>
+          ) : null}
           {isAdded ? (
             <span className="rounded-full bg-accent px-3 py-1 text-xs font-semibold text-white">
               追加済み

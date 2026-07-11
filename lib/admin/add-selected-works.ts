@@ -222,7 +222,7 @@ function buildResultMessage(input: {
     return [
       "追加できる作品がありませんでした。",
       summary.catalogDuplicateCount > 0
-        ? `掲載済み重複：${summary.catalogDuplicateCount}件`
+        ? `追加直前に掲載済み：${summary.catalogDuplicateCount}件`
         : null,
       summary.selectionDuplicateCount > 0
         ? `選択内重複：${summary.selectionDuplicateCount}件`
@@ -240,7 +240,7 @@ function buildResultMessage(input: {
     `選択：${summary.selectedCount}件`,
     `追加成功：${summary.addedCount}件`,
     summary.catalogDuplicateCount > 0
-      ? `掲載済み重複：${summary.catalogDuplicateCount}件`
+      ? `追加直前に掲載済み：${summary.catalogDuplicateCount}件`
       : null,
     summary.selectionDuplicateCount > 0
       ? `選択内重複：${summary.selectionDuplicateCount}件`

@@ -28,7 +28,7 @@ const constantsSource = readFileSync(
 );
 assert.match(constantsSource, /IMPORT_FETCH_REQUEST_OPTIONS = \[10, 20, 50, 100, 200, 300, 500\]/);
 assert.match(constantsSource, /IMPORT_FETCH_REQUEST_DEFAULT = 50/);
-assert.match(constantsSource, /IMPORT_FETCH_MAX_SCAN_MULTIPLIER = 3/);
+assert.match(constantsSource, /IMPORT_FETCH_MAX_SCAN_MULTIPLIER = 10/);
 assert.match(constantsSource, /IMPORT_SIMPLE_ADD_MAX_RETRIES = 2/);
 
 const fetchRoute = readFileSync(
@@ -44,6 +44,14 @@ const addRoute = readFileSync(
 assert.match(addRoute, /addSelectedWorksToCatalog/);
 assert.doesNotMatch(addRoute, /allMatching|resolveBulkAddSelection|markImportCandidatesAdded/i);
 
+const fetchSource = readFileSync(
+  path.join(root, "lib/admin/fetch-import-candidates.ts"),
+  "utf8",
+);
+assert.match(fetchSource, /maxScanCount/);
+assert.match(fetchSource, /normalizeWorkId/);
+assert.match(fetchSource, /targetReached/);
+
 const clientSource = readFileSync(
   path.join(root, "components/admin/ImportManagementClient.tsx"),
   "utf8",
@@ -51,6 +59,7 @@ const clientSource = readFileSync(
 assert.match(clientSource, /selectedIds/);
 assert.match(clientSource, /fetch-candidates/);
 assert.match(clientSource, /add-selected-works/);
+assert.match(clientSource, /未掲載の人気作品を取得/);
 assert.doesNotMatch(clientSource, /allMatching|PopularCollectPanel|batchJob/i);
 
 console.log("test-import-simple: all checks passed");

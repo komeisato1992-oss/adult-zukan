@@ -15,6 +15,7 @@ import type {
   FetchImportCandidatesResult,
   FetchImportCandidatesSummary,
   FetchedImportCandidate,
+  ImportCandidateMeta,
   ImportFetchSort,
 } from "@/lib/admin/import-simple-types";
 import {
@@ -28,7 +29,9 @@ import {
   keysMatchAny,
 } from "@/lib/admin/import-identity";
 import { normalizeImportContentId } from "@/lib/admin/import-candidate-mapper";
+import { normalizeWorkId } from "@/lib/admin/normalize-work-id";
 import { fetchDmmItemList, isDmmConfigured } from "@/lib/dmm/client";
+import { readCatalogSnapshot } from "@/lib/dmm/catalog-snapshot";
 import { isValidDmmListItem } from "@/lib/dmm/filter";
 import type { DmmFetchOptions } from "@/lib/dmm/types";
 import type { DmmItem } from "@/lib/dmm/types";
@@ -54,6 +57,11 @@ type FetchRejectReason =
   | "noImage"
   | "invalid";
 
+type CatalogKeyLoadResult = {
+  keys: Set<string>;
+  catalogCount: number;
+};
+
 function getSortForFetch(sort: ImportFetchSort): DmmFetchOptions["sort"] {
   return sort === "popular" ? "rank" : "date";
 }
@@ -73,7 +81,7 @@ function parseRequestedCount(value: unknown): number {
     numeric > IMPORT_FETCH_REQUEST_MAX
   ) {
     throw new FetchImportCandidatesError(
-      `取得件数は1〜${IMPORT_FETCH_REQUEST_MAX}の整数で指定してください。`,
+      `未掲載候補の目標件数は1〜${IMPORT_FETCH_REQUEST_MAX}の整数で指定してください。`,
     );
   }
 
@@ -111,24 +119,34 @@ function parseFetchSort(value: unknown): ImportFetchSort {
   );
 }
 
-function createFetchBlockContext(): FetchBlockContext {
-  return {
-    catalogKeys: new Set<string>(),
-    batchKeys: new Set<string>(),
-  };
+function addNormalizedIdKeys(
+  target: Set<string>,
+  item: Pick<DmmItem, "content_id" | "product_id">,
+): void {
+  const contentId = normalizeWorkId(item.content_id);
+  const productId = normalizeWorkId(item.product_id);
+
+  if (contentId) target.add(`nid:${contentId}`);
+  if (productId) target.add(`nid:${productId}`);
 }
 
-async function loadCatalogKeysForFetch(): Promise<Set<string>> {
+function addItemMatchKeys(target: Set<string>, item: DmmItem): void {
+  const identity = buildWorkIdentityKeys(item);
+  for (const key of identity.allKeys) {
+    target.add(key);
+  }
+  addNormalizedIdKeys(target, item);
+}
+
+async function loadCatalogKeysForFetch(): Promise<CatalogKeyLoadResult> {
   if (isGitHubCatalogConfigured()) {
     try {
       const { items } = await fetchCatalogFromGitHub();
       const keys = new Set<string>();
       for (const item of items) {
-        for (const key of buildWorkIdentityKeys(item).allKeys) {
-          keys.add(key);
-        }
+        addItemMatchKeys(keys, item);
       }
-      return keys;
+      return { keys, catalogCount: items.length };
     } catch (error) {
       console.warn(
         "[fetch-candidates] GitHub catalog read failed; falling back to local snapshot",
@@ -137,7 +155,32 @@ async function loadCatalogKeysForFetch(): Promise<Set<string>> {
     }
   }
 
-  return getExistingCatalogKeySet();
+  const items = readCatalogSnapshot();
+  const keys = getExistingCatalogKeySet();
+  for (const item of items) {
+    addNormalizedIdKeys(keys, item);
+  }
+
+  return { keys, catalogCount: items.length };
+}
+
+function itemMatchesKnownKeys(
+  item: DmmItem,
+  known: Set<string>,
+): boolean {
+  const identity = buildWorkIdentityKeys(item);
+  if (keysMatchAny(identity.allKeys, known)) {
+    return true;
+  }
+
+  const normalizedKeys = [
+    normalizeWorkId(item.content_id),
+    normalizeWorkId(item.product_id),
+  ]
+    .filter(Boolean)
+    .map((id) => `nid:${id}`);
+
+  return normalizedKeys.some((key) => known.has(key));
 }
 
 function classifyFetchItem(
@@ -147,10 +190,10 @@ function classifyFetchItem(
   const identity = buildWorkIdentityKeys(item);
   if (!identity.contentId && !identity.productId) return "invalid";
 
-  if (keysMatchAny(identity.allKeys, context.catalogKeys)) {
+  if (itemMatchesKnownKeys(item, context.catalogKeys)) {
     return "catalogPublished";
   }
-  if (keysMatchAny(identity.allKeys, context.batchKeys)) {
+  if (itemMatchesKnownKeys(item, context.batchKeys)) {
     return "duplicate";
   }
   if (!hasCollectibleImage(item)) return "noImage";
@@ -181,6 +224,10 @@ function recordFetchExclusion(
   }
 }
 
+function rememberBatchKeys(item: DmmItem, context: FetchBlockContext): void {
+  addItemMatchKeys(context.batchKeys, item);
+}
+
 function acceptFetchItem(
   item: DmmItem,
   context: FetchBlockContext,
@@ -192,24 +239,34 @@ function acceptFetchItem(
     return false;
   }
 
-  for (const key of buildWorkIdentityKeys(item).allKeys) {
-    context.batchKeys.add(key);
-  }
+  rememberBatchKeys(item, context);
   return true;
 }
 
 function toFetchedCandidate(
   item: DmmItem,
-  rankPosition: number | null,
+  input: {
+    sort: ImportFetchSort;
+    sourceOffset: number;
+    sourceIndex: number;
+    absolutePopularityPosition: number;
+  },
 ): FetchedImportCandidate {
   const contentId = normalizeImportContentId(item.content_id);
   const productId = normalizeImportContentId(item.product_id ?? "");
+  const candidateMeta: ImportCandidateMeta = {
+    sourceSort: input.sort,
+    sourceOffset: input.sourceOffset,
+    sourceIndex: input.sourceIndex,
+    absolutePopularityPosition: input.absolutePopularityPosition,
+  };
 
   return {
     item,
     contentId,
     productId,
-    rankPosition,
+    rankPosition: input.absolutePopularityPosition,
+    candidateMeta,
   };
 }
 
@@ -231,6 +288,51 @@ async function fetchDmmPage(
     items,
     resultCount: response.result.result_count ?? items.length,
   };
+}
+
+function buildFetchSummaryMessage(summary: FetchImportCandidatesSummary): string {
+  const {
+    requestedCount,
+    maxScanCount,
+    apiFetchedCount,
+    candidateCount,
+    targetReached,
+    popularityRangeMin,
+    popularityRangeMax,
+  } = summary;
+
+  const rangeText =
+    popularityRangeMin != null && popularityRangeMax != null
+      ? `人気順位範囲：${popularityRangeMin.toLocaleString()}位〜${popularityRangeMax.toLocaleString()}位`
+      : null;
+
+  if (targetReached) {
+    return [
+      `FANZA人気順から${apiFetchedCount.toLocaleString()}件を確認し、未掲載の人気作品${candidateCount.toLocaleString()}件を候補として取得しました。`,
+      rangeText,
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+
+  return [
+    `FANZA人気順を最大${maxScanCount.toLocaleString()}件確認し、未掲載候補を${candidateCount.toLocaleString()}件取得しました。指定数${requestedCount.toLocaleString()}件には届きませんでした。`,
+    rangeText,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function updatePopularityRange(
+  summary: FetchImportCandidatesSummary,
+  position: number,
+): void {
+  if (summary.popularityRangeMin == null || position < summary.popularityRangeMin) {
+    summary.popularityRangeMin = position;
+  }
+  if (summary.popularityRangeMax == null || position > summary.popularityRangeMax) {
+    summary.popularityRangeMax = position;
+  }
 }
 
 export function parseFetchCandidatesRequest(body: unknown): {
@@ -267,34 +369,45 @@ export async function fetchImportCandidates(input: {
   const startOffset = normalizeDmmOffset(input.offset);
   const dmmSort = getSortForFetch(sort);
   const pageSize = DMM_ITEMLIST_MAX_HITS;
-  const maxApiScanCount = requestedCount * IMPORT_FETCH_MAX_SCAN_MULTIPLIER;
-  const blockContext = createFetchBlockContext();
-  blockContext.catalogKeys = await loadCatalogKeysForFetch();
+  const maxScanCount = requestedCount * IMPORT_FETCH_MAX_SCAN_MULTIPLIER;
+  const { keys: catalogKeys, catalogCount } = await loadCatalogKeysForFetch();
+  const blockContext: FetchBlockContext = {
+    catalogKeys,
+    batchKeys: new Set<string>(),
+  };
   const candidates: FetchedImportCandidate[] = [];
 
   const summary: FetchImportCandidatesSummary = {
     requestedCount,
+    maxScanCount,
     apiFetchedCount: 0,
     publishedExcludedCount: 0,
     duplicateExcludedCount: 0,
     invalidExcludedCount: 0,
     imageMissingExcludedCount: 0,
     candidateCount: 0,
+    catalogCount,
     startOffset,
     nextOffset: startOffset,
+    scanStartOffset: startOffset,
+    scanEndOffset: startOffset,
+    popularityRangeMin: null,
+    popularityRangeMax: null,
+    targetReached: false,
+    message: "",
   };
 
   let currentOffset = startOffset;
   let fetchCompleted = false;
-  const plannedPages = planCollectPages(maxApiScanCount, pageSize);
+  const plannedPages = planCollectPages(maxScanCount, pageSize);
 
   for (let pageIndex = 0; pageIndex < plannedPages; pageIndex += 1) {
     if (candidates.length >= requestedCount) break;
-    if (summary.apiFetchedCount >= maxApiScanCount) break;
+    if (summary.apiFetchedCount >= maxScanCount) break;
     if (fetchCompleted) break;
 
     const hits = nextCollectPageHits(
-      maxApiScanCount,
+      maxScanCount,
       summary.apiFetchedCount,
       pageSize,
     );
@@ -302,6 +415,7 @@ export async function fetchImportCandidates(input: {
     const page = await fetchDmmPage(currentOffset, hits, dmmSort);
     const pageItems = page.items;
     summary.apiFetchedCount += pageItems.length;
+    summary.scanEndOffset = currentOffset + pageItems.length;
 
     if (pageItems.length === 0) {
       fetchCompleted = true;
@@ -316,19 +430,29 @@ export async function fetchImportCandidates(input: {
         continue;
       }
 
-      candidates.push(
-        toFetchedCandidate(
-          item,
-          sort === "popular" ? currentOffset + index : null,
-        ),
-      );
+      const absolutePopularityPosition = currentOffset + index;
+      const candidate = toFetchedCandidate(item, {
+        sort,
+        sourceOffset: currentOffset,
+        sourceIndex: index,
+        absolutePopularityPosition,
+      });
+
+      candidates.push(candidate);
+      updatePopularityRange(summary, absolutePopularityPosition);
     }
 
     currentOffset += pageItems.length;
     summary.nextOffset = currentOffset;
+
+    if (pageItems.length < hits) {
+      fetchCompleted = true;
+    }
   }
 
   summary.candidateCount = candidates.length;
+  summary.targetReached = candidates.length >= requestedCount;
+  summary.message = buildFetchSummaryMessage(summary);
 
   return { candidates, summary };
 }

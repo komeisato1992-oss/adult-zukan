@@ -16,7 +16,6 @@ import {
   readStoredOffset,
   writeCandidatesSession,
   writeStoredOffset,
-  type ImportCandidatesSession,
 } from "@/lib/admin/import-session-storage";
 import type {
   FetchedImportCandidate,
@@ -69,11 +68,17 @@ function sortCandidates(
     case "random":
       return next.sort(() => Math.random() - 0.5);
     case "seoScore-desc":
-    case "collectedAt-desc":
+    case "popular-desc":
     default:
       return next.sort((a, b) => {
-        const rankA = a.rankPosition ?? Number.MAX_SAFE_INTEGER;
-        const rankB = b.rankPosition ?? Number.MAX_SAFE_INTEGER;
+        const rankA =
+          a.candidateMeta?.absolutePopularityPosition ??
+          a.rankPosition ??
+          Number.MAX_SAFE_INTEGER;
+        const rankB =
+          b.candidateMeta?.absolutePopularityPosition ??
+          b.rankPosition ??
+          Number.MAX_SAFE_INTEGER;
         return rankA - rankB;
       });
   }
@@ -110,7 +115,7 @@ export function ImportManagementClient({
   const [activeFilters, setActiveFilters] = useState<Set<ImportFilterKey>>(
     new Set(),
   );
-  const [sort, setSort] = useState<ImportCandidateSortKey>("seoScore-desc");
+  const [sort, setSort] = useState<ImportCandidateSortKey>("popular-desc");
   const [page, setPage] = useState(1);
   const [requestedCount, setRequestedCount] = useState(
     IMPORT_FETCH_REQUEST_DEFAULT,
@@ -182,18 +187,23 @@ export function ImportManagementClient({
         }),
       });
 
-      const payload = await parseJsonResponseBody<{
+      const parsed = await parseJsonResponseBody<{
         candidates?: FetchedImportCandidate[];
         summary?: FetchImportCandidatesSummary;
         error?: string;
       }>(response);
 
-      if (!response.ok) {
+      if (!response.ok || !parsed.ok) {
+        const serverError =
+          parsed.ok && parsed.data.error ? parsed.data.error : null;
         throw new Error(
-          payload.error ??
+          serverError ??
+            (!parsed.ok ? parsed.error.message : undefined) ??
             "候補の取得に失敗しました。カタログは変更されていません。",
         );
       }
+
+      const payload = parsed.data;
 
       const nextCandidates = payload.candidates ?? [];
       const nextSummary = payload.summary ?? null;
@@ -202,6 +212,7 @@ export function ImportManagementClient({
       setSummary(nextSummary);
       setSelectedIds(new Set());
       setPage(1);
+      setSort("popular-desc");
 
       if (nextSummary) {
         writeStoredOffset("popular", nextSummary.nextOffset);
@@ -244,7 +255,9 @@ export function ImportManagementClient({
       const works = selectedCandidates.map((candidate) => ({
         contentId: getCandidateSelectionId(candidate),
         item: candidate.item,
-        sourcePopularityRank: candidate.rankPosition,
+        sourcePopularityRank:
+          candidate.candidateMeta?.absolutePopularityPosition ??
+          candidate.rankPosition,
       }));
 
       const response = await fetch("/api/admin/import/add-selected-works", {
@@ -253,7 +266,7 @@ export function ImportManagementClient({
         body: JSON.stringify({ works }),
       });
 
-      const payload = await parseJsonResponseBody<{
+      const parsed = await parseJsonResponseBody<{
         success?: boolean;
         message?: string;
         addedContentIds?: string[];
@@ -266,12 +279,17 @@ export function ImportManagementClient({
         error?: string;
       }>(response);
 
-      if (!response.ok) {
+      if (!response.ok || !parsed.ok) {
+        const serverError =
+          parsed.ok && parsed.data.error ? parsed.data.error : null;
         throw new Error(
-          payload.error ??
+          serverError ??
+            (!parsed.ok ? parsed.error.message : undefined) ??
             "カタログの更新に失敗しました。追加は確定していません。",
         );
       }
+
+      const payload = parsed.data;
 
       setAddMessage(payload.message ?? "追加が完了しました。");
 
@@ -408,6 +426,9 @@ export function ImportManagementClient({
     <div className="space-y-6">
       <section className="rounded-xl border border-border bg-white p-4 shadow-sm">
         <h2 className="text-sm font-bold text-foreground">① 候補取得</h2>
+        <p className="mt-2 text-sm text-muted">
+          FANZA人気順から、アダルト図鑑に未掲載の作品を優先して取得します。
+        </p>
         <div className="mt-4 grid gap-4 md:grid-cols-3">
           <label className="block text-sm">
             <span className="text-muted">並び順</span>
@@ -416,7 +437,7 @@ export function ImportManagementClient({
               value="popular"
               disabled
             >
-              <option value="popular">人気順</option>
+              <option value="popular">FANZA人気順</option>
             </select>
           </label>
           <label className="block text-sm">
@@ -431,7 +452,7 @@ export function ImportManagementClient({
             />
           </label>
           <label className="block text-sm">
-            <span className="text-muted">取得件数</span>
+            <span className="text-muted">未掲載候補の目標件数</span>
             <select
               className="mt-1 w-full rounded-lg border border-border px-3 py-2"
               value={requestedCount}
@@ -477,8 +498,15 @@ export function ImportManagementClient({
           disabled={isFetchingCandidates || isAddingWorks}
           className="mt-4 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
-          {isFetchingCandidates ? "候補を取得中..." : "候補を取得"}
+          {isFetchingCandidates
+            ? `FANZA人気順を確認中…（目標: ${requestedCount}件）`
+            : "未掲載の人気作品を取得"}
         </button>
+        {isFetchingCandidates ? (
+          <p className="mt-2 text-sm text-muted">
+            掲載済み作品を除外しながら、未掲載候補 {requestedCount} 件を探しています…
+          </p>
+        ) : null}
         {fetchError ? (
           <p className="mt-3 text-sm text-red-600">{fetchError}</p>
         ) : null}
@@ -487,9 +515,18 @@ export function ImportManagementClient({
       {summary ? (
         <section className="rounded-xl border border-border bg-white p-4 shadow-sm">
           <h2 className="text-sm font-bold text-foreground">② 取得結果サマリー</h2>
+          {summary.message ? (
+            <p className="mt-2 whitespace-pre-line text-sm text-foreground">
+              {summary.message}
+            </p>
+          ) : null}
           <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
             <div>
-              <dt className="text-muted">API取得件数</dt>
+              <dt className="text-muted">取得要求候補</dt>
+              <dd>{summary.requestedCount.toLocaleString()}件</dd>
+            </div>
+            <div>
+              <dt className="text-muted">API走査件数</dt>
               <dd>{summary.apiFetchedCount.toLocaleString()}件</dd>
             </div>
             <div>
@@ -497,29 +534,43 @@ export function ImportManagementClient({
               <dd>{summary.publishedExcludedCount.toLocaleString()}件</dd>
             </div>
             <div>
-              <dt className="text-muted">重複除外</dt>
+              <dt className="text-muted">取得内重複</dt>
               <dd>{summary.duplicateExcludedCount.toLocaleString()}件</dd>
             </div>
             <div>
-              <dt className="text-muted">無効除外</dt>
-              <dd>{summary.invalidExcludedCount.toLocaleString()}件</dd>
-            </div>
-            <div>
-              <dt className="text-muted">画像なし除外</dt>
+              <dt className="text-muted">画像なし</dt>
               <dd>{summary.imageMissingExcludedCount.toLocaleString()}件</dd>
             </div>
             <div>
-              <dt className="text-muted">有効候補</dt>
+              <dt className="text-muted">無効</dt>
+              <dd>{summary.invalidExcludedCount.toLocaleString()}件</dd>
+            </div>
+            <div>
+              <dt className="text-muted">最終候補</dt>
               <dd>{summary.candidateCount.toLocaleString()}件</dd>
             </div>
             <div>
-              <dt className="text-muted">今回の開始offset</dt>
+              <dt className="text-muted">catalog掲載数</dt>
+              <dd>{summary.catalogCount.toLocaleString()}件</dd>
+            </div>
+            <div>
+              <dt className="text-muted">開始offset</dt>
               <dd>{summary.startOffset.toLocaleString()}</dd>
             </div>
             <div>
               <dt className="text-muted">次回offset</dt>
               <dd>{summary.nextOffset.toLocaleString()}</dd>
             </div>
+            {summary.popularityRangeMin != null &&
+            summary.popularityRangeMax != null ? (
+              <div className="sm:col-span-2">
+                <dt className="text-muted">人気順位範囲</dt>
+                <dd>
+                  {summary.popularityRangeMin.toLocaleString()}位〜
+                  {summary.popularityRangeMax.toLocaleString()}位
+                </dd>
+              </div>
+            ) : null}
           </dl>
         </section>
       ) : null}
@@ -641,6 +692,10 @@ export function ImportManagementClient({
                 sourceLabel={formatImportSourceLabel("fanza-rank")}
                 selected={selectedIds.has(contentId)}
                 isAdded={false}
+                popularityRank={
+                  candidate.candidateMeta?.absolutePopularityPosition ??
+                  candidate.rankPosition
+                }
                 comparePool={candidates.map((entry) => entry.item)}
                 onSelectedChange={(id, selected, item: DmmItem) => {
                   void item;

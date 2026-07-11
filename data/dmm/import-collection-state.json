@@ -1,14 +1,14 @@
 {
   "pastOffset": 7001,
   "lastPastStartOffset": 6701,
-  "popularOffset": 1101,
-  "lastPopularStartOffset": 601,
+  "popularOffset": 1601,
+  "lastPopularStartOffset": 1101,
   "targetTotalCount": 10000,
   "pageSize": 100,
-  "lastCollectedAt": "2026-07-11T03:30:59.513Z",
+  "lastCollectedAt": "2026-07-11T03:31:46.467Z",
   "lastNewCollectedAt": "2026-07-11T01:23:06.650Z",
   "lastPastCollectedAt": "2026-07-11T03:30:59.513Z",
-  "lastPopularCollectedAt": "2026-07-11T01:25:40.007Z",
-  "lastMode": "past",
+  "lastPopularCollectedAt": "2026-07-11T03:31:46.467Z",
+  "lastMode": "popular",
   "cycleCount": 0
 }

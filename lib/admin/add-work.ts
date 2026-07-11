@@ -15,6 +15,7 @@ import {
   summarizeImportSelection,
   type ImportSelectionSummary,
 } from "@/lib/admin/import-quality";
+import type { ImportCandidatePipelineStages } from "@/lib/admin/import-candidates-query";
 import { normalizeCatalogContentId } from "@/lib/dmm/catalog-snapshot";
 import { logCatalogSnapshotThrownError } from "@/lib/dmm/catalog-snapshot-json";
 import {
@@ -47,11 +48,17 @@ export type BulkAddPreviewResult = {
 
 export class AddWorkValidationError extends Error {
   status: number;
+  pipeline?: ImportCandidatePipelineStages;
 
-  constructor(message: string, status = 400) {
+  constructor(
+    message: string,
+    status = 400,
+    options?: { pipeline?: ImportCandidatePipelineStages },
+  ) {
     super(message);
     this.name = "AddWorkValidationError";
     this.status = status;
+    this.pipeline = options?.pipeline;
   }
 }
 

@@ -53,17 +53,22 @@ export function writeImportCandidatesLocal(
   writeFileSync(IMPORT_CANDIDATES_FILE, serializeImportCandidates(records), "utf-8");
 }
 
+export type ImportCandidatesDataSource = "github" | "local";
+
 export async function loadImportCandidates(): Promise<{
   records: StoredImportCandidate[];
   sha: string | null;
+  dataSource: ImportCandidatesDataSource;
 }> {
   if (isGitHubCatalogConfigured()) {
-    return fetchImportCandidatesFromGitHub();
+    const result = await fetchImportCandidatesFromGitHub();
+    return { ...result, dataSource: "github" };
   }
 
   return {
     records: readImportCandidatesLocal(),
     sha: null,
+    dataSource: "local",
   };
 }
 

@@ -46,6 +46,13 @@ export function isVisibleStoredCandidate(record: StoredImportCandidate): boolean
   return Boolean(id && title);
 }
 
+/** 一括追加可能な pending 候補（一覧表示と同一判定） */
+export function isPendingImportCandidate(
+  record: StoredImportCandidate,
+): boolean {
+  return isVisibleStoredCandidate(record);
+}
+
 export function storedRecordToListItem(
   record: StoredImportCandidate,
 ): ImportCandidateListItem {

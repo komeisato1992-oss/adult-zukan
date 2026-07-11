@@ -4,18 +4,22 @@ import { resolveBulkAddLimit } from "@/lib/admin/bulk-add-limit";
 import type { BulkAddWorkInput } from "@/lib/admin/bulk-add-request";
 import type { ImportCandidateSortKey } from "@/lib/admin/import-candidate-types";
 import { normalizeImportContentId } from "@/lib/admin/import-candidate-mapper";
+import { parseImportCandidateFilters } from "@/lib/admin/import-candidate-filters";
 import { validateBulkAddWorksInBatches } from "@/lib/admin/bulk-add-validate";
 import { logBulkAddServerError } from "@/lib/admin/bulk-add-safe";
-import { buildImportCandidatesListFromRecords } from "@/lib/admin/import-candidates-query";
+import {
+  getFilteredImportCandidates,
+  logImportCandidatePipelineStages,
+  type ImportCandidatePipelineStages,
+} from "@/lib/admin/import-candidates-query";
 import { loadImportCandidates } from "@/lib/admin/import-candidates-store";
 import {
-  isVisibleStoredCandidate,
+  isPendingImportCandidate,
   storedRecordToListItem,
 } from "@/lib/admin/import-candidates-visibility";
 import { IMPORT_BULK_ADD_ABSOLUTE_MAX } from "@/lib/admin/import-constants";
 import type { BulkAddSelectionPayload } from "@/lib/admin/import-selection";
 import { hasSelection } from "@/lib/admin/import-selection";
-import type { ImportFilterKey } from "@/lib/admin/import-quality";
 import { AddWorkValidationError } from "@/lib/admin/add-work";
 
 export type BulkAddResolutionDebug = {
@@ -32,6 +36,7 @@ export type BulkAddResolutionDebug = {
     excludedCount: number;
     failedIds: string[];
   }>;
+  pipeline?: ImportCandidatePipelineStages;
 };
 
 export type BulkAddResolutionResult = {
@@ -66,9 +71,7 @@ function parseSelectionPayload(body: Record<string, unknown>): BulkAddSelectionP
         excludedIds: Array.isArray(value.excludedIds)
           ? value.excludedIds.filter((id): id is string => typeof id === "string")
           : [],
-        filters: Array.isArray(value.filters)
-          ? (value.filters.filter((key): key is ImportFilterKey => typeof key === "string") as ImportFilterKey[])
-          : [],
+        filters: parseImportCandidateFilters(value.filters),
         sort:
           typeof value.sort === "string"
             ? (value.sort as ImportCandidateSortKey)
@@ -95,9 +98,7 @@ function parseSelectionPayload(body: Record<string, unknown>): BulkAddSelectionP
       excludedIds: Array.isArray(body.excludedIds)
         ? body.excludedIds.filter((id): id is string => typeof id === "string")
         : [],
-      filters: Array.isArray(body.filters)
-        ? (body.filters.filter((key): key is ImportFilterKey => typeof key === "string") as ImportFilterKey[])
-        : [],
+      filters: parseImportCandidateFilters(body.filters),
       sort:
         typeof body.sort === "string"
           ? (body.sort as ImportCandidateSortKey)
@@ -125,41 +126,80 @@ function parseSelectionPayload(body: Record<string, unknown>): BulkAddSelectionP
   throw new AddWorkValidationError("リクエスト形式が不正です。");
 }
 
-async function listMatchingCandidates(input: {
-  excludedIds: string[];
-  filters: ImportFilterKey[];
-  sort: ImportCandidateSortKey;
-}) {
-  const { records } = await loadImportCandidates();
-  const list = await buildImportCandidatesListFromRecords(records, {
-    page: 1,
-    sort: input.sort,
-    filters: input.filters,
-    includeAll: true,
-  });
+function buildBulkAddResolutionErrorMessage(
+  selection: BulkAddSelectionPayload,
+  stages: ImportCandidatePipelineStages,
+  invalidCount: number,
+): string {
+  if (invalidCount > 0) {
+    return "追加できる有効な候補がありませんでした。無効な候補を除外して再試行してください。";
+  }
 
-  const excluded = new Set(
-    input.excludedIds.map((id) => id.trim().toLowerCase()).filter(Boolean),
-  );
+  if (selection.mode === "allMatching") {
+    if (stages.rawCandidateCount === 0) {
+      return "候補データの再取得結果が0件でした。候補一覧と一括追加APIのデータが一致していません。";
+    }
 
-  return list.candidates.filter(
-    (candidate) => !excluded.has(candidate.contentId.trim().toLowerCase()),
-  );
+    if (stages.afterQualityFilterCount === 0 && stages.filters.length > 0) {
+      return "品質フィルター適用後の候補が0件でした。フィルター条件を見直してください。";
+    }
+
+    if (
+      stages.afterQualityFilterCount > 0 &&
+      stages.afterExcludedIdsCount === 0
+    ) {
+      return "除外ID適用後の候補が0件でした。選択状態を確認してください。";
+    }
+
+    if (
+      stages.receivedTotalCount != null &&
+      stages.receivedTotalCount > 0 &&
+      stages.afterDeduplicationCount === 0
+    ) {
+      return "候補データの再取得結果が0件でした。候補一覧と一括追加APIのデータが一致していません。";
+    }
+
+    return "候補データの再取得結果が0件でした。候補一覧と一括追加APIのデータが一致していません。";
+  }
+
+  return "追加する作品が選択されていません。";
+}
+
+function formatPipelineDebugSuffix(stages: ImportCandidatePipelineStages): string {
+  return [
+    `元候補=${stages.rawCandidateCount}件`,
+    `pending=${stages.pendingCandidateCount}件`,
+    `品質フィルター後=${stages.afterQualityFilterCount}件`,
+    `除外後=${stages.afterExcludedIdsCount}件`,
+    `上限後=${stages.afterLimitCount}件`,
+    `dataSource=${stages.dataSource}`,
+    `parseShape=${stages.parseShape}`,
+  ].join(" / ");
 }
 
 async function resolveAllMatchingWorks(
   selection: Extract<BulkAddSelectionPayload, { mode: "allMatching" }>,
-): Promise<BulkAddWorkInput[]> {
-  const candidates = await listMatchingCandidates({
-    excludedIds: selection.excludedIds,
+  clientSampleIds: string[] = [],
+): Promise<{
+  works: BulkAddWorkInput[];
+  stages: ImportCandidatePipelineStages;
+}> {
+  const filtered = await getFilteredImportCandidates({
     filters: selection.filters,
     sort: selection.sort,
+    excludedIds: selection.excludedIds,
+    receivedTotalCount: selection.totalCount,
+    clientSampleIds,
   });
 
-  return candidates.map((candidate) => ({
+  logImportCandidatePipelineStages("[bulk-add allMatching]", filtered.stages);
+
+  const works = filtered.candidates.map((candidate) => ({
     contentId: candidate.contentId,
     item: candidate.item,
   }));
+
+  return { works, stages: filtered.stages };
 }
 
 async function resolveExplicitWorks(
@@ -177,7 +217,7 @@ async function resolveExplicitWorks(
   const itemById = new Map<string, BulkAddWorkInput>();
 
   for (const record of records) {
-    if (!isVisibleStoredCandidate(record)) continue;
+    if (!isPendingImportCandidate(record)) continue;
 
     const listItem = storedRecordToListItem(record);
     const contentId = normalizeImportContentId(listItem.contentId);
@@ -230,16 +270,23 @@ function assertExplicitSelection(
 
 export function describeBulkAddRequestBody(
   body: unknown,
+  pipeline?: ImportCandidatePipelineStages,
 ): BulkAddResolutionDebug | null {
   try {
     if (!body || typeof body !== "object") return null;
     const selection = parseSelectionPayload(body as Record<string, unknown>);
+    const payload = body as Record<string, unknown>;
+    const receivedSelectedCount = countSelectionInput(selection);
+    const resolvedCount = pipeline?.afterDeduplicationCount ?? 0;
+    const appliedLimit = resolveBulkAddLimit(payload.addLimit, resolvedCount || receivedSelectedCount);
+
     return {
       selectionMode: selection.mode,
-      receivedSelectedCount: countSelectionInput(selection),
-      resolvedCount: 0,
-      afterLimitCount: 0,
-      appliedLimit: 0,
+      receivedSelectedCount,
+      resolvedCount,
+      afterLimitCount: pipeline?.afterLimitCount ?? Math.min(appliedLimit, resolvedCount),
+      appliedLimit,
+      pipeline,
     };
   } catch {
     return null;
@@ -257,22 +304,32 @@ export async function resolveBulkAddSelection(
 
   const payload = body as Record<string, unknown>;
   const selection = parseSelectionPayload(payload);
+  const clientSampleIds = Array.isArray(payload.clientSampleIds)
+    ? payload.clientSampleIds.filter((id): id is string => typeof id === "string")
+    : [];
+
   console.log("[bulk-add] selection parsed", {
     mode: selection.mode,
     receivedSelectedCount: countSelectionInput(selection),
+    filters: selection.mode === "allMatching" ? selection.filters : [],
   });
 
   if (selection.mode === "explicit") {
     assertExplicitSelection(selection);
   }
 
+  let pipeline: ImportCandidatePipelineStages | undefined;
   const rawWorks =
     selection.mode === "allMatching"
-      ? await resolveAllMatchingWorks(selection)
+      ? await resolveAllMatchingWorks(selection, clientSampleIds).then((result) => {
+          pipeline = result.stages;
+          return result.works;
+        })
       : await resolveExplicitWorks(selection);
 
   console.log("[bulk-add] candidates resolved", {
     resolvedCount: rawWorks.length,
+    pipeline,
   });
 
   const validation = validateBulkAddWorksInBatches(rawWorks);
@@ -283,12 +340,38 @@ export async function resolveBulkAddSelection(
     logBulkAddServerError("resolveBulkAddSelection", new Error("no valid works"), {
       invalidCount: validation.invalid.length,
       firstInvalid,
+      pipeline,
     });
-    throw new AddWorkValidationError(
-      validation.invalid.length > 0
-        ? "追加できる有効な候補がありませんでした。無効な候補を除外して再試行してください。"
-        : "追加する作品が選択されていません。",
+
+    const stages =
+      pipeline ??
+      ({
+        rawCandidateCount: 0,
+        normalizedCandidateCount: 0,
+        pendingCandidateCount: 0,
+        afterStatusFilterCount: 0,
+        afterQualityFilterCount: 0,
+        afterSearchFilterCount: 0,
+        afterExcludedIdsCount: 0,
+        afterDeduplicationCount: 0,
+        afterLimitCount: 0,
+        filters: selection.mode === "allMatching" ? selection.filters : [],
+        dataSource: "local",
+        parseShape: "unknown",
+        clientSampleIds,
+        serverSampleIds: [],
+      } satisfies ImportCandidatePipelineStages);
+
+    const message = buildBulkAddResolutionErrorMessage(
+      selection,
+      stages,
+      validation.invalid.length,
     );
+    const suffix = formatPipelineDebugSuffix(stages);
+
+    throw new AddWorkValidationError(`${message}\n${suffix}`, 400, {
+      pipeline: stages,
+    });
   }
 
   const receivedSelectedCount = countSelectionInput(selection, works.length);
@@ -302,10 +385,15 @@ export async function resolveBulkAddSelection(
     );
   }
 
+  if (pipeline) {
+    pipeline.afterLimitCount = limited.length;
+  }
+
   console.log("[bulk-add] resolve selection complete", {
     resolvedCount: works.length,
     invalidCount: validation.invalid.length,
     afterLimitCount: limited.length,
+    pipeline,
   });
 
   return {
@@ -320,6 +408,7 @@ export async function resolveBulkAddSelection(
       appliedLimit,
       invalidCount: validation.invalid.length,
       validationBatches: validation.batches,
+      pipeline,
     },
   };
 }

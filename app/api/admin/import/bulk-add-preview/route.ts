@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import {
   previewBulkAddWorks,
   toAddWorkErrorMessage,
+  AddWorkValidationError,
 } from "@/lib/admin/add-work";
 import { logBulkAddServerError } from "@/lib/admin/bulk-add-safe";
 import { describeBulkAddRequestBody, resolveBulkAddSelection } from "@/lib/admin/resolve-bulk-selection";
@@ -44,10 +45,12 @@ export async function POST(request: Request) {
       hasRequestBody: Boolean(requestBody),
     });
     const { message, status } = toAddWorkErrorMessage(error);
+    const pipeline =
+      error instanceof AddWorkValidationError ? error.pipeline : undefined;
     return NextResponse.json(
       {
         error: message,
-        debug: describeBulkAddRequestBody(requestBody),
+        debug: describeBulkAddRequestBody(requestBody, pipeline),
       },
       { status },
     );

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin/auth";
+import { parseImportCandidateFilters } from "@/lib/admin/import-candidate-filters";
 import type { ImportCandidateSortKey } from "@/lib/admin/import-candidate-types";
 import { getAllImportCandidateListItems, getImportCandidatesList } from "@/lib/admin/import-candidates-query";
 import type { ImportFilterKey } from "@/lib/admin/import-quality";
@@ -18,21 +19,6 @@ const VALID_SORTS = new Set<ImportCandidateSortKey>([
   "random",
 ]);
 
-const VALID_FILTERS = new Set<ImportFilterKey>([
-  "hasImage",
-  "hasActress",
-  "hasPrice",
-  "hasDescription",
-  "hasSampleImages",
-  "isSoloWork",
-  "isOnSale",
-  "seoRankingOnly",
-  "seoNewReleaseOnly",
-  "seoPopularActressOnly",
-  "seoPopularMakerOnly",
-  "seoPopularSeriesOnly",
-]);
-
 function parseSort(value: string | null): ImportCandidateSortKey {
   if (value && VALID_SORTS.has(value as ImportCandidateSortKey)) {
     return value as ImportCandidateSortKey;
@@ -42,13 +28,7 @@ function parseSort(value: string | null): ImportCandidateSortKey {
 
 function parseFilters(value: string | null): ImportFilterKey[] {
   if (!value?.trim()) return [];
-
-  return value
-    .split(",")
-    .map((entry) => entry.trim())
-    .filter((entry): entry is ImportFilterKey =>
-      VALID_FILTERS.has(entry as ImportFilterKey),
-    );
+  return parseImportCandidateFilters(value);
 }
 
 export async function GET(request: Request) {

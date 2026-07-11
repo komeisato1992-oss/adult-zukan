@@ -123,9 +123,16 @@ export function matchesImportFilters(
   if (activeFilters.size === 0) return true;
 
   const flags = getImportQualityFlags(item);
-  return [...activeFilters]
-    .filter((key) => !isSeoFilterKey(key))
-    .every((key) => flags[key as ImportQualityFilterKey]);
+  const qualityFilters = [...activeFilters].filter(
+    (key): key is ImportQualityFilterKey =>
+      !isSeoFilterKey(key) && key in flags,
+  );
+
+  if (qualityFilters.length === 0) {
+    return true;
+  }
+
+  return qualityFilters.every((key) => flags[key]);
 }
 
 export function matchesImportRecordFilters(

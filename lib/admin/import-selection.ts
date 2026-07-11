@@ -33,6 +33,7 @@ export type BulkAddSelectionPayload =
 export type BulkAddApiRequestBody = {
   selection: BulkAddSelectionPayload;
   addLimit?: number | string;
+  clientSampleIds?: string[];
 };
 
 export function createEmptySelectionState(): ImportSelectionState {
@@ -133,6 +134,7 @@ export function buildBulkAddApiRequest(
   selection: ImportSelectionState,
   addLimit: number | string,
   context?: BulkAddRequestContext,
+  clientSampleIds: string[] = [],
 ): BulkAddApiRequestBody | null {
   if (selection.mode === "allMatching") {
     const filters = context ? [...context.filters] : [...selection.filters];
@@ -148,6 +150,7 @@ export function buildBulkAddApiRequest(
         totalCount,
       },
       addLimit,
+      clientSampleIds,
     };
   }
 
@@ -158,6 +161,7 @@ export function buildBulkAddApiRequest(
         selectedIds: [...selection.selectedIds],
       },
       addLimit,
+      clientSampleIds,
     };
   }
 

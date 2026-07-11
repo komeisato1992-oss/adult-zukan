@@ -12,7 +12,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "fetch-catalog": "node scripts/fetch-catalog.mjs"
+    "fetch-catalog": "node scripts/fetch-catalog.mjs",
+    "test:import-filters": "node scripts/test-import-candidate-filters.mjs"
   },
   "dependencies": {
     "@next/third-parties": "^15.5.20",

@@ -67,6 +67,18 @@ type BulkAddApiDebug = {
   afterLimitCount: number;
   appliedLimit: number;
   invalidCount?: number;
+  pipeline?: {
+    rawCandidateCount: number;
+    pendingCandidateCount: number;
+    afterQualityFilterCount: number;
+    afterExcludedIdsCount: number;
+    afterLimitCount: number;
+    dataSource: string;
+    parseShape: string;
+    filters: string[];
+    clientSampleIds: string[];
+    serverSampleIds: string[];
+  };
 };
 
 function buildBulkAddDebugLine(debug?: BulkAddApiDebug | null): string | null {
@@ -75,7 +87,11 @@ function buildBulkAddDebugLine(debug?: BulkAddApiDebug | null): string | null {
     typeof debug.invalidCount === "number"
       ? ` / 無効除外=${debug.invalidCount}件`
       : "";
-  return `mode=${debug.selectionMode} / 受信=${debug.receivedSelectedCount}件 / 再抽出=${debug.resolvedCount}件 / 上限適用後=${debug.afterLimitCount}件${invalidSuffix}`;
+  const pipeline = debug.pipeline;
+  const pipelineSuffix = pipeline
+    ? ` / 元候補=${pipeline.rawCandidateCount}件 / pending=${pipeline.pendingCandidateCount}件 / 品質後=${pipeline.afterQualityFilterCount}件 / 除外後=${pipeline.afterExcludedIdsCount}件 / dataSource=${pipeline.dataSource}`
+    : "";
+  return `mode=${debug.selectionMode} / 受信=${debug.receivedSelectedCount}件 / 再抽出=${debug.resolvedCount}件 / 上限適用後=${debug.afterLimitCount}件${invalidSuffix}${pipelineSuffix}`;
 }
 
 function logBulkAddClientFailure(
@@ -695,10 +711,15 @@ export function ImportManagementClient({
       }
 
       const appliedLimit = resolveBulkAddLimit(addLimit, selectedCount);
+      const clientSampleIds = visibleCandidates
+        .slice(0, 10)
+        .map((candidate) => candidate.contentId)
+        .filter(Boolean);
       const requestBody = buildBulkAddApiRequest(
         selection,
         appliedLimit,
         bulkAddContext,
+        clientSampleIds,
       );
       console.log("[bulk-add] request body built");
 
@@ -753,7 +774,10 @@ export function ImportManagementClient({
 
       if (!response.ok) {
         setBulkAddDebug(buildBulkAddDebugLine(payload.debug));
-        throw new Error(payload.error ?? "追加内容の確認に失敗しました。");
+        const errorLines = (payload.error ?? "追加内容の確認に失敗しました。")
+          .split("\n")
+          .filter(Boolean);
+        throw new Error(errorLines[0] ?? "追加内容の確認に失敗しました。");
       }
 
       setConfirmSummary({
@@ -803,10 +827,15 @@ export function ImportManagementClient({
 
     try {
       const appliedLimit = resolveBulkAddLimit(addLimit, selectedCount);
+      const clientSampleIds = visibleCandidates
+        .slice(0, 10)
+        .map((candidate) => candidate.contentId)
+        .filter(Boolean);
       const requestBody = buildBulkAddApiRequest(
         selection,
         appliedLimit,
         bulkAddContext,
+        clientSampleIds,
       );
 
       if (!requestBody) {

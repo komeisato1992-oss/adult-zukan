@@ -8,6 +8,8 @@ import { isAdminAuthenticated } from "@/lib/admin/auth";
 import { formatIndexUpdateStats } from "@/lib/dmm/index-builders";
 import { logCatalogSnapshotThrownError } from "@/lib/dmm/catalog-snapshot-json";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(request: Request) {
   if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

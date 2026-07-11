@@ -120,6 +120,14 @@ export function ImportManagementClient({
   );
   const hasPendingCandidates = candidateTotalCount > 0;
   const selectedCount = getSelectedCount(selection, filteredTotalCount);
+  const bulkAddContext = useMemo(
+    () => ({
+      filters: [...activeFilters],
+      sort,
+      filteredTotalCount,
+    }),
+    [activeFilters, sort, filteredTotalCount],
+  );
 
   const scrollToCandidateList = useCallback(() => {
     window.requestAnimationFrame(() => {
@@ -636,10 +644,6 @@ export function ImportManagementClient({
     setBulkAddDebug(null);
 
     const debugInfo = describeSelectionForDebug(selection, filteredTotalCount);
-    console.log("bulk add request", {
-      ...debugInfo,
-      addLimit,
-    });
 
     if (!hasSelection(selection, filteredTotalCount)) {
       setBulkAddError("追加する作品を選択してください。");
@@ -647,7 +651,13 @@ export function ImportManagementClient({
     }
 
     const appliedLimit = resolveBulkAddLimit(addLimit, selectedCount);
-    const requestBody = buildBulkAddApiRequest(selection, appliedLimit);
+    const requestBody = buildBulkAddApiRequest(selection, appliedLimit, bulkAddContext);
+
+    console.log("bulk add request", {
+      ...debugInfo,
+      addLimit: appliedLimit,
+      requestBody,
+    });
 
     if (!requestBody) {
       setBulkAddError("追加する作品を選択してください。");
@@ -735,7 +745,7 @@ export function ImportManagementClient({
 
     try {
       const appliedLimit = resolveBulkAddLimit(addLimit, selectedCount);
-      const requestBody = buildBulkAddApiRequest(selection, appliedLimit);
+      const requestBody = buildBulkAddApiRequest(selection, appliedLimit, bulkAddContext);
 
       if (!requestBody) {
         throw new Error("追加する作品を選択してください。");

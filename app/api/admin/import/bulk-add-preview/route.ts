@@ -6,6 +6,8 @@ import {
 import { describeBulkAddRequestBody, resolveBulkAddSelection } from "@/lib/admin/resolve-bulk-selection";
 import { isAdminAuthenticated } from "@/lib/admin/auth";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(request: Request) {
   if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

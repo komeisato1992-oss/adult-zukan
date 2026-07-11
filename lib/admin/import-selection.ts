@@ -39,13 +39,17 @@ export function createEmptySelectionState(): ImportSelectionState {
   return { mode: "none" };
 }
 
+export type BulkAddRequestContext = ImportSelectionFilters & {
+  filteredTotalCount: number;
+};
+
 export function getSelectedCount(
   selection: ImportSelectionState,
   filteredTotalCount: number,
 ): number {
   if (selection.mode === "none") return 0;
   if (selection.mode === "explicit") return selection.selectedIds.size;
-  return Math.max(0, selection.totalCount - selection.excludedIds.size);
+  return Math.max(0, filteredTotalCount - selection.excludedIds.size);
 }
 
 /** @deprecated getSelectedCount を使用してください */
@@ -128,15 +132,20 @@ export function clearSelectionState(): ImportSelectionState {
 export function buildBulkAddApiRequest(
   selection: ImportSelectionState,
   addLimit: number | string,
+  context?: BulkAddRequestContext,
 ): BulkAddApiRequestBody | null {
   if (selection.mode === "allMatching") {
+    const filters = context ? [...context.filters] : [...selection.filters];
+    const sort = context?.sort ?? selection.sort;
+    const totalCount = context?.filteredTotalCount ?? selection.totalCount;
+
     return {
       selection: {
         mode: "allMatching",
         excludedIds: [...selection.excludedIds],
-        filters: [...selection.filters],
-        sort: selection.sort,
-        totalCount: selection.totalCount,
+        filters,
+        sort,
+        totalCount,
       },
       addLimit,
     };
@@ -190,6 +199,6 @@ export function describeSelectionForDebug(
     excludedIds: [...selection.excludedIds],
     filters: [...selection.filters],
     selectedCount: getSelectedCount(selection, filteredTotalCount),
-    totalMatchingCount: selection.totalCount,
+    totalMatchingCount: filteredTotalCount,
   };
 }

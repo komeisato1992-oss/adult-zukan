@@ -3,9 +3,13 @@ import "server-only";
 import { resolveBulkAddLimit } from "@/lib/admin/bulk-add-limit";
 import type { BulkAddWorkInput } from "@/lib/admin/bulk-add-request";
 import type { ImportCandidateSortKey } from "@/lib/admin/import-candidate-types";
+import { normalizeImportContentId } from "@/lib/admin/import-candidate-mapper";
 import { buildImportCandidatesListFromRecords } from "@/lib/admin/import-candidates-query";
 import { loadImportCandidates } from "@/lib/admin/import-candidates-store";
-import { storedRecordToListItem } from "@/lib/admin/import-candidates-visibility";
+import {
+  isVisibleStoredCandidate,
+  storedRecordToListItem,
+} from "@/lib/admin/import-candidates-visibility";
 import { IMPORT_BULK_ADD_ABSOLUTE_MAX } from "@/lib/admin/import-constants";
 import type { BulkAddSelectionPayload } from "@/lib/admin/import-selection";
 import { hasSelection } from "@/lib/admin/import-selection";
@@ -27,6 +31,21 @@ export type BulkAddResolutionResult = {
   debug: BulkAddResolutionDebug;
 };
 
+function readTotalCount(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return Math.max(0, Math.floor(value));
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isFinite(parsed)) {
+      return Math.max(0, parsed);
+    }
+  }
+
+  return 0;
+}
+
 function parseSelectionPayload(body: Record<string, unknown>): BulkAddSelectionPayload {
   const nested = body.selection;
   if (nested && typeof nested === "object") {
@@ -44,10 +63,7 @@ function parseSelectionPayload(body: Record<string, unknown>): BulkAddSelectionP
           typeof value.sort === "string"
             ? (value.sort as ImportCandidateSortKey)
             : "collectedAt-desc",
-        totalCount:
-          typeof value.totalCount === "number"
-            ? Math.max(0, Math.floor(value.totalCount))
-            : 0,
+        totalCount: readTotalCount(value.totalCount),
       };
     }
 
@@ -59,6 +75,8 @@ function parseSelectionPayload(body: Record<string, unknown>): BulkAddSelectionP
           : [],
       };
     }
+
+    throw new AddWorkValidationError("リクエスト形式が不正です。");
   }
 
   if (body.mode === "allMatching") {
@@ -74,15 +92,12 @@ function parseSelectionPayload(body: Record<string, unknown>): BulkAddSelectionP
         typeof body.sort === "string"
           ? (body.sort as ImportCandidateSortKey)
           : "collectedAt-desc",
-      totalCount:
-        typeof body.totalCount === "number"
-          ? Math.max(0, Math.floor(body.totalCount))
-          : 0,
+      totalCount: readTotalCount(body.totalCount),
     };
   }
 
   const legacyWorks = body.selectedWorks;
-  if (Array.isArray(legacyWorks)) {
+  if (Array.isArray(legacyWorks) && legacyWorks.length > 0) {
     const selectedIds = legacyWorks
       .map((entry) => {
         if (!entry || typeof entry !== "object") return "";
@@ -141,7 +156,7 @@ async function resolveExplicitWorks(
   selection: Extract<BulkAddSelectionPayload, { mode: "explicit" }>,
 ): Promise<BulkAddWorkInput[]> {
   const normalizedIds = selection.selectedIds
-    .map((id) => id.trim().toLowerCase())
+    .map((id) => normalizeImportContentId(id))
     .filter(Boolean);
 
   if (normalizedIds.length === 0) {
@@ -152,8 +167,10 @@ async function resolveExplicitWorks(
   const itemById = new Map<string, BulkAddWorkInput>();
 
   for (const record of records) {
+    if (!isVisibleStoredCandidate(record)) continue;
+
     const listItem = storedRecordToListItem(record);
-    const contentId = listItem.contentId.trim().toLowerCase();
+    const contentId = normalizeImportContentId(listItem.contentId);
     if (!contentId) continue;
     itemById.set(contentId, {
       contentId: listItem.contentId,
@@ -172,40 +189,31 @@ async function resolveExplicitWorks(
   return works;
 }
 
-function countSelectionInput(selection: BulkAddSelectionPayload): number {
+function countSelectionInput(
+  selection: BulkAddSelectionPayload,
+  resolvedCount = 0,
+): number {
   if (selection.mode === "explicit") {
     return selection.selectedIds.length;
   }
 
-  return Math.max(0, selection.totalCount - selection.excludedIds.length);
+  const fromTotal = Math.max(0, selection.totalCount - selection.excludedIds.length);
+  if (fromTotal > 0) {
+    return fromTotal;
+  }
+
+  return Math.max(0, resolvedCount - selection.excludedIds.length);
 }
 
-function assertHasSelection(
-  selection: BulkAddSelectionPayload,
-  filteredHint = 0,
+function assertExplicitSelection(
+  selection: Extract<BulkAddSelectionPayload, { mode: "explicit" }>,
 ): void {
-  const pseudoSelection =
-    selection.mode === "explicit"
-      ? {
-          mode: "explicit" as const,
-          selectedIds: new Set(selection.selectedIds),
-        }
-      : selection.mode === "allMatching"
-        ? {
-            mode: "allMatching" as const,
-            excludedIds: new Set(selection.excludedIds),
-            filters: selection.filters,
-            sort: selection.sort,
-            totalCount: selection.totalCount || filteredHint,
-          }
-        : { mode: "none" as const };
+  const pseudoSelection = {
+    mode: "explicit" as const,
+    selectedIds: new Set(selection.selectedIds),
+  };
 
-  const countHint =
-    selection.mode === "allMatching"
-      ? selection.totalCount || filteredHint
-      : filteredHint;
-
-  if (!hasSelection(pseudoSelection, countHint)) {
+  if (!hasSelection(pseudoSelection, selection.selectedIds.length)) {
     throw new AddWorkValidationError("追加する作品が選択されていません。");
   }
 }
@@ -237,12 +245,10 @@ export async function resolveBulkAddSelection(
 
   const payload = body as Record<string, unknown>;
   const selection = parseSelectionPayload(payload);
-  const filteredHint =
-    selection.mode === "allMatching"
-      ? selection.totalCount
-      : selection.selectedIds.length;
 
-  assertHasSelection(selection, filteredHint);
+  if (selection.mode === "explicit") {
+    assertExplicitSelection(selection);
+  }
 
   const works =
     selection.mode === "allMatching"
@@ -253,7 +259,7 @@ export async function resolveBulkAddSelection(
     throw new AddWorkValidationError("追加する作品が選択されていません。");
   }
 
-  const receivedSelectedCount = countSelectionInput(selection);
+  const receivedSelectedCount = countSelectionInput(selection, works.length);
   const selectedCount = works.length;
   const appliedLimit = resolveBulkAddLimit(payload.addLimit, selectedCount);
   const limited = works.slice(0, appliedLimit);

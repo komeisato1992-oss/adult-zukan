@@ -3,7 +3,7 @@ import {
   addWorksToCatalog,
   toAddWorkErrorMessage,
 } from "@/lib/admin/add-work";
-import { resolveBulkAddSelection } from "@/lib/admin/resolve-bulk-selection";
+import { describeBulkAddRequestBody, resolveBulkAddSelection } from "@/lib/admin/resolve-bulk-selection";
 import { isAdminAuthenticated } from "@/lib/admin/auth";
 import { formatIndexUpdateStats } from "@/lib/dmm/index-builders";
 import { logCatalogSnapshotThrownError } from "@/lib/dmm/catalog-snapshot-json";
@@ -15,8 +15,8 @@ export async function POST(request: Request) {
 
   try {
     const body = (await request.json()) as unknown;
-    const { works } = await resolveBulkAddSelection(body);
-    const result = await addWorksToCatalog(works);
+    const resolved = await resolveBulkAddSelection(body);
+    const result = await addWorksToCatalog(resolved.works);
 
     const addedCount = result.addedContentIds.length;
     const skippedCount =
@@ -57,10 +57,21 @@ export async function POST(request: Request) {
       indexUpdateStats: result.indexUpdateStats,
       committedToGitHub: result.committedToGitHub,
       message: `${baseMessage}${rebuiltNote}${indexNote}`.trim(),
+      debug: resolved.debug,
     });
   } catch (error) {
     logCatalogSnapshotThrownError(error);
     const { message, status } = toAddWorkErrorMessage(error);
-    return NextResponse.json({ error: message }, { status });
+    const body = await request
+      .clone()
+      .json()
+      .catch(() => null);
+    return NextResponse.json(
+      {
+        error: message,
+        debug: describeBulkAddRequestBody(body),
+      },
+      { status },
+    );
   }
 }

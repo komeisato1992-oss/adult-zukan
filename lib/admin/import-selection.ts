@@ -14,19 +14,48 @@ export type ImportSelectionState =
       excludedIds: Set<string>;
       filters: ImportFilterKey[];
       sort: ImportCandidateSortKey;
+      totalCount: number;
     };
+
+export type BulkAddSelectionPayload =
+  | {
+      mode: "explicit";
+      selectedIds: string[];
+    }
+  | {
+      mode: "allMatching";
+      excludedIds: string[];
+      filters: ImportFilterKey[];
+      sort: ImportCandidateSortKey;
+      totalCount: number;
+    };
+
+export type BulkAddApiRequestBody = {
+  selection: BulkAddSelectionPayload;
+  addLimit?: number | string;
+};
 
 export function createEmptySelectionState(): ImportSelectionState {
   return { mode: "none" };
 }
 
-export function countSelected(
+export function getSelectedCount(
   selection: ImportSelectionState,
   filteredTotalCount: number,
 ): number {
   if (selection.mode === "none") return 0;
   if (selection.mode === "explicit") return selection.selectedIds.size;
-  return Math.max(0, filteredTotalCount - selection.excludedIds.size);
+  return Math.max(0, selection.totalCount - selection.excludedIds.size);
+}
+
+/** @deprecated getSelectedCount を使用してください */
+export const countSelected = getSelectedCount;
+
+export function hasSelection(
+  selection: ImportSelectionState,
+  filteredTotalCount: number,
+): boolean {
+  return getSelectedCount(selection, filteredTotalCount) > 0;
 }
 
 export function isCandidateSelected(
@@ -42,7 +71,7 @@ export function toggleCandidateSelection(
   selection: ImportSelectionState,
   contentId: string,
   selected: boolean,
-  context: ImportSelectionFilters,
+  context: ImportSelectionFilters & { filteredTotalCount: number },
 ): ImportSelectionState {
   if (selection.mode === "allMatching") {
     const excludedIds = new Set(selection.excludedIds);
@@ -73,13 +102,14 @@ export function toggleCandidateSelection(
 }
 
 export function selectAllMatching(
-  context: ImportSelectionFilters,
+  context: ImportSelectionFilters & { filteredTotalCount: number },
 ): ImportSelectionState {
   return {
     mode: "allMatching",
     excludedIds: new Set(),
     filters: [...context.filters],
     sort: context.sort,
+    totalCount: context.filteredTotalCount,
   };
 }
 
@@ -95,38 +125,71 @@ export function clearSelectionState(): ImportSelectionState {
   return { mode: "none" };
 }
 
-export type BulkAddSelectionRequest =
-  | {
-      mode: "explicit";
-      selectedWorks: Array<{ contentId: string; item: unknown }>;
-      addLimit?: number | string;
-    }
-  | {
-      mode: "allMatching";
-      excludedIds: string[];
-      filters: ImportFilterKey[];
-      sort: ImportCandidateSortKey;
-      addLimit?: number | string;
-    };
-
-export function serializeSelectionForBulkAdd(
+export function buildBulkAddApiRequest(
   selection: ImportSelectionState,
-  selectedWorks: Array<{ contentId: string; item: unknown }>,
   addLimit: number | string,
-): BulkAddSelectionRequest {
+): BulkAddApiRequestBody | null {
   if (selection.mode === "allMatching") {
     return {
-      mode: "allMatching",
-      excludedIds: [...selection.excludedIds],
-      filters: [...selection.filters],
-      sort: selection.sort,
+      selection: {
+        mode: "allMatching",
+        excludedIds: [...selection.excludedIds],
+        filters: [...selection.filters],
+        sort: selection.sort,
+        totalCount: selection.totalCount,
+      },
       addLimit,
     };
   }
 
+  if (selection.mode === "explicit") {
+    return {
+      selection: {
+        mode: "explicit",
+        selectedIds: [...selection.selectedIds],
+      },
+      addLimit,
+    };
+  }
+
+  return null;
+}
+
+export function describeSelectionForDebug(
+  selection: ImportSelectionState,
+  filteredTotalCount: number,
+): Record<string, unknown> {
+  if (selection.mode === "none") {
+    return {
+      selectionMode: "none",
+      selectedIds: [],
+      selectedIdsCount: 0,
+      excludedIds: [],
+      filters: [],
+      selectedCount: 0,
+      totalMatchingCount: filteredTotalCount,
+    };
+  }
+
+  if (selection.mode === "explicit") {
+    return {
+      selectionMode: "explicit",
+      selectedIds: [...selection.selectedIds],
+      selectedIdsCount: selection.selectedIds.size,
+      excludedIds: [],
+      filters: [],
+      selectedCount: selection.selectedIds.size,
+      totalMatchingCount: filteredTotalCount,
+    };
+  }
+
   return {
-    mode: "explicit",
-    selectedWorks,
-    addLimit,
+    selectionMode: "allMatching",
+    selectedIds: [],
+    selectedIdsCount: 0,
+    excludedIds: [...selection.excludedIds],
+    filters: [...selection.filters],
+    selectedCount: getSelectedCount(selection, filteredTotalCount),
+    totalMatchingCount: selection.totalCount,
   };
 }

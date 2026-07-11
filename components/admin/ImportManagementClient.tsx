@@ -27,13 +27,15 @@ import type { ImportBulkConfirmSummary, ImportFilterKey } from "@/lib/admin/impo
 import { getImportQualityFlags } from "@/lib/admin/import-quality";
 import type { ImportBatchJob } from "@/lib/admin/import-batch-job";
 import {
+  buildBulkAddApiRequest,
   clearSelectionState,
-  countSelected,
   createEmptySelectionState,
+  describeSelectionForDebug,
+  getSelectedCount,
+  hasSelection,
   isCandidateSelected,
   selectAllMatching,
   selectExplicitIds,
-  serializeSelectionForBulkAdd,
   toggleCandidateSelection,
   type ImportSelectionState,
 } from "@/lib/admin/import-selection";
@@ -83,6 +85,7 @@ export function ImportManagementClient({
   );
   const [bulkAddMessage, setBulkAddMessage] = useState<string | null>(null);
   const [bulkAddError, setBulkAddError] = useState<string | null>(null);
+  const [bulkAddDebug, setBulkAddDebug] = useState<string | null>(null);
   const [collectMessage, setCollectMessage] = useState<string | null>(null);
   const [collectingMode, setCollectingMode] = useState<ImportCollectionMode | null>(
     null,
@@ -116,7 +119,7 @@ export function ImportManagementClient({
     data.summary.candidateCount,
   );
   const hasPendingCandidates = candidateTotalCount > 0;
-  const selectedCount = countSelected(selection, filteredTotalCount);
+  const selectedCount = getSelectedCount(selection, filteredTotalCount);
 
   const scrollToCandidateList = useCallback(() => {
     window.requestAnimationFrame(() => {
@@ -284,6 +287,7 @@ export function ImportManagementClient({
           toggleCandidateSelection(current, contentId, false, {
             filters: [...activeFilters],
             sort,
+            filteredTotalCount,
           }),
         );
         setSelectedItemById((current) => {
@@ -300,7 +304,7 @@ export function ImportManagementClient({
         );
       }
     },
-    [loadCandidates, activeFilters, sort],
+    [loadCandidates, activeFilters, sort, filteredTotalCount],
   );
 
   const handleSelectedChange = useCallback(
@@ -309,6 +313,7 @@ export function ImportManagementClient({
         toggleCandidateSelection(current, contentId, selected, {
           filters: [...activeFilters],
           sort,
+          filteredTotalCount,
         }),
       );
 
@@ -324,7 +329,7 @@ export function ImportManagementClient({
         return current;
       });
     },
-    [activeFilters, sort, selection.mode],
+    [activeFilters, sort, selection.mode, filteredTotalCount],
   );
 
   const handleToggleFilter = useCallback(
@@ -375,6 +380,8 @@ export function ImportManagementClient({
   }, [loadCandidates]);
 
   const handleSelectPage = useCallback(() => {
+    setBulkAddError(null);
+    setBulkAddDebug(null);
     const pageIds = visibleCandidates
       .filter((candidate) => !addedIds.has(candidate.contentId))
       .map((candidate) => candidate.contentId);
@@ -392,16 +399,21 @@ export function ImportManagementClient({
   }, [visibleCandidates, addedIds]);
 
   const handleSelectAllMatching = useCallback(() => {
+    setBulkAddError(null);
+    setBulkAddDebug(null);
     setSelection(
       selectAllMatching({
         filters: [...activeFilters],
         sort,
+        filteredTotalCount,
       }),
     );
     setSelectedItemById({});
-  }, [activeFilters, sort]);
+  }, [activeFilters, sort, filteredTotalCount]);
 
   const handleClearSelection = useCallback(() => {
+    setBulkAddError(null);
+    setBulkAddDebug(null);
     setSelection(clearSelectionState());
     setSelectedItemById({});
   }, []);
@@ -621,26 +633,23 @@ export function ImportManagementClient({
 
   async function handleBulkAddRequest() {
     setBulkAddError(null);
+    setBulkAddDebug(null);
 
-    if (selectedCount === 0) {
+    const debugInfo = describeSelectionForDebug(selection, filteredTotalCount);
+    console.log("bulk add request", {
+      ...debugInfo,
+      addLimit,
+    });
+
+    if (!hasSelection(selection, filteredTotalCount)) {
       setBulkAddError("追加する作品を選択してください。");
       return;
     }
 
     const appliedLimit = resolveBulkAddLimit(addLimit, selectedCount);
-    const requestBody = serializeSelectionForBulkAdd(
-      selection,
-      selectedWorksForBulk.map((candidate) => ({
-        contentId: candidate.contentId,
-        item: candidate.item,
-      })),
-      appliedLimit,
-    );
+    const requestBody = buildBulkAddApiRequest(selection, appliedLimit);
 
-    if (
-      requestBody.mode === "explicit" &&
-      requestBody.selectedWorks.length === 0
-    ) {
+    if (!requestBody) {
       setBulkAddError("追加する作品を選択してください。");
       return;
     }
@@ -658,6 +667,13 @@ export function ImportManagementClient({
 
       const payload = (await response.json()) as {
         error?: string;
+        debug?: {
+          selectionMode: string;
+          receivedSelectedCount: number;
+          resolvedCount: number;
+          afterLimitCount: number;
+          appliedLimit: number;
+        };
         selectedCount: number;
         toAddCount: number;
         duplicateCount: number;
@@ -672,6 +688,11 @@ export function ImportManagementClient({
       };
 
       if (!response.ok) {
+        if (payload.debug) {
+          setBulkAddDebug(
+            `mode=${payload.debug.selectionMode} / 受信=${payload.debug.receivedSelectedCount}件 / 再抽出=${payload.debug.resolvedCount}件 / 上限適用後=${payload.debug.afterLimitCount}件`,
+          );
+        }
         throw new Error(payload.error ?? "追加内容の確認に失敗しました。");
       }
 
@@ -702,7 +723,7 @@ export function ImportManagementClient({
   }
 
   async function handleBulkAddConfirm() {
-    if (pendingBulkWorks.length === 0 && selection.mode !== "allMatching") {
+    if (!hasSelection(selection, filteredTotalCount)) {
       setBulkAddError("追加する作品を選択してください。");
       setShowConfirmModal(false);
       return;
@@ -710,34 +731,44 @@ export function ImportManagementClient({
 
     setIsBulkAdding(true);
     setBulkAddError(null);
+    setBulkAddDebug(null);
 
     try {
       const appliedLimit = resolveBulkAddLimit(addLimit, selectedCount);
+      const requestBody = buildBulkAddApiRequest(selection, appliedLimit);
+
+      if (!requestBody) {
+        throw new Error("追加する作品を選択してください。");
+      }
+
       const response = await fetch("/api/admin/import/bulk-add-works", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(
-          serializeSelectionForBulkAdd(
-            selection,
-            pendingBulkWorks.map((candidate) => ({
-              contentId: candidate.contentId,
-              item: candidate.item,
-            })),
-            appliedLimit,
-          ),
-        ),
+        body: JSON.stringify(requestBody),
       });
 
       const payload = (await response.json()) as {
         error?: string;
+        debug?: {
+          selectionMode: string;
+          receivedSelectedCount: number;
+          resolvedCount: number;
+          afterLimitCount: number;
+          appliedLimit: number;
+        };
         message?: string;
         addedCount?: number;
         addedContentIds?: string[];
       };
 
       if (!response.ok) {
+        if (payload.debug) {
+          setBulkAddDebug(
+            `mode=${payload.debug.selectionMode} / 受信=${payload.debug.receivedSelectedCount}件 / 再抽出=${payload.debug.resolvedCount}件 / 上限適用後=${payload.debug.afterLimitCount}件`,
+          );
+        }
         throw new Error(payload.error ?? "一括追加に失敗しました。");
       }
 
@@ -932,7 +963,10 @@ export function ImportManagementClient({
 
       {bulkAddError ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          {bulkAddError}
+          <p>{bulkAddError}</p>
+          {bulkAddDebug ? (
+            <p className="mt-2 text-xs text-red-600">{bulkAddDebug}</p>
+          ) : null}
         </div>
       ) : null}
 

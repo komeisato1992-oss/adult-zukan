@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import {
-  AddWorkValidationError,
   previewBulkAddWorks,
   toAddWorkErrorMessage,
 } from "@/lib/admin/add-work";
-import { resolveBulkAddSelection } from "@/lib/admin/resolve-bulk-selection";
+import { describeBulkAddRequestBody, resolveBulkAddSelection } from "@/lib/admin/resolve-bulk-selection";
 import { isAdminAuthenticated } from "@/lib/admin/auth";
 
 export async function POST(request: Request) {
@@ -14,12 +13,25 @@ export async function POST(request: Request) {
 
   try {
     const body = (await request.json()) as unknown;
-    const { works } = await resolveBulkAddSelection(body);
-    const preview = await previewBulkAddWorks(works);
+    const resolved = await resolveBulkAddSelection(body);
+    const preview = await previewBulkAddWorks(resolved.works);
 
-    return NextResponse.json(preview);
+    return NextResponse.json({
+      ...preview,
+      debug: resolved.debug,
+    });
   } catch (error) {
     const { message, status } = toAddWorkErrorMessage(error);
-    return NextResponse.json({ error: message }, { status });
+    const body = await request
+      .clone()
+      .json()
+      .catch(() => null);
+    return NextResponse.json(
+      {
+        error: message,
+        debug: describeBulkAddRequestBody(body),
+      },
+      { status },
+    );
   }
 }

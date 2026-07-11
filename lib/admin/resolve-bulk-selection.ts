@@ -7,31 +7,104 @@ import { buildImportCandidatesListFromRecords } from "@/lib/admin/import-candida
 import { loadImportCandidates } from "@/lib/admin/import-candidates-store";
 import { storedRecordToListItem } from "@/lib/admin/import-candidates-visibility";
 import { IMPORT_BULK_ADD_ABSOLUTE_MAX } from "@/lib/admin/import-constants";
-import type { BulkAddSelectionRequest } from "@/lib/admin/import-selection";
+import type { BulkAddSelectionPayload } from "@/lib/admin/import-selection";
+import { hasSelection } from "@/lib/admin/import-selection";
 import type { ImportFilterKey } from "@/lib/admin/import-quality";
 import { AddWorkValidationError } from "@/lib/admin/add-work";
-import type { DmmItem } from "@/lib/dmm/types";
 
-function parseExplicitWorks(
-  entries: Array<{ contentId?: string; item?: DmmItem }>,
-): BulkAddWorkInput[] {
-  return entries.map((entry, index) => {
-    const contentId = entry.contentId?.trim();
-    const item = entry.item;
+export type BulkAddResolutionDebug = {
+  selectionMode: string;
+  receivedSelectedCount: number;
+  resolvedCount: number;
+  afterLimitCount: number;
+  appliedLimit: number;
+};
 
-    if (!contentId || !item || typeof item !== "object") {
-      throw new AddWorkValidationError(`作品データ(${index + 1}件目)が不正です。`);
+export type BulkAddResolutionResult = {
+  works: BulkAddWorkInput[];
+  appliedLimit: number;
+  selectedCount: number;
+  debug: BulkAddResolutionDebug;
+};
+
+function parseSelectionPayload(body: Record<string, unknown>): BulkAddSelectionPayload {
+  const nested = body.selection;
+  if (nested && typeof nested === "object") {
+    const value = nested as Record<string, unknown>;
+    if (value.mode === "allMatching") {
+      return {
+        mode: "allMatching",
+        excludedIds: Array.isArray(value.excludedIds)
+          ? value.excludedIds.filter((id): id is string => typeof id === "string")
+          : [],
+        filters: Array.isArray(value.filters)
+          ? (value.filters.filter((key): key is ImportFilterKey => typeof key === "string") as ImportFilterKey[])
+          : [],
+        sort:
+          typeof value.sort === "string"
+            ? (value.sort as ImportCandidateSortKey)
+            : "collectedAt-desc",
+        totalCount:
+          typeof value.totalCount === "number"
+            ? Math.max(0, Math.floor(value.totalCount))
+            : 0,
+      };
     }
 
-    return { contentId, item };
-  });
+    if (value.mode === "explicit") {
+      return {
+        mode: "explicit",
+        selectedIds: Array.isArray(value.selectedIds)
+          ? value.selectedIds.filter((id): id is string => typeof id === "string")
+          : [],
+      };
+    }
+  }
+
+  if (body.mode === "allMatching") {
+    return {
+      mode: "allMatching",
+      excludedIds: Array.isArray(body.excludedIds)
+        ? body.excludedIds.filter((id): id is string => typeof id === "string")
+        : [],
+      filters: Array.isArray(body.filters)
+        ? (body.filters.filter((key): key is ImportFilterKey => typeof key === "string") as ImportFilterKey[])
+        : [],
+      sort:
+        typeof body.sort === "string"
+          ? (body.sort as ImportCandidateSortKey)
+          : "collectedAt-desc",
+      totalCount:
+        typeof body.totalCount === "number"
+          ? Math.max(0, Math.floor(body.totalCount))
+          : 0,
+    };
+  }
+
+  const legacyWorks = body.selectedWorks;
+  if (Array.isArray(legacyWorks)) {
+    const selectedIds = legacyWorks
+      .map((entry) => {
+        if (!entry || typeof entry !== "object") return "";
+        const work = entry as { contentId?: string };
+        return typeof work.contentId === "string" ? work.contentId.trim() : "";
+      })
+      .filter(Boolean);
+
+    return {
+      mode: "explicit",
+      selectedIds,
+    };
+  }
+
+  throw new AddWorkValidationError("リクエスト形式が不正です。");
 }
 
-async function resolveAllMatchingWorks(input: {
+async function listMatchingCandidates(input: {
   excludedIds: string[];
   filters: ImportFilterKey[];
   sort: ImportCandidateSortKey;
-}): Promise<BulkAddWorkInput[]> {
+}) {
   const { records } = await loadImportCandidates();
   const list = await buildImportCandidatesListFromRecords(records, {
     page: 1,
@@ -44,63 +117,163 @@ async function resolveAllMatchingWorks(input: {
     input.excludedIds.map((id) => id.trim().toLowerCase()).filter(Boolean),
   );
 
-  return list.candidates
-    .filter((candidate) => !excluded.has(candidate.contentId.trim().toLowerCase()))
-    .map((candidate) => ({
-      contentId: candidate.contentId,
-      item: candidate.item,
-    }));
+  return list.candidates.filter(
+    (candidate) => !excluded.has(candidate.contentId.trim().toLowerCase()),
+  );
+}
+
+async function resolveAllMatchingWorks(
+  selection: Extract<BulkAddSelectionPayload, { mode: "allMatching" }>,
+): Promise<BulkAddWorkInput[]> {
+  const candidates = await listMatchingCandidates({
+    excludedIds: selection.excludedIds,
+    filters: selection.filters,
+    sort: selection.sort,
+  });
+
+  return candidates.map((candidate) => ({
+    contentId: candidate.contentId,
+    item: candidate.item,
+  }));
+}
+
+async function resolveExplicitWorks(
+  selection: Extract<BulkAddSelectionPayload, { mode: "explicit" }>,
+): Promise<BulkAddWorkInput[]> {
+  const normalizedIds = selection.selectedIds
+    .map((id) => id.trim().toLowerCase())
+    .filter(Boolean);
+
+  if (normalizedIds.length === 0) {
+    return [];
+  }
+
+  const { records } = await loadImportCandidates();
+  const itemById = new Map<string, BulkAddWorkInput>();
+
+  for (const record of records) {
+    const listItem = storedRecordToListItem(record);
+    const contentId = listItem.contentId.trim().toLowerCase();
+    if (!contentId) continue;
+    itemById.set(contentId, {
+      contentId: listItem.contentId,
+      item: listItem.item,
+    });
+  }
+
+  const works: BulkAddWorkInput[] = [];
+  for (const contentId of normalizedIds) {
+    const work = itemById.get(contentId);
+    if (work) {
+      works.push(work);
+    }
+  }
+
+  return works;
+}
+
+function countSelectionInput(selection: BulkAddSelectionPayload): number {
+  if (selection.mode === "explicit") {
+    return selection.selectedIds.length;
+  }
+
+  return Math.max(0, selection.totalCount - selection.excludedIds.length);
+}
+
+function assertHasSelection(
+  selection: BulkAddSelectionPayload,
+  filteredHint = 0,
+): void {
+  const pseudoSelection =
+    selection.mode === "explicit"
+      ? {
+          mode: "explicit" as const,
+          selectedIds: new Set(selection.selectedIds),
+        }
+      : selection.mode === "allMatching"
+        ? {
+            mode: "allMatching" as const,
+            excludedIds: new Set(selection.excludedIds),
+            filters: selection.filters,
+            sort: selection.sort,
+            totalCount: selection.totalCount || filteredHint,
+          }
+        : { mode: "none" as const };
+
+  const countHint =
+    selection.mode === "allMatching"
+      ? selection.totalCount || filteredHint
+      : filteredHint;
+
+  if (!hasSelection(pseudoSelection, countHint)) {
+    throw new AddWorkValidationError("追加する作品が選択されていません。");
+  }
+}
+
+export function describeBulkAddRequestBody(
+  body: unknown,
+): BulkAddResolutionDebug | null {
+  try {
+    if (!body || typeof body !== "object") return null;
+    const selection = parseSelectionPayload(body as Record<string, unknown>);
+    return {
+      selectionMode: selection.mode,
+      receivedSelectedCount: countSelectionInput(selection),
+      resolvedCount: 0,
+      afterLimitCount: 0,
+      appliedLimit: 0,
+    };
+  } catch {
+    return null;
+  }
 }
 
 export async function resolveBulkAddSelection(
   body: unknown,
-): Promise<{ works: BulkAddWorkInput[]; appliedLimit: number; selectedCount: number }> {
+): Promise<BulkAddResolutionResult> {
   if (!body || typeof body !== "object") {
     throw new AddWorkValidationError("リクエスト形式が不正です。");
   }
 
-  const payload = body as BulkAddSelectionRequest & {
-    selectedWorks?: Array<{ contentId?: string; item?: DmmItem }>;
-  };
+  const payload = body as Record<string, unknown>;
+  const selection = parseSelectionPayload(payload);
+  const filteredHint =
+    selection.mode === "allMatching"
+      ? selection.totalCount
+      : selection.selectedIds.length;
 
-  if (payload.mode === "allMatching") {
-    const works = await resolveAllMatchingWorks({
-      excludedIds: payload.excludedIds ?? [],
-      filters: payload.filters ?? [],
-      sort: payload.sort ?? "collectedAt-desc",
-    });
+  assertHasSelection(selection, filteredHint);
 
-    if (works.length === 0) {
-      throw new AddWorkValidationError("追加する作品が選択されていません。");
-    }
+  const works =
+    selection.mode === "allMatching"
+      ? await resolveAllMatchingWorks(selection)
+      : await resolveExplicitWorks(selection);
 
-    const selectedCount = works.length;
-    const appliedLimit = resolveBulkAddLimit(payload.addLimit, selectedCount);
-    const limited = works.slice(0, appliedLimit);
-
-    if (limited.length > IMPORT_BULK_ADD_ABSOLUTE_MAX) {
-      throw new AddWorkValidationError(
-        `1回で追加できるのは${IMPORT_BULK_ADD_ABSOLUTE_MAX}件までです`,
-      );
-    }
-
-    return { works: limited, appliedLimit, selectedCount };
-  }
-
-  const rawWorks = payload.selectedWorks;
-  if (!Array.isArray(rawWorks) || rawWorks.length === 0) {
+  if (works.length === 0) {
     throw new AddWorkValidationError("追加する作品が選択されていません。");
   }
 
-  const parsedWorks = parseExplicitWorks(rawWorks);
-  const appliedLimit = resolveBulkAddLimit(payload.addLimit, parsedWorks.length);
-  const works = parsedWorks.slice(0, appliedLimit);
+  const receivedSelectedCount = countSelectionInput(selection);
+  const selectedCount = works.length;
+  const appliedLimit = resolveBulkAddLimit(payload.addLimit, selectedCount);
+  const limited = works.slice(0, appliedLimit);
 
-  if (works.length > IMPORT_BULK_ADD_ABSOLUTE_MAX) {
+  if (limited.length > IMPORT_BULK_ADD_ABSOLUTE_MAX) {
     throw new AddWorkValidationError(
       `1回で追加できるのは${IMPORT_BULK_ADD_ABSOLUTE_MAX}件までです`,
     );
   }
 
-  return { works, appliedLimit, selectedCount: parsedWorks.length };
+  return {
+    works: limited,
+    appliedLimit,
+    selectedCount,
+    debug: {
+      selectionMode: selection.mode,
+      receivedSelectedCount,
+      resolvedCount: works.length,
+      afterLimitCount: limited.length,
+      appliedLimit,
+    },
+  };
 }

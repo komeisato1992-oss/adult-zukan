@@ -10,19 +10,18 @@ export default function AdminImportPage() {
           作品追加管理
         </h1>
         <p className="mt-2 text-sm text-muted">
-          FANZA から未掲載候補を蓄積し、管理画面から段階的に本番カタログへ追加できます。
+          FANZA から候補を取得し、確認・選択した作品だけをカタログへ追加します。
         </p>
       </section>
 
       <section className="rounded-xl border border-border bg-surface p-4 text-sm text-muted">
-        <p className="font-medium text-foreground">Version 2 運用</p>
+        <p className="font-medium text-foreground">簡易インポート</p>
         <ul className="mt-2 list-inside list-disc space-y-1">
-          <li>「候補を収集」で FANZA から最大200件ずつ未掲載候補を蓄積</li>
-          <li>候補一覧は import-candidates.json から表示（ページ表示時に FANZA API は叩かない）</li>
-          <li>候補をチェックで選択し、「選択した作品を一括追加」で GitHub へ1回だけ commit</li>
-          <li>1ページ100件 / 1回の一括追加は最大1000件まで（追加数は100・200・500・1000・選択中すべてから選択）</li>
-          <li>追加後、Vercel の自動デプロイで本番反映（数分・デプロイは1回）</li>
-          <li>追加・除外後は候補ステータスを更新し、次回以降表示しない</li>
+          <li>候補取得は読み取り専用（GitHub へ書き込みません）</li>
+          <li>取得件数は 10〜500 件から選択（初期値 50 件）</li>
+          <li>offset は localStorage に保存（GitHub へ保存しません）</li>
+          <li>選択した作品だけを追加 API へ送信（allMatching は使いません）</li>
+          <li>追加時のみ最新カタログを再取得し、GitHub へ 1 回 commit</li>
         </ul>
       </section>
 

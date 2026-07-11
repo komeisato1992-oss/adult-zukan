@@ -1,1184 +1,685 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ImportBulkConfirmModal } from "@/components/admin/ImportBulkConfirmModal";
-import { ImportBulkSnsPanel } from "@/components/admin/ImportBulkSnsPanel";
-import { ImportBulkToolbar } from "@/components/admin/ImportBulkToolbar";
 import { ImportCandidateCard } from "@/components/admin/ImportCandidateCard";
-import { ImportDebugPanel } from "@/components/admin/ImportDebugPanel";
 import { ImportFilterBar } from "@/components/admin/ImportFilterBar";
 import { ImportSortBar } from "@/components/admin/ImportSortBar";
-import { ImportSummaryBar, type ImportCollectParams } from "@/components/admin/ImportSummaryBar";
-import { PopularCollectPanel } from "@/components/admin/PopularCollectPanel";
-import type { ImportCandidateSortKey } from "@/lib/admin/import-candidate-types";
-import type { ImportCandidatesListResult } from "@/lib/admin/import-candidate-types";
-import type { ImportCollectionMode } from "@/lib/admin/import-collect-types";
-import type { ImportCollectProgress } from "@/lib/admin/import-collect-progress";
 import {
-  IMPORT_COLLECT_REQUEST_COUNT,
+  IMPORT_FETCH_REQUEST_DEFAULT,
+  IMPORT_FETCH_REQUEST_OPTIONS,
+  IMPORT_PAGE_SIZE,
 } from "@/lib/admin/import-constants";
+import type { ImportCandidateSortKey } from "@/lib/admin/import-candidate-types";
 import {
-  type BulkAddLimitChoice,
-  resolveBulkAddLimit,
-} from "@/lib/admin/bulk-add-limit";
-import { IMPORT_BULK_ADD_DEFAULT } from "@/lib/admin/import-constants";
+  getCandidateSelectionId,
+  readCandidatesSession,
+  readStoredOffset,
+  writeCandidatesSession,
+  writeStoredOffset,
+  type ImportCandidatesSession,
+} from "@/lib/admin/import-session-storage";
+import type {
+  FetchedImportCandidate,
+  FetchImportCandidatesSummary,
+} from "@/lib/admin/import-simple-types";
 import { formatImportSourceLabel } from "@/lib/admin/import-source-labels";
-import type { ImportBulkConfirmSummary, ImportFilterKey } from "@/lib/admin/import-quality";
-import { matchesImportListItemFilter } from "@/lib/admin/import-quality";
-import type { ImportBatchJob } from "@/lib/admin/import-batch-job";
 import {
-  buildBulkAddApiRequest,
-  clearSelectionState,
-  createEmptySelectionState,
-  describeSelectionForDebug,
-  getSelectedCount,
-  hasSelection,
-  isCandidateSelected,
-  selectAllMatching,
-  selectExplicitIds,
-  toggleCandidateSelection,
-  type ImportSelectionState,
-} from "@/lib/admin/import-selection";
-import {
-  formatBulkAddUserError,
-  parseJsonResponseBody,
-} from "@/lib/admin/bulk-add-safe";
+  matchesImportFilters,
+  type ImportFilterKey,
+} from "@/lib/admin/import-quality";
+import { parseJsonResponseBody } from "@/lib/admin/bulk-add-safe";
 import type { DmmItem } from "@/lib/dmm/types";
 
-type ImportManagementInitialData = ImportCandidatesListResult & {
+type ImportManagementClientProps = {
   configured: boolean;
   dmmConfigured: boolean;
-  message?: string;
-  jsonCorrupt?: boolean;
 };
 
-type ImportManagementClientProps = {
-  initialData: ImportManagementInitialData;
-};
+const PAGE_SIZE = IMPORT_PAGE_SIZE;
 
-function buildFiltersQuery(filters: Set<ImportFilterKey>): string {
-  return [...filters].join(",");
+function sortCandidates(
+  candidates: FetchedImportCandidate[],
+  sort: ImportCandidateSortKey,
+): FetchedImportCandidate[] {
+  const next = [...candidates];
+
+  switch (sort) {
+    case "releaseDate-desc":
+      return next.sort((a, b) =>
+        (b.item.date ?? "").localeCompare(a.item.date ?? ""),
+      );
+    case "price-desc":
+      return next.sort((a, b) => {
+        const priceA = Number.parseFloat(a.item.prices?.price ?? "0");
+        const priceB = Number.parseFloat(b.item.prices?.price ?? "0");
+        return priceB - priceA;
+      });
+    case "actress-first":
+      return next.sort((a, b) => {
+        const actressA = a.item.iteminfo?.actress?.length ?? 0;
+        const actressB = b.item.iteminfo?.actress?.length ?? 0;
+        return actressB - actressA;
+      });
+    case "image-first":
+      return next.sort((a, b) => {
+        const imageA = Boolean(a.item.imageURL?.large || a.item.imageURL?.list);
+        const imageB = Boolean(b.item.imageURL?.large || b.item.imageURL?.list);
+        return Number(imageB) - Number(imageA);
+      });
+    case "random":
+      return next.sort(() => Math.random() - 0.5);
+    case "seoScore-desc":
+    case "collectedAt-desc":
+    default:
+      return next.sort((a, b) => {
+        const rankA = a.rankPosition ?? Number.MAX_SAFE_INTEGER;
+        const rankB = b.rankPosition ?? Number.MAX_SAFE_INTEGER;
+        return rankA - rankB;
+      });
+  }
 }
 
-type BulkAddApiDebug = {
-  selectionMode: string;
-  receivedSelectedCount: number;
-  resolvedCount: number;
-  afterLimitCount: number;
-  appliedLimit: number;
-  invalidCount?: number;
-  pipeline?: {
-    rawCandidateCount: number;
-    pendingCandidateCount: number;
-    afterQualityFilterCount: number;
-    afterExcludedIdsCount: number;
-    afterLimitCount: number;
-    dataSource: string;
-    parseShape: string;
-    filters: string[];
-    clientSampleIds: string[];
-    serverSampleIds: string[];
-  };
-};
-
-function buildBulkAddDebugLine(debug?: BulkAddApiDebug | null): string | null {
-  if (!debug) return null;
-  const invalidSuffix =
-    typeof debug.invalidCount === "number"
-      ? ` / 無効除外=${debug.invalidCount}件`
-      : "";
-  const pipeline = debug.pipeline;
-  const pipelineSuffix = pipeline
-    ? ` / 元候補=${pipeline.rawCandidateCount}件 / pending=${pipeline.pendingCandidateCount}件 / 品質後=${pipeline.afterQualityFilterCount}件 / 除外後=${pipeline.afterExcludedIdsCount}件 / dataSource=${pipeline.dataSource}`
-    : "";
-  return `mode=${debug.selectionMode} / 受信=${debug.receivedSelectedCount}件 / 再抽出=${debug.resolvedCount}件 / 上限適用後=${debug.afterLimitCount}件${invalidSuffix}${pipelineSuffix}`;
+function candidateHasImage(candidate: FetchedImportCandidate): boolean {
+  const image = candidate.item.imageURL;
+  return Boolean(
+    image?.large?.trim() || image?.list?.trim() || image?.small?.trim(),
+  );
 }
 
-function logBulkAddClientFailure(
-  stage: string,
-  error: unknown,
-  extra?: Record<string, unknown>,
-): void {
-  console.error("[bulk-add] failed", {
-    stage,
-    error,
-    name: error instanceof Error ? error.name : undefined,
-    message: error instanceof Error ? error.message : undefined,
-    stack: error instanceof Error ? error.stack : undefined,
-    ...extra,
-  });
+function candidateHasActress(candidate: FetchedImportCandidate): boolean {
+  return (candidate.item.iteminfo?.actress?.length ?? 0) > 0;
+}
+
+function candidateHasPrice(candidate: FetchedImportCandidate): boolean {
+  return Boolean(candidate.item.prices?.price?.trim());
 }
 
 export function ImportManagementClient({
-  initialData,
+  configured,
+  dmmConfigured,
 }: ImportManagementClientProps) {
-  const [data, setData] = useState(initialData);
-  const [page, setPage] = useState(initialData.pagination.page);
-  const [sort, setSort] = useState<ImportCandidateSortKey>("seoScore-desc");
-  const [selection, setSelection] = useState<ImportSelectionState>(
-    createEmptySelectionState(),
+  const restoredSession = useMemo(() => readCandidatesSession(), []);
+
+  const [candidates, setCandidates] = useState<FetchedImportCandidate[]>(
+    restoredSession?.candidates ?? [],
   );
-  const [selectedItemById, setSelectedItemById] = useState<Record<string, DmmItem>>(
-    {},
+  const [summary, setSummary] = useState<FetchImportCandidatesSummary | null>(
+    restoredSession?.summary ?? null,
   );
-  const [addLimit, setAddLimit] = useState<BulkAddLimitChoice>(
-    IMPORT_BULK_ADD_DEFAULT,
-  );
-  const [pendingBulkWorks, setPendingBulkWorks] = useState<
-    Array<{ contentId: string; item: DmmItem }>
-  >([]);
-  const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [activeFilters, setActiveFilters] = useState<Set<ImportFilterKey>>(
     new Set(),
   );
-  const [recentlyAddedItems, setRecentlyAddedItems] = useState<DmmItem[]>([]);
-  const [recentlyAddedIds, setRecentlyAddedIds] = useState<Set<string>>(new Set());
-  const [confirmSummary, setConfirmSummary] = useState<ImportBulkConfirmSummary | null>(
-    null,
+  const [sort, setSort] = useState<ImportCandidateSortKey>("seoScore-desc");
+  const [page, setPage] = useState(1);
+  const [requestedCount, setRequestedCount] = useState(
+    IMPORT_FETCH_REQUEST_DEFAULT,
   );
-  const [bulkAddMessage, setBulkAddMessage] = useState<string | null>(null);
-  const [bulkAddError, setBulkAddError] = useState<string | null>(null);
-  const [bulkAddDebug, setBulkAddDebug] = useState<string | null>(null);
-  const [collectMessage, setCollectMessage] = useState<string | null>(null);
-  const [collectingMode, setCollectingMode] = useState<ImportCollectionMode | null>(
-    null,
-  );
-  const [collectProgress, setCollectProgress] =
-    useState<ImportCollectProgress | null>(null);
-  const [requestCount, setRequestCount] = useState(IMPORT_COLLECT_REQUEST_COUNT);
   const [startOffsetInput, setStartOffsetInput] = useState("");
-  const [offsetError, setOffsetError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isBulkAdding, setIsBulkAdding] = useState(false);
-  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
-  const [showConfirmModal, setShowConfirmModal] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [jsonCorrupt, setJsonCorrupt] = useState(Boolean(initialData.jsonCorrupt));
-  const [isResettingJson, setIsResettingJson] = useState(false);
-  const [resetJsonMessage, setResetJsonMessage] = useState<string | null>(null);
-  const [batchJob, setBatchJob] = useState<ImportBatchJob | null>(null);
-  const [serverBatchInProgress, setServerBatchInProgress] = useState(false);
-  const collectInFlightRef = useRef(false);
+  const [previousOffset, setPreviousOffset] = useState<number | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [addMessage, setAddMessage] = useState<string | null>(null);
+  const [addError, setAddError] = useState<string | null>(null);
+  const [isFetchingCandidates, setIsFetchingCandidates] = useState(false);
+  const [isAddingWorks, setIsAddingWorks] = useState(false);
   const candidateListRef = useRef<HTMLDivElement>(null);
 
-  const visibleCandidates = useMemo(
-    () => data.candidates,
-    [data.candidates],
-  );
-
-  const filteredTotalCount = data.pagination.totalCount;
-  const candidateTotalCount = Math.max(
-    filteredTotalCount,
-    data.summary.candidateCount,
-  );
-  const hasPendingCandidates = candidateTotalCount > 0;
-  const selectedCount = getSelectedCount(selection, filteredTotalCount);
-  const bulkAddContext = useMemo(
-    () => ({
-      filters: [...activeFilters],
-      sort,
-      filteredTotalCount,
-    }),
-    [activeFilters, sort, filteredTotalCount],
-  );
-
-  const scrollToCandidateList = useCallback(() => {
-    window.requestAnimationFrame(() => {
-      candidateListRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
+  useEffect(() => {
+    if (candidates.length === 0) return;
+    writeCandidatesSession({
+      sort: "popular",
+      candidates,
+      summary,
     });
-  }, []);
+  }, [candidates, summary]);
 
-  const applyCandidatesPayload = useCallback(
-    (payload: ImportManagementInitialData, options?: { resetSelection?: boolean }) => {
-      setData((current) => ({
-        ...current,
-        ...payload,
-        configured: payload.configured ?? current.configured,
-        dmmConfigured: payload.dmmConfigured ?? current.dmmConfigured,
-        message: undefined,
-      }));
-      setPage(payload.pagination?.page ?? 1);
+  const filteredCandidates = useMemo(() => {
+    const filtered = candidates.filter((candidate) =>
+      matchesImportFilters(candidate.item, activeFilters),
+    );
+    return sortCandidates(filtered, sort);
+  }, [activeFilters, candidates, sort]);
 
-      if (options?.resetSelection !== false) {
-        setSelection(clearSelectionState());
-        setSelectedItemById({});
+  const totalPages = Math.max(1, Math.ceil(filteredCandidates.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageCandidates = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredCandidates.slice(start, start + PAGE_SIZE);
+  }, [currentPage, filteredCandidates]);
+
+  const selectedCount = selectedIds.size;
+
+  const resolveStartOffset = useCallback((): number => {
+    const trimmed = startOffsetInput.trim();
+    if (trimmed !== "") {
+      const parsed = Number(trimmed);
+      if (Number.isFinite(parsed) && parsed >= 0) {
+        return Math.floor(parsed);
       }
-    },
-    [],
-  );
+    }
 
-  const selectedWorksForBulk = useMemo(
-    () =>
-      selection.mode === "explicit"
-        ? [...selection.selectedIds]
-            .map((contentId) => ({
-              contentId,
-              item: selectedItemById[contentId],
-            }))
-            .filter(
-              (
-                entry,
-              ): entry is {
-                contentId: string;
-                item: DmmItem;
-              } => Boolean(entry.item),
-            )
-        : [],
-    [selection, selectedItemById],
-  );
+    const stored = readStoredOffset("popular");
+    return stored ?? 0;
+  }, [startOffsetInput]);
 
-  const comparePool = useMemo(
-    () => visibleCandidates.map((candidate) => candidate.item),
-    [visibleCandidates],
-  );
+  const handleFetchCandidates = useCallback(async () => {
+    setFetchError(null);
+    setAddMessage(null);
+    setAddError(null);
+    setIsFetchingCandidates(true);
 
-  const loadCandidates = useCallback(
-    async (options: {
-      nextPage?: number;
-      nextSort?: ImportCandidateSortKey;
-      nextFilters?: Set<ImportFilterKey>;
-      preserveSelection?: boolean;
-    } = {}) => {
-      const targetPage = options.nextPage ?? page;
-      const targetSort = options.nextSort ?? sort;
-      const targetFilters = options.nextFilters ?? activeFilters;
-
-      const params = new URLSearchParams({
-        page: String(targetPage),
-        sort: targetSort,
-      });
-
-      const filtersQuery = buildFiltersQuery(targetFilters);
-      if (filtersQuery) {
-        params.set("filters", filtersQuery);
-      }
-
-      const response = await fetch(
-        `/api/admin/import/get-candidates?${params.toString()}`,
-        { cache: "no-store" },
-      );
-
-      if (!response.ok) {
-        const payload = (await response.json()) as { error?: string };
-        throw new Error(payload.error ?? "候補一覧の取得に失敗しました。");
-      }
-
-      const payload = (await response.json()) as ImportManagementInitialData;
-
-      applyCandidatesPayload(payload, {
-        resetSelection: !options.preserveSelection,
-      });
-      setSort(targetSort);
-    },
-    [page, sort, activeFilters, applyCandidatesPayload],
-  );
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const pollBatchJob = () =>
-      fetch("/api/admin/import/batch-job", { cache: "no-store" })
-        .then(async (response) => {
-          if (!response.ok || cancelled) return null;
-          return (await response.json()) as {
-            job?: ImportBatchJob;
-            inProgress?: boolean;
-          };
-        })
-        .then((payload) => {
-          if (!payload || cancelled) return;
-          if (payload.job) setBatchJob(payload.job);
-          setServerBatchInProgress(payload.inProgress === true);
-        })
-        .catch(() => undefined);
-
-    pollBatchJob();
-    const timer = window.setInterval(pollBatchJob, 2000);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    fetch("/api/admin/import/get-candidates?page=1", { cache: "no-store" })
-      .then(async (response) => {
-        if (!response.ok || cancelled) return null;
-        return (await response.json()) as ImportManagementInitialData;
-      })
-      .then((payload) => {
-        if (!payload || cancelled) return;
-        applyCandidatesPayload(payload, { resetSelection: false });
-      })
-      .catch(() => {
-        // 初期表示はサーバー描画の値を維持
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [applyCandidatesPayload]);
-
-  const handleExclude = useCallback(
-    async (contentId: string) => {
-      setError(null);
-
-      try {
-        const response = await fetch("/api/admin/import/exclude-work", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ contentId }),
-        });
-
-        const payload = (await response.json()) as { error?: string };
-
-        if (!response.ok) {
-          throw new Error(payload.error ?? "除外に失敗しました。");
-        }
-
-        setSelection((current) =>
-          toggleCandidateSelection(current, contentId, false, {
-            filters: [...activeFilters],
-            sort,
-            filteredTotalCount,
-          }),
-        );
-        setSelectedItemById((current) => {
-          const next = { ...current };
-          delete next[contentId];
-          return next;
-        });
-        await loadCandidates();
-      } catch (excludeError) {
-        setError(
-          excludeError instanceof Error
-            ? excludeError.message
-            : "除外に失敗しました。",
-        );
-      }
-    },
-    [loadCandidates, activeFilters, sort, filteredTotalCount],
-  );
-
-  const handleSelectedChange = useCallback(
-    (contentId: string, selected: boolean, item?: DmmItem) => {
-      setSelection((current) =>
-        toggleCandidateSelection(current, contentId, selected, {
-          filters: [...activeFilters],
-          sort,
-          filteredTotalCount,
-        }),
-      );
-
-      setSelectedItemById((current) => {
-        if (selection.mode === "allMatching" || selected === false) {
-          const next = { ...current };
-          delete next[contentId];
-          return next;
-        }
-        if (selected && item) {
-          return { ...current, [contentId]: item };
-        }
-        return current;
-      });
-    },
-    [activeFilters, sort, selection.mode, filteredTotalCount],
-  );
-
-  const handleToggleFilter = useCallback(
-    async (key: ImportFilterKey) => {
-      const nextFilters = new Set(activeFilters);
-      if (nextFilters.has(key)) {
-        nextFilters.delete(key);
-      } else {
-        nextFilters.add(key);
-      }
-
-      setActiveFilters(nextFilters);
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        await loadCandidates({ nextPage: 1, nextFilters });
-      } catch (loadError) {
-        setError(
-          loadError instanceof Error
-            ? loadError.message
-            : "候補一覧の取得に失敗しました。",
-        );
-      } finally {
-        setIsLoading(false);
-      }
-    },
-    [activeFilters, loadCandidates],
-  );
-
-  const handleClearFilters = useCallback(async () => {
-    const nextFilters = new Set<ImportFilterKey>();
-    setActiveFilters(nextFilters);
-    setIsLoading(true);
-    setError(null);
+    const startOffset = resolveStartOffset();
+    setPreviousOffset(startOffset);
 
     try {
-      await loadCandidates({ nextPage: 1, nextFilters });
-    } catch (loadError) {
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : "候補一覧の取得に失敗しました。",
+      const response = await fetch("/api/admin/import/fetch-candidates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sort: "popular",
+          offset: startOffset,
+          requestedCount,
+        }),
+      });
+
+      const payload = await parseJsonResponseBody<{
+        candidates?: FetchedImportCandidate[];
+        summary?: FetchImportCandidatesSummary;
+        error?: string;
+      }>(response);
+
+      if (!response.ok) {
+        throw new Error(
+          payload.error ??
+            "候補の取得に失敗しました。カタログは変更されていません。",
+        );
+      }
+
+      const nextCandidates = payload.candidates ?? [];
+      const nextSummary = payload.summary ?? null;
+
+      setCandidates(nextCandidates);
+      setSummary(nextSummary);
+      setSelectedIds(new Set());
+      setPage(1);
+
+      if (nextSummary) {
+        writeStoredOffset("popular", nextSummary.nextOffset);
+      }
+
+      window.requestAnimationFrame(() => {
+        candidateListRef.current?.scrollIntoView({
+          behavior: "smooth",
+          block: "start",
+        });
+      });
+    } catch (error) {
+      console.error("[import] fetch candidates failed", error);
+      setFetchError(
+        error instanceof Error
+          ? error.message
+          : "候補の取得に失敗しました。カタログは変更されていません。",
       );
     } finally {
-      setIsLoading(false);
+      setIsFetchingCandidates(false);
     }
-  }, [loadCandidates]);
+  }, [requestedCount, resolveStartOffset]);
 
-  const handleSelectPage = useCallback(() => {
-    setBulkAddError(null);
-    setBulkAddDebug(null);
-    const pageIds = visibleCandidates
-      .filter((candidate) => !addedIds.has(candidate.contentId))
-      .map((candidate) => candidate.contentId);
+  const handleAddSelected = useCallback(async () => {
+    setAddError(null);
+    setAddMessage(null);
 
-    setSelection(selectExplicitIds(pageIds));
-    setSelectedItemById((current) => {
-      const next = { ...current };
-      for (const candidate of visibleCandidates) {
-        if (!addedIds.has(candidate.contentId)) {
-          next[candidate.contentId] = candidate.item;
-        }
+    const selectedCandidates = candidates.filter((candidate) =>
+      selectedIds.has(getCandidateSelectionId(candidate)),
+    );
+
+    if (selectedCandidates.length === 0) {
+      setAddError("追加する作品が選択されていません。");
+      return;
+    }
+
+    setIsAddingWorks(true);
+
+    try {
+      const works = selectedCandidates.map((candidate) => ({
+        contentId: getCandidateSelectionId(candidate),
+        item: candidate.item,
+        sourcePopularityRank: candidate.rankPosition,
+      }));
+
+      const response = await fetch("/api/admin/import/add-selected-works", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ works }),
+      });
+
+      const payload = await parseJsonResponseBody<{
+        success?: boolean;
+        message?: string;
+        addedContentIds?: string[];
+        summary?: {
+          addedCount: number;
+          catalogDuplicateCount: number;
+          selectionDuplicateCount: number;
+          invalidCount: number;
+        };
+        error?: string;
+      }>(response);
+
+      if (!response.ok) {
+        throw new Error(
+          payload.error ??
+            "カタログの更新に失敗しました。追加は確定していません。",
+        );
+      }
+
+      setAddMessage(payload.message ?? "追加が完了しました。");
+
+      if (payload.addedContentIds && payload.addedContentIds.length > 0) {
+        const addedIdSet = new Set(
+          payload.addedContentIds.map((id) => id.toLowerCase()),
+        );
+
+        setCandidates((current) =>
+          current.filter(
+            (candidate) =>
+              !addedIdSet.has(getCandidateSelectionId(candidate).toLowerCase()),
+          ),
+        );
+        setSelectedIds((current) => {
+          const next = new Set(current);
+          for (const id of addedIdSet) {
+            next.delete(id);
+          }
+          return next;
+        });
+      }
+    } catch (error) {
+      console.error("[import] add selected failed", error);
+      setAddError(
+        error instanceof Error
+          ? error.message
+          : "カタログの更新に失敗しました。追加は確定していません。",
+      );
+    } finally {
+      setIsAddingWorks(false);
+    }
+  }, [candidates, selectedIds]);
+
+  const selectPage = useCallback(() => {
+    setSelectedIds((current) => {
+      const next = new Set(current);
+      for (const candidate of pageCandidates) {
+        next.add(getCandidateSelectionId(candidate));
       }
       return next;
     });
-  }, [visibleCandidates, addedIds]);
+  }, [pageCandidates]);
 
-  const handleSelectAllMatching = useCallback(() => {
-    setBulkAddError(null);
-    setBulkAddDebug(null);
-    setSelection(
-      selectAllMatching({
-        filters: [...activeFilters],
-        sort,
-        filteredTotalCount,
-      }),
+  const selectAllCandidates = useCallback(() => {
+    setSelectedIds(
+      new Set(candidates.map((candidate) => getCandidateSelectionId(candidate))),
     );
-    setSelectedItemById({});
-  }, [activeFilters, sort, filteredTotalCount]);
+  }, [candidates]);
 
-  const handleClearSelection = useCallback(() => {
-    setBulkAddError(null);
-    setBulkAddDebug(null);
-    setSelection(clearSelectionState());
-    setSelectedItemById({});
+  const clearSelection = useCallback(() => {
+    setSelectedIds(new Set());
   }, []);
 
-  const handleSelectByFlag = useCallback(
-    (flag: ImportFilterKey) => {
-      const pageIds = visibleCandidates
-        .filter((candidate) => {
-          if (addedIds.has(candidate.contentId)) return false;
-          return matchesImportListItemFilter(candidate, flag);
-        })
-        .map((candidate) => candidate.contentId);
+  const selectByPredicate = useCallback(
+    (predicate: (candidate: FetchedImportCandidate) => boolean) => {
+      setSelectedIds(
+        new Set(
+          candidates
+            .filter(predicate)
+            .map((candidate) => getCandidateSelectionId(candidate)),
+        ),
+      );
+    },
+    [candidates],
+  );
 
-      setSelection(selectExplicitIds(pageIds));
-      setSelectedItemById((current) => {
-        const next = { ...current };
-        for (const candidate of visibleCandidates) {
-          if (addedIds.has(candidate.contentId)) continue;
-          if (matchesImportListItemFilter(candidate, flag)) {
-            next[candidate.contentId] = candidate.item;
-          }
+  const toggleCandidate = useCallback(
+    (contentId: string, selected: boolean) => {
+      setSelectedIds((current) => {
+        const next = new Set(current);
+        if (selected) {
+          next.add(contentId);
+        } else {
+          next.delete(contentId);
         }
         return next;
       });
     },
-    [visibleCandidates, addedIds],
+    [],
   );
 
-  async function handleCollect(
-    mode: ImportCollectionMode,
-    params: ImportCollectParams,
-  ) {
-    if (collectInFlightRef.current) {
+  const applyNextOffsetToInput = useCallback(() => {
+    if (summary) {
+      setStartOffsetInput(String(summary.nextOffset));
       return;
     }
-    collectInFlightRef.current = true;
-
-    setCollectingMode(mode);
-    setError(null);
-    setCollectMessage(null);
-    setOffsetError(null);
-    setCollectProgress(null);
-
-    if (mode === "past" && params.startOffset !== null) {
-      const numeric = params.startOffset;
-      if (!Number.isInteger(numeric) || numeric < 0) {
-        setOffsetError("開始offsetは0以上の整数で指定してください。");
-        setCollectingMode(null);
-        collectInFlightRef.current = false;
-        return;
-      }
+    const stored = readStoredOffset("popular");
+    if (stored != null) {
+      setStartOffsetInput(String(stored));
     }
+  }, [summary]);
 
-    const progressTimer = window.setInterval(async () => {
-      try {
-        const response = await fetch("/api/admin/import/collect-progress", {
-          cache: "no-store",
-        });
-        if (!response.ok) return;
-        const payload = (await response.json()) as {
-          progress?: ImportCollectProgress;
-        };
-        if (payload.progress?.active) {
-          setCollectProgress(payload.progress);
-        }
-      } catch {
-        // 進捗取得失敗は無視
-      }
-    }, 500);
+  const resetOffsetToZero = useCallback(() => {
+    setStartOffsetInput("0");
+  }, []);
 
-    try {
-      const body: Record<string, unknown> = {
-        mode,
-        requestCount: params.requestCount,
-      };
-      if (mode === "past") {
-        body.startOffset =
-          params.startOffset === null ? "" : params.startOffset;
-      }
+  const restorePreviousOffset = useCallback(() => {
+    if (previousOffset != null) {
+      setStartOffsetInput(String(previousOffset));
+    }
+  }, [previousOffset]);
 
-      const response = await fetch("/api/admin/import/collect-candidates", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      });
-
-      const payload = (await response.json()) as ImportManagementInitialData & {
-        error?: string;
-        success?: boolean;
-        collectedCount?: number;
-        displayedCount?: number;
-        message?: string;
-        candidates?: ImportCandidatesListResult["candidates"];
-        runStats?: {
-          nextPastOffset?: number;
-          startPastOffset?: number;
-        };
-      };
-
-      if (!response.ok) {
-        if (
-          response.status === 400 ||
-          (payload.error && payload.error.includes("offset"))
-        ) {
-          setOffsetError(payload.error ?? "開始offsetが不正です。");
-        }
-        throw new Error(payload.error ?? "候補の収集に失敗しました。");
-      }
-
-      if (payload.summary) {
-        applyCandidatesPayload(
-          {
-            ...payload,
-            configured: data.configured,
-            dmmConfigured: data.dmmConfigured,
-          },
-          { resetSelection: true },
-        );
-        setActiveFilters(new Set());
+  const toggleFilter = useCallback((key: ImportFilterKey) => {
+    setActiveFilters((current) => {
+      const next = new Set(current);
+      if (next.has(key)) {
+        next.delete(key);
       } else {
-        await loadCandidates({ nextPage: 1, nextFilters: new Set() });
+        next.add(key);
       }
+      return next;
+    });
+    setPage(1);
+  }, []);
 
-      if (mode === "past" && payload.runStats?.nextPastOffset != null) {
-        setStartOffsetInput("");
-      }
-
-      setCollectMessage(
-        payload.message ??
-          (payload.displayedCount && payload.displayedCount > 0
-            ? `${payload.displayedCount}件の候補を表示しました。`
-            : "候補を収集しましたが、表示できる候補がありません。"),
-      );
-      scrollToCandidateList();
-    } catch (collectError) {
-      setError(
-        collectError instanceof Error
-          ? collectError.message
-          : "候補の収集に失敗しました。",
-      );
-    } finally {
-      window.clearInterval(progressTimer);
-      setCollectProgress(null);
-      setCollectingMode(null);
-      collectInFlightRef.current = false;
-    }
-  }
-
-  async function handleResetJson() {
-    setIsResettingJson(true);
-    setError(null);
-    setResetJsonMessage(null);
-
-    try {
-      const response = await fetch("/api/admin/import/reset-candidates", {
-        method: "POST",
-      });
-
-      const payload = (await response.json()) as {
-        error?: string;
-        message?: string;
-      };
-
-      if (!response.ok) {
-        throw new Error(payload.error ?? "import-candidates.json の初期化に失敗しました。");
-      }
-
-      setJsonCorrupt(false);
-      setResetJsonMessage(payload.message ?? "import-candidates.json を初期化しました。");
-      await loadCandidates({ nextPage: 1 });
-    } catch (resetError) {
-      setError(
-        resetError instanceof Error
-          ? resetError.message
-          : "import-candidates.json の初期化に失敗しました。",
-      );
-    } finally {
-      setIsResettingJson(false);
-    }
-  }
-
-  async function handleSortChange(nextSort: ImportCandidateSortKey) {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      await loadCandidates({ nextPage: 1, nextSort });
-    } catch (loadError) {
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : "候補一覧の取得に失敗しました。",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  async function handlePageChange(nextPage: number) {
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      await loadCandidates({ nextPage, preserveSelection: true });
-    } catch (loadError) {
-      setError(
-        loadError instanceof Error
-          ? loadError.message
-          : "候補一覧の取得に失敗しました。",
-      );
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
-  async function handleBulkAddRequest() {
-    setBulkAddError(null);
-    setBulkAddDebug(null);
-    console.log("[bulk-add] start");
-
-    try {
-      const debugInfo = describeSelectionForDebug(selection, filteredTotalCount);
-      console.log("[bulk-add] selection resolved", {
-        ...debugInfo,
-        selectedCount,
-        filteredTotalCount,
-      });
-
-      if (!hasSelection(selection, filteredTotalCount)) {
-        setBulkAddError("追加する作品を選択してください。");
-        return;
-      }
-
-      const appliedLimit = resolveBulkAddLimit(addLimit, selectedCount);
-      const clientSampleIds = visibleCandidates
-        .slice(0, 10)
-        .map((candidate) => candidate.contentId)
-        .filter(Boolean);
-      const requestBody = buildBulkAddApiRequest(
-        selection,
-        appliedLimit,
-        bulkAddContext,
-        clientSampleIds,
-      );
-      console.log("[bulk-add] request body built");
-
-      if (!requestBody) {
-        setBulkAddError("追加する作品を選択してください。");
-        return;
-      }
-
-      const body = JSON.stringify(requestBody);
-      console.log("[bulk-add] payload size", body.length, requestBody);
-
-      setIsPreviewLoading(true);
-      console.log("[bulk-add] fetch start");
-
-      const response = await fetch("/api/admin/import/bulk-add-preview", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body,
-      });
-
-      console.log("[bulk-add] response received", {
-        status: response.status,
-        ok: response.ok,
-        contentType: response.headers.get("content-type"),
-      });
-
-      const parsed = await parseJsonResponseBody<{
-        error?: string;
-        debug?: BulkAddApiDebug;
-        selectedCount: number;
-        toAddCount: number;
-        duplicateCount: number;
-        invalidCount?: number;
-        qualitySummary: {
-          total: number;
-          noImage: number;
-          noActress: number;
-          noPrice: number;
-          noDescription: number;
-          noSampleImages: number;
-        };
-      }>(response);
-
-      if (!parsed.ok) {
-        throw parsed.error;
-      }
-
-      const payload = parsed.data;
-      console.log("[bulk-add] response parsed", payload);
-
-      if (!response.ok) {
-        setBulkAddDebug(buildBulkAddDebugLine(payload.debug));
-        const errorLines = (payload.error ?? "追加内容の確認に失敗しました。")
-          .split("\n")
-          .filter(Boolean);
-        throw new Error(errorLines[0] ?? "追加内容の確認に失敗しました。");
-      }
-
-      setConfirmSummary({
-        selectedCount: payload.selectedCount,
-        toAddCount: payload.toAddCount,
-        duplicateCount: payload.duplicateCount,
-        total: payload.qualitySummary.total,
-        noImage: payload.qualitySummary.noImage,
-        noActress: payload.qualitySummary.noActress,
-        noPrice: payload.qualitySummary.noPrice,
-        noDescription: payload.qualitySummary.noDescription,
-        noSampleImages: payload.qualitySummary.noSampleImages,
-      });
-      setPendingBulkWorks(
-        selection.mode === "explicit"
-          ? selectedWorksForBulk.slice(0, appliedLimit)
-          : [],
-      );
-      setShowConfirmModal(true);
-      console.log("[bulk-add] completed");
-    } catch (previewError) {
-      logBulkAddClientFailure("handleBulkAddRequest", previewError);
-      const rawMessage =
-        previewError instanceof Error ? previewError.message : String(previewError);
-      setBulkAddError(formatBulkAddUserError(previewError, { rawMessage }));
-      if (rawMessage.includes("The string did not match the expected pattern")) {
-        setBulkAddDebug(
-          "Safari JSON解析エラー: サーバーが空または不正な応答を返した可能性があります。Vercelログの [bulk-add] を確認してください。",
-        );
-      }
-    } finally {
-      setIsPreviewLoading(false);
-    }
-  }
-
-  async function handleBulkAddConfirm() {
-    if (!hasSelection(selection, filteredTotalCount)) {
-      setBulkAddError("追加する作品を選択してください。");
-      setShowConfirmModal(false);
-      return;
-    }
-
-    setIsBulkAdding(true);
-    setBulkAddError(null);
-    setBulkAddDebug(null);
-    console.log("[bulk-add] confirm start");
-
-    try {
-      const appliedLimit = resolveBulkAddLimit(addLimit, selectedCount);
-      const clientSampleIds = visibleCandidates
-        .slice(0, 10)
-        .map((candidate) => candidate.contentId)
-        .filter(Boolean);
-      const requestBody = buildBulkAddApiRequest(
-        selection,
-        appliedLimit,
-        bulkAddContext,
-        clientSampleIds,
-      );
-
-      if (!requestBody) {
-        throw new Error("追加する作品を選択してください。");
-      }
-
-      const body = JSON.stringify(requestBody);
-      console.log("[bulk-add] confirm payload size", body.length);
-      console.log("[bulk-add] confirm fetch start");
-
-      const response = await fetch("/api/admin/import/bulk-add-works", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body,
-      });
-
-      console.log("[bulk-add] confirm response received", {
-        status: response.status,
-        ok: response.ok,
-      });
-
-      const parsed = await parseJsonResponseBody<{
-        error?: string;
-        debug?: BulkAddApiDebug;
-        message?: string;
-        addedCount?: number;
-        addedContentIds?: string[];
-      }>(response);
-
-      if (!parsed.ok) {
-        throw parsed.error;
-      }
-
-      const payload = parsed.data;
-      console.log("[bulk-add] confirm response parsed", payload);
-
-      if (!response.ok) {
-        setBulkAddDebug(buildBulkAddDebugLine(payload.debug));
-        throw new Error(payload.error ?? "一括追加に失敗しました。");
-      }
-
-      const addedContentIds = payload.addedContentIds ?? [];
-      setAddedIds((current) => new Set([...current, ...addedContentIds]));
-      setRecentlyAddedIds((current) => new Set([...current, ...addedContentIds]));
-      setRecentlyAddedItems(
-        pendingBulkWorks
-          .filter((candidate) => addedContentIds.includes(candidate.contentId))
-          .map((candidate) => candidate.item),
-      );
-      setSelection(clearSelectionState());
-      setSelectedItemById({});
-      setPendingBulkWorks([]);
-      setBulkAddMessage(
-        payload.message ??
-          (payload.addedCount && payload.addedCount > 0
-            ? "追加しました。Vercel反映まで数分かかります。"
-            : "追加できる作品がありませんでした。"),
-      );
-      setConfirmSummary(null);
-      setShowConfirmModal(false);
-      console.log("[bulk-add] confirm completed");
-    } catch (bulkError) {
-      logBulkAddClientFailure("handleBulkAddConfirm", bulkError);
-      const rawMessage =
-        bulkError instanceof Error ? bulkError.message : String(bulkError);
-      setBulkAddError(formatBulkAddUserError(bulkError, { rawMessage }));
-      setShowConfirmModal(false);
-    } finally {
-      setIsBulkAdding(false);
-    }
-  }
-
-  if (!data.configured) {
+  if (!configured) {
     return (
-      <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
-        GitHub 連携（GITHUB_TOKEN / GITHUB_OWNER / GITHUB_REPO / GITHUB_BRANCH）が未設定のため、一括追加・デプロイができません。
+      <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+        GitHub 連携の設定が未完了です。カタログの追加はできません。
       </div>
     );
   }
 
-  if (!data.dmmConfigured) {
+  if (!dmmConfigured) {
     return (
-      <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
-        DMM API の認証情報が未設定のため、候補を収集できません（DMM_API_ID / DMM_AFFILIATE_ID）。
+      <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+        FANZA API の設定が未完了です。候補の取得はできません。
       </div>
     );
   }
 
   return (
-    <div
-      className={`space-y-6${hasPendingCandidates ? " pb-28 md:pb-6" : ""}`}
-    >
-      <ImportDebugPanel
-        job={batchJob}
-        serverInProgress={serverBatchInProgress}
-        currentOffsetInput={startOffsetInput}
-        persistedPastOffset={data.summary.collectionState.pastOffset}
-        persistedNextPastOffset={data.summary.collectionState.nextPastOffset}
-        persistedPopularOffset={data.summary.collectionState.nextPopularOffset}
-        candidateTotalCount={candidateTotalCount}
-        visibleCount={visibleCandidates.length}
-        filteredTotalCount={filteredTotalCount}
-        selection={selection}
-        selectedCount={selectedCount}
-      />
-
-      <ImportSummaryBar
-        summary={data.summary}
-        visibleCount={data.summary.candidateCount}
-        displayedCount={data.pagination.totalCount}
-        collectingMode={collectingMode}
-        collectProgress={collectProgress}
-        requestCount={requestCount}
-        startOffsetInput={startOffsetInput}
-        offsetError={offsetError}
-        onRequestCountChange={setRequestCount}
-        onStartOffsetInputChange={(value) => {
-          setStartOffsetInput(value);
-          setOffsetError(null);
-        }}
-        onUseNextOffset={() => {
-          setStartOffsetInput(
-            String(data.summary.collectionState.nextPastOffset),
-          );
-          setOffsetError(null);
-        }}
-        onResetOffset={() => {
-          setStartOffsetInput("0");
-          setOffsetError(null);
-        }}
-        onUsePreviousOffset={() => {
-          const previous = data.summary.collectionState.lastPastStartOffset;
-          if (previous == null) return;
-          setStartOffsetInput(String(previous));
-          setOffsetError(null);
-        }}
-        onCollect={handleCollect}
-      />
-
-      <PopularCollectPanel
-        currentCatalogCount={data.summary.publishedCount}
-        popularOffset={data.summary.collectionState.nextPopularOffset}
-        lastPopularStartOffset={
-          data.summary.collectionState.lastPopularStartOffset
-        }
-        disabled={collectingMode !== null}
-        onComplete={(message, collectResult) => {
-          setCollectMessage(message);
-          if (collectResult?.summary) {
-            applyCandidatesPayload(
-              {
-                ...collectResult,
-                configured: data.configured,
-                dmmConfigured: data.dmmConfigured,
-              },
-              { resetSelection: true },
-            );
-            setActiveFilters(new Set());
-          }
-          scrollToCandidateList();
-        }}
-        onError={(message) => setError(message)}
-        onRefresh={async () => {
-          const params = new URLSearchParams({
-            page: "1",
-            sort,
-          });
-          const filtersQuery = buildFiltersQuery(activeFilters);
-          if (filtersQuery) {
-            params.set("filters", filtersQuery);
-          }
-
-          const response = await fetch(
-            `/api/admin/import/get-candidates?${params.toString()}`,
-            { cache: "no-store" },
-          );
-
-          if (!response.ok) {
-            return null;
-          }
-
-          const payload = (await response.json()) as ImportManagementInitialData;
-          applyCandidatesPayload(payload, { resetSelection: true });
-          setActiveFilters(new Set());
-          return payload;
-        }}
-      />
-
-      {data.message ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-          <p>{data.message}</p>
-          {jsonCorrupt ? (
-            <button
-              type="button"
-              onClick={handleResetJson}
-              disabled={isResettingJson}
-              className="mt-3 inline-flex h-11 min-h-[44px] items-center justify-center rounded-lg border border-amber-300 bg-white px-4 text-sm font-medium text-amber-900 transition-colors hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+    <div className="space-y-6">
+      <section className="rounded-xl border border-border bg-white p-4 shadow-sm">
+        <h2 className="text-sm font-bold text-foreground">① 候補取得</h2>
+        <div className="mt-4 grid gap-4 md:grid-cols-3">
+          <label className="block text-sm">
+            <span className="text-muted">並び順</span>
+            <select
+              className="mt-1 w-full rounded-lg border border-border px-3 py-2"
+              value="popular"
+              disabled
             >
-              {isResettingJson
-                ? "初期化中..."
-                : "import-candidates.json を初期化する"}
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-
-      {resetJsonMessage ? (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-          {resetJsonMessage}
-        </div>
-      ) : null}
-
-      {error ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          {error}
-        </div>
-      ) : null}
-
-      {collectMessage ? (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm whitespace-pre-wrap text-emerald-800">
-          {collectMessage}
-        </div>
-      ) : null}
-
-      {bulkAddMessage ? (
-        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
-          {bulkAddMessage}
-        </div>
-      ) : null}
-
-      {bulkAddError ? (
-        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-          <p>{bulkAddError}</p>
-          {bulkAddDebug ? (
-            <p className="mt-2 text-xs text-red-600">{bulkAddDebug}</p>
-          ) : null}
-        </div>
-      ) : null}
-
-      {recentlyAddedItems.length > 0 ? (
-        <ImportBulkSnsPanel items={recentlyAddedItems} />
-      ) : null}
-
-      {hasPendingCandidates ? (
-        <ImportBulkToolbar
-          selectedCount={selectedCount}
-          filteredTotalCount={filteredTotalCount}
-          visibleCount={visibleCandidates.length}
-          addLimit={addLimit}
-          isBulkAdding={isBulkAdding || isPreviewLoading}
-          onAddLimitChange={setAddLimit}
-          onSelectPage={handleSelectPage}
-          onSelectAllMatching={handleSelectAllMatching}
-          onClearSelection={handleClearSelection}
-          onSelectByFlag={handleSelectByFlag}
-          onBulkAdd={handleBulkAddRequest}
-        />
-      ) : null}
-
-      <ImportFilterBar
-        activeFilters={activeFilters}
-        onToggleFilter={handleToggleFilter}
-        onClearFilters={handleClearFilters}
-      />
-
-      <ImportSortBar
-        sort={sort}
-        page={data.pagination.page}
-        totalPages={data.pagination.totalPages}
-        totalCount={data.pagination.totalCount}
-        onSortChange={handleSortChange}
-        onPageChange={handlePageChange}
-      />
-
-      <div ref={candidateListRef}>
-      {isLoading ? (
-        <div className="rounded-xl border border-border bg-white p-6 text-center text-sm text-muted">
-          読み込み中...
-        </div>
-      ) : visibleCandidates.length === 0 ? (
-        <div className="rounded-xl border border-border bg-white p-8 text-center text-sm text-muted">
-          {hasPendingCandidates
-            ? "フィルター条件に一致する候補がありません。フィルターを解除してください。"
-            : "表示できる候補作品がありません。「新作を収集」または「過去作品を収集」で FANZA から未掲載作品を蓄積してください。"}
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {visibleCandidates.map((candidate) => (
-            <ImportCandidateCard
-              key={candidate.contentId}
-              item={candidate.item}
-              source={candidate.source}
-              sourceLabel={formatImportSourceLabel(candidate.source)}
-              seoScore={candidate.seoScore}
-              seoReasons={candidate.seoReasons}
-              selected={
-                isCandidateSelected(selection, candidate.contentId) &&
-                !addedIds.has(candidate.contentId)
-              }
-              isAdded={addedIds.has(candidate.contentId)}
-              emphasizeSns={recentlyAddedIds.has(candidate.contentId)}
-              comparePool={comparePool}
-              onSelectedChange={handleSelectedChange}
-              onExclude={handleExclude}
+              <option value="popular">人気順</option>
+            </select>
+          </label>
+          <label className="block text-sm">
+            <span className="text-muted">開始offset</span>
+            <input
+              type="number"
+              min={0}
+              className="mt-1 w-full rounded-lg border border-border px-3 py-2"
+              value={startOffsetInput}
+              onChange={(event) => setStartOffsetInput(event.target.value)}
+              placeholder={String(readStoredOffset("popular") ?? 0)}
             />
-          ))}
+          </label>
+          <label className="block text-sm">
+            <span className="text-muted">取得件数</span>
+            <select
+              className="mt-1 w-full rounded-lg border border-border px-3 py-2"
+              value={requestedCount}
+              onChange={(event) =>
+                setRequestedCount(Number(event.target.value))
+              }
+            >
+              {IMPORT_FETCH_REQUEST_OPTIONS.map((count) => (
+                <option key={count} value={count}>
+                  {count}件
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
-      )}
-      </div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={applyNextOffsetToInput}
+            className="rounded-lg border border-border px-3 py-1.5 text-xs"
+          >
+            次回offsetを入力
+          </button>
+          <button
+            type="button"
+            onClick={resetOffsetToZero}
+            className="rounded-lg border border-border px-3 py-1.5 text-xs"
+          >
+            0に戻す
+          </button>
+          <button
+            type="button"
+            onClick={restorePreviousOffset}
+            disabled={previousOffset == null}
+            className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
+          >
+            前回offsetに戻す
+          </button>
+        </div>
+        <button
+          type="button"
+          onClick={handleFetchCandidates}
+          disabled={isFetchingCandidates || isAddingWorks}
+          className="mt-4 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+        >
+          {isFetchingCandidates ? "候補を取得中..." : "候補を取得"}
+        </button>
+        {fetchError ? (
+          <p className="mt-3 text-sm text-red-600">{fetchError}</p>
+        ) : null}
+      </section>
 
-      {showConfirmModal && confirmSummary ? (
-        <ImportBulkConfirmModal
-          summary={confirmSummary}
-          isSubmitting={isBulkAdding}
-          onConfirm={handleBulkAddConfirm}
-          onCancel={() => {
-            setShowConfirmModal(false);
-            setConfirmSummary(null);
-            setPendingBulkWorks([]);
-          }}
-        />
+      {summary ? (
+        <section className="rounded-xl border border-border bg-white p-4 shadow-sm">
+          <h2 className="text-sm font-bold text-foreground">② 取得結果サマリー</h2>
+          <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <dt className="text-muted">API取得件数</dt>
+              <dd>{summary.apiFetchedCount.toLocaleString()}件</dd>
+            </div>
+            <div>
+              <dt className="text-muted">掲載済み除外</dt>
+              <dd>{summary.publishedExcludedCount.toLocaleString()}件</dd>
+            </div>
+            <div>
+              <dt className="text-muted">重複除外</dt>
+              <dd>{summary.duplicateExcludedCount.toLocaleString()}件</dd>
+            </div>
+            <div>
+              <dt className="text-muted">無効除外</dt>
+              <dd>{summary.invalidExcludedCount.toLocaleString()}件</dd>
+            </div>
+            <div>
+              <dt className="text-muted">画像なし除外</dt>
+              <dd>{summary.imageMissingExcludedCount.toLocaleString()}件</dd>
+            </div>
+            <div>
+              <dt className="text-muted">有効候補</dt>
+              <dd>{summary.candidateCount.toLocaleString()}件</dd>
+            </div>
+            <div>
+              <dt className="text-muted">今回の開始offset</dt>
+              <dd>{summary.startOffset.toLocaleString()}</dd>
+            </div>
+            <div>
+              <dt className="text-muted">次回offset</dt>
+              <dd>{summary.nextOffset.toLocaleString()}</dd>
+            </div>
+          </dl>
+        </section>
       ) : null}
 
-      {hasPendingCandidates ? (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-white/95 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] backdrop-blur-sm md:hidden pb-[max(env(safe-area-inset-bottom),0px)]">
-          <ImportBulkToolbar
-            selectedCount={selectedCount}
-            filteredTotalCount={filteredTotalCount}
-            visibleCount={visibleCandidates.length}
-            addLimit={addLimit}
-            isBulkAdding={isBulkAdding || isPreviewLoading}
-            compact
-            onAddLimitChange={setAddLimit}
-            onSelectPage={handleSelectPage}
-            onSelectAllMatching={handleSelectAllMatching}
-            onClearSelection={handleClearSelection}
-            onSelectByFlag={handleSelectByFlag}
-            onBulkAdd={handleBulkAddRequest}
+      <section className="rounded-xl border border-border bg-white p-4 shadow-sm">
+        <h2 className="text-sm font-bold text-foreground">③ 選択・一括追加</h2>
+        <p className="mt-2 text-sm text-muted">
+          候補総数：{candidates.length.toLocaleString()}件 / 表示中：
+          {pageCandidates.length.toLocaleString()}件 / 選択中：
+          {selectedCount.toLocaleString()}件
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={selectPage}
+            disabled={pageCandidates.length === 0}
+            className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
+          >
+            このページを選択
+          </button>
+          <button
+            type="button"
+            onClick={selectAllCandidates}
+            disabled={candidates.length === 0}
+            className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
+          >
+            全候補を選択
+          </button>
+          <button
+            type="button"
+            onClick={clearSelection}
+            disabled={selectedCount === 0}
+            className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
+          >
+            選択解除
+          </button>
+          <button
+            type="button"
+            onClick={() => selectByPredicate(candidateHasImage)}
+            disabled={candidates.length === 0}
+            className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
+          >
+            画像ありだけ選択
+          </button>
+          <button
+            type="button"
+            onClick={() => selectByPredicate(candidateHasActress)}
+            disabled={candidates.length === 0}
+            className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
+          >
+            女優ありだけ選択
+          </button>
+          <button
+            type="button"
+            onClick={() => selectByPredicate(candidateHasPrice)}
+            disabled={candidates.length === 0}
+            className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
+          >
+            価格ありだけ選択
+          </button>
+        </div>
+        <button
+          type="button"
+          onClick={handleAddSelected}
+          disabled={isAddingWorks || isFetchingCandidates || selectedCount === 0}
+          className="mt-4 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+        >
+          {isAddingWorks ? "追加中..." : "選択した作品を追加"}
+        </button>
+        {addMessage ? (
+          <p className="mt-3 whitespace-pre-line text-sm text-green-700">
+            {addMessage}
+          </p>
+        ) : null}
+        {addError ? (
+          <p className="mt-3 text-sm text-red-600">{addError}</p>
+        ) : null}
+      </section>
+
+      <section className="rounded-xl border border-border bg-white p-4 shadow-sm">
+        <h2 className="text-sm font-bold text-foreground">④ フィルター・並び替え</h2>
+        <div className="mt-4 space-y-4">
+          <ImportFilterBar
+            activeFilters={activeFilters}
+            onToggleFilter={toggleFilter}
+            onClearFilters={() => {
+              setActiveFilters(new Set());
+              setPage(1);
+            }}
+          />
+          <ImportSortBar
+            sort={sort}
+            page={currentPage}
+            totalPages={totalPages}
+            totalCount={filteredCandidates.length}
+            onSortChange={(nextSort) => {
+              setSort(nextSort);
+              setPage(1);
+            }}
+            onPageChange={(nextPage) => setPage(nextPage)}
           />
         </div>
-      ) : null}
+      </section>
+
+      <section ref={candidateListRef} className="space-y-4">
+        <h2 className="text-sm font-bold text-foreground">⑤ 候補一覧</h2>
+        {pageCandidates.length === 0 ? (
+          <p className="text-sm text-muted">
+            候補がありません。「候補を取得」から FANZA 作品を取得してください。
+          </p>
+        ) : (
+          pageCandidates.map((candidate) => {
+            const contentId = getCandidateSelectionId(candidate);
+            return (
+              <ImportCandidateCard
+                key={contentId}
+                item={candidate.item}
+                source="fanza-rank"
+                sourceLabel={formatImportSourceLabel("fanza-rank")}
+                selected={selectedIds.has(contentId)}
+                isAdded={false}
+                comparePool={candidates.map((entry) => entry.item)}
+                onSelectedChange={(id, selected, item: DmmItem) => {
+                  void item;
+                  toggleCandidate(id, selected);
+                }}
+                onExclude={async () => {
+                  setCandidates((current) =>
+                    current.filter(
+                      (entry) =>
+                        getCandidateSelectionId(entry) !== contentId,
+                    ),
+                  );
+                  setSelectedIds((current) => {
+                    const next = new Set(current);
+                    next.delete(contentId);
+                    return next;
+                  });
+                }}
+              />
+            );
+          })
+        )}
+      </section>
+
+      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-border bg-white/95 p-3 shadow-lg md:hidden">
+        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
+          <p className="text-sm">
+            選択中 <span className="font-bold">{selectedCount}</span> 件
+          </p>
+          <button
+            type="button"
+            onClick={handleAddSelected}
+            disabled={isAddingWorks || isFetchingCandidates || selectedCount === 0}
+            className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          >
+            {isAddingWorks ? "追加中..." : "追加"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

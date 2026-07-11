@@ -14,6 +14,7 @@
     "lint": "eslint",
     "fetch-catalog": "node scripts/fetch-catalog.mjs",
     "test:import-filters": "node scripts/test-import-candidate-filters.mjs",
+    "test:import-simple": "node scripts/test-import-simple.mjs",
     "test:works-sort": "node scripts/verify-works-sort.mjs"
   },
   "dependencies": {

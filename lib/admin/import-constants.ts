@@ -33,5 +33,14 @@ export const IMPORT_BULK_ADD_INTERNAL_CHUNK = 500;
 /** GitHub カタログ更新の最大リトライ回数 */
 export const IMPORT_CATALOG_COMMIT_MAX_RETRIES = 3;
 
+/** 簡易インポート：候補取得件数の選択肢 */
+export const IMPORT_FETCH_REQUEST_OPTIONS = [10, 20, 50, 100, 200, 300, 500] as const;
+export const IMPORT_FETCH_REQUEST_DEFAULT = 50;
+export const IMPORT_FETCH_REQUEST_MAX = 500;
+/** 要求候補数に対する最大 API 走査件数の倍率（例: 500件要求 → 最大1500件走査） */
+export const IMPORT_FETCH_MAX_SCAN_MULTIPLIER = 3;
+/** 簡易インポート：カタログ追加時の最大再試行回数 */
+export const IMPORT_SIMPLE_ADD_MAX_RETRIES = 2;
+
 /** @deprecated IMPORT_BULK_ADD_ABSOLUTE_MAX を使用してください */
 export const IMPORT_BULK_ADD_MAX = IMPORT_BULK_ADD_ABSOLUTE_MAX;

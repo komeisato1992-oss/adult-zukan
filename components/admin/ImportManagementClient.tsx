@@ -39,6 +39,10 @@ import {
   toggleCandidateSelection,
   type ImportSelectionState,
 } from "@/lib/admin/import-selection";
+import {
+  formatBulkAddUserError,
+  parseJsonResponseBody,
+} from "@/lib/admin/bulk-add-safe";
 import type { DmmItem } from "@/lib/dmm/types";
 
 type ImportManagementInitialData = ImportCandidatesListResult & {
@@ -54,6 +58,39 @@ type ImportManagementClientProps = {
 
 function buildFiltersQuery(filters: Set<ImportFilterKey>): string {
   return [...filters].join(",");
+}
+
+type BulkAddApiDebug = {
+  selectionMode: string;
+  receivedSelectedCount: number;
+  resolvedCount: number;
+  afterLimitCount: number;
+  appliedLimit: number;
+  invalidCount?: number;
+};
+
+function buildBulkAddDebugLine(debug?: BulkAddApiDebug | null): string | null {
+  if (!debug) return null;
+  const invalidSuffix =
+    typeof debug.invalidCount === "number"
+      ? ` / 無効除外=${debug.invalidCount}件`
+      : "";
+  return `mode=${debug.selectionMode} / 受信=${debug.receivedSelectedCount}件 / 再抽出=${debug.resolvedCount}件 / 上限適用後=${debug.afterLimitCount}件${invalidSuffix}`;
+}
+
+function logBulkAddClientFailure(
+  stage: string,
+  error: unknown,
+  extra?: Record<string, unknown>,
+): void {
+  console.error("[bulk-add] failed", {
+    stage,
+    error,
+    name: error instanceof Error ? error.name : undefined,
+    message: error instanceof Error ? error.message : undefined,
+    stack: error instanceof Error ? error.stack : undefined,
+    ...extra,
+  });
 }
 
 export function ImportManagementClient({
@@ -642,51 +679,61 @@ export function ImportManagementClient({
   async function handleBulkAddRequest() {
     setBulkAddError(null);
     setBulkAddDebug(null);
-
-    const debugInfo = describeSelectionForDebug(selection, filteredTotalCount);
-
-    if (!hasSelection(selection, filteredTotalCount)) {
-      setBulkAddError("追加する作品を選択してください。");
-      return;
-    }
-
-    const appliedLimit = resolveBulkAddLimit(addLimit, selectedCount);
-    const requestBody = buildBulkAddApiRequest(selection, appliedLimit, bulkAddContext);
-
-    console.log("bulk add request", {
-      ...debugInfo,
-      addLimit: appliedLimit,
-      requestBody,
-    });
-
-    if (!requestBody) {
-      setBulkAddError("追加する作品を選択してください。");
-      return;
-    }
-
-    setIsPreviewLoading(true);
+    console.log("[bulk-add] start");
 
     try {
+      const debugInfo = describeSelectionForDebug(selection, filteredTotalCount);
+      console.log("[bulk-add] selection resolved", {
+        ...debugInfo,
+        selectedCount,
+        filteredTotalCount,
+      });
+
+      if (!hasSelection(selection, filteredTotalCount)) {
+        setBulkAddError("追加する作品を選択してください。");
+        return;
+      }
+
+      const appliedLimit = resolveBulkAddLimit(addLimit, selectedCount);
+      const requestBody = buildBulkAddApiRequest(
+        selection,
+        appliedLimit,
+        bulkAddContext,
+      );
+      console.log("[bulk-add] request body built");
+
+      if (!requestBody) {
+        setBulkAddError("追加する作品を選択してください。");
+        return;
+      }
+
+      const body = JSON.stringify(requestBody);
+      console.log("[bulk-add] payload size", body.length, requestBody);
+
+      setIsPreviewLoading(true);
+      console.log("[bulk-add] fetch start");
+
       const response = await fetch("/api/admin/import/bulk-add-preview", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(requestBody),
+        body,
       });
 
-      const payload = (await response.json()) as {
+      console.log("[bulk-add] response received", {
+        status: response.status,
+        ok: response.ok,
+        contentType: response.headers.get("content-type"),
+      });
+
+      const parsed = await parseJsonResponseBody<{
         error?: string;
-        debug?: {
-          selectionMode: string;
-          receivedSelectedCount: number;
-          resolvedCount: number;
-          afterLimitCount: number;
-          appliedLimit: number;
-        };
+        debug?: BulkAddApiDebug;
         selectedCount: number;
         toAddCount: number;
         duplicateCount: number;
+        invalidCount?: number;
         qualitySummary: {
           total: number;
           noImage: number;
@@ -695,14 +742,17 @@ export function ImportManagementClient({
           noDescription: number;
           noSampleImages: number;
         };
-      };
+      }>(response);
+
+      if (!parsed.ok) {
+        throw parsed.error;
+      }
+
+      const payload = parsed.data;
+      console.log("[bulk-add] response parsed", payload);
 
       if (!response.ok) {
-        if (payload.debug) {
-          setBulkAddDebug(
-            `mode=${payload.debug.selectionMode} / 受信=${payload.debug.receivedSelectedCount}件 / 再抽出=${payload.debug.resolvedCount}件 / 上限適用後=${payload.debug.afterLimitCount}件`,
-          );
-        }
+        setBulkAddDebug(buildBulkAddDebugLine(payload.debug));
         throw new Error(payload.error ?? "追加内容の確認に失敗しました。");
       }
 
@@ -718,15 +768,22 @@ export function ImportManagementClient({
         noSampleImages: payload.qualitySummary.noSampleImages,
       });
       setPendingBulkWorks(
-        selection.mode === "explicit" ? selectedWorksForBulk.slice(0, appliedLimit) : [],
+        selection.mode === "explicit"
+          ? selectedWorksForBulk.slice(0, appliedLimit)
+          : [],
       );
       setShowConfirmModal(true);
+      console.log("[bulk-add] completed");
     } catch (previewError) {
-      setBulkAddError(
-        previewError instanceof Error
-          ? previewError.message
-          : "追加内容の確認に失敗しました。",
-      );
+      logBulkAddClientFailure("handleBulkAddRequest", previewError);
+      const rawMessage =
+        previewError instanceof Error ? previewError.message : String(previewError);
+      setBulkAddError(formatBulkAddUserError(previewError, { rawMessage }));
+      if (rawMessage.includes("The string did not match the expected pattern")) {
+        setBulkAddDebug(
+          "Safari JSON解析エラー: サーバーが空または不正な応答を返した可能性があります。Vercelログの [bulk-add] を確認してください。",
+        );
+      }
     } finally {
       setIsPreviewLoading(false);
     }
@@ -742,43 +799,54 @@ export function ImportManagementClient({
     setIsBulkAdding(true);
     setBulkAddError(null);
     setBulkAddDebug(null);
+    console.log("[bulk-add] confirm start");
 
     try {
       const appliedLimit = resolveBulkAddLimit(addLimit, selectedCount);
-      const requestBody = buildBulkAddApiRequest(selection, appliedLimit, bulkAddContext);
+      const requestBody = buildBulkAddApiRequest(
+        selection,
+        appliedLimit,
+        bulkAddContext,
+      );
 
       if (!requestBody) {
         throw new Error("追加する作品を選択してください。");
       }
+
+      const body = JSON.stringify(requestBody);
+      console.log("[bulk-add] confirm payload size", body.length);
+      console.log("[bulk-add] confirm fetch start");
 
       const response = await fetch("/api/admin/import/bulk-add-works", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(requestBody),
+        body,
       });
 
-      const payload = (await response.json()) as {
+      console.log("[bulk-add] confirm response received", {
+        status: response.status,
+        ok: response.ok,
+      });
+
+      const parsed = await parseJsonResponseBody<{
         error?: string;
-        debug?: {
-          selectionMode: string;
-          receivedSelectedCount: number;
-          resolvedCount: number;
-          afterLimitCount: number;
-          appliedLimit: number;
-        };
+        debug?: BulkAddApiDebug;
         message?: string;
         addedCount?: number;
         addedContentIds?: string[];
-      };
+      }>(response);
+
+      if (!parsed.ok) {
+        throw parsed.error;
+      }
+
+      const payload = parsed.data;
+      console.log("[bulk-add] confirm response parsed", payload);
 
       if (!response.ok) {
-        if (payload.debug) {
-          setBulkAddDebug(
-            `mode=${payload.debug.selectionMode} / 受信=${payload.debug.receivedSelectedCount}件 / 再抽出=${payload.debug.resolvedCount}件 / 上限適用後=${payload.debug.afterLimitCount}件`,
-          );
-        }
+        setBulkAddDebug(buildBulkAddDebugLine(payload.debug));
         throw new Error(payload.error ?? "一括追加に失敗しました。");
       }
 
@@ -801,12 +869,12 @@ export function ImportManagementClient({
       );
       setConfirmSummary(null);
       setShowConfirmModal(false);
+      console.log("[bulk-add] confirm completed");
     } catch (bulkError) {
-      setBulkAddError(
-        bulkError instanceof Error
-          ? bulkError.message
-          : "一括追加に失敗しました。",
-      );
+      logBulkAddClientFailure("handleBulkAddConfirm", bulkError);
+      const rawMessage =
+        bulkError instanceof Error ? bulkError.message : String(bulkError);
+      setBulkAddError(formatBulkAddUserError(bulkError, { rawMessage }));
       setShowConfirmModal(false);
     } finally {
       setIsBulkAdding(false);

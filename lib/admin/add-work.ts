@@ -6,6 +6,10 @@ import {
   GitHubCatalogError,
 } from "@/lib/admin/github-catalog";
 import { markImportCandidatesAdded } from "@/lib/admin/import-candidates-store";
+import {
+  getCandidateContentId,
+  logBulkAddServerError,
+} from "@/lib/admin/bulk-add-safe";
 import { IMPORT_BULK_ADD_ABSOLUTE_MAX } from "@/lib/admin/import-constants";
 import {
   summarizeImportSelection,
@@ -103,8 +107,17 @@ function classifyBulkWorks(
       batchIds.add(prepared.content_id);
       preparedItems.push(prepared);
       addedContentIds.push(prepared.content_id);
-    } catch {
-      invalidContentIds.push(normalizeCatalogContentId(contentId));
+    } catch (error) {
+      const normalizedId = normalizeCatalogContentId(contentId);
+      invalidContentIds.push(normalizedId);
+      console.warn("[bulk-add] invalid candidate", {
+        contentId: normalizedId || getCandidateContentId(item),
+        productId: item.product_id,
+        title: item.title,
+        reason: error instanceof Error ? error.message : String(error),
+        stage: "prepareCatalogItem",
+        stack: error instanceof Error ? error.stack : undefined,
+      });
     }
   }
 
@@ -131,6 +144,8 @@ function buildBulkCommitMessage(addedContentIds: string[]): string {
 export async function previewBulkAddWorks(
   works: Array<{ contentId: string; item: DmmItem }>,
 ): Promise<BulkAddPreviewResult> {
+  console.log("[bulk-add] preview start", { workCount: works.length });
+
   if (works.length > IMPORT_BULK_ADD_ABSOLUTE_MAX) {
     throw new AddWorkValidationError(
       `1回で追加できるのは${IMPORT_BULK_ADD_ABSOLUTE_MAX}件までです`,
@@ -138,12 +153,20 @@ export async function previewBulkAddWorks(
   }
 
   const { items } = await fetchCatalogFromGitHub();
+  console.log("[bulk-add] catalog loaded", { catalogCount: items.length });
+
   const existingIds = new Set(
     items.map((entry) => normalizeCatalogContentId(entry.content_id)),
   );
 
   const { preparedItems, duplicateContentIds, invalidContentIds } =
     classifyBulkWorks(works, existingIds);
+
+  console.log("[bulk-add] preview classified", {
+    preparedCount: preparedItems.length,
+    duplicateCount: duplicateContentIds.length,
+    invalidCount: invalidContentIds.length,
+  });
 
   return {
     selectedCount: works.length,
@@ -256,6 +279,8 @@ export function toAddWorkErrorMessage(error: unknown): {
   message: string;
   status: number;
 } {
+  logBulkAddServerError("toAddWorkErrorMessage", error);
+
   if (error instanceof AddWorkValidationError) {
     return { message: error.message, status: error.status };
   }

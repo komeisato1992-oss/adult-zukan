@@ -1,3 +1,4 @@
+import { safeParseUrl } from "@/lib/admin/bulk-add-safe";
 import { normalizeImportContentId } from "@/lib/admin/import-candidate-mapper";
 import type { DmmItem } from "@/lib/dmm/types";
 
@@ -25,12 +26,12 @@ export function normalizeWorkUrl(value: string | undefined | null): string {
   const trimmed = value?.trim();
   if (!trimmed) return "";
 
-  try {
-    const parsed = new URL(trimmed);
-    return `${parsed.hostname}${parsed.pathname}${parsed.search}`.toLowerCase();
-  } catch {
+  const parsed = safeParseUrl(trimmed);
+  if (!parsed) {
     return trimmed.toLowerCase();
   }
+
+  return `${parsed.hostname}${parsed.pathname}${parsed.search}`.toLowerCase();
 }
 
 /** content_id から品番相当を抽出（例: h_491start00319 → start00319） */

@@ -3,22 +3,39 @@ import {
   addWorksToCatalog,
   toAddWorkErrorMessage,
 } from "@/lib/admin/add-work";
+import { logBulkAddServerError } from "@/lib/admin/bulk-add-safe";
 import { describeBulkAddRequestBody, resolveBulkAddSelection } from "@/lib/admin/resolve-bulk-selection";
 import { isAdminAuthenticated } from "@/lib/admin/auth";
 import { formatIndexUpdateStats } from "@/lib/dmm/index-builders";
 import { logCatalogSnapshotThrownError } from "@/lib/dmm/catalog-snapshot-json";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 export async function POST(request: Request) {
+  console.log("[bulk-add] works route start");
+
   if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  let requestBody: unknown = null;
+
   try {
-    const body = (await request.json()) as unknown;
-    const resolved = await resolveBulkAddSelection(body);
+    console.log("[bulk-add] works parsing request body");
+    requestBody = await request.json();
+    console.log("[bulk-add] works request body parsed");
+
+    const resolved = await resolveBulkAddSelection(requestBody);
+    console.log("[bulk-add] works selection resolved", resolved.debug);
+
     const result = await addWorksToCatalog(resolved.works);
+    console.log("[bulk-add] works catalog add complete", {
+      addedCount: result.addedContentIds.length,
+      duplicateCount: result.duplicateContentIds.length,
+      invalidCount: result.invalidContentIds.length,
+      committedToGitHub: result.committedToGitHub,
+    });
 
     const addedCount = result.addedContentIds.length;
     const skippedCount =
@@ -29,7 +46,7 @@ export async function POST(request: Request) {
         ? [
             `${addedCount}件を追加しました。`,
             skippedCount > 0
-              ? `${skippedCount}件は重複のためスキップしました。`
+              ? `${skippedCount}件は重複または不正データのためスキップしました。`
               : null,
             "追加作品は一覧・検索・関連ページに反映されます。",
           ]
@@ -63,15 +80,14 @@ export async function POST(request: Request) {
     });
   } catch (error) {
     logCatalogSnapshotThrownError(error);
+    logBulkAddServerError("bulk-add-works route", error, {
+      hasRequestBody: Boolean(requestBody),
+    });
     const { message, status } = toAddWorkErrorMessage(error);
-    const body = await request
-      .clone()
-      .json()
-      .catch(() => null);
     return NextResponse.json(
       {
         error: message,
-        debug: describeBulkAddRequestBody(body),
+        debug: describeBulkAddRequestBody(requestBody),
       },
       { status },
     );

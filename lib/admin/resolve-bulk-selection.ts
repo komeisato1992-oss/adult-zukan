@@ -4,6 +4,8 @@ import { resolveBulkAddLimit } from "@/lib/admin/bulk-add-limit";
 import type { BulkAddWorkInput } from "@/lib/admin/bulk-add-request";
 import type { ImportCandidateSortKey } from "@/lib/admin/import-candidate-types";
 import { normalizeImportContentId } from "@/lib/admin/import-candidate-mapper";
+import { validateBulkAddWorksInBatches } from "@/lib/admin/bulk-add-validate";
+import { logBulkAddServerError } from "@/lib/admin/bulk-add-safe";
 import { buildImportCandidatesListFromRecords } from "@/lib/admin/import-candidates-query";
 import { loadImportCandidates } from "@/lib/admin/import-candidates-store";
 import {
@@ -22,6 +24,14 @@ export type BulkAddResolutionDebug = {
   resolvedCount: number;
   afterLimitCount: number;
   appliedLimit: number;
+  invalidCount?: number;
+  validationBatches?: Array<{
+    startIndex: number;
+    endIndex: number;
+    successCount: number;
+    excludedCount: number;
+    failedIds: string[];
+  }>;
 };
 
 export type BulkAddResolutionResult = {
@@ -239,24 +249,46 @@ export function describeBulkAddRequestBody(
 export async function resolveBulkAddSelection(
   body: unknown,
 ): Promise<BulkAddResolutionResult> {
+  console.log("[bulk-add] resolve selection start");
+
   if (!body || typeof body !== "object") {
     throw new AddWorkValidationError("リクエスト形式が不正です。");
   }
 
   const payload = body as Record<string, unknown>;
   const selection = parseSelectionPayload(payload);
+  console.log("[bulk-add] selection parsed", {
+    mode: selection.mode,
+    receivedSelectedCount: countSelectionInput(selection),
+  });
 
   if (selection.mode === "explicit") {
     assertExplicitSelection(selection);
   }
 
-  const works =
+  const rawWorks =
     selection.mode === "allMatching"
       ? await resolveAllMatchingWorks(selection)
       : await resolveExplicitWorks(selection);
 
+  console.log("[bulk-add] candidates resolved", {
+    resolvedCount: rawWorks.length,
+  });
+
+  const validation = validateBulkAddWorksInBatches(rawWorks);
+  const works = validation.valid;
+
   if (works.length === 0) {
-    throw new AddWorkValidationError("追加する作品が選択されていません。");
+    const firstInvalid = validation.invalid[0];
+    logBulkAddServerError("resolveBulkAddSelection", new Error("no valid works"), {
+      invalidCount: validation.invalid.length,
+      firstInvalid,
+    });
+    throw new AddWorkValidationError(
+      validation.invalid.length > 0
+        ? "追加できる有効な候補がありませんでした。無効な候補を除外して再試行してください。"
+        : "追加する作品が選択されていません。",
+    );
   }
 
   const receivedSelectedCount = countSelectionInput(selection, works.length);
@@ -270,6 +302,12 @@ export async function resolveBulkAddSelection(
     );
   }
 
+  console.log("[bulk-add] resolve selection complete", {
+    resolvedCount: works.length,
+    invalidCount: validation.invalid.length,
+    afterLimitCount: limited.length,
+  });
+
   return {
     works: limited,
     appliedLimit,
@@ -280,6 +318,8 @@ export async function resolveBulkAddSelection(
       resolvedCount: works.length,
       afterLimitCount: limited.length,
       appliedLimit,
+      invalidCount: validation.invalid.length,
+      validationBatches: validation.batches,
     },
   };
 }

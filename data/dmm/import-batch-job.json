@@ -1,118 +1,33 @@
 {
-  "processId": "batch-1783757543528-1jgk3j",
-  "activeJobId": null,
+  "processId": "batch-1783757669557-mydoxo",
+  "activeJobId": "batch-1783757669557-mydoxo",
   "mode": "popular",
-  "idempotencyKey": "popular-1783757524361-c6r2ix",
-  "status": "completed",
-  "phase": "completed",
+  "idempotencyKey": "popular-1783757633668-adx80q",
+  "status": "running",
+  "phase": "collecting",
   "targetTotalCount": 10000,
-  "startOffset": 2000,
+  "startOffset": 7000,
   "requestCount": 500,
   "addLimit": 500,
   "maxBatches": 1,
-  "batchesExecuted": 1,
-  "currentCatalogCount": 6516,
-  "works": [
-    {
-      "contentId": "bban00413",
-      "status": "added"
-    },
-    {
-      "contentId": "sone00158",
-      "status": "added"
-    },
-    {
-      "contentId": "rbb00179",
-      "status": "added"
-    },
-    {
-      "contentId": "mmpb00006",
-      "status": "added"
-    },
-    {
-      "contentId": "pred00145",
-      "status": "added"
-    },
-    {
-      "contentId": "hhkl00013",
-      "status": "added"
-    },
-    {
-      "contentId": "juq00231",
-      "status": "added"
-    },
-    {
-      "contentId": "adn00159",
-      "status": "added"
-    },
-    {
-      "contentId": "ymdd00482",
-      "status": "added"
-    },
-    {
-      "contentId": "pfes00052",
-      "status": "added"
-    },
-    {
-      "contentId": "kawd00795",
-      "status": "added"
-    },
-    {
-      "contentId": "h_113spe00006",
-      "status": "added"
-    },
-    {
-      "contentId": "1okl00008",
-      "status": "added"
-    },
-    {
-      "contentId": "h_1605stsk00181",
-      "status": "added"
-    },
-    {
-      "contentId": "1akdl00334",
-      "status": "added"
-    },
-    {
-      "contentId": "1ofsd025002",
-      "status": "added"
-    }
-  ],
-  "runStats": {
-    "requestedCount": 500,
-    "apiFetchedCount": 500,
-    "validCandidateCount": 16,
-    "addedCount": 16,
-    "skippedExistingCount": 0,
-    "excludedCount": 0,
-    "failedCount": 0,
-    "startOffset": 2000,
-    "nextOffset": 2500,
-    "exclusionStats": {
-      "catalogPublished": 453,
-      "alreadyAdded": 0,
-      "alreadyExcluded": 0,
-      "alreadyPending": 0,
-      "alreadyFetched": 0,
-      "noImage": 0,
-      "invalid": 31,
-      "duplicate": 0
-    }
-  },
-  "progressMessage": "完了",
+  "batchesExecuted": 0,
+  "currentCatalogCount": 6500,
+  "works": [],
+  "runStats": null,
+  "progressMessage": "人気順から候補を取得中...",
   "validatingProgress": 0,
   "validatingTotal": 0,
-  "currentPage": 5,
+  "currentPage": 0,
   "plannedPages": 5,
-  "currentOffset": 2500,
-  "fetchedCount": 500,
-  "estimatedRemainingCount": 0,
-  "createdAt": "2026-07-11T08:12:24.799Z",
-  "updatedAt": "2026-07-11T08:13:42.460Z",
-  "completedAt": "2026-07-11T08:13:42.201Z",
+  "currentOffset": 7000,
+  "fetchedCount": 0,
+  "estimatedRemainingCount": 500,
+  "createdAt": "2026-07-11T08:14:30.688Z",
+  "updatedAt": "2026-07-11T08:14:31.130Z",
+  "completedAt": null,
   "errorCode": null,
-  "startSha": "a368545af03732170e04994b4d69fa73926651df",
-  "saveSha": "5a97cd6b64c4a83a73bd9c9f2cd6d7c82f993f09",
+  "startSha": "28d42f2df1ec2df175d4de47c4b3db006c02d081",
+  "saveSha": null,
   "retryCount": 0,
-  "durationMs": 78673
+  "durationMs": null
 }

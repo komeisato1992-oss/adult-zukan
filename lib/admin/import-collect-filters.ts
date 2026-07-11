@@ -2,6 +2,10 @@ import "server-only";
 
 import { readCatalogSnapshot } from "@/lib/dmm/catalog-snapshot";
 import { normalizeImportContentId } from "@/lib/admin/import-candidate-mapper";
+import {
+  buildWorkIdentityKeys,
+  keysMatchAny,
+} from "@/lib/admin/import-identity";
 import type { StoredImportCandidate } from "@/lib/admin/import-candidate-types";
 import type { ImportCollectExclusionStats } from "@/lib/admin/import-collect-types";
 import { isValidDmmListItem } from "@/lib/dmm/filter";
@@ -9,11 +13,11 @@ import type { DmmItem } from "@/lib/dmm/types";
 import { getValidImageUrl } from "@/lib/works";
 
 export type ImportCollectBlockContext = {
-  catalogIds: Set<string>;
-  catalogProductIds: Set<string>;
-  addedIds: Set<string>;
-  excludedIds: Set<string>;
-  pendingIds: Set<string>;
+  catalogKeys: Set<string>;
+  addedKeys: Set<string>;
+  excludedKeys: Set<string>;
+  pendingKeys: Set<string>;
+  fetchedKeys: Set<string>;
   batchKeys: Set<string>;
 };
 
@@ -22,109 +26,54 @@ export type ImportCollectRejectReason =
   | "alreadyAdded"
   | "alreadyExcluded"
   | "alreadyPending"
+  | "alreadyFetched"
   | "duplicate"
   | "noImage"
   | "invalid";
 
+function addRecordKeys(
+  target: Set<string>,
+  record: StoredImportCandidate,
+): void {
+  const identity = buildWorkIdentityKeys({
+    content_id: record.content_id,
+    product_id: record.item?.product_id ?? record.content_id,
+    URL: record.item?.URL ?? "",
+    title: record.title || record.item?.title || "",
+  });
+
+  for (const key of identity.allKeys) {
+    target.add(key);
+  }
+}
+
 export function createImportCollectBlockContext(
-  catalogIds: Set<string>,
-  catalogProductIds: Set<string>,
+  catalogKeys: Set<string>,
   records: StoredImportCandidate[],
+  fetchedKeys: Set<string>,
 ): ImportCollectBlockContext {
-  const addedIds = new Set<string>();
-  const excludedIds = new Set<string>();
-  const pendingIds = new Set<string>();
+  const addedKeys = new Set<string>();
+  const excludedKeys = new Set<string>();
+  const pendingKeys = new Set<string>();
 
   for (const record of records) {
-    const id = normalizeImportContentId(record.content_id);
-    if (!id) continue;
-
     if (record.status === "added") {
-      addedIds.add(id);
+      addRecordKeys(addedKeys, record);
     } else if (record.status === "excluded") {
-      excludedIds.add(id);
+      addRecordKeys(excludedKeys, record);
     } else {
-      pendingIds.add(id);
-    }
-
-    const productId = normalizeImportContentId(record.item?.product_id ?? "");
-    if (productId) {
-      if (record.status === "added") addedIds.add(productId);
-      else if (record.status === "excluded") excludedIds.add(productId);
-      else pendingIds.add(productId);
+      addRecordKeys(pendingKeys, record);
     }
   }
 
   return {
-    catalogIds,
-    catalogProductIds,
-    addedIds,
-    excludedIds,
-    pendingIds,
+    catalogKeys,
+    addedKeys,
+    excludedKeys,
+    pendingKeys,
+    fetchedKeys,
     batchKeys: new Set<string>(),
   };
-}
-
-function normalizeCollectUrl(url: string | undefined): string {
-  const trimmed = url?.trim();
-  if (!trimmed) return "";
-
-  try {
-    const parsed = new URL(trimmed);
-    return `${parsed.hostname}${parsed.pathname}${parsed.search}`.toLowerCase();
-  } catch {
-    return trimmed.toLowerCase();
-  }
-}
-
-function getItemIdentityKeys(item: DmmItem): string[] {
-  const keys = new Set<string>();
-  const contentId = normalizeImportContentId(item.content_id);
-  const productId = normalizeImportContentId(item.product_id ?? "");
-  const workUrl = normalizeCollectUrl(item.URL);
-
-  if (contentId) keys.add(contentId);
-  if (productId) keys.add(productId);
-  if (workUrl) keys.add(`url:${workUrl}`);
-
-  return [...keys];
-}
-
-function isKnownInCatalog(keys: string[], context: ImportCollectBlockContext): boolean {
-  return keys.some(
-    (key) => context.catalogIds.has(key) || context.catalogProductIds.has(key),
-  );
-}
-
-function isKnownAdded(keys: string[], context: ImportCollectBlockContext): boolean {
-  return keys.some((key) => context.addedIds.has(key));
-}
-
-function isKnownExcluded(
-  keys: string[],
-  context: ImportCollectBlockContext,
-): boolean {
-  return keys.some((key) => context.excludedIds.has(key));
-}
-
-function isKnownPending(
-  keys: string[],
-  context: ImportCollectBlockContext,
-): boolean {
-  return keys.some((key) => context.pendingIds.has(key));
-}
-
-function isDuplicateInBatch(
-  keys: string[],
-  context: ImportCollectBlockContext,
-): boolean {
-  return keys.some((key) => context.batchKeys.has(key));
-}
-
-function markBatchIds(item: DmmItem, context: ImportCollectBlockContext): void {
-  for (const key of getItemIdentityKeys(item)) {
-    context.batchKeys.add(key);
-  }
 }
 
 export function hasCollectibleImage(item: DmmItem): boolean {
@@ -135,14 +84,27 @@ export function classifyImportCollectItem(
   item: DmmItem,
   context: ImportCollectBlockContext,
 ): ImportCollectRejectReason | null {
-  const keys = getItemIdentityKeys(item);
-  if (keys.length === 0) return "invalid";
+  const identity = buildWorkIdentityKeys(item);
+  if (!identity.contentId && !identity.productId) return "invalid";
 
-  if (isKnownInCatalog(keys, context)) return "catalogPublished";
-  if (isKnownAdded(keys, context)) return "alreadyAdded";
-  if (isKnownExcluded(keys, context)) return "alreadyExcluded";
-  if (isKnownPending(keys, context)) return "alreadyPending";
-  if (isDuplicateInBatch(keys, context)) return "duplicate";
+  if (keysMatchAny(identity.allKeys, context.catalogKeys)) {
+    return "catalogPublished";
+  }
+  if (keysMatchAny(identity.allKeys, context.addedKeys)) {
+    return "alreadyAdded";
+  }
+  if (keysMatchAny(identity.allKeys, context.excludedKeys)) {
+    return "alreadyExcluded";
+  }
+  if (keysMatchAny(identity.allKeys, context.pendingKeys)) {
+    return "alreadyPending";
+  }
+  if (keysMatchAny(identity.allKeys, context.fetchedKeys)) {
+    return "alreadyFetched";
+  }
+  if (keysMatchAny(identity.allKeys, context.batchKeys)) {
+    return "duplicate";
+  }
   if (!hasCollectibleImage(item)) return "noImage";
   if (!isValidDmmListItem(item)) return "invalid";
 
@@ -155,6 +117,7 @@ export function createEmptyExclusionStats(): ImportCollectExclusionStats {
     alreadyAdded: 0,
     alreadyExcluded: 0,
     alreadyPending: 0,
+    alreadyFetched: 0,
     noImage: 0,
     invalid: 0,
     duplicate: 0,
@@ -177,6 +140,9 @@ export function recordExclusion(
       break;
     case "alreadyPending":
       stats.alreadyPending += 1;
+      break;
+    case "alreadyFetched":
+      stats.alreadyFetched += 1;
       break;
     case "noImage":
       stats.noImage += 1;
@@ -203,10 +169,26 @@ export function acceptImportCollectItem(
     return false;
   }
 
-  markBatchIds(item, context);
+  for (const key of buildWorkIdentityKeys(item).allKeys) {
+    context.batchKeys.add(key);
+  }
   return true;
 }
 
+export function getExistingCatalogKeySet(): Set<string> {
+  const catalogKeys = new Set<string>();
+
+  for (const item of readCatalogSnapshot()) {
+    const identity = buildWorkIdentityKeys(item);
+    for (const key of identity.allKeys) {
+      catalogKeys.add(key);
+    }
+  }
+
+  return catalogKeys;
+}
+
+/** @deprecated getExistingCatalogKeySet を使用してください */
 export function getExistingCatalogIdSets(): {
   catalogIds: Set<string>;
   catalogProductIds: Set<string>;

@@ -16,6 +16,7 @@ import { isGitHubCatalogConfigured } from "@/lib/admin/github-config";
 export const dynamic = "force-dynamic";
 
 function parseMode(value: unknown): ImportCollectionMode {
+  if (value === "popular") return "popular";
   return value === "past" ? "past" : "new";
 }
 
@@ -36,20 +37,38 @@ export async function POST(request: Request) {
       mode?: string;
       requestCount?: unknown;
       startOffset?: unknown;
+      targetTotalCount?: unknown;
     };
     const mode = parseMode(body.mode);
     const requestCount = parseCollectRequestCount(body.requestCount);
 
     let startOffset: number | undefined;
+    let targetTotalCount: number | undefined;
+
     if (mode === "past") {
       const { state } = await loadImportCollectionState();
       startOffset = parseCollectStartOffset(body.startOffset, state.pastOffset);
+    }
+
+    if (mode === "popular") {
+      const { state } = await loadImportCollectionState();
+      startOffset = parseCollectStartOffset(
+        body.startOffset,
+        state.popularOffset,
+      );
+      if (body.targetTotalCount != null && body.targetTotalCount !== "") {
+        const numeric = Number(body.targetTotalCount);
+        if (Number.isInteger(numeric) && numeric >= 1) {
+          targetTotalCount = numeric;
+        }
+      }
     }
 
     const result = await collectImportCandidates({
       mode,
       requestCount,
       startOffset,
+      targetTotalCount,
     });
 
     if (!result.configured) {
@@ -68,6 +87,7 @@ export async function POST(request: Request) {
       pagination: result.pagination,
       collectedCount: result.collectedCount,
       displayedCount: result.displayedCount,
+      collectedThisRun: result.collectedThisRun,
       message: result.message,
       runStats: result.runStats,
       configured: isGitHubCatalogConfigured(),

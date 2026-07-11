@@ -53,10 +53,15 @@ export type ImportCandidatesSummary = {
   lastCollectedAt: string | null;
   lastNewCollectedAt: string | null;
   lastPastCollectedAt: string | null;
+  lastPopularCollectedAt: string | null;
   collectionState: {
     pastOffset: number;
     nextPastOffset: number;
     lastPastStartOffset: number | null;
+    popularOffset: number;
+    nextPopularOffset: number;
+    lastPopularStartOffset: number | null;
+    targetTotalCount: number;
     pageSize: number;
     cycleCount: number;
   };

@@ -8,6 +8,7 @@ import { ImportCandidateCard } from "@/components/admin/ImportCandidateCard";
 import { ImportFilterBar } from "@/components/admin/ImportFilterBar";
 import { ImportSortBar } from "@/components/admin/ImportSortBar";
 import { ImportSummaryBar, type ImportCollectParams } from "@/components/admin/ImportSummaryBar";
+import { PopularCollectPanel } from "@/components/admin/PopularCollectPanel";
 import type { ImportCandidateSortKey } from "@/lib/admin/import-candidate-types";
 import type { ImportCandidatesListResult } from "@/lib/admin/import-candidate-types";
 import type { ImportCollectionMode } from "@/lib/admin/import-collect-types";
@@ -725,6 +726,20 @@ export function ImportManagementClient({
           setOffsetError(null);
         }}
         onCollect={handleCollect}
+      />
+
+      <PopularCollectPanel
+        currentCatalogCount={data.summary.publishedCount}
+        popularOffset={data.summary.collectionState.nextPopularOffset}
+        lastPopularStartOffset={
+          data.summary.collectionState.lastPopularStartOffset
+        }
+        disabled={collectingMode !== null}
+        onComplete={(message) => setCollectMessage(message)}
+        onError={(message) => setError(message)}
+        onRefresh={async () => {
+          await loadCandidates({ nextPage: 1, nextFilters: new Set() });
+        }}
       />
 
       {data.message ? (

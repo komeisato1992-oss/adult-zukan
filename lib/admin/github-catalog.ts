@@ -322,6 +322,15 @@ async function createGitBlob(content: string): Promise<string> {
   return blob.sha;
 }
 
+export async function getBranchHeadSha(): Promise<string | null> {
+  try {
+    const { commitSha } = await getBranchHead();
+    return commitSha;
+  } catch {
+    return null;
+  }
+}
+
 /** catalog + 関連 index を Git Trees API で1コミットにまとめて更新する */
 export async function commitCatalogBundleToGitHub(
   envelope: CatalogSnapshotEnvelope,

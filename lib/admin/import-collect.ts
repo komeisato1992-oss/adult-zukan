@@ -6,7 +6,7 @@ import {
   acceptImportCollectItem,
   createEmptyExclusionStats,
   createImportCollectBlockContext,
-  getExistingCatalogIdSets,
+  getExistingCatalogKeySet,
 } from "@/lib/admin/import-collect-filters";
 import {
   nextCollectPageHits,
@@ -18,6 +18,14 @@ import {
   startImportCollectProgress,
   updateImportCollectProgress,
 } from "@/lib/admin/import-collect-progress";
+import {
+  buildFetchedHistoryKeySet,
+  mergeItemsIntoFetchedHistory,
+} from "@/lib/admin/import-fetched-history";
+import {
+  loadImportFetchedHistory,
+  saveImportFetchedHistory,
+} from "@/lib/admin/import-fetched-history-store";
 import type {
   CollectImportCandidatesOptions,
   CollectImportCandidatesResult,
@@ -33,11 +41,14 @@ import {
   saveImportCandidatesAndCollectionState,
 } from "@/lib/admin/import-collection-state-store";
 import type { ImportCollectionState } from "@/lib/admin/import-collection-state";
+import { getPublishedWorkCount } from "@/lib/admin/stats";
 import {
   getImportCandidateIdSet,
   loadImportCandidates,
 } from "@/lib/admin/import-candidates-store";
+import { storedRecordToListItem } from "@/lib/admin/import-candidates-visibility";
 import { fetchDmmItemList, isDmmConfigured } from "@/lib/dmm/client";
+import type { DmmFetchOptions } from "@/lib/dmm/types";
 import type { DmmItem } from "@/lib/dmm/types";
 import type { StoredImportCandidate } from "@/lib/admin/import-candidate-types";
 
@@ -53,12 +64,22 @@ type FetchPageResult = {
   resultCount: number;
 };
 
+function getSortForMode(mode: ImportCollectionMode): DmmFetchOptions["sort"] {
+  return mode === "popular" ? "rank" : "date";
+}
+
+function getSourceForMode(mode: ImportCollectionMode): string {
+  if (mode === "popular") return "fanza-rank";
+  return `fanza-${mode}`;
+}
+
 async function fetchCollectPage(
   offset: number,
   hits: number,
+  sort: DmmFetchOptions["sort"],
 ): Promise<FetchPageResult> {
   const response = await fetchDmmItemList({
-    sort: "date",
+    sort,
     hits,
     offset,
     cache: "no-store",
@@ -71,6 +92,20 @@ async function fetchCollectPage(
   };
 }
 
+function resolveStartOffset(
+  mode: ImportCollectionMode,
+  options: CollectImportCandidatesOptions,
+  state: ImportCollectionState,
+): number {
+  if (mode === "new") return 1;
+
+  const saved =
+    mode === "popular"
+      ? normalizeDmmOffset(state.popularOffset)
+      : normalizeDmmOffset(state.pastOffset);
+
+  return normalizeDmmOffset(options.startOffset ?? saved);
+}
 
 function buildCollectMessage(
   mode: ImportCollectionMode,
@@ -82,20 +117,32 @@ function buildCollectMessage(
     apiFetchedCount,
     validCandidateCount,
     exclusionStats,
-    startPastOffset,
-    nextPastOffset,
+    startOffset,
+    nextOffset,
     cycledPastCollection,
+    currentCatalogCount,
+    targetTotalCount,
+    remainingToTarget,
   } = runStats;
 
   const duplicateInvalid =
     exclusionStats.duplicate +
     exclusionStats.invalid +
-    exclusionStats.alreadyPending;
+    exclusionStats.alreadyPending +
+    exclusionStats.alreadyFetched;
+
+  const modeLabel =
+    mode === "popular"
+      ? "人気順"
+      : mode === "new"
+        ? "新作"
+        : "過去作品";
 
   const countLines = [
     `取得要求：${requestedCount.toLocaleString()}件`,
     `API取得：${apiFetchedCount.toLocaleString()}件`,
     `掲載済み：${exclusionStats.catalogPublished.toLocaleString()}件`,
+    `取得済み履歴：${exclusionStats.alreadyFetched.toLocaleString()}件`,
     `追加済み候補：${exclusionStats.alreadyAdded.toLocaleString()}件`,
     `除外済み候補：${exclusionStats.alreadyExcluded.toLocaleString()}件`,
     `画像なし：${exclusionStats.noImage.toLocaleString()}件`,
@@ -107,31 +154,35 @@ function buildCollectMessage(
     countLines.push(`新規追加：${addedCount.toLocaleString()}件`);
   }
 
+  if (mode === "popular") {
+    countLines.push(
+      `現在の総作品数：${currentCatalogCount.toLocaleString()}件`,
+      `目標：${targetTotalCount.toLocaleString()}件`,
+      `残り：${remainingToTarget.toLocaleString()}件`,
+    );
+  }
+
   const lines = [
-    mode === "new"
-      ? `新作を${apiFetchedCount.toLocaleString()}件取得し、掲載済み・重複・無効を除いた${validCandidateCount.toLocaleString()}件を候補として処理しました。`
-      : `過去作品を${apiFetchedCount.toLocaleString()}件取得し、掲載済み・重複・無効を除いた${validCandidateCount.toLocaleString()}件を候補として処理しました。`,
+    `${modeLabel}から${apiFetchedCount.toLocaleString()}件取得し、掲載済み・重複・無効を除いた${validCandidateCount.toLocaleString()}件を候補として処理しました。`,
     "",
     ...countLines,
   ];
 
-  if (mode === "past") {
+  if (mode === "past" || mode === "popular") {
     lines.push(
       "",
-      `今回の開始offset：${startPastOffset.toLocaleString()}`,
+      `今回の開始offset：${startOffset.toLocaleString()}`,
       `取得件数：${apiFetchedCount.toLocaleString()}`,
-      `次回offset：${nextPastOffset.toLocaleString()}`,
+      `次回offset：${nextOffset.toLocaleString()}`,
     );
     if (cycledPastCollection) {
-      lines.unshift("過去作品を一周しました。", "");
+      lines.unshift("一覧を一周しました。", "");
     }
   }
 
   if (validCandidateCount === 0) {
     lines[0] =
-      mode === "new"
-        ? `新作を${apiFetchedCount.toLocaleString()}件取得しましたが、有効な候補は見つかりませんでした。`
-        : `過去作品を${apiFetchedCount.toLocaleString()}件取得しましたが、有効な候補は見つかりませんでした。`;
+      `${modeLabel}から${apiFetchedCount.toLocaleString()}件取得しましたが、有効な候補は見つかりませんでした。`;
   }
 
   return lines.join("\n");
@@ -166,19 +217,20 @@ async function buildSuccessResult(
   message: string,
   runStats?: ImportCollectRunStats,
   addedCount = 0,
+  collectedThisRun: StoredImportCandidate[] = [],
 ): Promise<CollectImportCandidatesResult> {
   const list = await buildImportCandidatesListFromRecords(records, {
     page: 1,
   });
-  const displayedCount = list.candidates.length;
 
   return {
     success: true,
     configured: true,
     collectedCount: addedCount,
-    displayedCount,
+    displayedCount: list.candidates.length,
     count: list.pagination.totalCount,
     candidates: list.candidates,
+    collectedThisRun: collectedThisRun.map(storedRecordToListItem),
     message,
     summary: list.summary,
     pagination: list.pagination,
@@ -201,6 +253,7 @@ async function buildEmptyConfiguredResult(
     displayedCount: list.candidates.length,
     count: list.pagination.totalCount,
     candidates: list.candidates,
+    collectedThisRun: [],
     message,
     summary: list.summary,
     pagination: list.pagination,
@@ -209,6 +262,7 @@ async function buildEmptyConfiguredResult(
 
 type CollectLoopResult = {
   selected: StoredImportCandidate[];
+  fetchedItems: DmmItem[];
   apiFetchedCount: number;
   validatedCount: number;
   pagesFetched: number;
@@ -226,8 +280,10 @@ async function runCollectLoop(input: {
   blockContext: ReturnType<typeof createImportCollectBlockContext>;
 }): Promise<CollectLoopResult> {
   const { mode, requestCount, startOffset, pageSize, blockContext } = input;
+  const sort = getSortForMode(mode);
   const exclusionStats = createEmptyExclusionStats();
   const selected: StoredImportCandidate[] = [];
+  const fetchedItems: DmmItem[] = [];
 
   let apiFetchedCount = 0;
   let validatedCount = 0;
@@ -251,7 +307,7 @@ async function runCollectLoop(input: {
       let page: FetchPageResult;
 
       try {
-        page = await fetchCollectPage(currentOffset, hits);
+        page = await fetchCollectPage(currentOffset, hits, sort);
       } catch (error) {
         if (pagesFetched === 0) {
           throw error;
@@ -268,6 +324,7 @@ async function runCollectLoop(input: {
       apiFetchedCount += pageItems.length;
       validatedCount += pageItems.length;
       lastTotalCount = page.totalCount;
+      fetchedItems.push(...pageItems);
 
       updateImportCollectProgress({
         apiFetchedCount,
@@ -276,7 +333,7 @@ async function runCollectLoop(input: {
 
       if (pageItems.length === 0) {
         fetchCompleted = true;
-        if (mode === "past") {
+        if (mode === "past" || mode === "popular") {
           cycledPastCollection = true;
           currentOffset = 1;
         }
@@ -289,7 +346,7 @@ async function runCollectLoop(input: {
         }
 
         selected.push(
-          dmmItemToStoredCandidate(item, `fanza-${mode}`, {
+          dmmItemToStoredCandidate(item, getSourceForMode(mode), {
             collectionMode: mode,
           }),
         );
@@ -303,7 +360,7 @@ async function runCollectLoop(input: {
       }
 
       if (
-        mode === "past" &&
+        (mode === "past" || mode === "popular") &&
         lastTotalCount != null &&
         currentOffset > lastTotalCount
       ) {
@@ -315,7 +372,7 @@ async function runCollectLoop(input: {
 
       if (pageItems.length < hits) {
         fetchCompleted = true;
-        if (mode === "past") {
+        if (mode === "past" || mode === "popular") {
           cycledPastCollection = true;
           currentOffset = 1;
         }
@@ -331,6 +388,7 @@ async function runCollectLoop(input: {
 
     return {
       selected,
+      fetchedItems,
       apiFetchedCount,
       validatedCount,
       pagesFetched,
@@ -342,6 +400,52 @@ async function runCollectLoop(input: {
   } finally {
     resetImportCollectProgress();
   }
+}
+
+function buildNextCollectionState(input: {
+  mode: ImportCollectionMode;
+  collectionState: ImportCollectionState;
+  startOffset: number;
+  nextOffset: number;
+  pageSize: number;
+  cycledPastCollection: boolean;
+  targetTotalCount?: number;
+}): ImportCollectionState {
+  const now = new Date().toISOString();
+
+  return {
+    ...input.collectionState,
+    pastOffset:
+      input.mode === "past" ? input.nextOffset : input.collectionState.pastOffset,
+    lastPastStartOffset:
+      input.mode === "past"
+        ? input.startOffset
+        : input.collectionState.lastPastStartOffset,
+    popularOffset:
+      input.mode === "popular"
+        ? input.nextOffset
+        : input.collectionState.popularOffset,
+    lastPopularStartOffset:
+      input.mode === "popular"
+        ? input.startOffset
+        : input.collectionState.lastPopularStartOffset,
+    targetTotalCount:
+      input.targetTotalCount ?? input.collectionState.targetTotalCount,
+    pageSize: input.pageSize,
+    lastCollectedAt: now,
+    lastNewCollectedAt:
+      input.mode === "new" ? now : input.collectionState.lastNewCollectedAt,
+    lastPastCollectedAt:
+      input.mode === "past" ? now : input.collectionState.lastPastCollectedAt,
+    lastPopularCollectedAt:
+      input.mode === "popular" ? now : input.collectionState.lastPopularCollectedAt,
+    lastMode: input.mode,
+    cycleCount:
+      (input.mode === "past" || input.mode === "popular") &&
+      input.cycledPastCollection
+        ? input.collectionState.cycleCount + 1
+        : input.collectionState.cycleCount,
+  };
 }
 
 export async function collectImportCandidates(
@@ -368,41 +472,58 @@ export async function collectImportCandidates(
         message:
           "DMM API の認証情報が未設定です（DMM_API_ID / DMM_AFFILIATE_ID）。",
         candidates: [],
+        collectedThisRun: [],
         summary: emptyList.summary,
         pagination: emptyList.pagination,
       };
     }
 
     const pageSize = IMPORT_COLLECT_PAGE_SIZE;
+    const currentCatalogCount = await getPublishedWorkCount();
+    const targetTotalCount =
+      options.targetTotalCount ??
+      (await loadImportCollectionState()).state.targetTotalCount;
 
-    const { catalogIds, catalogProductIds } = getExistingCatalogIdSets();
+    const catalogKeys = getExistingCatalogKeySet();
     const { records: existingRecords, sha: candidatesSha } =
       await loadImportCandidates();
     const { state: collectionState, sha: stateSha } =
       await loadImportCollectionState();
+    const { history: fetchedHistory, sha: historySha } =
+      await loadImportFetchedHistory();
 
-    const savedPastOffset = normalizeDmmOffset(collectionState.pastOffset);
-    const startPastOffset =
-      mode === "past"
-        ? normalizeDmmOffset(options.startOffset ?? savedPastOffset)
-        : 1;
+    const startOffset = resolveStartOffset(mode, options, collectionState);
+    const fetchedKeys = buildFetchedHistoryKeySet(fetchedHistory);
 
     const blockContext = createImportCollectBlockContext(
-      catalogIds,
-      catalogProductIds,
+      catalogKeys,
       existingRecords,
+      fetchedKeys,
     );
 
     const loopResult = await runCollectLoop({
       mode,
       requestCount,
-      startOffset: mode === "past" ? startPastOffset : 1,
+      startOffset,
       pageSize,
       blockContext,
     });
 
-    const nextPastOffset =
-      mode === "past" ? loopResult.currentOffset : collectionState.pastOffset;
+    const nextOffset =
+      mode === "past"
+        ? loopResult.currentOffset
+        : mode === "popular"
+          ? loopResult.currentOffset
+          : collectionState.pastOffset;
+
+    const nextHistory = mergeItemsIntoFetchedHistory(
+      {
+        ...fetchedHistory,
+        lastRunAt: new Date().toISOString(),
+        lastApiFetchedCount: loopResult.apiFetchedCount,
+      },
+      loopResult.fetchedItems,
+    );
 
     const runStats: ImportCollectRunStats = {
       mode,
@@ -418,30 +539,24 @@ export async function collectImportCandidates(
         ...collectionState,
         pageSize,
       },
-      startPastOffset,
-      nextPastOffset,
+      startOffset,
+      nextOffset,
       cycledPastCollection: loopResult.cycledPastCollection,
       fetchCompleted: loopResult.fetchCompleted,
+      currentCatalogCount,
+      targetTotalCount,
+      remainingToTarget: Math.max(0, targetTotalCount - currentCatalogCount),
     };
 
-    const now = new Date().toISOString();
-    const nextState: ImportCollectionState = {
-      ...collectionState,
-      pastOffset: mode === "past" ? nextPastOffset : collectionState.pastOffset,
-      lastPastStartOffset:
-        mode === "past" ? startPastOffset : collectionState.lastPastStartOffset,
+    const nextState = buildNextCollectionState({
+      mode,
+      collectionState,
+      startOffset,
+      nextOffset,
       pageSize,
-      lastCollectedAt: now,
-      lastNewCollectedAt:
-        mode === "new" ? now : collectionState.lastNewCollectedAt,
-      lastPastCollectedAt:
-        mode === "past" ? now : collectionState.lastPastCollectedAt,
-      lastMode: mode,
-      cycleCount:
-        mode === "past" && loopResult.cycledPastCollection
-          ? collectionState.cycleCount + 1
-          : collectionState.cycleCount,
-    };
+      cycledPastCollection: loopResult.cycledPastCollection,
+      targetTotalCount,
+    });
 
     if (loopResult.selected.length === 0) {
       await saveImportCandidatesAndCollectionState(
@@ -449,13 +564,20 @@ export async function collectImportCandidates(
         nextState,
         candidatesSha,
         stateSha,
-        mode === "past"
-          ? "Advance import past collection offset via admin"
-          : "Run import new collection via admin",
+        mode === "popular"
+          ? "Advance import popular collection offset via admin"
+          : mode === "past"
+            ? "Advance import past collection offset via admin"
+            : "Run import new collection via admin",
+      );
+      await saveImportFetchedHistory(
+        nextHistory,
+        historySha,
+        "Update import fetched history via admin",
       );
 
       runStats.collectionState = nextState;
-      runStats.nextPastOffset = nextState.pastOffset;
+      runStats.nextOffset = mode === "new" ? 1 : nextState.popularOffset;
 
       return {
         ...(await buildEmptyConfiguredResult(
@@ -478,16 +600,39 @@ export async function collectImportCandidates(
       stateSha,
       `Collect ${addedCount} import candidates (${mode}) via admin`,
     );
+    await saveImportFetchedHistory(
+      {
+        ...nextHistory,
+        lastAddedCount: addedCount,
+        lastSkippedExistingCount: loopResult.exclusionStats.catalogPublished,
+        lastExcludedCount:
+          loopResult.exclusionStats.invalid +
+          loopResult.exclusionStats.duplicate,
+        lastFailedCount: 0,
+      },
+      historySha,
+      "Update import fetched history via admin",
+    );
 
     runStats.addedCandidateCount = addedCount;
     runStats.collectionState = nextState;
-    runStats.nextPastOffset = nextState.pastOffset;
+    runStats.nextOffset =
+      mode === "popular"
+        ? nextState.popularOffset
+        : mode === "past"
+          ? nextState.pastOffset
+          : 1;
+    runStats.remainingToTarget = Math.max(
+      0,
+      targetTotalCount - currentCatalogCount,
+    );
 
     return buildSuccessResult(
       records,
       buildCollectMessage(mode, runStats, addedCount),
       runStats,
       addedCount,
+      loopResult.selected,
     );
   } finally {
     collectInProgress = false;

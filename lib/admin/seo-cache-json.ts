@@ -1,4 +1,10 @@
-import type { SeoCachePayload } from "@/lib/admin/seo-types";
+import type {
+  SeoCachePayload,
+  SeoNewWorksSummary,
+  SeoNewWorkStatus,
+  SeoPeriodBundle,
+  SeoPeriodDays,
+} from "@/lib/admin/seo-types";
 
 export class SeoCacheJsonError extends Error {
   status = 500;
@@ -17,8 +23,28 @@ function readNumber(value: unknown, fallback = 0): number {
   return typeof value === "number" && Number.isFinite(value) ? value : fallback;
 }
 
+function readNullableNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
 function readString(value: unknown, fallback = ""): string {
   return typeof value === "string" ? value : fallback;
+}
+
+function emptyPeriodMetrics() {
+  return { clicks: 0, impressions: 0, ctr: 0, position: 0 };
+}
+
+function emptyPeriodBundle(): SeoPeriodBundle {
+  return {
+    current: emptyPeriodMetrics(),
+    previous: emptyPeriodMetrics(),
+    queries: [],
+    previousQueries: [],
+    pages: [],
+    previousPages: [],
+  };
 }
 
 function parseDailyStats(raw: unknown): SeoCachePayload["dailyStats"] {
@@ -67,23 +93,73 @@ function parsePages(raw: unknown): SeoCachePayload["pages"] {
     .filter((row) => row.url.length > 0);
 }
 
+function parsePeriodMetrics(raw: unknown) {
+  if (!isRecord(raw)) return emptyPeriodMetrics();
+  return {
+    clicks: readNumber(raw.clicks),
+    impressions: readNumber(raw.impressions),
+    ctr: readNumber(raw.ctr),
+    position: readNumber(raw.position),
+  };
+}
+
+function parsePeriodBundle(raw: unknown): SeoPeriodBundle {
+  if (!isRecord(raw)) return emptyPeriodBundle();
+  return {
+    current: parsePeriodMetrics(raw.current),
+    previous: parsePeriodMetrics(raw.previous),
+    queries: parseQueries(raw.queries),
+    previousQueries: parseQueries(raw.previousQueries),
+    pages: parsePages(raw.pages),
+    previousPages: parsePages(raw.previousPages),
+  };
+}
+
+function parsePeriods(raw: unknown, fallback28: SeoPeriodBundle): Record<SeoPeriodDays, SeoPeriodBundle> {
+  if (!isRecord(raw)) {
+    return { 7: emptyPeriodBundle(), 28: fallback28, 90: emptyPeriodBundle() };
+  }
+  return {
+    7: parsePeriodBundle(raw["7"]),
+    28: isRecord(raw["28"]) ? parsePeriodBundle(raw["28"]) : fallback28,
+    90: parsePeriodBundle(raw["90"]),
+  };
+}
+
 function parseIndex(raw: unknown): SeoCachePayload["index"] {
   if (!isRecord(raw)) {
     return {
-      indexedPages: 0,
-      notIndexedPages: 0,
+      indexedPages: null,
+      notIndexedPages: null,
       excludedPages: 0,
       totalSitePages: 0,
+      registrationRate: null,
+      indexedSource: "unavailable",
       history: [],
     };
   }
 
   const historyRaw = Array.isArray(raw.history) ? raw.history : [];
+  const indexedPages = readNullableNumber(raw.indexedPages);
+  const totalSitePages = readNumber(raw.totalSitePages);
+  const registrationRate =
+    indexedPages !== null && totalSitePages > 0
+      ? indexedPages / totalSitePages
+      : readNullableNumber(raw.registrationRate);
+
   return {
-    indexedPages: readNumber(raw.indexedPages),
-    notIndexedPages: readNumber(raw.notIndexedPages),
+    indexedPages,
+    notIndexedPages: readNullableNumber(raw.notIndexedPages),
     excludedPages: readNumber(raw.excludedPages),
-    totalSitePages: readNumber(raw.totalSitePages),
+    totalSitePages,
+    registrationRate,
+    indexedSource:
+      raw.indexedSource === "sitemap" ||
+      raw.indexedSource === "search_impressions" ||
+      raw.indexedSource === "estimated" ||
+      raw.indexedSource === "unavailable"
+        ? raw.indexedSource
+        : "estimated",
     history: historyRaw
       .filter(isRecord)
       .map((point) => ({
@@ -131,7 +207,8 @@ function parseOverview(raw: unknown): SeoCachePayload["overview"] {
   if (!isRecord(raw)) {
     return {
       totalWorks: 0,
-      indexedPages: 0,
+      indexedPages: null,
+      notIndexedPages: null,
       clicks28d: 0,
       impressions28d: 0,
       ctr28d: 0,
@@ -141,7 +218,8 @@ function parseOverview(raw: unknown): SeoCachePayload["overview"] {
 
   return {
     totalWorks: readNumber(raw.totalWorks),
-    indexedPages: readNumber(raw.indexedPages),
+    indexedPages: readNullableNumber(raw.indexedPages),
+    notIndexedPages: readNullableNumber(raw.notIndexedPages),
     clicks28d: readNumber(raw.clicks28d),
     impressions28d: readNumber(raw.impressions28d),
     ctr28d: readNumber(raw.ctr28d),
@@ -149,34 +227,156 @@ function parseOverview(raw: unknown): SeoCachePayload["overview"] {
   };
 }
 
+function parseEntityWorkCounts(raw: unknown): SeoCachePayload["entityWorkCounts"] {
+  const empty = { actresses: {}, makers: {}, genres: {} };
+  if (!isRecord(raw)) return empty;
+
+  function parseMap(value: unknown): Record<string, number> {
+    if (!isRecord(value)) return {};
+    return Object.fromEntries(
+      Object.entries(value).map(([key, count]) => [key, readNumber(count)]),
+    );
+  }
+
+  return {
+    actresses: parseMap(raw.actresses),
+    makers: parseMap(raw.makers),
+    genres: parseMap(raw.genres),
+  };
+}
+
+function parseNewWorkStatus(value: unknown): SeoNewWorkStatus {
+  if (
+    value === "has_search_data" ||
+    value === "no_search_data" ||
+    value === "pending"
+  ) {
+    return value;
+  }
+  return "pending";
+}
+
+function parseNewWorks(raw: unknown): SeoNewWorksSummary {
+  const empty: SeoNewWorksSummary = {
+    added7d: 0,
+    added28d: 0,
+    withSearchData: 0,
+    withoutSearchData: 0,
+    rows: [],
+  };
+  if (!isRecord(raw)) return empty;
+
+  const rowsRaw = Array.isArray(raw.rows) ? raw.rows : [];
+  return {
+    added7d: readNumber(raw.added7d),
+    added28d: readNumber(raw.added28d),
+    withSearchData: readNumber(raw.withSearchData),
+    withoutSearchData: readNumber(raw.withoutSearchData),
+    rows: rowsRaw
+      .filter(isRecord)
+      .map((row) => ({
+        contentId: readString(row.contentId),
+        title: readString(row.title),
+        addedAt: readString(row.addedAt),
+        url: readString(row.url),
+        impressions: readNumber(row.impressions),
+        clicks: readNumber(row.clicks),
+        position: readNumber(row.position),
+        status: parseNewWorkStatus(row.status),
+      }))
+      .filter((row) => row.contentId.length > 0),
+  };
+}
+
+function migrateV1ToV2(parsed: Record<string, unknown>): SeoCachePayload {
+  const queries = parseQueries(parsed.queries);
+  const pages = parsePages(parsed.pages);
+  const overview = parseOverview(parsed.overview);
+
+  const bundle28: SeoPeriodBundle = {
+    current: {
+      clicks: overview.clicks28d,
+      impressions: overview.impressions28d,
+      ctr: overview.ctr28d,
+      position: overview.position28d,
+    },
+    previous: emptyPeriodMetrics(),
+    queries,
+    previousQueries: [],
+    pages,
+    previousPages: [],
+  };
+
+  return {
+    version: 2,
+    source: "google_search_console",
+    siteUrl: readString(parsed.siteUrl),
+    updatedAt: readString(parsed.updatedAt) || null,
+    configured: parsed.configured === true,
+    configMessage:
+      typeof parsed.configMessage === "string" ? parsed.configMessage : undefined,
+    connectionStatus: parsed.configured === true ? "connected" : "unconfigured",
+    overview,
+    periods: parsePeriods(parsed.periods, bundle28),
+    dailyStats: parseDailyStats(parsed.dailyStats),
+    queries,
+    pages,
+    index: parseIndex(parsed.index),
+    sitemaps: parseSitemaps(parsed.sitemaps),
+    crawlErrors: parseCrawlErrors(parsed.crawlErrors),
+    newWorks: parseNewWorks(parsed.newWorks),
+    entityWorkCounts: parseEntityWorkCounts(parsed.entityWorkCounts),
+  };
+}
+
 export function createEmptySeoCache(siteUrl: string): SeoCachePayload {
   return {
-    version: 1,
+    version: 2,
     source: "google_search_console",
     siteUrl,
     updatedAt: null,
     configured: false,
+    connectionStatus: "unconfigured",
     overview: {
       totalWorks: 0,
-      indexedPages: 0,
+      indexedPages: null,
+      notIndexedPages: null,
       clicks28d: 0,
       impressions28d: 0,
       ctr28d: 0,
       position28d: 0,
     },
+    periods: {
+      7: emptyPeriodBundle(),
+      28: emptyPeriodBundle(),
+      90: emptyPeriodBundle(),
+    },
     dailyStats: [],
     queries: [],
     pages: [],
     index: {
-      indexedPages: 0,
-      notIndexedPages: 0,
+      indexedPages: null,
+      notIndexedPages: null,
       excludedPages: 0,
       totalSitePages: 0,
+      registrationRate: null,
+      indexedSource: "unavailable",
       history: [],
     },
     sitemaps: [],
     crawlErrors: [],
-    aiSuggestions: [],
+    newWorks: {
+      added7d: 0,
+      added28d: 0,
+      withSearchData: 0,
+      withoutSearchData: 0,
+      rows: [],
+    },
+    entityWorkCounts: {
+      actresses: {},
+      makers: {},
+      genres: {},
+    },
   };
 }
 
@@ -188,27 +388,19 @@ export function parseSeoCacheJson(raw: string): SeoCachePayload {
     throw new SeoCacheJsonError("SEOキャッシュ JSON の解析に失敗しました。");
   }
 
-  if (!isRecord(parsed) || parsed.version !== 1) {
+  if (!isRecord(parsed)) {
     throw new SeoCacheJsonError("SEOキャッシュの形式が不正です。");
   }
 
-  return {
-    version: 1,
-    source: "google_search_console",
-    siteUrl: readString(parsed.siteUrl),
-    updatedAt: readString(parsed.updatedAt) || null,
-    configured: parsed.configured === true,
-    configMessage:
-      typeof parsed.configMessage === "string" ? parsed.configMessage : undefined,
-    overview: parseOverview(parsed.overview),
-    dailyStats: parseDailyStats(parsed.dailyStats),
-    queries: parseQueries(parsed.queries),
-    pages: parsePages(parsed.pages),
-    index: parseIndex(parsed.index),
-    sitemaps: parseSitemaps(parsed.sitemaps),
-    crawlErrors: parseCrawlErrors(parsed.crawlErrors),
-    aiSuggestions: [],
-  };
+  if (parsed.version === 1) {
+    return migrateV1ToV2(parsed);
+  }
+
+  if (parsed.version !== 2) {
+    throw new SeoCacheJsonError("SEOキャッシュの形式が不正です。");
+  }
+
+  return migrateV1ToV2(parsed);
 }
 
 export function serializeSeoCache(payload: SeoCachePayload): string {

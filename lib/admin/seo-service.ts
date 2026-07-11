@@ -1,14 +1,12 @@
 import "server-only";
 
-import { getCatalogWorkByContentId } from "@/lib/catalog";
+import { getCatalogWorkByContentId, getCatalogWorks } from "@/lib/catalog";
 import { getSiteUrl } from "@/lib/constants";
 import { createEmptySeoCache } from "@/lib/admin/seo-cache-json";
 import {
-  aggregateAnalyticsRows,
   buildCrawlErrorGroups,
   fetchDailySearchAnalytics,
-  fetchPageSearchAnalytics,
-  fetchQuerySearchAnalytics,
+  fetchSearchAnalyticsForRange,
   fetchSitemaps,
   getSearchConsoleSiteUrl,
   mapDailyRows,
@@ -29,14 +27,28 @@ import {
   logSeoGscConnectionResult,
   type SeoEnvDiagnostics,
 } from "@/lib/admin/seo-env-diagnostics";
+import {
+  getCurrentPeriodRange,
+  getPreviousPeriodRange,
+} from "@/lib/admin/seo-period";
 import { getPublishedWorkCount } from "@/lib/admin/stats";
 import { getSitemapEntries } from "@/lib/sitemap/build-entries";
 import type {
-  SeoAiSuggestion,
   SeoCachePayload,
+  SeoNewWorkRow,
+  SeoNewWorksSummary,
   SeoPageRow,
   SeoPageType,
+  SeoPeriodBundle,
+  SeoPeriodDays,
+  SeoPeriodMetrics,
 } from "@/lib/admin/seo-types";
+import { iterateItemActresses } from "@/lib/dmm/actress-names";
+import { getDmmItemMakerName } from "@/lib/dmm/display";
+import type { DmmItem } from "@/lib/dmm/types";
+import { slugify } from "@/lib/utils";
+
+const PERIOD_OPTIONS: SeoPeriodDays[] = [7, 28, 90];
 
 function classifyPageType(pathname: string): SeoPageType {
   if (pathname.startsWith("/works/")) return "work";
@@ -46,6 +58,7 @@ function classifyPageType(pathname: string): SeoPageType {
   if (pathname.startsWith("/series/")) return "series";
   if (pathname.startsWith("/labels/")) return "label";
   if (pathname.startsWith("/ranking")) return "ranking";
+  if (pathname.startsWith("/search")) return "search";
   return "other";
 }
 
@@ -101,75 +114,284 @@ async function enrichPageRows(
   return enriched;
 }
 
-function buildIndexHistory(
+function aggregateDailySlice(
   dailyStats: SeoCachePayload["dailyStats"],
-  indexedPages: number,
-  totalSitePages: number,
-): SeoCachePayload["index"]["history"] {
-  const excludedPages = Math.max(totalSitePages - indexedPages, 0);
-  const notIndexedPages = Math.max(totalSitePages - indexedPages - excludedPages, 0);
-
-  const history = dailyStats.map((stat) => ({
-    date: stat.date,
-    indexedPages: stat.indexedPages ?? indexedPages,
-    notIndexedPages,
-    excludedPages,
-  }));
-
-  if (history.length === 0) {
-    const today = new Date().toISOString().slice(0, 10);
-    history.push({
-      date: today,
-      indexedPages,
-      notIndexedPages,
-      excludedPages,
-    });
+  startDate: string,
+  endDate: string,
+): SeoPeriodMetrics {
+  const filtered = dailyStats.filter(
+    (row) => row.date >= startDate && row.date <= endDate,
+  );
+  if (filtered.length === 0) {
+    return { clicks: 0, impressions: 0, ctr: 0, position: 0 };
   }
 
-  return history;
+  let clicks = 0;
+  let impressions = 0;
+  let weightedPosition = 0;
+
+  for (const row of filtered) {
+    clicks += row.clicks;
+    impressions += row.impressions;
+    weightedPosition += row.position * row.impressions;
+  }
+
+  return {
+    clicks,
+    impressions,
+    ctr: impressions > 0 ? clicks / impressions : 0,
+    position: impressions > 0 ? weightedPosition / impressions : 0,
+  };
 }
 
-function buildAiSuggestions(
-  overview: SeoCachePayload["overview"],
-  queries: SeoCachePayload["queries"],
-  pages: SeoCachePayload["pages"],
-): SeoAiSuggestion[] {
-  const suggestions: SeoAiSuggestion[] = [];
-  const now = new Date().toISOString();
+function metricsFromDailyPeriod(
+  dailyStats: SeoCachePayload["dailyStats"],
+  days: SeoPeriodDays,
+  kind: "current" | "previous",
+): SeoPeriodMetrics {
+  const range =
+    kind === "current"
+      ? getCurrentPeriodRange(days)
+      : getPreviousPeriodRange(days);
+  return aggregateDailySlice(dailyStats, range.startDate, range.endDate);
+}
 
-  const topQuery = queries[0];
-  if (topQuery && topQuery.clicks >= 10) {
-    suggestions.push({
-      id: "top-query",
-      severity: "opportunity",
-      title: `${topQuery.keyword} の検索流入が多いです`,
-      body: "関連コンテンツの追加や内部リンク強化を検討してください。",
-      createdAt: now,
-    });
+async function fetchPeriodBundlePart(
+  siteUrl: string,
+  days: SeoPeriodDays,
+  dailyStats: SeoCachePayload["dailyStats"],
+): Promise<SeoPeriodBundle> {
+  const currentRange = getCurrentPeriodRange(days);
+  const previousRange = getPreviousPeriodRange(days);
+
+  const [currentQueryRows, previousQueryRows, currentPageRows, previousPageRows] =
+    await Promise.all([
+      fetchSearchAnalyticsForRange(
+        siteUrl,
+        currentRange.startDate,
+        currentRange.endDate,
+        ["query"],
+        2500,
+      ),
+      fetchSearchAnalyticsForRange(
+        siteUrl,
+        previousRange.startDate,
+        previousRange.endDate,
+        ["query"],
+        2500,
+      ),
+      fetchSearchAnalyticsForRange(
+        siteUrl,
+        currentRange.startDate,
+        currentRange.endDate,
+        ["page"],
+        2500,
+      ),
+      fetchSearchAnalyticsForRange(
+        siteUrl,
+        previousRange.startDate,
+        previousRange.endDate,
+        ["page"],
+        2500,
+      ),
+    ]);
+
+  const [pages, previousPages] = await Promise.all([
+    enrichPageRows(mapPageRows(currentPageRows)),
+    enrichPageRows(mapPageRows(previousPageRows)),
+  ]);
+
+  return {
+    current: metricsFromDailyPeriod(dailyStats, days, "current"),
+    previous: metricsFromDailyPeriod(dailyStats, days, "previous"),
+    queries: mapQueryRows(currentQueryRows),
+    previousQueries: mapQueryRows(previousQueryRows),
+    pages,
+    previousPages,
+  };
+}
+
+function buildIndexHistory(
+  dailyStats: SeoCachePayload["dailyStats"],
+  indexedPages: number | null,
+  notIndexedPages: number | null,
+  excludedPages: number,
+): SeoCachePayload["index"]["history"] {
+  if (indexedPages === null) return [];
+
+  return dailyStats.map((stat) => ({
+    date: stat.date,
+    indexedPages: stat.indexedPages ?? indexedPages,
+    notIndexedPages: notIndexedPages ?? 0,
+    excludedPages,
+  }));
+}
+
+function buildEntityWorkCounts(works: DmmItem[]): SeoCachePayload["entityWorkCounts"] {
+  const actresses: Record<string, number> = {};
+  const makers: Record<string, number> = {};
+  const genres: Record<string, number> = {};
+
+  for (const work of works) {
+    for (const actress of iterateItemActresses(work)) {
+      const key = slugify(actress.name);
+      if (!key) continue;
+      actresses[key] = (actresses[key] ?? 0) + 1;
+    }
+
+    const maker = getDmmItemMakerName(work)?.trim();
+    if (maker) {
+      const key = slugify(maker);
+      makers[key] = (makers[key] ?? 0) + 1;
+    }
+
+    for (const genre of work.iteminfo?.genre ?? []) {
+      const name = genre.name?.trim();
+      if (!name) continue;
+      const key = slugify(name);
+      genres[key] = (genres[key] ?? 0) + 1;
+    }
   }
 
-  const rankingPage = pages.find((page) => page.pageType === "ranking");
-  if (rankingPage && rankingPage.ctr > 0 && rankingPage.ctr < 0.02) {
-    suggestions.push({
-      id: "ranking-ctr",
-      severity: "warning",
-      title: "ランキングページのCTRが低めです",
-      body: "タイトルやメタディスクリプションの改善を検討してください。",
-      createdAt: now,
-    });
+  return { actresses, makers, genres };
+}
+
+function normalizeWorkPageUrl(siteUrl: string, contentId: string): string {
+  const base = siteUrl.replace(/\/$/, "");
+  return `${base}/works/${encodeURIComponent(contentId)}`;
+}
+
+function findPageMetrics(
+  pages: SeoPageRow[],
+  targetUrl: string,
+): Pick<SeoNewWorkRow, "impressions" | "clicks" | "position" | "status"> {
+  const normalizedTarget = targetUrl.replace(/\/$/, "");
+  const match = pages.find(
+    (page) => page.url.replace(/\/$/, "") === normalizedTarget,
+  );
+
+  if (!match) {
+    return {
+      impressions: 0,
+      clicks: 0,
+      position: 0,
+      status: "pending",
+    };
   }
 
-  if (overview.impressions28d > 0 && overview.clicks28d / overview.impressions28d < 0.015) {
-    suggestions.push({
-      id: "site-ctr",
-      severity: "info",
-      title: "サイト全体のCTR改善余地があります",
-      body: "人気ページのタイトル最適化と構造化データの見直しを推奨します。",
-      createdAt: now,
-    });
+  if (match.impressions > 0 || match.clicks > 0) {
+    return {
+      impressions: match.impressions,
+      clicks: match.clicks,
+      position: match.position,
+      status: "has_search_data",
+    };
   }
 
-  return suggestions;
+  return {
+    impressions: 0,
+    clicks: 0,
+    position: 0,
+    status: "no_search_data",
+  };
+}
+
+function buildNewWorksSummary(
+  works: DmmItem[],
+  siteUrl: string,
+  pages28d: SeoPageRow[],
+): SeoNewWorksSummary {
+  const now = Date.now();
+  const dayMs = 24 * 60 * 60 * 1000;
+
+  const recentWorks = works
+    .filter((work) => work.addedAt)
+    .map((work) => ({
+      work,
+      addedAt: work.addedAt!,
+      addedTime: new Date(work.addedAt!).getTime(),
+    }))
+    .filter((entry) => Number.isFinite(entry.addedTime))
+    .sort((a, b) => b.addedTime - a.addedTime);
+
+  const added7d = recentWorks.filter(
+    (entry) => now - entry.addedTime <= 7 * dayMs,
+  ).length;
+  const added28d = recentWorks.filter(
+    (entry) => now - entry.addedTime <= 28 * dayMs,
+  ).length;
+
+  const rows: SeoNewWorkRow[] = recentWorks
+    .filter((entry) => now - entry.addedTime <= 28 * dayMs)
+    .slice(0, 50)
+    .map(({ work, addedAt }) => {
+      const url = normalizeWorkPageUrl(siteUrl, work.content_id);
+      const metrics = findPageMetrics(pages28d, url);
+      return {
+        contentId: work.content_id,
+        title: work.title,
+        addedAt,
+        url,
+        ...metrics,
+      };
+    });
+
+  let withSearchData = 0;
+  let withoutSearchData = 0;
+  for (const row of rows) {
+    if (row.status === "has_search_data") withSearchData += 1;
+    else withoutSearchData += 1;
+  }
+
+  return {
+    added7d,
+    added28d,
+    withSearchData,
+    withoutSearchData,
+    rows,
+  };
+}
+
+function resolveIndexCounts(options: {
+  indexedFromSitemap: number;
+  indexedFromSearchImpressions: number;
+  totalSitePages: number;
+}): Pick<
+  SeoCachePayload["index"],
+  "indexedPages" | "notIndexedPages" | "registrationRate" | "indexedSource"
+> {
+  const { indexedFromSitemap, indexedFromSearchImpressions, totalSitePages } =
+    options;
+
+  if (indexedFromSitemap > 0) {
+    const notIndexedPages =
+      totalSitePages > indexedFromSitemap
+        ? totalSitePages - indexedFromSitemap
+        : null;
+    return {
+      indexedPages: indexedFromSitemap,
+      notIndexedPages,
+      registrationRate:
+        totalSitePages > 0 ? indexedFromSitemap / totalSitePages : null,
+      indexedSource: "sitemap",
+    };
+  }
+
+  if (indexedFromSearchImpressions > 0) {
+    return {
+      indexedPages: indexedFromSearchImpressions,
+      notIndexedPages: null,
+      registrationRate: null,
+      indexedSource: "search_impressions",
+    };
+  }
+
+  return {
+    indexedPages: null,
+    notIndexedPages: null,
+    registrationRate: null,
+    indexedSource: "unavailable",
+  };
 }
 
 export type SeoDashboardData = {
@@ -187,24 +409,33 @@ export async function getSeoDashboardData(): Promise<SeoDashboardData> {
       Promise.resolve(buildSeoEnvDiagnostics()),
     ]);
 
+  const totalSitePages =
+    cache.index.totalSitePages > 0
+      ? cache.index.totalSitePages
+      : sitemapEntries.length;
+
   return {
     envDiagnostics,
     data: {
       ...cache,
       siteUrl: config.gscSiteUrl ?? cache.siteUrl,
       configured: config.configured,
-      configMessage: config.configured ? undefined : config.configMessage,
+      configMessage: config.configured ? undefined : cache.configMessage,
+      connectionStatus: config.configured
+        ? cache.connectionStatus === "connected"
+          ? "connected"
+          : cache.connectionStatus
+        : "unconfigured",
       overview: {
         ...cache.overview,
         totalWorks,
       },
       index: {
         ...cache.index,
-        totalSitePages:
-          cache.index.totalSitePages > 0
-            ? cache.index.totalSitePages
-            : sitemapEntries.length,
+        totalSitePages,
       },
+      queries: cache.periods[28]?.queries ?? cache.queries,
+      pages: cache.periods[28]?.pages ?? cache.pages,
     },
   };
 }
@@ -214,20 +445,25 @@ export async function refreshSeoDashboardData(): Promise<SeoCachePayload> {
   const siteUrl = config.gscSiteUrl ?? getSiteUrl();
   const base = createEmptySeoCache(siteUrl);
 
+  const [totalWorks, sitemapEntries, catalogWorks] = await Promise.all([
+    getPublishedWorkCount(),
+    getSitemapEntries(),
+    getCatalogWorks(),
+  ]);
+
+  const entityWorkCounts = buildEntityWorkCounts(catalogWorks);
+  const totalSitePages = sitemapEntries.length;
+
   if (!config.configured) {
     logSeoGscConnectionResult({
       success: false,
       error: config.configMessage ?? "認証情報が未設定です",
     });
 
-    const [totalWorks, sitemapEntries] = await Promise.all([
-      getPublishedWorkCount(),
-      getSitemapEntries(),
-    ]);
-
     const payload: SeoCachePayload = {
       ...base,
       configured: false,
+      connectionStatus: "unconfigured",
       configMessage: config.configMessage,
       overview: {
         ...base.overview,
@@ -235,8 +471,9 @@ export async function refreshSeoDashboardData(): Promise<SeoCachePayload> {
       },
       index: {
         ...base.index,
-        totalSitePages: sitemapEntries.length,
+        totalSitePages,
       },
+      entityWorkCounts,
     };
 
     await saveSeoCache(payload);
@@ -252,9 +489,6 @@ export async function refreshSeoDashboardData(): Promise<SeoCachePayload> {
     });
 
     await getGoogleAccessToken();
-    console.info("[seo-gsc] Google OAuth token acquired", {
-      serviceAccountEmail: getServiceAccountEmail(),
-    });
 
     const connectionProbe = await probeSearchConsoleConnection(resolvedSiteUrl);
     if (connectionProbe.error) {
@@ -279,29 +513,30 @@ export async function refreshSeoDashboardData(): Promise<SeoCachePayload> {
       );
     }
 
-    const [
-      totalWorks,
-      sitemapEntries,
-      daily28Rows,
-      daily90Rows,
-      queryRows,
-      pageRows,
-      sitemapApiRows,
-    ] = await Promise.all([
-      getPublishedWorkCount(),
-      getSitemapEntries(),
-      fetchDailySearchAnalytics(resolvedSiteUrl, 28),
-      fetchDailySearchAnalytics(resolvedSiteUrl, 90),
-      fetchQuerySearchAnalytics(resolvedSiteUrl, 28),
-      fetchPageSearchAnalytics(resolvedSiteUrl, 28),
+    const [daily180Rows, sitemapApiRows] = await Promise.all([
+      fetchDailySearchAnalytics(resolvedSiteUrl, 180),
       fetchSitemaps(resolvedSiteUrl),
     ]);
 
-    const daily28 = mapDailyRows(daily28Rows);
-    const daily90 = mapDailyRows(daily90Rows);
-    const overviewAgg = aggregateAnalyticsRows(daily28Rows);
-    const queries = mapQueryRows(queryRows);
-    const pages = await enrichPageRows(mapPageRows(pageRows));
+    const dailyStats = mapDailyRows(daily180Rows).slice(-90);
+
+    const periodsEntries = await Promise.all(
+      PERIOD_OPTIONS.map(async (days) => {
+        const bundle = await fetchPeriodBundlePart(
+          resolvedSiteUrl,
+          days,
+          mapDailyRows(daily180Rows),
+        );
+        return [days, bundle] as const;
+      }),
+    );
+
+    const periods = Object.fromEntries(periodsEntries) as Record<
+      SeoPeriodDays,
+      SeoPeriodBundle
+    >;
+
+    const bundle28 = periods[28];
     const sitemaps = mapSitemapRows(sitemapApiRows);
     const crawlErrors = buildCrawlErrorGroups(sitemaps);
 
@@ -309,58 +544,71 @@ export async function refreshSeoDashboardData(): Promise<SeoCachePayload> {
       (sum, row) => sum + row.indexedCount,
       0,
     );
-    const indexedFromPages = new Set(
-      pages.filter((page) => page.impressions > 0).map((page) => page.url),
+    const indexedFromSearchImpressions = new Set(
+      bundle28.pages
+        .filter((page) => page.impressions > 0)
+        .map((page) => page.url),
     ).size;
-    const indexedPages = Math.max(
+
+    const indexCounts = resolveIndexCounts({
       indexedFromSitemap,
-      indexedFromPages,
-      pages.length > 0 ? pages.length : 0,
-    );
-    const totalSitePages = sitemapEntries.length;
+      indexedFromSearchImpressions,
+      totalSitePages,
+    });
+
     const excludedPages = crawlErrors.reduce((sum, group) => sum + group.count, 0);
-    const notIndexedPages = Math.max(totalSitePages - indexedPages, 0);
-
-    const dailyStats = (daily90.length > 0 ? daily90 : daily28).map((stat) => ({
-      ...stat,
-      indexedPages,
-    }));
-
     const indexHistory = buildIndexHistory(
       dailyStats,
-      indexedPages,
-      totalSitePages,
+      indexCounts.indexedPages,
+      indexCounts.notIndexedPages,
+      excludedPages,
+    );
+
+    const newWorks = buildNewWorksSummary(
+      catalogWorks,
+      resolvedSiteUrl,
+      bundle28.pages,
     );
 
     const overview = {
       totalWorks,
-      indexedPages,
-      clicks28d: overviewAgg.clicks,
-      impressions28d: overviewAgg.impressions,
-      ctr28d: overviewAgg.ctr,
-      position28d: overviewAgg.position,
+      indexedPages: indexCounts.indexedPages,
+      notIndexedPages: indexCounts.notIndexedPages,
+      clicks28d: bundle28.current.clicks,
+      impressions28d: bundle28.current.impressions,
+      ctr28d: bundle28.current.ctr,
+      position28d: bundle28.current.position,
     };
 
     const payload: SeoCachePayload = {
-      version: 1,
+      version: 2,
       source: "google_search_console",
       siteUrl: resolvedSiteUrl,
       updatedAt: new Date().toISOString(),
       configured: true,
+      connectionStatus: "connected",
+      stale: false,
       overview,
-      dailyStats,
-      queries,
-      pages,
+      periods,
+      dailyStats: dailyStats.map((stat) => ({
+        ...stat,
+        indexedPages: indexCounts.indexedPages ?? undefined,
+      })),
+      queries: bundle28.queries,
+      pages: bundle28.pages,
       index: {
-        indexedPages,
-        notIndexedPages,
+        indexedPages: indexCounts.indexedPages,
+        notIndexedPages: indexCounts.notIndexedPages,
         excludedPages,
         totalSitePages,
+        registrationRate: indexCounts.registrationRate,
+        indexedSource: indexCounts.indexedSource,
         history: indexHistory,
       },
       sitemaps,
       crawlErrors,
-      aiSuggestions: buildAiSuggestions(overview, queries, pages),
+      newWorks,
+      entityWorkCounts,
     };
 
     logSeoGscConnectionResult({
@@ -369,8 +617,8 @@ export async function refreshSeoDashboardData(): Promise<SeoCachePayload> {
       summary: {
         clicks28d: overview.clicks28d,
         impressions28d: overview.impressions28d,
-        queries: queries.length,
-        pages: pages.length,
+        queries: bundle28.queries.length,
+        pages: bundle28.pages.length,
         sitemaps: sitemaps.length,
       },
     });

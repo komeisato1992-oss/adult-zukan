@@ -1,16 +1,29 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { SeoCompactAlert, SeoUnconfiguredNotice } from "@/components/admin/seo/SeoCompactAlert";
 import { SeoCrawlErrorsTab } from "@/components/admin/seo/SeoCrawlErrorsTab";
+import { SeoDashboardHeader } from "@/components/admin/seo/SeoDashboardHeader";
+import {
+  SeoDevInfoPanel,
+  type SeoDevInfoPanelHandle,
+} from "@/components/admin/seo/SeoDevInfoPanel";
 import { SeoIndexTab } from "@/components/admin/seo/SeoIndexTab";
 import { SeoOverviewTab } from "@/components/admin/seo/SeoOverviewTab";
 import { SeoPagesTab } from "@/components/admin/seo/SeoPagesTab";
+import { SeoPeriodSelector } from "@/components/admin/seo/SeoPeriodSelector";
 import { SeoQueriesTab } from "@/components/admin/seo/SeoQueriesTab";
 import { SeoSitemapsTab } from "@/components/admin/seo/SeoSitemapsTab";
-import { formatSeoDateTime } from "@/components/admin/seo/format";
-import { SeoEnvDiagnosticsPanel } from "@/components/admin/seo/SeoEnvDiagnosticsPanel";
 import type { SeoEnvDiagnostics } from "@/lib/admin/seo-env-diagnostics";
-import type { SeoCachePayload, SeoTabId } from "@/lib/admin/seo-types";
+import { getPeriodBundle } from "@/lib/admin/seo-insights";
+import { parseSeoPeriodDays } from "@/lib/admin/seo-period";
+import type {
+  SeoCachePayload,
+  SeoChanceTabId,
+  SeoPeriodDays,
+  SeoTabId,
+} from "@/lib/admin/seo-types";
 import { SEO_TABS } from "@/lib/admin/seo-types";
 
 type SeoDashboardClientProps = {
@@ -22,24 +35,43 @@ export function SeoDashboardClient({
   initialData,
   envDiagnostics: initialEnvDiagnostics,
 }: SeoDashboardClientProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const devInfoRef = useRef<SeoDevInfoPanelHandle>(null);
+
   const [data, setData] = useState(initialData);
   const [envDiagnostics, setEnvDiagnostics] = useState(initialEnvDiagnostics);
   const [activeTab, setActiveTab] = useState<SeoTabId>("overview");
+  const [chanceTab, setChanceTab] = useState<SeoChanceTabId>("ctr");
   const [refreshing, setRefreshing] = useState(false);
   const [submittingSitemap, setSubmittingSitemap] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [errorDetails, setErrorDetails] = useState<{
-    phase?: string;
-    apiMethod?: string;
-    googleStatus?: string;
-    status?: number;
-    errors?: Array<{ message?: string; reason?: string }>;
-  } | null>(null);
+  const [errorDetails, setErrorDetails] = useState<string | null>(null);
+
+  const period = parseSeoPeriodDays(searchParams.get("period"));
+
+  const connectionStatus = useMemo(() => {
+    if (!data.configured) return "unconfigured" as const;
+    if (data.connectionStatus === "error") return "error" as const;
+    if (data.connectionStatus === "connected") return "connected" as const;
+    return data.updatedAt ? ("connected" as const) : ("error" as const);
+  }, [data.configured, data.connectionStatus, data.updatedAt]);
+
+  const setPeriod = useCallback(
+    (nextPeriod: SeoPeriodDays) => {
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("period", String(nextPeriod));
+      router.replace(`?${params.toString()}`, { scroll: false });
+    },
+    [router, searchParams],
+  );
 
   const refresh = useCallback(async () => {
     setRefreshing(true);
     setError(null);
     setErrorDetails(null);
+    setToast(null);
     try {
       const response = await fetch("/api/admin/seo/refresh", { method: "POST" });
       const payload = (await response.json()) as {
@@ -52,35 +84,43 @@ export function SeoDashboardClient({
         googleStatus?: string;
         githubStatus?: number;
         errors?: Array<{ message?: string; reason?: string }>;
-        configured?: boolean;
       };
-      if (!response.ok) {
-        setErrorDetails({
-          phase: payload.phase,
-          apiMethod: payload.apiMethod,
-          googleStatus: payload.googleStatus,
-          status: payload.githubStatus,
-          errors: payload.errors,
-        });
-        if (payload.envDiagnostics) {
-          setEnvDiagnostics(payload.envDiagnostics);
-        }
-        throw new Error(payload.message ?? payload.error ?? "更新に失敗しました。");
+
+      if (payload.envDiagnostics) {
+        setEnvDiagnostics(payload.envDiagnostics);
       }
+
       if (payload.data) {
         setData(payload.data);
-        if (payload.envDiagnostics) {
-          setEnvDiagnostics(payload.envDiagnostics);
-        }
-        if (!payload.data.configured && payload.data.configMessage) {
-          setError(null);
-        }
       }
+
+      if (!response.ok) {
+        const detailParts = [
+          payload.apiMethod ? `API: ${payload.apiMethod}` : null,
+          payload.googleStatus ? `Google status: ${payload.googleStatus}` : null,
+          payload.errors?.length
+            ? payload.errors
+                .map(
+                  (entry) =>
+                    [entry.reason, entry.message].filter(Boolean).join(": "),
+                )
+                .join("\n")
+            : null,
+        ].filter(Boolean);
+        setErrorDetails(detailParts.join("\n") || null);
+        setError(payload.message ?? payload.error ?? "最新データの取得に失敗しました。");
+        if (payload.data?.stale) {
+          setToast("最新取得に失敗したため、前回取得データを表示しています。");
+        }
+        return;
+      }
+
+      setToast("Search Consoleデータを更新しました。");
     } catch (refreshError) {
       setError(
         refreshError instanceof Error
           ? refreshError.message
-          : "更新に失敗しました。",
+          : "最新データの取得に失敗しました。",
       );
     } finally {
       setRefreshing(false);
@@ -102,83 +142,71 @@ export function SeoDashboardClient({
       if (!response.ok) {
         throw new Error(payload.error ?? "サイトマップ送信に失敗しました。");
       }
-      if (payload.data) {
-        setData(payload.data);
-      }
-      if (payload.envDiagnostics) {
-        setEnvDiagnostics(payload.envDiagnostics);
-      }
+      if (payload.data) setData(payload.data);
+      if (payload.envDiagnostics) setEnvDiagnostics(payload.envDiagnostics);
+      setToast("サイトマップを送信しました。");
     } catch (submitError) {
-      throw submitError;
+      setError(
+        submitError instanceof Error
+          ? submitError.message
+          : "サイトマップ送信に失敗しました。",
+      );
     } finally {
       setSubmittingSitemap(false);
     }
   }, []);
 
+  const periodBundle = getPeriodBundle(data, period);
+
+  function handleNavigate(options: {
+    tab?: SeoTabId;
+    chanceTab?: SeoChanceTabId;
+  }) {
+    if (options.tab) setActiveTab(options.tab);
+    if (options.chanceTab) setChanceTab(options.chanceTab);
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 rounded-xl border border-border bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900 sm:flex-row sm:items-center sm:justify-between">
+      <SeoDashboardHeader
+        connectionStatus={connectionStatus}
+        updatedAt={data.updatedAt}
+        stale={data.stale}
+        refreshing={refreshing}
+        onRefresh={refresh}
+      />
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm text-muted">最終更新</p>
-          <p className="mt-1 text-base font-medium text-foreground">
-            {formatSeoDateTime(data.updatedAt)}
-          </p>
-          {!data.configured && data.configMessage ? (
-            <p className="mt-2 text-sm text-accent">{data.configMessage}</p>
-          ) : null}
+          <p className="text-sm font-medium text-foreground">期間</p>
+          <p className="text-xs text-muted">比較対象は直前の同じ日数です</p>
         </div>
-        <button
-          type="button"
-          onClick={refresh}
-          disabled={refreshing}
-          className="inline-flex h-11 min-h-[44px] items-center justify-center rounded-lg bg-accent px-4 text-sm font-medium text-white disabled:opacity-60"
-        >
-          {refreshing ? "更新中..." : "更新"}
-        </button>
+        <SeoPeriodSelector value={period} onChange={setPeriod} />
       </div>
 
-      {error ? (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          <p className="whitespace-pre-wrap">{error}</p>
-          {errorDetails ? (
-            <dl className="mt-3 space-y-1 text-xs">
-              {errorDetails.apiMethod ? (
-                <div>
-                  <dt className="inline font-medium">API: </dt>
-                  <dd className="inline">{errorDetails.apiMethod}</dd>
-                </div>
-              ) : null}
-              {errorDetails.status ? (
-                <div>
-                  <dt className="inline font-medium">HTTP: </dt>
-                  <dd className="inline">{errorDetails.status}</dd>
-                </div>
-              ) : null}
-              {errorDetails.googleStatus ? (
-                <div>
-                  <dt className="inline font-medium">Google status: </dt>
-                  <dd className="inline">{errorDetails.googleStatus}</dd>
-                </div>
-              ) : null}
-              {errorDetails.errors?.length ? (
-                <div>
-                  <dt className="font-medium">errors:</dt>
-                  <dd className="mt-1 whitespace-pre-wrap font-mono">
-                    {errorDetails.errors
-                      .map(
-                        (entry) =>
-                          [entry.reason, entry.message].filter(Boolean).join(": "),
-                      )
-                      .join("\n")}
-                  </dd>
-                </div>
-              ) : null}
-            </dl>
-          ) : null}
+      {toast ? (
+        <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">
+          {toast}
         </div>
       ) : null}
 
-      <SeoEnvDiagnosticsPanel diagnostics={envDiagnostics} />
+      {error ? (
+        <SeoCompactAlert
+          message={error}
+          details={errorDetails ?? undefined}
+          onRetry={refresh}
+          onOpenDevInfo={() => devInfoRef.current?.open()}
+          staleNotice={
+            data.stale
+              ? "最新取得に失敗したため、前回取得データを表示しています。"
+              : undefined
+          }
+        />
+      ) : null}
+
+      {!data.configured && data.configMessage ? (
+        <SeoUnconfiguredNotice />
+      ) : null}
 
       <div className="overflow-x-auto">
         <div className="inline-flex min-w-full gap-2 rounded-xl border border-border bg-white p-2 dark:border-zinc-700 dark:bg-zinc-900">
@@ -199,9 +227,27 @@ export function SeoDashboardClient({
         </div>
       </div>
 
-      {activeTab === "overview" ? <SeoOverviewTab data={data} /> : null}
-      {activeTab === "queries" ? <SeoQueriesTab queries={data.queries} /> : null}
-      {activeTab === "pages" ? <SeoPagesTab pages={data.pages} /> : null}
+      {activeTab === "overview" ? (
+        <SeoOverviewTab
+          data={data}
+          period={period}
+          chanceTab={chanceTab}
+          onChanceTabChange={setChanceTab}
+          onNavigate={handleNavigate}
+        />
+      ) : null}
+      {activeTab === "queries" ? (
+        <SeoQueriesTab
+          queries={periodBundle.queries}
+          previousQueries={periodBundle.previousQueries}
+        />
+      ) : null}
+      {activeTab === "pages" ? (
+        <SeoPagesTab
+          pages={periodBundle.pages}
+          previousPages={periodBundle.previousPages}
+        />
+      ) : null}
       {activeTab === "index" ? <SeoIndexTab index={data.index} /> : null}
       {activeTab === "sitemaps" ? (
         <SeoSitemapsTab
@@ -213,6 +259,8 @@ export function SeoDashboardClient({
       {activeTab === "crawl-errors" ? (
         <SeoCrawlErrorsTab crawlErrors={data.crawlErrors} />
       ) : null}
+
+      <SeoDevInfoPanel ref={devInfoRef} diagnostics={envDiagnostics} />
     </div>
   );
 }

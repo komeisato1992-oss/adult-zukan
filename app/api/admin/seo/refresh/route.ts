@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin/auth";
-import { toSeoCacheStoreErrorMessage } from "@/lib/admin/seo-cache-store";
+import {
+  loadSeoCache,
+  toSeoCacheStoreErrorMessage,
+} from "@/lib/admin/seo-cache-store";
 import { buildSeoEnvDiagnostics, logSeoEnvPresence } from "@/lib/admin/seo-env-diagnostics";
 import { probeSearchConsoleConnection } from "@/lib/admin/google-search-console";
 import { refreshSeoDashboardData } from "@/lib/admin/seo-service";
@@ -44,6 +47,17 @@ export async function POST() {
     } = toSeoCacheStoreErrorMessage(error);
 
     const envDiagnostics = await buildDiagnosticsWithProbe();
+    const staleCache = await loadSeoCache();
+
+    const data =
+      staleCache.updatedAt !== null
+        ? {
+            ...staleCache,
+            connectionStatus: "error" as const,
+            stale: true,
+            fetchError: message,
+          }
+        : undefined;
 
     return NextResponse.json(
       {
@@ -58,8 +72,9 @@ export async function POST() {
         apiMethod,
         errors: googleErrors,
         envDiagnostics,
+        data,
       },
-      { status },
+      { status: data ? 200 : status },
     );
   }
 }

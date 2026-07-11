@@ -1,22 +1,31 @@
 "use client";
 
+import { useMemo } from "react";
 import { SeoDataTable } from "@/components/admin/seo/SeoDataTable";
 import {
+  formatSeoChangePercent,
   formatSeoNumber,
   formatSeoPercent,
   formatSeoPosition,
   SEO_PAGE_TYPE_LABELS,
 } from "@/components/admin/seo/format";
+import { enrichPagesWithComparison } from "@/lib/admin/seo-insights";
 import type { SeoPageRow } from "@/lib/admin/seo-types";
 
 type SeoPagesTabProps = {
   pages: SeoPageRow[];
+  previousPages?: SeoPageRow[];
 };
 
-export function SeoPagesTab({ pages }: SeoPagesTabProps) {
+export function SeoPagesTab({ pages, previousPages = [] }: SeoPagesTabProps) {
+  const rows = useMemo(
+    () => enrichPagesWithComparison(pages, previousPages),
+    [pages, previousPages],
+  );
+
   return (
     <SeoDataTable
-      rows={pages}
+      rows={rows}
       searchPlaceholder="URL / タイトルで検索"
       searchFilter={(row, query) =>
         row.url.toLowerCase().includes(query) ||
@@ -25,33 +34,23 @@ export function SeoPagesTab({ pages }: SeoPagesTabProps) {
       emptyMessage="Search Console からページデータを取得すると表示されます。"
       columns={[
         {
-          key: "url",
-          label: "URL",
+          key: "title",
+          label: "ページ",
           sortable: true,
-          sortValue: (row) => row.url,
+          sortValue: (row) => row.title,
           render: (row) => (
             <a
               href={row.url}
               target="_blank"
               rel="noreferrer"
-              className="break-all text-accent hover:underline"
+              className="block hover:text-accent"
             >
-              {row.url}
-            </a>
-          ),
-        },
-        {
-          key: "title",
-          label: "ページタイトル",
-          sortable: true,
-          sortValue: (row) => row.title,
-          render: (row) => (
-            <div>
               <p className="font-medium">{row.title}</p>
               <p className="mt-1 text-xs text-muted">
                 {SEO_PAGE_TYPE_LABELS[row.pageType] ?? row.pageType}
               </p>
-            </div>
+              <p className="mt-1 break-all text-xs text-muted">{row.url}</p>
+            </a>
           ),
         },
         {
@@ -85,6 +84,15 @@ export function SeoPagesTab({ pages }: SeoPagesTabProps) {
           sortValue: (row) => row.position,
           className: "whitespace-nowrap",
           render: (row) => formatSeoPosition(row.position),
+        },
+        {
+          key: "change",
+          label: "前期間比",
+          sortable: true,
+          sortValue: (row) => row.changePercent ?? -999,
+          className: "whitespace-nowrap",
+          render: (row) =>
+            row.isNew ? "新規" : formatSeoChangePercent(row.changePercent),
         },
       ]}
     />

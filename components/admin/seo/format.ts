@@ -33,13 +33,26 @@ export function formatSeoDate(iso: string): string {
   });
 }
 
-export const SEO_PAGE_TYPE_LABELS: Record<string, string> = {
-  work: "作品",
-  actress: "女優",
-  maker: "メーカー",
-  genre: "ジャンル",
-  series: "シリーズ",
-  label: "レーベル",
-  ranking: "ランキング",
-  other: "その他",
-};
+export { SEO_PAGE_TYPE_LABELS } from "@/lib/admin/seo-types";
+
+export function formatSeoChangePercent(value: number | null): string {
+  if (value === null) return "新規";
+  if (value === 0) return "±0%";
+  const sign = value > 0 ? "+" : "";
+  return `${sign}${value.toFixed(1)}%`;
+}
+
+export function formatSeoCtrPoints(current: number, previous: number): string {
+  const delta = (current - previous) * 100;
+  if (Math.abs(delta) < 0.005) return "±0.0pt";
+  const sign = delta > 0 ? "+" : "";
+  return `${sign}${delta.toFixed(1)}pt`;
+}
+
+export function formatSeoPositionDelta(current: number, previous: number): string {
+  if (current <= 0 || previous <= 0) return "—";
+  const delta = previous - current;
+  if (Math.abs(delta) < 0.05) return "変化なし";
+  if (delta > 0) return `${delta.toFixed(1)}改善`;
+  return `${Math.abs(delta).toFixed(1)}悪化`;
+}

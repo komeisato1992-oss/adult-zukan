@@ -312,19 +312,35 @@ export async function fetchDailySearchAnalytics(
   });
 }
 
+export async function fetchSearchAnalyticsForRange(
+  siteUrl: string,
+  startDate: string,
+  endDate: string,
+  dimensions: string[],
+  rowLimit = 2500,
+): Promise<SearchAnalyticsRow[]> {
+  return fetchSearchAnalyticsRows({
+    siteUrl,
+    startDate,
+    endDate,
+    dimensions,
+    rowLimit,
+  });
+}
+
 export async function fetchQuerySearchAnalytics(
   siteUrl: string,
   days: number,
 ): Promise<SearchAnalyticsRow[]> {
   const endDate = new Date();
   const startDate = subtractDays(endDate, days - 1);
-  return fetchSearchAnalyticsRows({
+  return fetchSearchAnalyticsForRange(
     siteUrl,
-    startDate: formatDate(startDate),
-    endDate: formatDate(endDate),
-    dimensions: ["query"],
-    rowLimit: 2500,
-  });
+    formatDate(startDate),
+    formatDate(endDate),
+    ["query"],
+    2500,
+  );
 }
 
 export async function fetchPageSearchAnalytics(
@@ -333,13 +349,13 @@ export async function fetchPageSearchAnalytics(
 ): Promise<SearchAnalyticsRow[]> {
   const endDate = new Date();
   const startDate = subtractDays(endDate, days - 1);
-  return fetchSearchAnalyticsRows({
+  return fetchSearchAnalyticsForRange(
     siteUrl,
-    startDate: formatDate(startDate),
-    endDate: formatDate(endDate),
-    dimensions: ["page"],
-    rowLimit: 2500,
-  });
+    formatDate(startDate),
+    formatDate(endDate),
+    ["page"],
+    2500,
+  );
 }
 
 export async function fetchSitemaps(siteUrl: string): Promise<SitemapEntry[]> {

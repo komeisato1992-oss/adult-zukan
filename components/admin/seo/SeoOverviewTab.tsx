@@ -1,124 +1,129 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { SeoLineChart } from "@/components/admin/seo/SeoLineChart";
-import { SeoStatCard } from "@/components/admin/seo/SeoStatCard";
+import { useMemo } from "react";
+import { SeoChancesSection } from "@/components/admin/seo/SeoChancesSection";
+import { SeoEntityRankingsSection } from "@/components/admin/seo/SeoEntityRankingsSection";
+import { SeoIndexOverview } from "@/components/admin/seo/SeoIndexOverview";
+import { SeoKpiGrid } from "@/components/admin/seo/SeoKpiGrid";
+import { SeoNewWorksSection } from "@/components/admin/seo/SeoNewWorksSection";
+import { SeoPerformanceChart } from "@/components/admin/seo/SeoPerformanceChart";
+import { SeoPopularPagesSection } from "@/components/admin/seo/SeoPopularPagesSection";
+import { SeoRisingQueriesSection } from "@/components/admin/seo/SeoRisingQueriesSection";
+import { SeoSitemapCrawlSummary } from "@/components/admin/seo/SeoSitemapCrawlSummary";
+import { SeoWeeklySuggestions } from "@/components/admin/seo/SeoWeeklySuggestions";
 import {
-  formatSeoNumber,
-  formatSeoPercent,
-  formatSeoPosition,
-} from "@/components/admin/seo/format";
-import type { SeoCachePayload, SeoPeriodDays } from "@/lib/admin/seo-types";
+  buildEntityRankings,
+  buildRisingQueries,
+  buildSeoOpportunities,
+  buildWeeklySuggestions,
+  getPeriodBundle,
+} from "@/lib/admin/seo-insights";
+import type {
+  SeoCachePayload,
+  SeoChanceTabId,
+  SeoPeriodDays,
+  SeoTabId,
+} from "@/lib/admin/seo-types";
 
 type SeoOverviewTabProps = {
   data: SeoCachePayload;
+  period: SeoPeriodDays;
+  chanceTab?: SeoChanceTabId;
+  onChanceTabChange?: (tab: SeoChanceTabId) => void;
+  onNavigate?: (options: {
+    tab?: SeoTabId;
+    chanceTab?: SeoChanceTabId;
+  }) => void;
 };
 
-const PERIOD_OPTIONS: SeoPeriodDays[] = [7, 28, 90];
+export function SeoOverviewTab({
+  data,
+  period,
+  chanceTab,
+  onChanceTabChange,
+  onNavigate,
+}: SeoOverviewTabProps) {
+  const bundle = getPeriodBundle(data, period);
 
-export function SeoOverviewTab({ data }: SeoOverviewTabProps) {
-  const [period, setPeriod] = useState<SeoPeriodDays>(28);
+  const actressRankings = useMemo(
+    () =>
+      buildEntityRankings(
+        bundle.pages,
+        bundle.previousPages,
+        "/actresses/",
+        data.entityWorkCounts.actresses,
+        15,
+      ),
+    [bundle.pages, bundle.previousPages, data.entityWorkCounts.actresses],
+  );
 
-  const chartData = useMemo(() => {
-    const sliced = data.dailyStats.slice(-period);
-    return {
-      labels: sliced.map((row) => row.date),
-      clicks: sliced.map((row) => row.clicks),
-      impressions: sliced.map((row) => row.impressions),
-    };
-  }, [data.dailyStats, period]);
+  const makerRankings = useMemo(
+    () =>
+      buildEntityRankings(
+        bundle.pages,
+        bundle.previousPages,
+        "/makers/",
+        data.entityWorkCounts.makers,
+        15,
+      ),
+    [bundle.pages, bundle.previousPages, data.entityWorkCounts.makers],
+  );
+
+  const genreRankings = useMemo(
+    () =>
+      buildEntityRankings(
+        bundle.pages,
+        bundle.previousPages,
+        "/genres/",
+        data.entityWorkCounts.genres,
+        15,
+      ),
+    [bundle.pages, bundle.previousPages, data.entityWorkCounts.genres],
+  );
+
+  const suggestions = useMemo(() => {
+    const opportunities = buildSeoOpportunities(
+      bundle.queries,
+      bundle.previousQueries,
+      bundle.pages,
+      bundle.previousPages,
+    );
+    const rising = buildRisingQueries(
+      bundle.queries,
+      bundle.previousQueries,
+      5,
+    );
+    return buildWeeklySuggestions(
+      opportunities,
+      rising,
+      actressRankings,
+      {
+        impressions: bundle.current.impressions,
+        previousImpressions: bundle.previous.impressions,
+      },
+      period,
+    );
+  }, [bundle, actressRankings, period]);
 
   return (
-    <div className="space-y-8">
-      {data.aiSuggestions.length > 0 ? (
-        <section className="space-y-3">
-          <h2 className="text-lg font-bold text-foreground">AI改善提案</h2>
-          <div className="grid gap-4 lg:grid-cols-2">
-            {data.aiSuggestions.map((suggestion) => (
-              <div
-                key={suggestion.id}
-                className="rounded-xl border border-border bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900"
-              >
-                <p className="text-xs font-medium uppercase tracking-wide text-accent">
-                  {suggestion.severity}
-                </p>
-                <h3 className="mt-2 text-base font-bold text-foreground">
-                  {suggestion.title}
-                </h3>
-                <p className="mt-2 text-sm text-muted">{suggestion.body}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-      ) : null}
-
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        <SeoStatCard
-          label="総作品数"
-          value={formatSeoNumber(data.overview.totalWorks)}
-        />
-        <SeoStatCard
-          label="Google登録ページ数"
-          value={formatSeoNumber(data.overview.indexedPages)}
-        />
-        <SeoStatCard
-          label="クリック数（28日）"
-          value={formatSeoNumber(data.overview.clicks28d)}
-        />
-        <SeoStatCard
-          label="表示回数（28日）"
-          value={formatSeoNumber(data.overview.impressions28d)}
-        />
-        <SeoStatCard
-          label="平均CTR"
-          value={formatSeoPercent(data.overview.ctr28d)}
-        />
-        <SeoStatCard
-          label="平均掲載順位"
-          value={formatSeoPosition(data.overview.position28d)}
-        />
-      </section>
-
-      <section className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h2 className="text-lg font-bold text-foreground">検索パフォーマンス推移</h2>
-          <div className="flex flex-wrap gap-2">
-            {PERIOD_OPTIONS.map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => setPeriod(option)}
-                className={`rounded-full border px-3 py-1.5 text-xs ${
-                  period === option
-                    ? "border-accent bg-accent text-white"
-                    : "border-border text-muted"
-                }`}
-              >
-                {option}日
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <SeoLineChart
-          labels={chartData.labels}
-          series={[
-            {
-              key: "clicks",
-              label: "クリック数",
-              color: "#e60012",
-              values: chartData.clicks,
-            },
-            {
-              key: "impressions",
-              label: "表示回数",
-              color: "#2563eb",
-              values: chartData.impressions,
-            },
-          ]}
-          emptyMessage="Search Console データ取得後にグラフが表示されます。"
-        />
-      </section>
+    <div className="space-y-10">
+      <SeoKpiGrid data={data} period={period} />
+      <SeoPerformanceChart data={data} period={period} />
+      <SeoWeeklySuggestions suggestions={suggestions} onNavigate={onNavigate} />
+      <SeoChancesSection
+        data={data}
+        period={period}
+        activeTab={chanceTab}
+        onTabChange={onChanceTabChange}
+      />
+      <SeoRisingQueriesSection data={data} period={period} />
+      <SeoPopularPagesSection data={data} period={period} />
+      <SeoIndexOverview data={data} />
+      <SeoNewWorksSection data={data} />
+      <SeoEntityRankingsSection title="女優ランキング" rows={actressRankings} />
+      <SeoEntityRankingsSection title="メーカーランキング" rows={makerRankings} />
+      <SeoEntityRankingsSection title="ジャンルランキング" rows={genreRankings} />
+      <SeoSitemapCrawlSummary data={data} />
     </div>
   );
 }

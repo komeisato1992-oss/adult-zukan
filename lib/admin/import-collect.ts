@@ -1,6 +1,5 @@
 import "server-only";
 
-import { dmmItemToStoredCandidate } from "@/lib/admin/import-candidate-mapper";
 import { buildImportCandidatesListFromRecords } from "@/lib/admin/import-candidates-query";
 import {
   acceptImportCollectItem,
@@ -8,6 +7,10 @@ import {
   createImportCollectBlockContext,
   getExistingCatalogKeySet,
 } from "@/lib/admin/import-collect-filters";
+import {
+  appendImportCollectLog,
+} from "@/lib/admin/import-collect-log-store";
+import { summarizeSeoScores } from "@/lib/admin/import-collect-log";
 import {
   nextCollectPageHits,
   normalizeDmmOffset,
@@ -47,6 +50,10 @@ import {
   loadImportCandidates,
 } from "@/lib/admin/import-candidates-store";
 import { storedRecordToListItem } from "@/lib/admin/import-candidates-visibility";
+import {
+  scoreAndSortImportCandidates,
+  type PendingImportCandidate,
+} from "@/lib/admin/import-seo-enrich";
 import { fetchDmmItemList, isDmmConfigured } from "@/lib/dmm/client";
 import type { DmmFetchOptions } from "@/lib/dmm/types";
 import type { DmmItem } from "@/lib/dmm/types";
@@ -160,6 +167,12 @@ function buildCollectMessage(
       `目標：${targetTotalCount.toLocaleString()}件`,
       `残り：${remainingToTarget.toLocaleString()}件`,
     );
+    if (typeof runStats.averageSeoScore === "number") {
+      countLines.push(
+        `平均SEO Score：${runStats.averageSeoScore.toLocaleString()}`,
+        `最高SEO Score：${(runStats.topSeoScore ?? 0).toLocaleString()}`,
+      );
+    }
   }
 
   const lines = [
@@ -290,7 +303,7 @@ async function runCollectLoop(input: {
   } = input;
   const sort = getSortForMode(mode);
   const exclusionStats = createEmptyExclusionStats();
-  const selected: StoredImportCandidate[] = [];
+  const pending: PendingImportCandidate[] = [];
   const fetchedItems: DmmItem[] = [];
 
   let apiFetchedCount = 0;
@@ -348,16 +361,19 @@ async function runCollectLoop(input: {
         break;
       }
 
-      for (const item of pageItems) {
+      for (let index = 0; index < pageItems.length; index += 1) {
+        const item = pageItems[index];
         if (!acceptImportCollectItem(item, blockContext, exclusionStats)) {
           continue;
         }
 
-        selected.push(
-          dmmItemToStoredCandidate(item, getSourceForMode(mode), {
-            collectionMode: mode,
-          }),
-        );
+        pending.push({
+          item,
+          source: getSourceForMode(mode),
+          collectionMode: mode,
+          rankPosition:
+            mode === "popular" ? currentOffset + index : null,
+        });
       }
 
       currentOffset += pageItems.length;
@@ -401,6 +417,8 @@ async function runCollectLoop(input: {
         `候補取得が完了しませんでした（${apiFetchedCount}/${requestCount}件）。offsetは更新していません。`,
       );
     }
+
+    const selected = await scoreAndSortImportCandidates(pending);
 
     return {
       selected,
@@ -542,6 +560,10 @@ export async function collectImportCandidates(
       loopResult.fetchedItems,
     );
 
+    const seoSummary = summarizeSeoScores(
+      loopResult.selected.map((record) => record.seoScore ?? 0),
+    );
+
     const runStats: ImportCollectRunStats = {
       mode,
       requestedCount: requestCount,
@@ -563,6 +585,8 @@ export async function collectImportCandidates(
       currentCatalogCount,
       targetTotalCount,
       remainingToTarget: Math.max(0, targetTotalCount - currentCatalogCount),
+      averageSeoScore: seoSummary.averageSeoScore,
+      topSeoScore: seoSummary.topSeoScore,
     };
 
     const nextState = buildNextCollectionState({
@@ -600,6 +624,16 @@ export async function collectImportCandidates(
           : mode === "popular"
             ? nextState.popularOffset
             : 1;
+
+      await appendImportCollectLog({
+        collectedAt: new Date().toISOString(),
+        mode,
+        requestedCount: requestCount,
+        addedCandidateCount: 0,
+        validCandidateCount: 0,
+        averageSeoScore: seoSummary.averageSeoScore,
+        topSeoScore: seoSummary.topSeoScore,
+      });
 
       return {
         ...(await buildEmptyConfiguredResult(
@@ -648,6 +682,18 @@ export async function collectImportCandidates(
       0,
       targetTotalCount - currentCatalogCount,
     );
+
+    if (addedCount > 0 || loopResult.selected.length > 0) {
+      await appendImportCollectLog({
+        collectedAt: new Date().toISOString(),
+        mode,
+        requestedCount: requestCount,
+        addedCandidateCount: addedCount,
+        validCandidateCount: loopResult.selected.length,
+        averageSeoScore: seoSummary.averageSeoScore,
+        topSeoScore: seoSummary.topSeoScore,
+      });
+    }
 
     return buildSuccessResult(
       records,

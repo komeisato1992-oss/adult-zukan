@@ -19,10 +19,12 @@ import {
 import { loadImportCollectionState } from "@/lib/admin/import-collection-state-store";
 import {
   getImportQualityFlags,
-  matchesImportFilters,
+  matchesImportRecordFilters,
   type ImportFilterKey,
 } from "@/lib/admin/import-quality";
 import { IMPORT_PAGE_SIZE } from "@/lib/admin/import-constants";
+import { enrichRecordsWithSeo } from "@/lib/admin/import-seo-enrich";
+import { compareSeoScoreDesc } from "@/lib/admin/import-seo-score";
 
 export type { ImportCandidatesListResult } from "@/lib/admin/import-candidate-types";
 
@@ -57,6 +59,10 @@ function sortCandidates(
   const items = [...records];
 
   switch (sort) {
+    case "seoScore-desc":
+      return items.sort((a, b) =>
+        compareSeoScoreDesc(a.seoScore ?? 0, b.seoScore ?? 0),
+      );
     case "collectedAt-desc":
       return items.sort((a, b) => b.collectedAt.localeCompare(a.collectedAt));
     case "releaseDate-desc":
@@ -122,15 +128,16 @@ export async function buildImportCandidatesListFromRecords(
   options: BuildImportCandidatesListOptions = {},
 ): Promise<ImportCandidatesListResult> {
   const page = Math.max(1, options.page ?? 1);
-  const sort = options.sort ?? "collectedAt-desc";
+  const sort = options.sort ?? "seoScore-desc";
   const filterSet = new Set(options.filters ?? []);
   const includeAll = options.includeAll ?? false;
 
-  const summary = await buildSummary(records);
+  const enrichedRecords = await enrichRecordsWithSeo(records);
+  const summary = await buildSummary(enrichedRecords);
 
-  const candidateRecords = records.filter(isVisibleStoredCandidate);
+  const candidateRecords = enrichedRecords.filter(isVisibleStoredCandidate);
   const filtered = candidateRecords.filter((record) =>
-    matchesImportFilters(storedRecordToListItem(record).item, filterSet),
+    matchesImportRecordFilters(record, filterSet),
   );
   const sorted = sortCandidates(filtered, sort);
 
@@ -165,7 +172,8 @@ export async function getAllImportCandidateListItems(): Promise<{
   summary: ImportCandidatesSummary;
 }> {
   const { records } = await loadImportCandidates();
-  const listItems = records.map(storedRecordToListItem);
+  const enrichedRecords = await enrichRecordsWithSeo(records);
+  const listItems = enrichedRecords.map(storedRecordToListItem);
   const counts = await getImportWorkCounts();
   const { state } = await loadImportCollectionState();
   return {

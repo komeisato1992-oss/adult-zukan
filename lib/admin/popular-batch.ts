@@ -147,7 +147,8 @@ export async function runPopularBatchCollect(
     }
 
     const worksToAdd = addAfterCollect
-      ? (collectResult.collectedThisRun ?? collectResult.candidates ?? [])
+      ? [...(collectResult.collectedThisRun ?? collectResult.candidates ?? [])]
+          .sort((a, b) => (b.seoScore ?? 0) - (a.seoScore ?? 0))
           .slice(0, options.addLimit)
           .map((candidate) => ({
             contentId: candidate.contentId,

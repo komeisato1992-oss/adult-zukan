@@ -9,6 +9,7 @@ import { isGitHubCatalogConfigured } from "@/lib/admin/github-config";
 export const dynamic = "force-dynamic";
 
 const VALID_SORTS = new Set<ImportCandidateSortKey>([
+  "seoScore-desc",
   "collectedAt-desc",
   "releaseDate-desc",
   "price-desc",
@@ -25,13 +26,18 @@ const VALID_FILTERS = new Set<ImportFilterKey>([
   "hasSampleImages",
   "isSoloWork",
   "isOnSale",
+  "seoRankingOnly",
+  "seoNewReleaseOnly",
+  "seoPopularActressOnly",
+  "seoPopularMakerOnly",
+  "seoPopularSeriesOnly",
 ]);
 
 function parseSort(value: string | null): ImportCandidateSortKey {
   if (value && VALID_SORTS.has(value as ImportCandidateSortKey)) {
     return value as ImportCandidateSortKey;
   }
-  return "collectedAt-desc";
+  return "seoScore-desc";
 }
 
 function parseFilters(value: string | null): ImportFilterKey[] {

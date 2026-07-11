@@ -22,11 +22,25 @@ export type StoredImportCandidate = {
   collectedAt: string;
   status: ImportCandidateStatus;
   collectionMode?: ImportCollectionMode;
+  /** DMMランキング取得時の順位（1始まり） */
+  rankPosition?: number | null;
+  /** SEO優先度スコア（取得前に計算） */
+  seoScore?: number;
+  seoReasons?: string[];
+  seoFlags?: {
+    isRankingListed: boolean;
+    isNewRelease: boolean;
+    hasPopularActress: boolean;
+    hasPopularMaker: boolean;
+    hasPopularSeries: boolean;
+    isOnSale: boolean;
+  };
   /** カタログ追加用の完全な DMM 作品データ */
   item: DmmItem;
 };
 
 export type ImportCandidateSortKey =
+  | "seoScore-desc"
   | "collectedAt-desc"
   | "releaseDate-desc"
   | "price-desc"
@@ -35,6 +49,7 @@ export type ImportCandidateSortKey =
   | "random";
 
 export const IMPORT_CANDIDATE_SORT_LABELS: Record<ImportCandidateSortKey, string> = {
+  "seoScore-desc": "SEO Score順",
   "collectedAt-desc": "収集日が新しい順",
   "releaseDate-desc": "発売日が新しい順",
   "price-desc": "価格が高い順",
@@ -75,6 +90,9 @@ export type ImportCandidateListItem = {
   status?: ImportCandidateStatus;
   isAdded?: boolean;
   isExcluded?: boolean;
+  seoScore?: number;
+  seoReasons?: string[];
+  seoFlags?: StoredImportCandidate["seoFlags"];
 };
 
 export type ImportCandidatesListResult = {

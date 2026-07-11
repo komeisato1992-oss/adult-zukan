@@ -28,6 +28,7 @@ import { getDmmFanzaUrl } from "@/lib/dmm/fanza-url";
 import { SnsCompareImagePreview } from "@/components/admin/SnsCompareImagePreview";
 import type { SnsCompareWorkMini } from "@/lib/admin/sns-types";
 import { getDmmReleaseDateInfo } from "@/lib/dmm/release-date";
+import { formatSeoStarRating } from "@/lib/admin/import-seo-display";
 import type { DmmItem } from "@/lib/dmm/types";
 
 type ImportCandidateCardProps = {
@@ -36,6 +37,8 @@ type ImportCandidateCardProps = {
   sourceLabel: string;
   selected: boolean;
   isAdded: boolean;
+  seoScore?: number;
+  seoReasons?: string[];
   emphasizeSns?: boolean;
   comparePool?: DmmItem[];
   onSelectedChange: (contentId: string, selected: boolean, item: DmmItem) => void;
@@ -74,6 +77,8 @@ export function ImportCandidateCard({
   sourceLabel,
   selected,
   isAdded,
+  seoScore,
+  seoReasons = [],
   emphasizeSns = false,
   comparePool = [],
   onSelectedChange,
@@ -168,6 +173,8 @@ export function ImportCandidateCard({
   const makerText = getDmmItemMakerName(item) ?? "-";
   const priceText = getDmmItemPrice(item) ?? "-";
   const releaseText = release?.value ?? "-";
+  const seoStarRating =
+    typeof seoScore === "number" ? formatSeoStarRating(seoScore) : null;
 
   return (
     <article className="rounded-xl border border-border bg-white p-4 shadow-sm sm:p-5">
@@ -198,6 +205,11 @@ export function ImportCandidateCard({
           {isAdded ? (
             <span className="rounded-full bg-accent px-3 py-1 text-xs font-semibold text-white">
               追加済み
+            </span>
+          ) : null}
+          {seoStarRating ? (
+            <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+              {seoStarRating}
             </span>
           ) : null}
         </div>
@@ -231,6 +243,19 @@ export function ImportCandidateCard({
           <h3 className="line-clamp-3 text-sm font-bold leading-snug text-foreground sm:text-base">
             {item.title}
           </h3>
+
+          {typeof seoScore === "number" ? (
+            <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50/60 px-3 py-2">
+              <p className="text-xs font-semibold text-amber-800">
+                SEO Score {seoScore.toLocaleString()}
+              </p>
+              {seoReasons.length > 0 ? (
+                <p className="mt-1 text-xs leading-relaxed text-amber-900/80">
+                  {seoReasons.join(" / ")}
+                </p>
+              ) : null}
+            </div>
+          ) : null}
 
           <dl className="mt-2 space-y-2 lg:hidden">
             <SummaryField label="女優" value={actressText} />

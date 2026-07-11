@@ -72,7 +72,7 @@ function parseSelectionPayload(body: Record<string, unknown>): BulkAddSelectionP
         sort:
           typeof value.sort === "string"
             ? (value.sort as ImportCandidateSortKey)
-            : "collectedAt-desc",
+            : "seoScore-desc",
         totalCount: readTotalCount(value.totalCount),
       };
     }
@@ -101,7 +101,7 @@ function parseSelectionPayload(body: Record<string, unknown>): BulkAddSelectionP
       sort:
         typeof body.sort === "string"
           ? (body.sort as ImportCandidateSortKey)
-          : "collectedAt-desc",
+          : "seoScore-desc",
       totalCount: readTotalCount(body.totalCount),
     };
   }

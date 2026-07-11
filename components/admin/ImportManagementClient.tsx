@@ -24,7 +24,7 @@ import {
 import { IMPORT_BULK_ADD_DEFAULT } from "@/lib/admin/import-constants";
 import { formatImportSourceLabel } from "@/lib/admin/import-source-labels";
 import type { ImportBulkConfirmSummary, ImportFilterKey } from "@/lib/admin/import-quality";
-import { getImportQualityFlags } from "@/lib/admin/import-quality";
+import { matchesImportListItemFilter } from "@/lib/admin/import-quality";
 import type { ImportBatchJob } from "@/lib/admin/import-batch-job";
 import {
   buildBulkAddApiRequest,
@@ -98,7 +98,7 @@ export function ImportManagementClient({
 }: ImportManagementClientProps) {
   const [data, setData] = useState(initialData);
   const [page, setPage] = useState(initialData.pagination.page);
-  const [sort, setSort] = useState<ImportCandidateSortKey>("collectedAt-desc");
+  const [sort, setSort] = useState<ImportCandidateSortKey>("seoScore-desc");
   const [selection, setSelection] = useState<ImportSelectionState>(
     createEmptySelectionState(),
   );
@@ -468,7 +468,7 @@ export function ImportManagementClient({
       const pageIds = visibleCandidates
         .filter((candidate) => {
           if (addedIds.has(candidate.contentId)) return false;
-          return getImportQualityFlags(candidate.item)[flag];
+          return matchesImportListItemFilter(candidate, flag);
         })
         .map((candidate) => candidate.contentId);
 
@@ -477,7 +477,7 @@ export function ImportManagementClient({
         const next = { ...current };
         for (const candidate of visibleCandidates) {
           if (addedIds.has(candidate.contentId)) continue;
-          if (getImportQualityFlags(candidate.item)[flag]) {
+          if (matchesImportListItemFilter(candidate, flag)) {
             next[candidate.contentId] = candidate.item;
           }
         }
@@ -1102,6 +1102,8 @@ export function ImportManagementClient({
               item={candidate.item}
               source={candidate.source}
               sourceLabel={formatImportSourceLabel(candidate.source)}
+              seoScore={candidate.seoScore}
+              seoReasons={candidate.seoReasons}
               selected={
                 isCandidateSelected(selection, candidate.contentId) &&
                 !addedIds.has(candidate.contentId)

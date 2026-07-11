@@ -50,6 +50,9 @@ export function sortImportCandidateListItems(
   const sorted = [...items];
 
   switch (sort) {
+    case "seoScore-desc":
+      sorted.sort((a, b) => (b.seoScore ?? 0) - (a.seoScore ?? 0));
+      return sorted;
     case "collectedAt-desc":
       sorted.sort(compareCollectedAtDesc);
       return sorted;

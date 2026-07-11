@@ -32,6 +32,8 @@ export type ImportCollectRunStats = {
   currentCatalogCount: number;
   targetTotalCount: number;
   remainingToTarget: number;
+  averageSeoScore?: number;
+  topSeoScore?: number;
 };
 
 export type CollectImportCandidatesOptions = {

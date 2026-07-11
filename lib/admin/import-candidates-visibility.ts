@@ -57,6 +57,9 @@ export function storedRecordToListItem(
     status: record.status,
     isAdded: record.status === "added",
     isExcluded: record.status === "excluded",
+    seoScore: record.seoScore,
+    seoReasons: record.seoReasons,
+    seoFlags: record.seoFlags,
   };
 }
 

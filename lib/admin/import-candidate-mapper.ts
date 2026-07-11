@@ -17,7 +17,13 @@ import type { StoredImportCandidate } from "@/lib/admin/import-candidate-types";
 export function dmmItemToStoredCandidate(
   item: DmmItem,
   source: string,
-  options?: { collectionMode?: ImportCollectionMode },
+  options?: {
+    collectionMode?: ImportCollectionMode;
+    rankPosition?: number | null;
+    seoScore?: number;
+    seoReasons?: string[];
+    seoFlags?: StoredImportCandidate["seoFlags"];
+  },
 ): StoredImportCandidate {
   const duration = item.volume?.trim() ? Number.parseInt(item.volume, 10) : null;
 
@@ -40,6 +46,10 @@ export function dmmItemToStoredCandidate(
     collectedAt: new Date().toISOString(),
     status: "candidate",
     collectionMode: options?.collectionMode,
+    rankPosition: options?.rankPosition ?? null,
+    seoScore: options?.seoScore,
+    seoReasons: options?.seoReasons,
+    seoFlags: options?.seoFlags,
     item,
   };
 }

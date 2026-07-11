@@ -1,3 +1,5 @@
+import type { StoredImportCandidate } from "@/lib/admin/import-candidate-types";
+import { storedCandidateToDmmItem } from "@/lib/admin/import-candidate-mapper";
 import { getDmmItemDescription } from "@/lib/dmm/description";
 import {
   getDmmItemActressNameList,
@@ -9,7 +11,7 @@ import { getDmmFanzaUrl } from "@/lib/dmm/fanza-url";
 import type { DmmItem } from "@/lib/dmm/types";
 import { parseDmmPrice } from "@/lib/utils";
 
-export type ImportFilterKey =
+export type ImportQualityFilterKey =
   | "hasImage"
   | "hasActress"
   | "hasPrice"
@@ -18,16 +20,38 @@ export type ImportFilterKey =
   | "isSoloWork"
   | "isOnSale";
 
-export type ImportQualityFlags = Record<ImportFilterKey, boolean>;
+export type ImportSeoFilterKey =
+  | "seoRankingOnly"
+  | "seoNewReleaseOnly"
+  | "seoPopularActressOnly"
+  | "seoPopularMakerOnly"
+  | "seoPopularSeriesOnly";
 
-export const IMPORT_FILTER_LABELS: Record<ImportFilterKey, string> = {
+export type ImportFilterKey = ImportQualityFilterKey | ImportSeoFilterKey;
+
+export type ImportQualityFlags = Record<ImportQualityFilterKey, boolean>;
+
+export const IMPORT_QUALITY_FILTER_LABELS: Record<ImportQualityFilterKey, string> = {
   hasImage: "画像あり",
   hasActress: "女優あり",
   hasPrice: "価格あり",
   hasDescription: "説明文あり",
   hasSampleImages: "サンプル画像あり",
   isSoloWork: "単体作品",
-  isOnSale: "セール作品",
+  isOnSale: "セール中",
+};
+
+export const IMPORT_SEO_FILTER_LABELS: Record<ImportSeoFilterKey, string> = {
+  seoRankingOnly: "ランキング作品のみ",
+  seoNewReleaseOnly: "新作のみ",
+  seoPopularActressOnly: "人気女優のみ",
+  seoPopularMakerOnly: "人気メーカーのみ",
+  seoPopularSeriesOnly: "人気シリーズのみ",
+};
+
+export const IMPORT_FILTER_LABELS: Record<ImportFilterKey, string> = {
+  ...IMPORT_QUALITY_FILTER_LABELS,
+  ...IMPORT_SEO_FILTER_LABELS,
 };
 
 function isDmmItemOnSale(item: DmmItem): boolean {
@@ -50,6 +74,48 @@ export function getImportQualityFlags(item: DmmItem): ImportQualityFlags {
   };
 }
 
+const SEO_FILTER_KEYS = new Set<ImportFilterKey>([
+  "seoRankingOnly",
+  "seoNewReleaseOnly",
+  "seoPopularActressOnly",
+  "seoPopularMakerOnly",
+  "seoPopularSeriesOnly",
+]);
+
+function isSeoFilterKey(key: ImportFilterKey): key is ImportSeoFilterKey {
+  return SEO_FILTER_KEYS.has(key);
+}
+
+export function matchesImportListItemFilter(
+  candidate: {
+    item: DmmItem;
+    seoFlags?: StoredImportCandidate["seoFlags"];
+  },
+  key: ImportFilterKey,
+): boolean {
+  if (isSeoFilterKey(key)) {
+    const seoFlags = candidate.seoFlags;
+    if (!seoFlags) return false;
+
+    switch (key) {
+      case "seoRankingOnly":
+        return seoFlags.isRankingListed;
+      case "seoNewReleaseOnly":
+        return seoFlags.isNewRelease;
+      case "seoPopularActressOnly":
+        return seoFlags.hasPopularActress;
+      case "seoPopularMakerOnly":
+        return seoFlags.hasPopularMaker;
+      case "seoPopularSeriesOnly":
+        return seoFlags.hasPopularSeries;
+      default:
+        return false;
+    }
+  }
+
+  return getImportQualityFlags(candidate.item)[key];
+}
+
 export function matchesImportFilters(
   item: DmmItem,
   activeFilters: Set<ImportFilterKey>,
@@ -57,7 +123,50 @@ export function matchesImportFilters(
   if (activeFilters.size === 0) return true;
 
   const flags = getImportQualityFlags(item);
-  return [...activeFilters].every((key) => flags[key]);
+  return [...activeFilters]
+    .filter((key) => !isSeoFilterKey(key))
+    .every((key) => flags[key as ImportQualityFilterKey]);
+}
+
+export function matchesImportRecordFilters(
+  record: StoredImportCandidate,
+  activeFilters: Set<ImportFilterKey>,
+): boolean {
+  if (activeFilters.size === 0) return true;
+
+  const item = storedCandidateToDmmItem(record);
+  if (!matchesImportFilters(item, activeFilters)) {
+    return false;
+  }
+
+  const seoFlags = record.seoFlags;
+  if (!seoFlags) {
+    return [...activeFilters].every((key) => !isSeoFilterKey(key));
+  }
+
+  for (const key of activeFilters) {
+    if (!isSeoFilterKey(key)) continue;
+
+    switch (key) {
+      case "seoRankingOnly":
+        if (!seoFlags.isRankingListed) return false;
+        break;
+      case "seoNewReleaseOnly":
+        if (!seoFlags.isNewRelease) return false;
+        break;
+      case "seoPopularActressOnly":
+        if (!seoFlags.hasPopularActress) return false;
+        break;
+      case "seoPopularMakerOnly":
+        if (!seoFlags.hasPopularMaker) return false;
+        break;
+      case "seoPopularSeriesOnly":
+        if (!seoFlags.hasPopularSeries) return false;
+        break;
+    }
+  }
+
+  return true;
 }
 
 export type ImportSelectionSummary = {

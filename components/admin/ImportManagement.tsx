@@ -41,7 +41,7 @@ export async function ImportManagement() {
   let initialData;
 
   try {
-    const list = await getImportCandidatesList({});
+    const list = await getImportCandidatesList({ sort: "seoScore-desc" });
     initialData = {
       ...list,
       configured: isGitHubCatalogConfigured(),

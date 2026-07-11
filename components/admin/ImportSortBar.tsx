@@ -32,7 +32,7 @@ export function ImportSortBar({
         <div>
           <p className="text-sm font-bold text-foreground">並び替え</p>
           <p className="mt-1 text-xs text-muted">
-            {totalCount.toLocaleString()} 件中 {page} / {totalPages} ページ（1ページ100件）
+            {totalCount.toLocaleString()} 件中 {page} / {totalPages} ページ（1ページ50件）
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

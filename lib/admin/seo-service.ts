@@ -32,9 +32,21 @@ import {
   getPreviousPeriodRange,
 } from "@/lib/admin/seo-period";
 import { getPublishedWorkCount } from "@/lib/admin/stats";
+import {
+  buildEntitySitemapStatuses,
+  createEmptySitemapStatusSnapshot,
+} from "@/lib/admin/seo-sitemap-status";
 import { getSitemapEntries } from "@/lib/sitemap/build-entries";
+import {
+  readCommittedActressIndex,
+  readCommittedGenreIndex,
+  readCommittedLabelIndex,
+  readCommittedMakerIndex,
+  readCommittedSeriesIndex,
+} from "@/lib/dmm/catalog-index-read";
 import type {
   SeoCachePayload,
+  SeoEntityPageCounts,
   SeoNewWorkRow,
   SeoNewWorksSummary,
   SeoPageRow,
@@ -49,6 +61,17 @@ import type { DmmItem } from "@/lib/dmm/types";
 import { slugify } from "@/lib/utils";
 
 const PERIOD_OPTIONS: SeoPeriodDays[] = [7, 28, 90];
+
+async function getEntityPageCounts(totalWorks: number): Promise<SeoEntityPageCounts> {
+  return {
+    works: totalWorks,
+    actresses: readCommittedActressIndex().length,
+    makers: readCommittedMakerIndex().length,
+    labels: readCommittedLabelIndex().length,
+    series: readCommittedSeriesIndex().length,
+    genres: readCommittedGenreIndex().length,
+  };
+}
 
 function classifyPageType(pathname: string): SeoPageType {
   if (pathname.startsWith("/works/")) return "work";
@@ -436,8 +459,100 @@ export async function getSeoDashboardData(): Promise<SeoDashboardData> {
       },
       queries: cache.periods[28]?.queries ?? cache.queries,
       pages: cache.periods[28]?.pages ?? cache.pages,
+      sitemapStatus:
+        cache.sitemapStatus ??
+        createEmptySitemapStatusSnapshot(
+          config.gscSiteUrl ?? cache.siteUrl,
+          cache.entityPageCounts ?? {
+            works: totalWorks,
+            actresses: 0,
+            makers: 0,
+            labels: 0,
+            series: 0,
+            genres: 0,
+          },
+        ),
     },
   };
+}
+
+export async function refreshSeoSitemapsOnly(): Promise<SeoCachePayload> {
+  const config = getSeoConfigStatus();
+  const cache = await loadSeoCache();
+  const siteUrl = config.gscSiteUrl ?? cache.siteUrl ?? getSiteUrl();
+  const totalWorks = await getPublishedWorkCount();
+  const entityPageCounts = await getEntityPageCounts(totalWorks);
+
+  if (!config.configured) {
+    const payload: SeoCachePayload = {
+      ...cache,
+      siteUrl,
+      entityPageCounts,
+      sitemapStatus: {
+        fetchedAt: null,
+        fetchError: config.configMessage ?? "Search Console APIが未設定です。",
+        rows: createEmptySitemapStatusSnapshot(siteUrl, entityPageCounts).rows,
+      },
+    };
+    await saveSeoCache(payload);
+    return payload;
+  }
+
+  const resolvedSiteUrl = getSearchConsoleSiteUrl();
+
+  try {
+    const sitemapApiRows = await fetchSitemaps(resolvedSiteUrl);
+    const sitemaps = mapSitemapRows(sitemapApiRows);
+    const fetchedAt = new Date().toISOString();
+    const sitemapStatus = buildEntitySitemapStatuses({
+      siteUrl: resolvedSiteUrl,
+      gscRows: sitemaps,
+      entityPageCounts,
+      fetchedAt,
+    });
+
+    const payload: SeoCachePayload = {
+      ...cache,
+      siteUrl: resolvedSiteUrl,
+      sitemaps,
+      sitemapStatus,
+      entityPageCounts,
+      crawlErrors: buildCrawlErrorGroups(sitemaps),
+    };
+
+    await saveSeoCache(payload);
+    return payload;
+  } catch (error) {
+    const message =
+      error instanceof GoogleSearchConsoleError
+        ? error.message
+        : error instanceof Error
+          ? error.message
+          : "サイトマップ情報の取得に失敗しました。";
+
+    const payload: SeoCachePayload = {
+      ...cache,
+      siteUrl: resolvedSiteUrl,
+      entityPageCounts,
+      sitemapStatus: buildEntitySitemapStatuses({
+        siteUrl: resolvedSiteUrl,
+        gscRows: cache.sitemaps,
+        entityPageCounts,
+        fetchedAt: cache.sitemapStatus?.fetchedAt ?? null,
+        fetchError: message,
+      }),
+    };
+
+    await saveSeoCache(payload);
+    return payload;
+  }
+}
+
+export async function submitEntitySitemap(pathSuffix: string): Promise<void> {
+  const siteUrl = getSearchConsoleSiteUrl();
+  const { submitSitemap } = await import("@/lib/admin/google-search-console");
+  const base = siteUrl.replace(/\/$/, "");
+  await submitSitemap(siteUrl, `${base}/${pathSuffix}`);
 }
 
 export async function refreshSeoDashboardData(): Promise<SeoCachePayload> {
@@ -452,6 +567,7 @@ export async function refreshSeoDashboardData(): Promise<SeoCachePayload> {
   ]);
 
   const entityWorkCounts = buildEntityWorkCounts(catalogWorks);
+  const entityPageCounts = await getEntityPageCounts(totalWorks);
   const totalSitePages = sitemapEntries.length;
 
   if (!config.configured) {
@@ -473,6 +589,8 @@ export async function refreshSeoDashboardData(): Promise<SeoCachePayload> {
         ...base.index,
         totalSitePages,
       },
+      entityPageCounts,
+      sitemapStatus: createEmptySitemapStatusSnapshot(siteUrl, entityPageCounts),
       entityWorkCounts,
     };
 
@@ -539,6 +657,13 @@ export async function refreshSeoDashboardData(): Promise<SeoCachePayload> {
     const bundle28 = periods[28];
     const sitemaps = mapSitemapRows(sitemapApiRows);
     const crawlErrors = buildCrawlErrorGroups(sitemaps);
+    const fetchedAt = new Date().toISOString();
+    const sitemapStatus = buildEntitySitemapStatuses({
+      siteUrl: resolvedSiteUrl,
+      gscRows: sitemaps,
+      entityPageCounts,
+      fetchedAt,
+    });
 
     const indexedFromSitemap = sitemaps.reduce(
       (sum, row) => sum + row.indexedCount,
@@ -606,6 +731,8 @@ export async function refreshSeoDashboardData(): Promise<SeoCachePayload> {
         history: indexHistory,
       },
       sitemaps,
+      sitemapStatus,
+      entityPageCounts,
       crawlErrors,
       newWorks,
       entityWorkCounts,

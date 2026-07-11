@@ -44,6 +44,7 @@ export function SeoDashboardClient({
   const [activeTab, setActiveTab] = useState<SeoTabId>("overview");
   const [chanceTab, setChanceTab] = useState<SeoChanceTabId>("ctr");
   const [refreshing, setRefreshing] = useState(false);
+  const [refreshingSitemaps, setRefreshingSitemaps] = useState(false);
   const [submittingSitemap, setSubmittingSitemap] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -124,6 +125,37 @@ export function SeoDashboardClient({
       );
     } finally {
       setRefreshing(false);
+    }
+  }, []);
+
+  const refreshSitemaps = useCallback(async () => {
+    setRefreshingSitemaps(true);
+    setToast(null);
+    try {
+      const response = await fetch("/api/admin/seo/refresh-sitemaps", {
+        method: "POST",
+      });
+      const payload = (await response.json()) as {
+        data?: SeoCachePayload;
+        message?: string;
+        error?: string;
+      };
+      if (payload.data) {
+        setData(payload.data);
+      }
+      if (!response.ok || payload.error) {
+        setToast(payload.error ?? "サイトマップ情報の再取得に失敗しました。");
+        return;
+      }
+      setToast(payload.message ?? "サイトマップ情報を再取得しました。");
+    } catch (refreshError) {
+      setToast(
+        refreshError instanceof Error
+          ? refreshError.message
+          : "サイトマップ情報の再取得に失敗しました。",
+      );
+    } finally {
+      setRefreshingSitemaps(false);
     }
   }, []);
 
@@ -234,6 +266,8 @@ export function SeoDashboardClient({
           chanceTab={chanceTab}
           onChanceTabChange={setChanceTab}
           onNavigate={handleNavigate}
+          onRefreshSitemaps={refreshSitemaps}
+          refreshingSitemaps={refreshingSitemaps}
         />
       ) : null}
       {activeTab === "queries" ? (

@@ -10,6 +10,7 @@ import { SeoPerformanceChart } from "@/components/admin/seo/SeoPerformanceChart"
 import { SeoPopularPagesSection } from "@/components/admin/seo/SeoPopularPagesSection";
 import { SeoRisingQueriesSection } from "@/components/admin/seo/SeoRisingQueriesSection";
 import { SeoSitemapCrawlSummary } from "@/components/admin/seo/SeoSitemapCrawlSummary";
+import { SeoSitemapSubmissionSection } from "@/components/admin/seo/SeoSitemapSubmissionSection";
 import { SeoWeeklySuggestions } from "@/components/admin/seo/SeoWeeklySuggestions";
 import {
   buildEntityRankings,
@@ -34,6 +35,8 @@ type SeoOverviewTabProps = {
     tab?: SeoTabId;
     chanceTab?: SeoChanceTabId;
   }) => void;
+  onRefreshSitemaps?: () => Promise<void>;
+  refreshingSitemaps?: boolean;
 };
 
 export function SeoOverviewTab({
@@ -42,6 +45,8 @@ export function SeoOverviewTab({
   chanceTab,
   onChanceTabChange,
   onNavigate,
+  onRefreshSitemaps,
+  refreshingSitemaps = false,
 }: SeoOverviewTabProps) {
   const bundle = getPeriodBundle(data, period);
 
@@ -108,6 +113,11 @@ export function SeoOverviewTab({
   return (
     <div className="space-y-10">
       <SeoKpiGrid data={data} period={period} />
+      <SeoSitemapSubmissionSection
+        snapshot={data.sitemapStatus}
+        refreshing={refreshingSitemaps}
+        onRefresh={onRefreshSitemaps ?? (async () => {})}
+      />
       <SeoPerformanceChart data={data} period={period} />
       <SeoWeeklySuggestions suggestions={suggestions} onNavigate={onNavigate} />
       <SeoChancesSection

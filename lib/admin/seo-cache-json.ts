@@ -1,10 +1,19 @@
 import type {
   SeoCachePayload,
+  SeoEntityPageCounts,
+  SeoEntitySitemapId,
+  SeoEntitySitemapStatus,
   SeoNewWorksSummary,
   SeoNewWorkStatus,
   SeoPeriodBundle,
   SeoPeriodDays,
+  SeoSitemapStatusSnapshot,
+  SeoSitemapSubmissionStatus,
 } from "@/lib/admin/seo-types";
+import {
+  buildEntitySitemapStatuses,
+  createEmptySitemapStatusSnapshot,
+} from "@/lib/admin/seo-sitemap-status";
 
 export class SeoCacheJsonError extends Error {
   status = 500;
@@ -227,6 +236,97 @@ function parseOverview(raw: unknown): SeoCachePayload["overview"] {
   };
 }
 
+function emptyEntityPageCounts(): SeoEntityPageCounts {
+  return {
+    works: 0,
+    actresses: 0,
+    makers: 0,
+    labels: 0,
+    series: 0,
+    genres: 0,
+  };
+}
+
+function parseEntityPageCounts(raw: unknown): SeoEntityPageCounts {
+  const empty = emptyEntityPageCounts();
+  if (!isRecord(raw)) return empty;
+
+  const ids: SeoEntitySitemapId[] = [
+    "works",
+    "actresses",
+    "makers",
+    "labels",
+    "series",
+    "genres",
+  ];
+  return Object.fromEntries(
+    ids.map((id) => [id, readNumber(raw[id])]),
+  ) as SeoEntityPageCounts;
+}
+
+function parseSitemapStatus(
+  raw: unknown,
+  siteUrl: string,
+  sitemaps: SeoCachePayload["sitemaps"],
+  entityPageCounts: SeoEntityPageCounts,
+): SeoSitemapStatusSnapshot {
+  if (!isRecord(raw)) {
+    return buildEntitySitemapStatuses({
+      siteUrl,
+      gscRows: sitemaps,
+      entityPageCounts,
+      fetchedAt: sitemaps.length > 0 ? null : null,
+    });
+  }
+
+  const rowsRaw = Array.isArray(raw.rows) ? raw.rows : [];
+  const rows: SeoEntitySitemapStatus[] = rowsRaw
+    .filter(isRecord)
+    .map((row) => ({
+      id: readString(row.id, "works") as SeoEntitySitemapId,
+      label: readString(row.label),
+      displayName: readString(row.displayName),
+      pathSuffix: readString(row.pathSuffix),
+      submitUrl: readString(row.submitUrl),
+      status: parseSubmissionStatus(row.status),
+      indexedCount: readNullableNumber(row.indexedCount),
+      contentsCount: readNullableNumber(row.contentsCount),
+      notIndexedCount: readNullableNumber(row.notIndexedCount),
+      lastSubmitted: readString(row.lastSubmitted) || null,
+      lastDownloaded: readString(row.lastDownloaded) || null,
+      errors: readNumber(row.errors),
+      warnings: readNumber(row.warnings),
+      httpStatus: readNullableNumber(row.httpStatus),
+      localCount: readNumber(row.localCount),
+      coverageRate: readNullableNumber(row.coverageRate),
+    }));
+
+  if (rows.length > 0) {
+    return {
+      fetchedAt: readString(raw.fetchedAt) || null,
+      fetchError:
+        typeof raw.fetchError === "string" ? raw.fetchError : undefined,
+      rows,
+    };
+  }
+
+  return buildEntitySitemapStatuses({
+    siteUrl,
+    gscRows: sitemaps,
+    entityPageCounts,
+    fetchedAt: readString(raw.fetchedAt) || null,
+    fetchError:
+      typeof raw.fetchError === "string" ? raw.fetchError : undefined,
+  });
+}
+
+function parseSubmissionStatus(value: unknown): SeoSitemapSubmissionStatus {
+  if (value === "success" || value === "pending" || value === "fetch_error") {
+    return value;
+  }
+  return "pending";
+}
+
 function parseEntityWorkCounts(raw: unknown): SeoCachePayload["entityWorkCounts"] {
   const empty = { actresses: {}, makers: {}, genres: {} };
   if (!isRecord(raw)) return empty;
@@ -292,6 +392,8 @@ function migrateV1ToV2(parsed: Record<string, unknown>): SeoCachePayload {
   const queries = parseQueries(parsed.queries);
   const pages = parsePages(parsed.pages);
   const overview = parseOverview(parsed.overview);
+  const sitemaps = parseSitemaps(parsed.sitemaps);
+  const entityPageCounts = parseEntityPageCounts(parsed.entityPageCounts);
 
   const bundle28: SeoPeriodBundle = {
     current: {
@@ -322,9 +424,16 @@ function migrateV1ToV2(parsed: Record<string, unknown>): SeoCachePayload {
     queries,
     pages,
     index: parseIndex(parsed.index),
-    sitemaps: parseSitemaps(parsed.sitemaps),
+    sitemaps,
+    sitemapStatus: parseSitemapStatus(
+      parsed.sitemapStatus,
+      readString(parsed.siteUrl),
+      sitemaps,
+      entityPageCounts,
+    ),
     crawlErrors: parseCrawlErrors(parsed.crawlErrors),
     newWorks: parseNewWorks(parsed.newWorks),
+    entityPageCounts,
     entityWorkCounts: parseEntityWorkCounts(parsed.entityWorkCounts),
   };
 }
@@ -364,6 +473,8 @@ export function createEmptySeoCache(siteUrl: string): SeoCachePayload {
       history: [],
     },
     sitemaps: [],
+    sitemapStatus: createEmptySitemapStatusSnapshot(siteUrl, emptyEntityPageCounts()),
+    entityPageCounts: emptyEntityPageCounts(),
     crawlErrors: [],
     newWorks: {
       added7d: 0,

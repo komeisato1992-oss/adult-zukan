@@ -9,6 +9,7 @@ import {
   formatSeoPositionDelta,
 } from "@/components/admin/seo/format";
 import { SeoKpiCard } from "@/components/admin/seo/SeoKpiCard";
+import { countSubmittedSitemaps, formatSitemapKpiValue } from "@/lib/admin/seo-sitemap-status";
 import {
   computeChangePercent,
   computePositionDelta,
@@ -57,7 +58,22 @@ export function SeoKpiGrid({ data, period }: SeoKpiGridProps) {
       : "—";
 
   return (
-    <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-6">
+    <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
+      <SeoKpiCard
+        label="サイトマップ"
+        value={formatSitemapKpiValue(data.sitemapStatus)}
+        subLabel={
+          data.sitemapStatus.fetchError && !data.sitemapStatus.fetchedAt
+            ? "取得失敗"
+            : "Search Console"
+        }
+        changeTone={
+          data.sitemapStatus.fetchError &&
+          countSubmittedSitemaps(data.sitemapStatus).submitted === 0
+            ? "down"
+            : "none"
+        }
+      />
       <SeoKpiCard
         label="クリック数"
         value={fetched ? formatSeoNumber(current.clicks) : "—"}

@@ -93,6 +93,49 @@ export type SeoSitemapRow = {
   warnings: number;
 };
 
+export type SeoEntitySitemapId =
+  | "works"
+  | "actresses"
+  | "makers"
+  | "labels"
+  | "series"
+  | "genres";
+
+export type SeoEntitySitemapDefinition = {
+  id: SeoEntitySitemapId;
+  label: string;
+  pathSuffix: string;
+};
+
+export type SeoEntityPageCounts = Record<SeoEntitySitemapId, number>;
+
+export type SeoSitemapSubmissionStatus = "success" | "pending" | "fetch_error";
+
+export type SeoEntitySitemapStatus = {
+  id: SeoEntitySitemapId;
+  label: string;
+  displayName: string;
+  pathSuffix: string;
+  submitUrl: string;
+  status: SeoSitemapSubmissionStatus;
+  indexedCount: number | null;
+  contentsCount: number | null;
+  notIndexedCount: number | null;
+  lastSubmitted: string | null;
+  lastDownloaded: string | null;
+  errors: number;
+  warnings: number;
+  httpStatus: number | null;
+  localCount: number;
+  coverageRate: number | null;
+};
+
+export type SeoSitemapStatusSnapshot = {
+  fetchedAt: string | null;
+  fetchError?: string;
+  rows: SeoEntitySitemapStatus[];
+};
+
 export type SeoCrawlErrorType =
   | "404"
   | "500"
@@ -205,6 +248,8 @@ export type SeoCachePayload = {
   pages: SeoPageRow[];
   index: SeoIndexSnapshot;
   sitemaps: SeoSitemapRow[];
+  sitemapStatus: SeoSitemapStatusSnapshot;
+  entityPageCounts: SeoEntityPageCounts;
   crawlErrors: SeoCrawlErrorGroup[];
   newWorks: SeoNewWorksSummary;
   entityWorkCounts: {

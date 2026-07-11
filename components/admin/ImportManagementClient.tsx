@@ -7,10 +7,14 @@ import { ImportBulkToolbar } from "@/components/admin/ImportBulkToolbar";
 import { ImportCandidateCard } from "@/components/admin/ImportCandidateCard";
 import { ImportFilterBar } from "@/components/admin/ImportFilterBar";
 import { ImportSortBar } from "@/components/admin/ImportSortBar";
-import { ImportSummaryBar } from "@/components/admin/ImportSummaryBar";
+import { ImportSummaryBar, type ImportCollectParams } from "@/components/admin/ImportSummaryBar";
 import type { ImportCandidateSortKey } from "@/lib/admin/import-candidate-types";
 import type { ImportCandidatesListResult } from "@/lib/admin/import-candidate-types";
 import type { ImportCollectionMode } from "@/lib/admin/import-collect-types";
+import type { ImportCollectProgress } from "@/lib/admin/import-collect-progress";
+import {
+  IMPORT_COLLECT_REQUEST_COUNT,
+} from "@/lib/admin/import-constants";
 import {
   type BulkAddLimitChoice,
   resolveBulkAddLimit,
@@ -67,6 +71,11 @@ export function ImportManagementClient({
   const [collectingMode, setCollectingMode] = useState<ImportCollectionMode | null>(
     null,
   );
+  const [collectProgress, setCollectProgress] =
+    useState<ImportCollectProgress | null>(null);
+  const [requestCount, setRequestCount] = useState(IMPORT_COLLECT_REQUEST_COUNT);
+  const [startOffsetInput, setStartOffsetInput] = useState("");
+  const [offsetError, setOffsetError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isBulkAdding, setIsBulkAdding] = useState(false);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
@@ -341,18 +350,58 @@ export function ImportManagementClient({
     [visibleCandidates, addedIds],
   );
 
-  async function handleCollect(mode: ImportCollectionMode) {
+  async function handleCollect(
+    mode: ImportCollectionMode,
+    params: ImportCollectParams,
+  ) {
     setCollectingMode(mode);
     setError(null);
     setCollectMessage(null);
+    setOffsetError(null);
+    setCollectProgress(null);
+
+    if (mode === "past" && params.startOffset !== null) {
+      const numeric = params.startOffset;
+      if (!Number.isInteger(numeric) || numeric < 0) {
+        setOffsetError("開始offsetは0以上の整数で指定してください。");
+        setCollectingMode(null);
+        return;
+      }
+    }
+
+    const progressTimer = window.setInterval(async () => {
+      try {
+        const response = await fetch("/api/admin/import/collect-progress", {
+          cache: "no-store",
+        });
+        if (!response.ok) return;
+        const payload = (await response.json()) as {
+          progress?: ImportCollectProgress;
+        };
+        if (payload.progress?.active) {
+          setCollectProgress(payload.progress);
+        }
+      } catch {
+        // 進捗取得失敗は無視
+      }
+    }, 500);
 
     try {
+      const body: Record<string, unknown> = {
+        mode,
+        requestCount: params.requestCount,
+      };
+      if (mode === "past") {
+        body.startOffset =
+          params.startOffset === null ? "" : params.startOffset;
+      }
+
       const response = await fetch("/api/admin/import/collect-candidates", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ mode }),
+        body: JSON.stringify(body),
       });
 
       const payload = (await response.json()) as ImportManagementInitialData & {
@@ -362,17 +411,27 @@ export function ImportManagementClient({
         displayedCount?: number;
         message?: string;
         candidates?: ImportCandidatesListResult["candidates"];
+        runStats?: {
+          nextPastOffset?: number;
+          startPastOffset?: number;
+        };
       };
 
       if (!response.ok) {
+        if (
+          response.status === 400 ||
+          (payload.error && payload.error.includes("offset"))
+        ) {
+          setOffsetError(payload.error ?? "開始offsetが不正です。");
+        }
         throw new Error(payload.error ?? "候補の収集に失敗しました。");
       }
 
-      if (Array.isArray(payload.candidates)) {
+      if (payload.summary) {
         setData((current) => ({
           ...current,
           summary: payload.summary ?? current.summary,
-          candidates: payload.candidates ?? [],
+          candidates: payload.candidates ?? current.candidates,
           pagination: payload.pagination ?? current.pagination,
           message: undefined,
         }));
@@ -380,23 +439,20 @@ export function ImportManagementClient({
         setSelectedIds(new Set());
         setSelectedItemById({});
         setActiveFilters(new Set());
-
-        const displayedCount =
-          payload.displayedCount ??
-          payload.pagination?.totalCount ??
-          payload.candidates.length;
-
-        setCollectMessage(
-          payload.message ??
-            (displayedCount > 0
-              ? `${displayedCount}件の候補を表示しました。`
-              : "候補を収集しましたが、表示できる候補がありません。"),
-        );
-        return;
+      } else {
+        await loadCandidates({ nextPage: 1, nextFilters: new Set() });
       }
 
-      await loadCandidates({ nextPage: 1, nextFilters: new Set() });
-      setCollectMessage(payload.message ?? "候補を収集しました。");
+      if (mode === "past" && payload.runStats?.nextPastOffset != null) {
+        setStartOffsetInput("");
+      }
+
+      setCollectMessage(
+        payload.message ??
+          (payload.displayedCount && payload.displayedCount > 0
+            ? `${payload.displayedCount}件の候補を表示しました。`
+            : "候補を収集しましたが、表示できる候補がありません。"),
+      );
     } catch (collectError) {
       setError(
         collectError instanceof Error
@@ -404,6 +460,8 @@ export function ImportManagementClient({
           : "候補の収集に失敗しました。",
       );
     } finally {
+      window.clearInterval(progressTimer);
+      setCollectProgress(null);
       setCollectingMode(null);
     }
   }
@@ -641,6 +699,31 @@ export function ImportManagementClient({
         visibleCount={data.summary.candidateCount}
         displayedCount={data.pagination.totalCount}
         collectingMode={collectingMode}
+        collectProgress={collectProgress}
+        requestCount={requestCount}
+        startOffsetInput={startOffsetInput}
+        offsetError={offsetError}
+        onRequestCountChange={setRequestCount}
+        onStartOffsetInputChange={(value) => {
+          setStartOffsetInput(value);
+          setOffsetError(null);
+        }}
+        onUseNextOffset={() => {
+          setStartOffsetInput(
+            String(data.summary.collectionState.nextPastOffset),
+          );
+          setOffsetError(null);
+        }}
+        onResetOffset={() => {
+          setStartOffsetInput("0");
+          setOffsetError(null);
+        }}
+        onUsePreviousOffset={() => {
+          const previous = data.summary.collectionState.lastPastStartOffset;
+          if (previous == null) return;
+          setStartOffsetInput(String(previous));
+          setOffsetError(null);
+        }}
         onCollect={handleCollect}
       />
 

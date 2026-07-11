@@ -14,8 +14,7 @@ export type ImportCollectBlockContext = {
   addedIds: Set<string>;
   excludedIds: Set<string>;
   pendingIds: Set<string>;
-  batchIds: Set<string>;
-  batchProductIds: Set<string>;
+  batchKeys: Set<string>;
 };
 
 export type ImportCollectRejectReason =
@@ -62,18 +61,31 @@ export function createImportCollectBlockContext(
     addedIds,
     excludedIds,
     pendingIds,
-    batchIds: new Set<string>(),
-    batchProductIds: new Set<string>(),
+    batchKeys: new Set<string>(),
   };
+}
+
+function normalizeCollectUrl(url: string | undefined): string {
+  const trimmed = url?.trim();
+  if (!trimmed) return "";
+
+  try {
+    const parsed = new URL(trimmed);
+    return `${parsed.hostname}${parsed.pathname}${parsed.search}`.toLowerCase();
+  } catch {
+    return trimmed.toLowerCase();
+  }
 }
 
 function getItemIdentityKeys(item: DmmItem): string[] {
   const keys = new Set<string>();
   const contentId = normalizeImportContentId(item.content_id);
   const productId = normalizeImportContentId(item.product_id ?? "");
+  const workUrl = normalizeCollectUrl(item.URL);
 
   if (contentId) keys.add(contentId);
   if (productId) keys.add(productId);
+  if (workUrl) keys.add(`url:${workUrl}`);
 
   return [...keys];
 }
@@ -106,17 +118,13 @@ function isDuplicateInBatch(
   keys: string[],
   context: ImportCollectBlockContext,
 ): boolean {
-  return keys.some(
-    (key) => context.batchIds.has(key) || context.batchProductIds.has(key),
-  );
+  return keys.some((key) => context.batchKeys.has(key));
 }
 
 function markBatchIds(item: DmmItem, context: ImportCollectBlockContext): void {
-  const contentId = normalizeImportContentId(item.content_id);
-  const productId = normalizeImportContentId(item.product_id ?? "");
-
-  if (contentId) context.batchIds.add(contentId);
-  if (productId) context.batchProductIds.add(productId);
+  for (const key of getItemIdentityKeys(item)) {
+    context.batchKeys.add(key);
+  }
 }
 
 export function hasCollectibleImage(item: DmmItem): boolean {

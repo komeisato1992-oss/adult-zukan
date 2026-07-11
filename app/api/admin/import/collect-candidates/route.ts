@@ -4,7 +4,12 @@ import {
   collectImportCandidates,
   isImportCollectInProgress,
 } from "@/lib/admin/import-collect";
+import {
+  parseCollectRequestCount,
+  parseCollectStartOffset,
+} from "@/lib/admin/import-collect-params";
 import type { ImportCollectionMode } from "@/lib/admin/import-collect-types";
+import { loadImportCollectionState } from "@/lib/admin/import-collection-state-store";
 import { isDmmConfigured } from "@/lib/dmm/client";
 import { isGitHubCatalogConfigured } from "@/lib/admin/github-config";
 
@@ -29,9 +34,23 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json().catch(() => ({}))) as {
       mode?: string;
+      requestCount?: unknown;
+      startOffset?: unknown;
     };
     const mode = parseMode(body.mode);
-    const result = await collectImportCandidates(mode);
+    const requestCount = parseCollectRequestCount(body.requestCount);
+
+    let startOffset: number | undefined;
+    if (mode === "past") {
+      const { state } = await loadImportCollectionState();
+      startOffset = parseCollectStartOffset(body.startOffset, state.pastOffset);
+    }
+
+    const result = await collectImportCandidates({
+      mode,
+      requestCount,
+      startOffset,
+    });
 
     if (!result.configured) {
       return NextResponse.json(

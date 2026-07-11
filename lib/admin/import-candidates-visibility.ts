@@ -89,6 +89,7 @@ export function buildSummaryFromListItems(
     collectionState: {
       pastOffset: state.pastOffset,
       nextPastOffset: state.pastOffset,
+      lastPastStartOffset: state.lastPastStartOffset,
       pageSize: state.pageSize || IMPORT_COLLECT_PAGE_SIZE,
       cycleCount: state.cycleCount,
     },

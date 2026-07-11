@@ -56,6 +56,7 @@ export type ImportCandidatesSummary = {
   collectionState: {
     pastOffset: number;
     nextPastOffset: number;
+    lastPastStartOffset: number | null;
     pageSize: number;
     cycleCount: number;
   };

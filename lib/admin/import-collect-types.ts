@@ -15,13 +15,26 @@ export type ImportCollectExclusionStats = {
 
 export type ImportCollectRunStats = {
   mode: ImportCollectionMode;
+  requestedCount: number;
   apiFetchedCount: number;
+  validatedCount: number;
+  validCandidateCount: number;
   pagesFetched: number;
+  plannedPages: number;
   addedCandidateCount: number;
   exclusionStats: ImportCollectExclusionStats;
   collectionState: ImportCollectionState;
+  startPastOffset: number;
   nextPastOffset: number;
   cycledPastCollection: boolean;
+  fetchCompleted: boolean;
+};
+
+export type CollectImportCandidatesOptions = {
+  mode: ImportCollectionMode;
+  requestCount?: number;
+  /** 空欄相当は undefined。過去作品のみ使用。 */
+  startOffset?: number | null;
 };
 
 export type CollectImportCandidatesResult = {

@@ -2,6 +2,8 @@ import type { ImportCollectionMode } from "@/lib/admin/import-collect-types";
 
 export type ImportCollectionState = {
   pastOffset: number;
+  /** 直前の過去作品収集で使用した開始 offset（「前回に戻す」用） */
+  lastPastStartOffset: number | null;
   pageSize: number;
   lastCollectedAt: string | null;
   lastNewCollectedAt: string | null;
@@ -15,6 +17,7 @@ export function createDefaultImportCollectionState(
 ): ImportCollectionState {
   return {
     pastOffset: 1,
+    lastPastStartOffset: null,
     pageSize,
     lastCollectedAt: null,
     lastNewCollectedAt: null,
@@ -41,6 +44,11 @@ export function parseImportCollectionState(
       typeof value.pastOffset === "number" && value.pastOffset >= 1
         ? Math.floor(value.pastOffset)
         : defaults.pastOffset,
+    lastPastStartOffset:
+      typeof value.lastPastStartOffset === "number" &&
+      value.lastPastStartOffset >= 1
+        ? Math.floor(value.lastPastStartOffset)
+        : defaults.lastPastStartOffset,
     pageSize:
       typeof value.pageSize === "number" && value.pageSize >= 1
         ? Math.floor(value.pageSize)

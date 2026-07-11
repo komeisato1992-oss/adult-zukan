@@ -25,6 +25,10 @@ export type CatalogActressEntity = CatalogEntity & {
   imageUrl?: string;
   reading: string;
   imageFromMultiActressWork?: boolean;
+  representativeWorkId?: string | null;
+  representativeImageScore?: number;
+  representativeImageReason?: string;
+  representativeFaceDetected?: boolean;
 };
 
 export type CatalogLabelEntity = CatalogEntity & {
@@ -180,6 +184,10 @@ export function getCatalogActresses(items: DmmItem[]): CatalogActressEntity[] {
       reading: getActressReading(actress.name, actress.ruby),
       imageUrl: image?.imageUrl,
       imageFromMultiActressWork: image?.isFromMultiActressWork,
+      representativeWorkId: image?.workId ?? null,
+      representativeImageScore: image?.score,
+      representativeImageReason: image?.reason,
+      representativeFaceDetected: image?.faceDetected,
     };
   });
 }

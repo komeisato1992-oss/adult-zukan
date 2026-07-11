@@ -5,10 +5,10 @@
   "lastPopularStartOffset": 51,
   "targetTotalCount": 10000,
   "pageSize": 100,
-  "lastCollectedAt": "2026-07-11T01:22:35.284Z",
-  "lastNewCollectedAt": "2026-07-11T00:52:40.185Z",
+  "lastCollectedAt": "2026-07-11T01:23:06.650Z",
+  "lastNewCollectedAt": "2026-07-11T01:23:06.650Z",
   "lastPastCollectedAt": "2026-07-11T00:17:48.705Z",
   "lastPopularCollectedAt": "2026-07-11T01:22:35.284Z",
-  "lastMode": "popular",
+  "lastMode": "new",
   "cycleCount": 0
 }

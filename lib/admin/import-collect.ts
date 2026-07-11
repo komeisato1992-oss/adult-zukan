@@ -278,8 +278,16 @@ async function runCollectLoop(input: {
   startOffset: number;
   pageSize: number;
   blockContext: ReturnType<typeof createImportCollectBlockContext>;
+  onProgress?: CollectImportCandidatesOptions["onProgress"];
 }): Promise<CollectLoopResult> {
-  const { mode, requestCount, startOffset, pageSize, blockContext } = input;
+  const {
+    mode,
+    requestCount,
+    startOffset,
+    pageSize,
+    blockContext,
+    onProgress,
+  } = input;
   const sort = getSortForMode(mode);
   const exclusionStats = createEmptyExclusionStats();
   const selected: StoredImportCandidate[] = [];
@@ -353,6 +361,14 @@ async function runCollectLoop(input: {
       }
 
       currentOffset += pageItems.length;
+
+      await onProgress?.({
+        currentPage: pagesFetched,
+        plannedPages,
+        currentOffset,
+        apiFetchedCount,
+        estimatedRemainingCount: Math.max(0, requestCount - apiFetchedCount),
+      });
 
       if (apiFetchedCount >= requestCount) {
         fetchCompleted = true;
@@ -507,6 +523,7 @@ export async function collectImportCandidates(
       startOffset,
       pageSize,
       blockContext,
+      onProgress: options.onProgress,
     });
 
     const nextOffset =

@@ -17,6 +17,12 @@ type GitHubFileResponse = {
   sha: string;
 };
 
+type GitHubCommitFileResponse = {
+  content?: {
+    sha?: string;
+  };
+};
+
 export class GitHubBatchJobError extends Error {
   status: number;
 
@@ -65,7 +71,7 @@ async function githubRequest<T>(
       );
     }
 
-    if (response.status === 409) {
+    if (response.status === 409 || response.status === 422) {
       throw new GitHubBatchJobError(
         "バッチジョブの更新が競合しました。しばらく待ってから再度お試しください。",
         409,
@@ -119,7 +125,7 @@ export async function commitBatchJobToGitHub(
   job: ImportBatchJob,
   sha: string | null,
   message: string,
-): Promise<void> {
+): Promise<string | null> {
   const config = getGitHubConfig();
   if (!config) {
     throw new GitHubBatchJobError("GitHub連携の設定が未完了です。", 503);
@@ -135,8 +141,13 @@ export async function commitBatchJobToGitHub(
     body.sha = sha;
   }
 
-  await githubRequest(getContentsUrl(FILE_PATH), {
+  const response = await githubRequest<GitHubCommitFileResponse>(
+    getContentsUrl(FILE_PATH),
+    {
     method: "PUT",
     body: JSON.stringify(body),
-  });
+    },
+  );
+
+  return response.content?.sha ?? null;
 }

@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin/auth";
-import { loadImportBatchJob } from "@/lib/admin/import-batch-job-store";
-import { isBatchJobInProgress } from "@/lib/admin/import-batch-job-store";
+import { recoverStaleImportBatchJob } from "@/lib/admin/import-batch-job-store";
 import { getPublishedWorkCount } from "@/lib/admin/stats";
 
 export const dynamic = "force-dynamic";
@@ -11,13 +10,13 @@ export async function GET() {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const [{ job }, currentCatalogCount] = await Promise.all([
-    loadImportBatchJob(),
+  const [job, currentCatalogCount] = await Promise.all([
+    recoverStaleImportBatchJob(),
     getPublishedWorkCount(),
   ]);
 
   return NextResponse.json({
-    inProgress: isBatchJobInProgress(),
+    inProgress: job.status === "running",
     job,
     currentCatalogCount,
     remainingToTarget: Math.max(0, job.targetTotalCount - currentCatalogCount),

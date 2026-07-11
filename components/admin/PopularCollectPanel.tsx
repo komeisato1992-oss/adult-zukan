@@ -44,6 +44,7 @@ export function PopularCollectPanel({
   const [addLimit, setAddLimit] = useState(IMPORT_POPULAR_ADD_LIMIT);
   const [offsetError, setOffsetError] = useState<string | null>(null);
   const [isRunning, setIsRunning] = useState(false);
+  const [serverInProgress, setServerInProgress] = useState(false);
   const [job, setJob] = useState<ImportBatchJob | null>(null);
   const [collectOnly, setCollectOnly] = useState(false);
 
@@ -60,11 +61,19 @@ export function PopularCollectPanel({
       inProgress?: boolean;
     };
     if (payload.job) setJob(payload.job);
+    setServerInProgress(payload.inProgress === true);
     return payload;
   }, []);
 
   useEffect(() => {
     pollJob().catch(() => undefined);
+    const timer = window.setInterval(() => {
+      pollJob().catch(() => undefined);
+    }, 1000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
   }, [pollJob]);
 
   async function handleRun() {
@@ -130,7 +139,8 @@ export function PopularCollectPanel({
     }
   }
 
-  const isDisabled = disabled || isRunning;
+  const isActiveJob = serverInProgress || job?.status === "running";
+  const isDisabled = disabled || isRunning || isActiveJob;
 
   return (
     <div className="rounded-xl border border-accent/30 bg-white p-4 shadow-sm">
@@ -277,11 +287,27 @@ export function PopularCollectPanel({
           </label>
         </div>
 
-        {isRunning || (job && job.phase !== "idle" && job.phase !== "completed" && job.phase !== "failed") ? (
+        {isRunning || isActiveJob ? (
           <div className="rounded-lg border border-accent/30 bg-accent-light p-3 text-xs">
             <p className="font-semibold">
-              {job?.progressMessage ?? "処理中..."}
+              {job
+                ? `現在処理中です（${job.fetchedCount.toLocaleString()}件取得済み）`
+                : "現在処理中です"}
             </p>
+            {job ? (
+              <div className="mt-1 grid gap-1 sm:grid-cols-2">
+                <p>
+                  現在ページ：{job.currentPage.toLocaleString()} /{" "}
+                  {job.plannedPages.toLocaleString()}
+                </p>
+                <p>現在offset：{job.currentOffset.toLocaleString()}</p>
+                <p>取得済件数：{job.fetchedCount.toLocaleString()}件</p>
+                <p>
+                  残り推定件数：
+                  {job.estimatedRemainingCount.toLocaleString()}件
+                </p>
+              </div>
+            ) : null}
             {job?.phase === "validating" ? (
               <p>
                 詳細取得中 {job.validatingProgress} / {job.validatingTotal}
@@ -301,6 +327,13 @@ export function PopularCollectPanel({
           </div>
         ) : null}
 
+        {job?.status === "failed" ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-800">
+            <p className="font-semibold">前回のバッチは異常終了しました。</p>
+            <p>{job.progressMessage ?? job.errorCode ?? "原因不明"}</p>
+          </div>
+        ) : null}
+
         <button
           type="button"
           onClick={handleRun}
@@ -309,6 +342,8 @@ export function PopularCollectPanel({
         >
           {isRunning
             ? "実行中..."
+            : isActiveJob
+              ? `現在処理中です（${job?.fetchedCount.toLocaleString() ?? 0}件取得済み）`
             : collectOnly
               ? "人気順から候補を取得"
               : "人気順バッチを実行（取得→追加）"}

@@ -19,6 +19,12 @@ export type ImportBatchJobPhase =
   | "completed"
   | "failed";
 
+export type ImportBatchJobStatus =
+  | "idle"
+  | "running"
+  | "completed"
+  | "failed";
+
 export type ImportBatchJobWorkEntry = {
   contentId: string;
   status: ImportWorkAddStatus;
@@ -41,6 +47,7 @@ export type ImportBatchJobRunStats = {
 
 export type ImportBatchJob = {
   processId: string;
+  status: ImportBatchJobStatus;
   phase: ImportBatchJobPhase;
   targetTotalCount: number;
   startOffset: number;
@@ -54,6 +61,11 @@ export type ImportBatchJob = {
   progressMessage: string | null;
   validatingProgress: number;
   validatingTotal: number;
+  currentPage: number;
+  plannedPages: number;
+  currentOffset: number;
+  fetchedCount: number;
+  estimatedRemainingCount: number;
   createdAt: string;
   updatedAt: string;
   completedAt: string | null;
@@ -68,6 +80,7 @@ export function createEmptyBatchJob(): ImportBatchJob {
   const now = new Date().toISOString();
   return {
     processId: "",
+    status: "idle",
     phase: "idle",
     targetTotalCount: 10000,
     startOffset: 1,
@@ -81,6 +94,11 @@ export function createEmptyBatchJob(): ImportBatchJob {
     progressMessage: null,
     validatingProgress: 0,
     validatingTotal: 0,
+    currentPage: 0,
+    plannedPages: 0,
+    currentOffset: 1,
+    fetchedCount: 0,
+    estimatedRemainingCount: 0,
     createdAt: now,
     updatedAt: now,
     completedAt: null,
@@ -94,6 +112,25 @@ export function createEmptyBatchJob(): ImportBatchJob {
 
 export function createBatchProcessId(): string {
   return `batch-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function isBatchJobTerminal(job: ImportBatchJob): boolean {
+  return (
+    job.status === "idle" ||
+    job.status === "completed" ||
+    job.status === "failed"
+  );
+}
+
+export function isBatchJobStale(
+  job: ImportBatchJob,
+  staleMs: number,
+  now = Date.now(),
+): boolean {
+  if (job.status !== "running") return false;
+
+  const updatedAt = Date.parse(job.updatedAt);
+  return !Number.isFinite(updatedAt) || now - updatedAt >= staleMs;
 }
 
 export function parseBatchJob(raw: unknown): ImportBatchJob {
@@ -146,12 +183,32 @@ export function parseBatchJob(raw: unknown): ImportBatchJob {
         .filter((entry): entry is ImportBatchJobWorkEntry => entry !== null)
     : [];
 
+  const parsedPhase = validPhases.has(phase as ImportBatchJobPhase)
+    ? (phase as ImportBatchJobPhase)
+    : defaults.phase;
+  const rawStatus = value.status;
+  const validStatuses = new Set<ImportBatchJobStatus>([
+    "idle",
+    "running",
+    "completed",
+    "failed",
+  ]);
+  const derivedStatus: ImportBatchJobStatus =
+    parsedPhase === "completed"
+      ? "completed"
+      : parsedPhase === "failed"
+        ? "failed"
+        : parsedPhase === "idle"
+          ? "idle"
+          : "running";
+
   return {
     processId:
       typeof value.processId === "string" ? value.processId : defaults.processId,
-    phase: validPhases.has(phase as ImportBatchJobPhase)
-      ? (phase as ImportBatchJobPhase)
-      : defaults.phase,
+    status: validStatuses.has(rawStatus as ImportBatchJobStatus)
+      ? (rawStatus as ImportBatchJobStatus)
+      : derivedStatus,
+    phase: parsedPhase,
     targetTotalCount:
       typeof value.targetTotalCount === "number"
         ? Math.max(1, Math.floor(value.targetTotalCount))
@@ -194,6 +251,26 @@ export function parseBatchJob(raw: unknown): ImportBatchJob {
     validatingTotal:
       typeof value.validatingTotal === "number"
         ? Math.max(0, Math.floor(value.validatingTotal))
+        : 0,
+    currentPage:
+      typeof value.currentPage === "number"
+        ? Math.max(0, Math.floor(value.currentPage))
+        : 0,
+    plannedPages:
+      typeof value.plannedPages === "number"
+        ? Math.max(0, Math.floor(value.plannedPages))
+        : 0,
+    currentOffset:
+      typeof value.currentOffset === "number"
+        ? Math.max(1, Math.floor(value.currentOffset))
+        : defaults.currentOffset,
+    fetchedCount:
+      typeof value.fetchedCount === "number"
+        ? Math.max(0, Math.floor(value.fetchedCount))
+        : 0,
+    estimatedRemainingCount:
+      typeof value.estimatedRemainingCount === "number"
+        ? Math.max(0, Math.floor(value.estimatedRemainingCount))
         : 0,
     createdAt:
       typeof value.createdAt === "string" ? value.createdAt : defaults.createdAt,

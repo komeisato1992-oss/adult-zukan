@@ -13,6 +13,7 @@ import {
 import { runPopularBatchCollect } from "@/lib/admin/popular-batch";
 import { isDmmConfigured } from "@/lib/dmm/client";
 import { isGitHubCatalogConfigured } from "@/lib/admin/github-config";
+import { ImportBatchJobConflictError } from "@/lib/admin/import-batch-job-store";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -114,6 +115,7 @@ export async function POST(request: Request) {
       dmmConfigured: isDmmConfigured(),
     });
   } catch (error) {
+    const status = error instanceof ImportBatchJobConflictError ? 409 : 500;
     return NextResponse.json(
       {
         error:
@@ -121,7 +123,7 @@ export async function POST(request: Request) {
             ? error.message
             : "人気順バッチ収集に失敗しました。",
       },
-      { status: 500 },
+      { status },
     );
   }
 }

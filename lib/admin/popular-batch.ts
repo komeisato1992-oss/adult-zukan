@@ -7,10 +7,9 @@ import {
   type ImportBatchJobWorkEntry,
 } from "@/lib/admin/import-batch-job";
 import {
-  isBatchJobInProgress,
-  loadImportBatchJob,
-  saveImportBatchJob,
+  claimImportBatchJob,
   setBatchJobInProgress,
+  updateImportBatchJob,
 } from "@/lib/admin/import-batch-job-store";
 import { collectImportCandidates } from "@/lib/admin/import-collect";
 import type {
@@ -49,7 +48,7 @@ function buildResultMessage(
 export async function runPopularBatchCollect(
   options: PopularBatchCollectOptions,
 ): Promise<PopularBatchCollectResult> {
-  if (isImportCollectInProgress() || isBatchJobInProgress()) {
+  if (isImportCollectInProgress()) {
     throw new Error("別の収集処理が実行中です。完了までお待ちください。");
   }
 
@@ -59,20 +58,17 @@ export async function runPopularBatchCollect(
     );
   }
 
-  setBatchJobInProgress(true);
   const startedAt = Date.now();
   const processId = createBatchProcessId();
   const startSha = await getBranchHeadSha().catch(() => null);
   const currentCatalogCount = await getPublishedWorkCount();
 
-  const { job: previousJob, sha: jobSha } = await loadImportBatchJob();
-
   let job: ImportBatchJob = {
-    ...previousJob,
     processId,
+    status: "running",
     phase: "collecting",
     targetTotalCount: options.targetTotalCount,
-    startOffset: options.startOffset ?? previousJob.startOffset,
+    startOffset: options.startOffset ?? 1,
     requestCount: options.requestCount,
     addLimit: options.addLimit,
     maxBatches: options.maxBatches,
@@ -83,6 +79,11 @@ export async function runPopularBatchCollect(
     progressMessage: "人気順から候補を取得中...",
     validatingProgress: 0,
     validatingTotal: 0,
+    currentPage: 0,
+    plannedPages: Math.ceil(options.requestCount / 100),
+    currentOffset: options.startOffset ?? 1,
+    fetchedCount: 0,
+    estimatedRemainingCount: options.requestCount,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
     completedAt: null,
@@ -93,7 +94,8 @@ export async function runPopularBatchCollect(
     durationMs: null,
   };
 
-  await saveImportBatchJob(job, jobSha, "Start popular batch collect");
+  job = await claimImportBatchJob(job);
+  setBatchJobInProgress(true);
 
   try {
     const collectResult = await collectImportCandidates({
@@ -101,9 +103,27 @@ export async function runPopularBatchCollect(
       requestCount: options.requestCount,
       startOffset: options.startOffset,
       targetTotalCount: options.targetTotalCount,
+      onProgress: async (progress) => {
+        job = await updateImportBatchJob(
+          processId,
+          (current) => ({
+            ...current,
+            status: "running",
+            phase: "collecting",
+            progressMessage: `現在処理中です（${progress.apiFetchedCount.toLocaleString()}件取得済み）`,
+            currentPage: progress.currentPage,
+            plannedPages: progress.plannedPages,
+            currentOffset: progress.currentOffset,
+            fetchedCount: progress.apiFetchedCount,
+            estimatedRemainingCount: progress.estimatedRemainingCount,
+          }),
+          "Update popular batch fetch progress",
+        );
+      },
     });
 
-    if (!collectResult.runStats) {
+    const runStats = collectResult.runStats;
+    if (!runStats) {
       throw new Error("収集結果の統計を取得できませんでした。");
     }
 
@@ -114,38 +134,46 @@ export async function runPopularBatchCollect(
         item: candidate.item,
       }));
 
-    job = {
-      ...job,
-      phase: "validating",
-      progressMessage: "詳細取得・検証中...",
-      validatingTotal: worksToAdd.length,
-      works: worksToAdd.map(
-        (work): ImportBatchJobWorkEntry => ({
-          contentId: work.contentId,
-          status: "pending",
-          item: work.item,
-        }),
-      ),
-      updatedAt: new Date().toISOString(),
-    };
-    await saveImportBatchJob(job, jobSha, "Popular batch validating");
+    job = await updateImportBatchJob(
+      processId,
+      (current) => ({
+        ...current,
+        status: "running",
+        phase: "validating",
+        progressMessage: "詳細取得・検証中...",
+        validatingTotal: worksToAdd.length,
+        validatingProgress: 0,
+        works: worksToAdd.map(
+          (work): ImportBatchJobWorkEntry => ({
+            contentId: work.contentId,
+            status: "pending",
+            item: work.item,
+          }),
+        ),
+      }),
+      "Popular batch validating",
+    );
 
     let addResult:
       | PopularBatchCollectResult["addResult"]
       | undefined;
 
     if (worksToAdd.length > 0) {
-      job = {
-        ...job,
-        phase: "github",
-        progressMessage: "GitHub更新中...",
-        updatedAt: new Date().toISOString(),
-      };
-      await saveImportBatchJob(job, jobSha, "Popular batch github commit");
+      job = await updateImportBatchJob(
+        processId,
+        (current) => ({
+          ...current,
+          status: "running",
+          phase: "github",
+          progressMessage: "GitHub更新中...",
+          validatingProgress: worksToAdd.length,
+        }),
+        "Popular batch github commit",
+      );
 
       const batchAddResult = await addWorksToCatalogInBatches({
         works: worksToAdd,
-        startOffset: collectResult.runStats.startOffset,
+        startOffset: runStats.startOffset,
         processId,
       });
 
@@ -159,62 +187,78 @@ export async function runPopularBatchCollect(
         committedToGitHub: batchAddResult.committedToGitHub,
       };
 
-      job = {
-        ...job,
-        phase: "completed",
-        batchesExecuted: 1,
-        currentCatalogCount: updatedCatalogCount,
-        works: batchAddResult.workStatuses.map((entry) => ({
-          contentId: entry.contentId,
-          status: entry.status,
-          errorCode: entry.errorCode,
-        })),
-        runStats: {
-          requestedCount: collectResult.runStats.requestedCount,
-          apiFetchedCount: collectResult.runStats.apiFetchedCount,
-          validCandidateCount: collectResult.runStats.validCandidateCount,
-          addedCount: batchAddResult.addedContentIds.length,
-          skippedExistingCount: batchAddResult.duplicateContentIds.length,
-          excludedCount: batchAddResult.invalidContentIds.length,
-          failedCount: batchAddResult.failedContentIds.length,
-          startOffset: collectResult.runStats.startOffset,
-          nextOffset: collectResult.runStats.nextOffset,
-          exclusionStats: collectResult.runStats.exclusionStats,
-        },
-        progressMessage: "完了",
-        saveSha: batchAddResult.saveSha,
-        retryCount: batchAddResult.retryCount,
-        completedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        durationMs: Date.now() - startedAt,
-      };
+      job = await updateImportBatchJob(
+        processId,
+        (current) => ({
+          ...current,
+          status: "completed",
+          phase: "completed",
+          batchesExecuted: 1,
+          currentCatalogCount: Math.max(
+            updatedCatalogCount,
+            currentCatalogCount + batchAddResult.addedContentIds.length,
+          ),
+          works: batchAddResult.workStatuses.map((entry) => ({
+            contentId: entry.contentId,
+            status: entry.status,
+            errorCode: entry.errorCode,
+          })),
+          runStats: {
+            requestedCount: runStats.requestedCount,
+            apiFetchedCount: runStats.apiFetchedCount,
+            validCandidateCount: runStats.validCandidateCount,
+            addedCount: batchAddResult.addedContentIds.length,
+            skippedExistingCount: batchAddResult.duplicateContentIds.length,
+            excludedCount: batchAddResult.invalidContentIds.length,
+            failedCount: batchAddResult.failedContentIds.length,
+            startOffset: runStats.startOffset,
+            nextOffset: runStats.nextOffset,
+            exclusionStats: runStats.exclusionStats,
+          },
+          progressMessage: "完了",
+          currentOffset: runStats.nextOffset,
+          fetchedCount: runStats.apiFetchedCount,
+          estimatedRemainingCount: 0,
+          saveSha: batchAddResult.saveSha,
+          retryCount: batchAddResult.retryCount,
+          completedAt: new Date().toISOString(),
+          durationMs: Date.now() - startedAt,
+        }),
+        "Complete popular batch collect",
+      );
     } else {
-      job = {
-        ...job,
-        phase: "completed",
-        batchesExecuted: 1,
-        runStats: {
-          requestedCount: collectResult.runStats.requestedCount,
-          apiFetchedCount: collectResult.runStats.apiFetchedCount,
-          validCandidateCount: 0,
-          addedCount: 0,
-          skippedExistingCount: collectResult.runStats.exclusionStats.catalogPublished,
-          excludedCount:
-            collectResult.runStats.exclusionStats.invalid +
-            collectResult.runStats.exclusionStats.duplicate,
-          failedCount: 0,
-          startOffset: collectResult.runStats.startOffset,
-          nextOffset: collectResult.runStats.nextOffset,
-          exclusionStats: collectResult.runStats.exclusionStats,
-        },
-        progressMessage: "候補なしで完了",
-        completedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        durationMs: Date.now() - startedAt,
-      };
+      job = await updateImportBatchJob(
+        processId,
+        (current) => ({
+          ...current,
+          status: "completed",
+          phase: "completed",
+          batchesExecuted: 1,
+          runStats: {
+            requestedCount: runStats.requestedCount,
+            apiFetchedCount: runStats.apiFetchedCount,
+            validCandidateCount: 0,
+            addedCount: 0,
+            skippedExistingCount:
+              runStats.exclusionStats.catalogPublished,
+            excludedCount:
+              runStats.exclusionStats.invalid +
+              runStats.exclusionStats.duplicate,
+            failedCount: 0,
+            startOffset: runStats.startOffset,
+            nextOffset: runStats.nextOffset,
+            exclusionStats: runStats.exclusionStats,
+          },
+          progressMessage: "候補なしで完了",
+          currentOffset: runStats.nextOffset,
+          fetchedCount: runStats.apiFetchedCount,
+          estimatedRemainingCount: 0,
+          completedAt: new Date().toISOString(),
+          durationMs: Date.now() - startedAt,
+        }),
+        "Complete popular batch collect",
+      );
     }
-
-    await saveImportBatchJob(job, jobSha, "Complete popular batch collect");
 
     return {
       success: true,
@@ -225,15 +269,23 @@ export async function runPopularBatchCollect(
       job,
     };
   } catch (error) {
-    job = {
-      ...job,
-      phase: "failed",
-      errorCode: error instanceof Error ? error.message : "BATCH_FAILED",
-      progressMessage: "失敗",
-      updatedAt: new Date().toISOString(),
-      durationMs: Date.now() - startedAt,
-    };
-    await saveImportBatchJob(job, jobSha, "Popular batch failed");
+    try {
+      job = await updateImportBatchJob(
+        processId,
+        (current) => ({
+          ...current,
+          status: "failed",
+          phase: "failed",
+          errorCode: error instanceof Error ? error.message : "BATCH_FAILED",
+          progressMessage: "失敗",
+          completedAt: new Date().toISOString(),
+          durationMs: Date.now() - startedAt,
+        }),
+        "Popular batch failed",
+      );
+    } catch {
+      // 元のエラーを優先する。状態更新自体も競合リトライ済み。
+    }
     throw error;
   } finally {
     setBatchJobInProgress(false);

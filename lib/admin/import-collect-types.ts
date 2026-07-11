@@ -40,6 +40,13 @@ export type CollectImportCandidatesOptions = {
   /** 空欄相当は undefined。past / popular で使用。 */
   startOffset?: number | null;
   targetTotalCount?: number;
+  onProgress?: (progress: {
+    currentPage: number;
+    plannedPages: number;
+    currentOffset: number;
+    apiFetchedCount: number;
+    estimatedRemainingCount: number;
+  }) => void | Promise<void>;
 };
 
 export type CollectImportCandidatesResult = {

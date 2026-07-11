@@ -4,7 +4,6 @@ import type { BulkAddWorkInput } from "@/lib/admin/bulk-add-request";
 import {
   type BulkAddInvalidCandidate,
   getCandidateContentId,
-  safeParseUrl,
   validateCandidateIdentity,
 } from "@/lib/admin/bulk-add-safe";
 

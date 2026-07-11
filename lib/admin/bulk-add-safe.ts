@@ -115,7 +115,7 @@ export function validateCandidateIdentity(
 }
 
 export type ParsedJsonResponse<T> =
-  | { ok: true; data: T; rawText: string }
+  | { ok: true; data: T; rawText: string; status: number }
   | { ok: false; error: Error; rawText: string; status: number };
 
 /** Safari は JSON パース失敗時に "The string did not match the expected pattern." を返す */

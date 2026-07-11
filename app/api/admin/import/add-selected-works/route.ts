@@ -72,9 +72,11 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         success: false,
-        phase: phase ?? "github-commit",
+        phase: details?.githubPhase ?? phase ?? "github-commit",
         message,
         error: message,
+        githubStatus: details?.status,
+        githubResponse: details?.githubResponse ?? details?.githubMessage,
         details: {
           ...details,
           payloadByteLength,

@@ -14,6 +14,8 @@ export type AddSelectedWorksErrorDetails = {
   status?: number;
   githubMessage?: string;
   githubDocumentationUrl?: string;
+  githubPhase?: string;
+  githubResponse?: string;
   receivedCount?: number;
   validAddCount?: number;
   catalogCountBefore?: number;

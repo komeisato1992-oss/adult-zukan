@@ -16,6 +16,20 @@ import type { DmmItem } from "@/lib/dmm/types";
 
 const CATALOG_FILE_PATH = CATALOG_SNAPSHOT_RELATIVE_PATH;
 const GITHUB_API_VERSION = "2022-11-28";
+const GIT_DATA_COMMIT_MAX_RETRIES = 2;
+const BLOB_BASE64_THRESHOLD_BYTES = Number(
+  process.env.GITHUB_BLOB_BASE64_THRESHOLD_BYTES ?? 1024 * 1024,
+);
+
+export type GitDataCommitPhase =
+  | "fetch-ref"
+  | "fetch-commit"
+  | "create-catalog-blob"
+  | "create-index-blob"
+  | "create-blob"
+  | "create-tree"
+  | "create-commit"
+  | "update-ref";
 
 type GitHubFileResponse = {
   content?: string;
@@ -34,7 +48,7 @@ type GitHubBlobResponse = {
 
 export class GitHubCatalogError extends Error {
   status: number;
-  phase?: string;
+  phase?: GitDataCommitPhase | string;
   responseBody?: string;
   githubMessage?: string;
   documentationUrl?: string;
@@ -43,7 +57,7 @@ export class GitHubCatalogError extends Error {
     message: string,
     status = 500,
     options?: {
-      phase?: string;
+      phase?: GitDataCommitPhase | string;
       responseBody?: string;
       githubMessage?: string;
       documentationUrl?: string;
@@ -67,6 +81,28 @@ export type CatalogSnapshotHandle = {
   rebuilt: boolean;
 };
 
+export type GitHubFileCommit = {
+  path: string;
+  content: string;
+};
+
+type GitRefResponse = {
+  object: { sha: string };
+};
+
+type GitCommitResponse = {
+  sha: string;
+  tree: { sha: string };
+};
+
+type GitBlobCreateResponse = {
+  sha: string;
+};
+
+type GitTreeResponse = {
+  sha: string;
+};
+
 function getContentsUrl(path: string): string {
   const config = getGitHubConfig();
   if (!config) {
@@ -85,10 +121,56 @@ function getBlobUrl(sha: string): string {
   return `https://api.github.com/repos/${config.owner}/${config.repo}/git/blobs/${sha}`;
 }
 
+function getRepoApiBase(): string {
+  const config = getGitHubConfig();
+  if (!config) {
+    throw new GitHubCatalogError("GitHub連携の設定が未完了です。", 503);
+  }
+
+  return `https://api.github.com/repos/${config.owner}/${config.repo}`;
+}
+
+function phaseLabel(phase: GitDataCommitPhase | string): string {
+  switch (phase) {
+    case "fetch-ref":
+      return "ブランチ参照の取得";
+    case "fetch-commit":
+      return "最新コミットの取得";
+    case "create-catalog-blob":
+      return "カタログ blob の作成";
+    case "create-index-blob":
+      return "インデックス blob の作成";
+    case "create-blob":
+      return "blob の作成";
+    case "create-tree":
+      return "tree の作成";
+    case "create-commit":
+      return "commit の作成";
+    case "update-ref":
+      return "ブランチ ref の更新";
+    default:
+      return String(phase);
+  }
+}
+
+function buildGitHubErrorMessage(
+  phase: GitDataCommitPhase | string,
+  githubMessage?: string,
+): string {
+  const label = phaseLabel(phase);
+  if (githubMessage?.includes("too large")) {
+    return `${label}に失敗しました。カタログファイルが大きすぎるため GitHub API で処理できません。`;
+  }
+  if (githubMessage) {
+    return `${label}に失敗しました: ${githubMessage}`;
+  }
+  return `${label}に失敗しました。`;
+}
+
 async function githubRequest<T>(
   url: string,
   init: RequestInit = {},
-  phase = "github-request",
+  phase: GitDataCommitPhase | string = "create-blob",
 ): Promise<T> {
   const config = getGitHubConfig();
   if (!config) {
@@ -144,16 +226,14 @@ async function githubRequest<T>(
 
     if (response.status === 409 || response.status === 422) {
       throw new GitHubCatalogError(
-        githubMessage ??
-          "カタログ更新が競合しました。しばらく待ってから再度お試しください。",
+        buildGitHubErrorMessage(phase, githubMessage),
         response.status,
         { phase, responseBody, githubMessage, documentationUrl },
       );
     }
 
     throw new GitHubCatalogError(
-      githubMessage ??
-        "GitHub API からカタログを取得・更新できませんでした。",
+      buildGitHubErrorMessage(phase, githubMessage),
       response.status >= 500 ? 502 : response.status,
       { phase, responseBody, githubMessage, documentationUrl },
     );
@@ -173,8 +253,6 @@ function decodeBase64Content(content: string): string {
 async function readCatalogFileText(
   meta: GitHubFileResponse,
 ): Promise<string> {
-  // 1MB超のファイルは Contents API の content が欠落/不完全になりやすいため、
-  // download_url → blob API の順で生テキストを取得する。
   if (meta.download_url) {
     try {
       const response = await fetch(meta.download_url, { cache: "no-store" });
@@ -190,7 +268,11 @@ async function readCatalogFileText(
 
   if (meta.sha) {
     try {
-      const blob = await githubRequest<GitHubBlobResponse>(getBlobUrl(meta.sha));
+      const blob = await githubRequest<GitHubBlobResponse>(
+        getBlobUrl(meta.sha),
+        {},
+        "fetch-commit",
+      );
       if (blob.encoding === "base64" && blob.content) {
         return decodeBase64Content(blob.content);
       }
@@ -220,6 +302,8 @@ export async function fetchCatalogFromGitHub(): Promise<CatalogSnapshotHandle> {
   try {
     meta = await githubRequest<GitHubFileResponse>(
       `${getContentsUrl(CATALOG_FILE_PATH)}?ref=${encodeURIComponent(config.branch)}`,
+      {},
+      "fetch-ref",
     );
   } catch (error) {
     if (error instanceof GitHubCatalogError && error.status === 404) {
@@ -253,8 +337,6 @@ export async function fetchCatalogFromGitHub(): Promise<CatalogSnapshotHandle> {
 
   let { items, envelope, rebuilt } = parseCatalogSnapshot(raw);
 
-  // GitHub側の読み取りが空なのにファイルサイズが大きい場合は、
-  // ローカル snapshot をフォールバックして既存カタログを消さない。
   if (items.length === 0 && (meta.size ?? 0) > 1024 * 100) {
     const localItems = readCatalogSnapshot();
     if (localItems.length > 0) {
@@ -281,28 +363,6 @@ export async function fetchCatalogFromGitHub(): Promise<CatalogSnapshotHandle> {
     rebuilt,
   };
 }
-
-export type GitHubFileCommit = {
-  path: string;
-  content: string;
-};
-
-type GitRefResponse = {
-  object: { sha: string };
-};
-
-type GitCommitResponse = {
-  sha: string;
-  tree: { sha: string };
-};
-
-type GitBlobResponse = {
-  sha: string;
-};
-
-type GitTreeResponse = {
-  sha: string;
-};
 
 function buildCatalogSaveContent(
   envelope: CatalogSnapshotEnvelope,
@@ -337,80 +397,73 @@ function normalizeCommitMessage(commitLabel: string): string {
   return `Add work ${commitLabel} via admin import`;
 }
 
-/** カタログ以外の補助ファイルだけを GitHub にコミット */
-export async function commitGitHubFilesBundle(
-  files: GitHubFileCommit[],
-  commitLabel: string,
-): Promise<void> {
+function blobPhaseForPath(path: string): GitDataCommitPhase {
+  if (path === CATALOG_FILE_PATH) return "create-catalog-blob";
+  if (path.startsWith("data/dmm/")) return "create-index-blob";
+  return "create-blob";
+}
+
+async function createGitBlob(
+  content: string,
+  phase: GitDataCommitPhase,
+  path: string,
+): Promise<string> {
+  const byteLength = Buffer.byteLength(content, "utf8");
+  const useBase64 = byteLength >= BLOB_BASE64_THRESHOLD_BYTES;
+  const repoBase = getRepoApiBase();
+
+  console.log("[github-commit] create blob", {
+    phase,
+    path,
+    byteLength,
+    mb: (byteLength / 1024 / 1024).toFixed(2),
+    encoding: useBase64 ? "base64" : "utf-8",
+  });
+
+  const blob = await githubRequest<GitBlobCreateResponse>(
+    `${repoBase}/git/blobs`,
+    {
+      method: "POST",
+      body: JSON.stringify(
+        useBase64
+          ? {
+              content: Buffer.from(content, "utf8").toString("base64"),
+              encoding: "base64",
+            }
+          : {
+              content,
+              encoding: "utf-8",
+            },
+      ),
+    },
+    phase,
+  );
+
+  return blob.sha;
+}
+
+async function fetchBranchHead(): Promise<{
+  commitSha: string;
+  treeSha: string;
+}> {
   const config = getGitHubConfig();
   if (!config) {
     throw new GitHubCatalogError("GitHub連携の設定が未完了です。", 503, {
-      phase: "github-commit",
+      phase: "fetch-ref",
     });
   }
 
-  if (files.length === 0) return;
-
-  const { commitSha, treeSha } = await getBranchHead();
-  const treeEntries = await Promise.all(
-    files.map(async (file) => ({
-      path: file.path,
-      mode: "100644" as const,
-      type: "blob" as const,
-      sha: await createGitBlob(file.content),
-    })),
-  );
-
-  const newTree = await githubRequest<GitTreeResponse>(
-    `https://api.github.com/repos/${config.owner}/${config.repo}/git/trees`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        base_tree: treeSha,
-        tree: treeEntries,
-      }),
-    },
-    "create-tree",
-  );
-
-  const newCommit = await githubRequest<GitCommitResponse>(
-    `https://api.github.com/repos/${config.owner}/${config.repo}/git/commits`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        message: normalizeCommitMessage(commitLabel),
-        tree: newTree.sha,
-        parents: [commitSha],
-      }),
-    },
-    "create-commit",
-  );
-
-  await githubRequest(
-    `https://api.github.com/repos/${config.owner}/${config.repo}/git/refs/heads/${encodeURIComponent(config.branch)}`,
-    {
-      method: "PATCH",
-      body: JSON.stringify({
-        sha: newCommit.sha,
-        force: false,
-      }),
-    },
-    "update-ref",
-  );
-}
-
-async function getBranchHead(): Promise<{ commitSha: string; treeSha: string }> {
-  const config = getGitHubConfig();
-  if (!config) {
-    throw new GitHubCatalogError("GitHub連携の設定が未完了です。", 503);
-  }
-
+  const repoBase = getRepoApiBase();
   const ref = await githubRequest<GitRefResponse>(
-    `https://api.github.com/repos/${config.owner}/${config.repo}/git/ref/heads/${encodeURIComponent(config.branch)}`,
+    `${repoBase}/git/refs/heads/${encodeURIComponent(config.branch)}`,
+    {},
+    "fetch-ref",
   );
 
   const commit = await githubRequest<GitCommitResponse>(
-    `https://api.github.com/repos/${config.owner}/${config.repo}/git/commits/${ref.object.sha}`,
+    `${repoBase}/git/commits/${ref.object.sha}`,
+    {},
+    "fetch-commit",
   );
 
   return {
@@ -419,37 +472,149 @@ async function getBranchHead(): Promise<{ commitSha: string; treeSha: string }> 
   };
 }
 
-async function createGitBlob(content: string): Promise<string> {
+/** Git Data API で複数ファイルを 1 commit にまとめる（Contents API PUT は使わない） */
+export async function commitGitDataBundle(
+  files: GitHubFileCommit[],
+  commitLabel: string,
+): Promise<void> {
+  if (files.length === 0) return;
+
   const config = getGitHubConfig();
   if (!config) {
-    throw new GitHubCatalogError("GitHub連携の設定が未完了です。", 503);
+    throw new GitHubCatalogError("GitHub連携の設定が未完了です。", 503, {
+      phase: "fetch-ref",
+    });
   }
 
-  const blob = await githubRequest<GitBlobResponse>(
-    `https://api.github.com/repos/${config.owner}/${config.repo}/git/blobs`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        content,
-        encoding: "utf-8",
-      }),
-    },
-    "create-blob",
-  );
+  const repoBase = getRepoApiBase();
+  let retryCount = 0;
 
-  return blob.sha;
+  while (retryCount <= GIT_DATA_COMMIT_MAX_RETRIES) {
+    try {
+      console.time("[github-commit] total");
+      console.time("[github-commit] fetch-ref");
+      const { commitSha, treeSha } = await fetchBranchHead();
+      console.timeEnd("[github-commit] fetch-ref");
+
+      console.time("[github-commit] create-blobs");
+      const treeEntries: Array<{
+        path: string;
+        mode: "100644";
+        type: "blob";
+        sha: string;
+      }> = [];
+
+      const catalogFile = files.find((file) => file.path === CATALOG_FILE_PATH);
+      const otherFiles = files.filter((file) => file.path !== CATALOG_FILE_PATH);
+
+      if (catalogFile) {
+        treeEntries.push({
+          path: catalogFile.path,
+          mode: "100644",
+          type: "blob",
+          sha: await createGitBlob(
+            catalogFile.content,
+            "create-catalog-blob",
+            catalogFile.path,
+          ),
+        });
+      }
+
+      for (const file of otherFiles) {
+        treeEntries.push({
+          path: file.path,
+          mode: "100644",
+          type: "blob",
+          sha: await createGitBlob(
+            file.content,
+            blobPhaseForPath(file.path),
+            file.path,
+          ),
+        });
+      }
+      console.timeEnd("[github-commit] create-blobs");
+
+      console.time("[github-commit] create-tree");
+      const newTree = await githubRequest<GitTreeResponse>(
+        `${repoBase}/git/trees`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            base_tree: treeSha,
+            tree: treeEntries,
+          }),
+        },
+        "create-tree",
+      );
+      console.timeEnd("[github-commit] create-tree");
+
+      console.time("[github-commit] create-commit");
+      const newCommit = await githubRequest<GitCommitResponse>(
+        `${repoBase}/git/commits`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            message: normalizeCommitMessage(commitLabel),
+            tree: newTree.sha,
+            parents: [commitSha],
+          }),
+        },
+        "create-commit",
+      );
+      console.timeEnd("[github-commit] create-commit");
+
+      console.time("[github-commit] update-ref");
+      await githubRequest(
+        `${repoBase}/git/refs/heads/${encodeURIComponent(config.branch)}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            sha: newCommit.sha,
+            force: false,
+          }),
+        },
+        "update-ref",
+      );
+      console.timeEnd("[github-commit] update-ref");
+      console.timeEnd("[github-commit] total");
+      return;
+    } catch (error) {
+      console.timeEnd("[github-commit] total");
+
+      if (
+        error instanceof GitHubCatalogError &&
+        (error.status === 409 || error.status === 422) &&
+        error.phase === "update-ref" &&
+        retryCount < GIT_DATA_COMMIT_MAX_RETRIES
+      ) {
+        retryCount += 1;
+        console.warn("[github-commit] retry after ref conflict", { retryCount });
+        continue;
+      }
+
+      throw error;
+    }
+  }
+}
+
+/** @deprecated commitGitDataBundle のエイリアス */
+export async function commitGitHubFilesBundle(
+  files: GitHubFileCommit[],
+  commitLabel: string,
+): Promise<void> {
+  await commitGitDataBundle(files, commitLabel);
 }
 
 export async function getBranchHeadSha(): Promise<string | null> {
   try {
-    const { commitSha } = await getBranchHead();
+    const { commitSha } = await fetchBranchHead();
     return commitSha;
   } catch {
     return null;
   }
 }
 
-/** catalog + 関連 index を Git Trees API で1コミットにまとめて更新する */
+/** catalog + 関連 index を Git Data API で1コミットにまとめて更新する */
 export async function commitCatalogBundleToGitHub(
   envelope: CatalogSnapshotEnvelope,
   mergedItems: DmmItem[],
@@ -457,13 +622,6 @@ export async function commitCatalogBundleToGitHub(
   indexFiles: GitHubFileCommit[],
   originalRaw?: unknown,
 ): Promise<void> {
-  const config = getGitHubConfig();
-  if (!config) {
-    throw new GitHubCatalogError("GitHub連携の設定が未完了です。", 503, {
-      phase: "github-commit",
-    });
-  }
-
   const catalogContent = buildCatalogSaveContent(
     envelope,
     mergedItems,
@@ -476,7 +634,16 @@ export async function commitCatalogBundleToGitHub(
     catalogMb: (catalogByteLength / 1024 / 1024).toFixed(2),
     itemCount: mergedItems.length,
     indexFileCount: indexFiles.length,
+    api: "git-data",
   });
+
+  if (catalogByteLength > 100 * 1024 * 1024) {
+    throw new GitHubCatalogError(
+      "カタログファイルが GitHub blob 上限（100MB）を超えています。",
+      422,
+      { phase: "create-catalog-blob" },
+    );
+  }
 
   const files: GitHubFileCommit[] = [
     {
@@ -486,81 +653,7 @@ export async function commitCatalogBundleToGitHub(
     ...indexFiles,
   ];
 
-  console.time("[github-commit] total");
-  console.time("[github-commit] get-branch-head");
-  const { commitSha, treeSha } = await getBranchHead();
-  console.timeEnd("[github-commit] get-branch-head");
-
-  console.time("[github-commit] create-blobs");
-  const treeEntries = await Promise.all(
-    files.map(async (file) => ({
-      path: file.path,
-      mode: "100644" as const,
-      type: "blob" as const,
-      sha: await createGitBlob(file.content),
-    })),
-  );
-  console.timeEnd("[github-commit] create-blobs");
-
-  console.time("[github-commit] create-tree");
-  const newTree = await githubRequest<GitTreeResponse>(
-    `https://api.github.com/repos/${config.owner}/${config.repo}/git/trees`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        base_tree: treeSha,
-        tree: treeEntries,
-      }),
-    },
-    "create-tree",
-  );
-  console.timeEnd("[github-commit] create-tree");
-
-  console.time("[github-commit] create-commit");
-  const newCommit = await githubRequest<GitCommitResponse>(
-    `https://api.github.com/repos/${config.owner}/${config.repo}/git/commits`,
-    {
-      method: "POST",
-      body: JSON.stringify({
-        message: normalizeCommitMessage(commitLabel),
-        tree: newTree.sha,
-        parents: [commitSha],
-      }),
-    },
-    "create-commit",
-  );
-  console.timeEnd("[github-commit] create-commit");
-
-  try {
-    console.time("[github-commit] update-ref");
-    await githubRequest(
-      `https://api.github.com/repos/${config.owner}/${config.repo}/git/refs/heads/${encodeURIComponent(config.branch)}`,
-      {
-        method: "PATCH",
-        body: JSON.stringify({
-          sha: newCommit.sha,
-          force: false,
-        }),
-      },
-      "update-ref",
-    );
-    console.timeEnd("[github-commit] update-ref");
-    console.timeEnd("[github-commit] total");
-  } catch (error) {
-    console.timeEnd("[github-commit] update-ref");
-    console.timeEnd("[github-commit] total");
-
-    if (error instanceof GitHubCatalogError) {
-      throw error;
-    }
-
-    logCatalogSnapshotThrownError(error);
-    throw new GitHubCatalogError(
-      "カタログ更新が競合しました。しばらく待ってから再度お試しください。",
-      409,
-      { phase: "update-ref" },
-    );
-  }
+  await commitGitDataBundle(files, commitLabel);
 }
 
 export async function commitCatalogToGitHub(
@@ -577,5 +670,16 @@ export async function commitCatalogToGitHub(
     commitLabel,
     [],
     originalRaw,
+  );
+}
+
+export function measureCatalogSaveByteLength(
+  envelope: CatalogSnapshotEnvelope,
+  mergedItems: DmmItem[],
+  originalRaw?: unknown,
+): number {
+  return Buffer.byteLength(
+    buildCatalogSaveContent(envelope, mergedItems, originalRaw),
+    "utf8",
   );
 }

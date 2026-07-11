@@ -50,6 +50,10 @@ export type AddSelectedWorksSummary = {
   selectionDuplicateCount: number;
   invalidCount: number;
   retried: boolean;
+  catalogCountAfter?: number;
+  updatedShardFiles?: string[];
+  newShardFiles?: string[];
+  githubCommitSucceeded?: boolean;
 };
 
 export type AddSelectedWorkInput = {

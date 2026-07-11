@@ -101,33 +101,72 @@ export type SeoEntitySitemapId =
   | "series"
   | "genres";
 
-export type SeoEntitySitemapDefinition = {
-  id: SeoEntitySitemapId;
-  label: string;
-  pathSuffix: string;
-};
-
 export type SeoEntityPageCounts = Record<SeoEntitySitemapId, number>;
 
 export type SeoSitemapSubmissionStatus = "success" | "pending" | "fetch_error";
 
 export type SeoEntitySitemapStatus = {
-  id: SeoEntitySitemapId;
+  id: string;
   label: string;
   displayName: string;
   pathSuffix: string;
   submitUrl: string;
+  kind: "index" | "urlset";
   status: SeoSitemapSubmissionStatus;
+  siteUrlCount: number | null;
   indexedCount: number | null;
   contentsCount: number | null;
   notIndexedCount: number | null;
+  lastGeneratedAt: string | null;
   lastSubmitted: string | null;
   lastDownloaded: string | null;
+  googleSubmittedAt: string | null;
   errors: number;
   warnings: number;
+  isPending: boolean | null;
   httpStatus: number | null;
   localCount: number;
   coverageRate: number | null;
+};
+
+export type SitemapPostImportResult = {
+  sitemapUpdated: boolean;
+  sitemapError?: string;
+  googleSubmission: {
+    submitted: boolean;
+    skipped: boolean;
+    reason: string | null;
+    dryRun?: boolean;
+  };
+  refreshResults?: Array<{
+    key: string;
+    urlCount: number;
+    addedCount: number | null;
+  }>;
+};
+
+export type SitemapAdminActionResult = {
+  refresh?: {
+    key: string;
+    label: string;
+    url: string;
+    urlCount: number;
+    previousUrlCount: number | null;
+    addedCount: number | null;
+    duplicateCount: number;
+    httpStatus: number;
+    generatedAt: string;
+    message: string;
+  };
+  submit?: {
+    submitted: boolean;
+    skipped: boolean;
+    reason: string | null;
+    sitemapUrl: string;
+    submittedAt: string | null;
+    dryRun: boolean;
+    message: string;
+  };
 };
 
 export type SeoSitemapStatusSnapshot = {

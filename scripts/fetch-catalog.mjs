@@ -3,12 +3,21 @@
  * DMM APIからカタログスナップショットを差分更新する。
  * 用法: npm run fetch-catalog
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "fs";
 import path from "path";
+import {
+  buildCatalogShards,
+  CATALOG_MANIFEST_RELATIVE,
+  CATALOG_SHARD_DIR_RELATIVE,
+  normalizeCatalogWorks,
+  serializeJsonPretty,
+} from "../lib/dmm/catalog-shard-core.mjs";
 
 const ROOT = process.cwd();
 const ENV_FILES = [".env.local", ".env"];
-const SNAPSHOT_FILE = path.join(ROOT, "data", "dmm", "catalog-snapshot.json");
+const SHARD_DIR = path.join(ROOT, CATALOG_SHARD_DIR_RELATIVE);
+const MANIFEST_FILE = path.join(ROOT, CATALOG_MANIFEST_RELATIVE);
+const LEGACY_FILE = path.join(ROOT, "data", "dmm", "catalog-snapshot.legacy.json");
 const API_AFFILIATE_FALLBACK = "zukanjp-990";
 const FANZA_GRAPHQL_URL = "https://api.video.dmm.co.jp/graphql";
 
@@ -208,10 +217,26 @@ function collectTopNames(items, selector, limit) {
 }
 
 function loadPreviousSnapshot() {
-  if (!existsSync(SNAPSHOT_FILE)) return [];
+  if (existsSync(MANIFEST_FILE)) {
+    try {
+      const manifest = JSON.parse(readFileSync(MANIFEST_FILE, "utf-8"));
+      const works = [];
+      for (const entry of manifest.shards ?? []) {
+        const shardPath = path.join(SHARD_DIR, entry.file);
+        if (!existsSync(shardPath)) continue;
+        works.push(
+          ...normalizeCatalogWorks(JSON.parse(readFileSync(shardPath, "utf-8"))),
+        );
+      }
+      return works;
+    } catch {
+      return [];
+    }
+  }
+
+  if (!existsSync(LEGACY_FILE)) return [];
   try {
-    const parsed = JSON.parse(readFileSync(SNAPSHOT_FILE, "utf-8"));
-    return Array.isArray(parsed) ? parsed : parsed.works ?? [];
+    return normalizeCatalogWorks(JSON.parse(readFileSync(LEGACY_FILE, "utf-8")));
   } catch {
     return [];
   }
@@ -473,8 +498,27 @@ async function main() {
   console.log("説明文を取得中...");
   await enrichDescriptions(finalLimited, previousById);
 
-  mkdirSync(path.dirname(SNAPSHOT_FILE), { recursive: true });
-  writeFileSync(SNAPSHOT_FILE, JSON.stringify(finalLimited, null, 2), "utf-8");
+  const { manifest, shards } = buildCatalogShards({
+    works: finalLimited,
+  });
+
+  mkdirSync(SHARD_DIR, { recursive: true });
+  // 旧 shard を掃除してから書き直す
+  if (existsSync(SHARD_DIR)) {
+    for (const file of readdirSync(SHARD_DIR)) {
+      if (/^catalog-\d+\.json$/i.test(file) || file === "manifest.json") {
+        // overwrite below
+      }
+    }
+  }
+  writeFileSync(MANIFEST_FILE, serializeJsonPretty(manifest), "utf-8");
+  for (const shard of shards) {
+    writeFileSync(
+      path.join(SHARD_DIR, shard.file),
+      serializeJsonPretty(shard.works),
+      "utf-8",
+    );
+  }
 
   const afterCount = finalLimited.length;
   const addedCount = Math.max(0, afterCount - beforeCount);
@@ -490,7 +534,7 @@ async function main() {
   console.log(`API取得総数: ${apiTotal}`);
   console.log(`APIリクエスト数: ${requestCount}`);
   console.log(`セール起点追加件数(参考): ${saleSeeded}`);
-  console.log(`保存: ${SNAPSHOT_FILE}`);
+  console.log(`保存: ${CATALOG_SHARD_DIR_RELATIVE}/ (${shards.length} shards)`);
 }
 
 main().catch((error) => {

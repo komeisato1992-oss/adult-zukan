@@ -4,6 +4,8 @@ import { getGitHubConfig } from "@/lib/admin/github-config";
 import { readCatalogSnapshot } from "@/lib/dmm/catalog-snapshot";
 import {
   buildCatalogOutput,
+  CATALOG_MANIFEST_RELATIVE,
+  CATALOG_SHARD_DIR_RELATIVE,
   CATALOG_SNAPSHOT_RELATIVE_PATH,
   logCatalogSnapshotDebug,
   logCatalogSnapshotThrownError,
@@ -14,6 +16,7 @@ import {
 } from "@/lib/dmm/catalog-snapshot-json";
 import type { DmmItem } from "@/lib/dmm/types";
 
+/** @deprecated 単一巨大 catalog は使用しない */
 const CATALOG_FILE_PATH = CATALOG_SNAPSHOT_RELATIVE_PATH;
 const GITHUB_API_VERSION = "2022-11-28";
 const GIT_DATA_COMMIT_MAX_RETRIES = 2;
@@ -298,6 +301,31 @@ export async function fetchCatalogFromGitHub(): Promise<CatalogSnapshotHandle> {
     throw new GitHubCatalogError("GitHub連携の設定が未完了です。", 503);
   }
 
+  // shard manifest 優先。未移行の場合のみ legacy 単一ファイルを読む。
+  try {
+    const { fetchCatalogShardsFromGitHub } = await import(
+      "@/lib/admin/github-catalog-shards"
+    );
+    const shards = await fetchCatalogShardsFromGitHub();
+    if (shards.manifest.shards.length > 0 || shards.items.length > 0) {
+      return {
+        items: shards.items,
+        sha: null,
+        envelope: { format: "array" },
+        raw: shards.items,
+        rebuilt: false,
+      };
+    }
+  } catch (error) {
+    if (!(error instanceof GitHubCatalogError && error.status === 404)) {
+      logCatalogSnapshotThrownError(error);
+      // manifest 未作成時は legacy へフォールバック
+      if (!(error instanceof GitHubCatalogError)) {
+        throw error;
+      }
+    }
+  }
+
   let meta: GitHubFileResponse;
   try {
     meta = await githubRequest<GitHubFileResponse>(
@@ -307,15 +335,17 @@ export async function fetchCatalogFromGitHub(): Promise<CatalogSnapshotHandle> {
     );
   } catch (error) {
     if (error instanceof GitHubCatalogError && error.status === 404) {
+      const localItems = readCatalogSnapshot();
       console.warn(
-        "catalog-snapshot.json not found on GitHub. Starting with empty works.",
+        "catalog shards/legacy not found on GitHub. Using local catalog.",
+        { localCount: localItems.length },
       );
       return {
-        items: [],
+        items: localItems,
         sha: null,
-        envelope: { format: "rebuilt" },
-        raw: { works: [] },
-        rebuilt: true,
+        envelope: { format: "array" },
+        raw: localItems,
+        rebuilt: false,
       };
     }
     logCatalogSnapshotThrownError(error);
@@ -324,26 +354,11 @@ export async function fetchCatalogFromGitHub(): Promise<CatalogSnapshotHandle> {
 
   const text = await readCatalogFileText(meta);
   let raw = parseJsonMaybe(text);
-
-  console.error("catalog-snapshot debug:", {
-    type: typeof raw,
-    isArray: Array.isArray(raw),
-    keys: raw && typeof raw === "object" ? Object.keys(raw as object) : null,
-    sample: Array.isArray(raw) ? (raw as unknown[])[0] : raw,
-    size: meta.size ?? null,
-    hasInlineContent: Boolean(meta.content),
-    hasDownloadUrl: Boolean(meta.download_url),
-  });
-
   let { items, envelope, rebuilt } = parseCatalogSnapshot(raw);
 
   if (items.length === 0 && (meta.size ?? 0) > 1024 * 100) {
     const localItems = readCatalogSnapshot();
     if (localItems.length > 0) {
-      console.warn(
-        "catalog-snapshot GitHub parse returned empty; falling back to local snapshot.",
-        { githubSize: meta.size, localCount: localItems.length },
-      );
       items = localItems;
       raw = localItems;
       envelope = { format: "array" };
@@ -398,7 +413,12 @@ function normalizeCommitMessage(commitLabel: string): string {
 }
 
 function blobPhaseForPath(path: string): GitDataCommitPhase {
-  if (path === CATALOG_FILE_PATH) return "create-catalog-blob";
+  if (
+    path === CATALOG_MANIFEST_RELATIVE ||
+    path.startsWith(`${CATALOG_SHARD_DIR_RELATIVE}/`)
+  ) {
+    return "create-catalog-blob";
+  }
   if (path.startsWith("data/dmm/")) return "create-index-blob";
   return "create-blob";
 }
@@ -504,23 +524,19 @@ export async function commitGitDataBundle(
         sha: string;
       }> = [];
 
-      const catalogFile = files.find((file) => file.path === CATALOG_FILE_PATH);
-      const otherFiles = files.filter((file) => file.path !== CATALOG_FILE_PATH);
+      for (const file of files) {
+        const bytes = Buffer.byteLength(file.content, "utf8");
+        if (
+          file.path === CATALOG_FILE_PATH ||
+          (file.path.endsWith("catalog-snapshot.json") && bytes > 10 * 1024 * 1024)
+        ) {
+          throw new GitHubCatalogError(
+            "単一巨大 catalog-snapshot.json への保存は禁止されています。shard 方式を使用してください。",
+            422,
+            { phase: "create-catalog-blob" },
+          );
+        }
 
-      if (catalogFile) {
-        treeEntries.push({
-          path: catalogFile.path,
-          mode: "100644",
-          type: "blob",
-          sha: await createGitBlob(
-            catalogFile.content,
-            "create-catalog-blob",
-            catalogFile.path,
-          ),
-        });
-      }
-
-      for (const file of otherFiles) {
         treeEntries.push({
           path: file.path,
           mode: "100644",
@@ -614,7 +630,10 @@ export async function getBranchHeadSha(): Promise<string | null> {
   }
 }
 
-/** catalog + 関連 index を Git Data API で1コミットにまとめて更新する */
+/**
+ * catalog を shard 群として Git Data API で1コミット更新する。
+ * 単一巨大 catalog-snapshot.json は絶対に書かない。
+ */
 export async function commitCatalogBundleToGitHub(
   envelope: CatalogSnapshotEnvelope,
   mergedItems: DmmItem[],
@@ -622,38 +641,24 @@ export async function commitCatalogBundleToGitHub(
   indexFiles: GitHubFileCommit[],
   originalRaw?: unknown,
 ): Promise<void> {
-  const catalogContent = buildCatalogSaveContent(
-    envelope,
-    mergedItems,
-    originalRaw,
-  );
-  const catalogByteLength = Buffer.byteLength(catalogContent, "utf8");
+  void envelope;
+  void originalRaw;
 
-  console.log("[github-commit] catalog serialized", {
-    catalogByteLength,
-    catalogMb: (catalogByteLength / 1024 / 1024).toFixed(2),
+  const { commitFullCatalogAsShardsToGitHub } = await import(
+    "@/lib/admin/github-catalog-shards"
+  );
+
+  console.log("[github-commit] rewriting catalog as shards", {
     itemCount: mergedItems.length,
     indexFileCount: indexFiles.length,
     api: "git-data",
   });
 
-  if (catalogByteLength > 100 * 1024 * 1024) {
-    throw new GitHubCatalogError(
-      "カタログファイルが GitHub blob 上限（100MB）を超えています。",
-      422,
-      { phase: "create-catalog-blob" },
-    );
-  }
-
-  const files: GitHubFileCommit[] = [
-    {
-      path: CATALOG_FILE_PATH,
-      content: catalogContent,
-    },
-    ...indexFiles,
-  ];
-
-  await commitGitDataBundle(files, commitLabel);
+  await commitFullCatalogAsShardsToGitHub(
+    mergedItems,
+    commitLabel,
+    indexFiles,
+  );
 }
 
 export async function commitCatalogToGitHub(

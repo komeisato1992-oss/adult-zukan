@@ -128,8 +128,10 @@ export function rebuildAllIndexes(catalogItems: DmmItem[]): RebuiltCatalogIndexe
 
 export function serializeCatalogIndexes(
   indexes: RebuiltCatalogIndexes,
+  options?: { includeSearchIndex?: boolean },
 ): SerializedCatalogIndexFile[] {
-  return [
+  const includeSearchIndex = options?.includeSearchIndex ?? false;
+  const files: SerializedCatalogIndexFile[] = [
     {
       path: CATALOG_INDEX_PATHS.actresses,
       content: serializeIndexDocument(indexes.actresses),
@@ -151,14 +153,20 @@ export function serializeCatalogIndexes(
       content: serializeIndexDocument(indexes.genres),
     },
     {
-      path: CATALOG_INDEX_PATHS.searchIndex,
-      content: serializeIndexDocument(indexes.searchIndex),
-    },
-    {
       path: CATALOG_INDEX_PATHS.ranking,
       content: `${JSON.stringify(indexes.ranking, null, 2)}\n`,
     },
   ];
+
+  // 検索は実行時に shard から生成する。巨大 search-index.json の GitHub 書き込みは避ける。
+  if (includeSearchIndex) {
+    files.push({
+      path: CATALOG_INDEX_PATHS.searchIndex,
+      content: serializeIndexDocument(indexes.searchIndex),
+    });
+  }
+
+  return files;
 }
 
 function slugSet<T extends { slug: string }>(entries: T[]): Set<string> {

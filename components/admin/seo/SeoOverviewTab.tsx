@@ -35,8 +35,17 @@ type SeoOverviewTabProps = {
     tab?: SeoTabId;
     chanceTab?: SeoChanceTabId;
   }) => void;
-  onRefreshSitemaps?: () => Promise<void>;
-  refreshingSitemaps?: boolean;
+  onRefreshGscSitemaps?: () => Promise<void>;
+  gscRefreshing?: boolean;
+  refreshingKey?: string | null;
+  submittingKey?: string | null;
+  bulkRefreshing?: boolean;
+  bulkSubmitting?: boolean;
+  sitemapActionMessage?: string | null;
+  onRefreshAllSitemaps?: () => Promise<void>;
+  onSubmitAllSitemaps?: () => Promise<void>;
+  onRefreshSitemapKey?: (key: string) => Promise<void>;
+  onSubmitSitemapKey?: (key: string) => Promise<void>;
 };
 
 export function SeoOverviewTab({
@@ -45,8 +54,17 @@ export function SeoOverviewTab({
   chanceTab,
   onChanceTabChange,
   onNavigate,
-  onRefreshSitemaps,
-  refreshingSitemaps = false,
+  onRefreshGscSitemaps,
+  gscRefreshing = false,
+  refreshingKey = null,
+  submittingKey = null,
+  bulkRefreshing = false,
+  bulkSubmitting = false,
+  sitemapActionMessage = null,
+  onRefreshAllSitemaps,
+  onSubmitAllSitemaps,
+  onRefreshSitemapKey,
+  onSubmitSitemapKey,
 }: SeoOverviewTabProps) {
   const bundle = getPeriodBundle(data, period);
 
@@ -115,8 +133,17 @@ export function SeoOverviewTab({
       <SeoKpiGrid data={data} period={period} />
       <SeoSitemapSubmissionSection
         snapshot={data.sitemapStatus}
-        refreshing={refreshingSitemaps}
-        onRefresh={onRefreshSitemaps ?? (async () => {})}
+        gscRefreshing={gscRefreshing}
+        refreshingKey={refreshingKey}
+        submittingKey={submittingKey}
+        bulkRefreshing={bulkRefreshing}
+        bulkSubmitting={bulkSubmitting}
+        actionMessage={sitemapActionMessage}
+        onRefreshGsc={onRefreshGscSitemaps ?? (async () => {})}
+        onRefreshAll={onRefreshAllSitemaps ?? (async () => {})}
+        onSubmitAll={onSubmitAllSitemaps ?? (async () => {})}
+        onRefreshKey={onRefreshSitemapKey ?? (async () => {})}
+        onSubmitKey={onSubmitSitemapKey ?? (async () => {})}
       />
       <SeoPerformanceChart data={data} period={period} />
       <SeoWeeklySuggestions suggestions={suggestions} onNavigate={onNavigate} />

@@ -9,7 +9,10 @@ import {
   formatSeoPositionDelta,
 } from "@/components/admin/seo/format";
 import { SeoKpiCard } from "@/components/admin/seo/SeoKpiCard";
-import { countSubmittedSitemaps, formatSitemapKpiValue } from "@/lib/admin/seo-sitemap-status";
+import {
+  countSubmittedSitemaps,
+  formatSitemapKpiValue,
+} from "@/lib/admin/seo-sitemap-status-utils";
 import {
   computeChangePercent,
   computePositionDelta,

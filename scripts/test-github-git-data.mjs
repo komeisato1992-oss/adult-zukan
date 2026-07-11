@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * GitHub カタログ保存が Git Data API を使うことを検証
+ * GitHub カタログ保存が Git Data API + shard 方式であることを検証
  * 実行: node scripts/test-github-git-data.mjs
  */
 import assert from "node:assert/strict";
-import { readFileSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, statSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -30,40 +30,52 @@ assert.match(githubCatalog, /commitGitDataBundle/);
 assert.match(githubCatalog, /encoding: "base64"/);
 assert.match(githubCatalog, /create-catalog-blob/);
 assert.match(githubCatalog, /force: false/);
+assert.match(
+  githubCatalog,
+  /単一巨大 catalog-snapshot\.json への保存は禁止/,
+);
 
 const addSelected = readFileSync(
   path.join(root, "lib/admin/add-selected-works.ts"),
   "utf8",
 );
-assert.match(addSelected, /commitCatalogBundleToGitHub/);
+assert.match(addSelected, /commitCatalogShardAppendToGitHub/);
 assert.match(addSelected, /precommit-refetch/);
 assert.doesNotMatch(addSelected, /method:\s*"PUT"/);
+assert.doesNotMatch(addSelected, /commitCatalogBundleToGitHub/);
 
-const catalogPath = path.join(root, "data/dmm/catalog-snapshot.json");
-const catalogBytes = statSync(catalogPath).size;
-const catalogItems = JSON.parse(readFileSync(catalogPath, "utf8"));
-const itemCount = Array.isArray(catalogItems)
-  ? catalogItems.length
-  : catalogItems.works?.length ?? 0;
-const est30k = Math.round((catalogBytes / itemCount) * 30000);
+const shardDir = path.join(root, "data/dmm/catalog");
+const manifestPath = path.join(shardDir, "manifest.json");
+assert.ok(existsSync(manifestPath), "manifest.json must exist");
 
-console.log("catalog bytes:", catalogBytes.toLocaleString());
-console.log("catalog items:", itemCount.toLocaleString());
-console.log("estimated 30k bytes:", est30k.toLocaleString());
+const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+const shardFiles = readdirSync(shardDir).filter((name) =>
+  /^catalog-\d+\.json$/i.test(name),
+);
+
+let maxShardBytes = 0;
+for (const file of shardFiles) {
+  maxShardBytes = Math.max(
+    maxShardBytes,
+    statSync(path.join(shardDir, file)).size,
+  );
+}
+
+console.log("manifest totalCount:", manifest.totalCount.toLocaleString());
+console.log("shards:", shardFiles.length);
+console.log("max shard bytes:", maxShardBytes.toLocaleString());
 console.log(
-  "estimated 30k MB:",
-  (est30k / 1024 / 1024).toFixed(1),
+  "max shard MB:",
+  (maxShardBytes / 1024 / 1024).toFixed(2),
 );
 
 assert.ok(
-  catalogBytes < 100 * 1024 * 1024,
-  "current catalog must stay under GitHub 100MB blob limit",
+  maxShardBytes < 10 * 1024 * 1024,
+  "each shard must stay well under GitHub blob limits",
 );
-
-if (est30k > 100 * 1024 * 1024) {
-  console.warn(
-    "WARN: 30,000 items may exceed GitHub blob 100MB limit; catalog split or DB migration will be needed.",
-  );
-}
+assert.ok(
+  !existsSync(path.join(root, "data/dmm/catalog-snapshot.json")),
+  "active catalog-snapshot.json must not exist (use shards only)",
+);
 
 console.log("test-github-git-data: all checks passed");

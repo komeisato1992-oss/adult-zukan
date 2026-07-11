@@ -36,6 +36,11 @@ yarn-error.log*
 # admin runtime cache
 /data/admin/seo-cache.json
 
+# local catalog backups (shards are the source of truth)
+/data/dmm/catalog-snapshot.json
+/data/dmm/catalog-snapshot.legacy.json
+/data/dmm/.catalog-test-backup/
+
 # vercel
 .vercel
 

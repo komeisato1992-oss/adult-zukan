@@ -264,18 +264,30 @@ function parseEntityPageCounts(raw: unknown): SeoEntityPageCounts {
   ) as SeoEntityPageCounts;
 }
 
+function parseSitemapKind(value: unknown): SeoEntitySitemapStatus["kind"] {
+  return value === "index" ? "index" : "urlset";
+}
+
+function parseNullableBoolean(value: unknown): boolean | null {
+  if (value === true || value === false) return value;
+  return null;
+}
+
 function parseSitemapStatus(
   raw: unknown,
   siteUrl: string,
   sitemaps: SeoCachePayload["sitemaps"],
   entityPageCounts: SeoEntityPageCounts,
 ): SeoSitemapStatusSnapshot {
+  const worksCount = entityPageCounts.works;
+
   if (!isRecord(raw)) {
     return buildEntitySitemapStatuses({
       siteUrl,
       gscRows: sitemaps,
       entityPageCounts,
-      fetchedAt: sitemaps.length > 0 ? null : null,
+      worksCount,
+      fetchedAt: null,
     });
   }
 
@@ -283,19 +295,24 @@ function parseSitemapStatus(
   const rows: SeoEntitySitemapStatus[] = rowsRaw
     .filter(isRecord)
     .map((row) => ({
-      id: readString(row.id, "works") as SeoEntitySitemapId,
+      id: readString(row.id, "works"),
       label: readString(row.label),
       displayName: readString(row.displayName),
       pathSuffix: readString(row.pathSuffix),
       submitUrl: readString(row.submitUrl),
+      kind: parseSitemapKind(row.kind),
       status: parseSubmissionStatus(row.status),
+      siteUrlCount: readNullableNumber(row.siteUrlCount),
       indexedCount: readNullableNumber(row.indexedCount),
       contentsCount: readNullableNumber(row.contentsCount),
       notIndexedCount: readNullableNumber(row.notIndexedCount),
+      lastGeneratedAt: readString(row.lastGeneratedAt) || null,
       lastSubmitted: readString(row.lastSubmitted) || null,
       lastDownloaded: readString(row.lastDownloaded) || null,
+      googleSubmittedAt: readString(row.googleSubmittedAt) || null,
       errors: readNumber(row.errors),
       warnings: readNumber(row.warnings),
+      isPending: parseNullableBoolean(row.isPending),
       httpStatus: readNullableNumber(row.httpStatus),
       localCount: readNumber(row.localCount),
       coverageRate: readNullableNumber(row.coverageRate),
@@ -314,6 +331,7 @@ function parseSitemapStatus(
     siteUrl,
     gscRows: sitemaps,
     entityPageCounts,
+    worksCount,
     fetchedAt: readString(raw.fetchedAt) || null,
     fetchError:
       typeof raw.fetchError === "string" ? raw.fetchError : undefined,

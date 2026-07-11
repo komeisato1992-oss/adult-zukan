@@ -1,7 +1,7 @@
-import { createSitemapResponse } from "@/lib/sitemap/create-response";
+import { createSitemapIndexResponse } from "@/lib/sitemap/create-response";
 
 export const revalidate = 3600;
 
 export async function GET() {
-  return createSitemapResponse();
+  return createSitemapIndexResponse();
 }

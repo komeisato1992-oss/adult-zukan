@@ -1,7 +1,10 @@
 import type { DmmItem } from "@/lib/dmm/types";
 
-/** リポジトリ内パス（ローカル・GitHub 共通） */
+/** @deprecated 単一巨大 catalog は廃止。shard を使うこと。 */
 export const CATALOG_SNAPSHOT_RELATIVE_PATH = "data/dmm/catalog-snapshot.json";
+
+export const CATALOG_SHARD_DIR_RELATIVE = "data/dmm/catalog";
+export const CATALOG_MANIFEST_RELATIVE = "data/dmm/catalog/manifest.json";
 
 const WRAPPER_ARRAY_KEYS = [
   "works",

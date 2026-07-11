@@ -1,53 +1,29 @@
 import "server-only";
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
-import path from "path";
 import {
-  buildCatalogOutput,
-  CATALOG_SNAPSHOT_RELATIVE_PATH,
-  parseCatalogSnapshot,
-  parseJsonMaybe,
-  serializeCatalogSnapshot,
-} from "@/lib/dmm/catalog-snapshot-json";
+  CATALOG_LEGACY_SNAPSHOT_RELATIVE,
+  clearCatalogShardCache,
+  getAllCatalogWorks,
+  getCatalogFingerprint,
+  rewriteAllCatalogShardsLocally,
+} from "@/lib/dmm/catalog-shards";
 import type { DmmItem } from "@/lib/dmm/types";
 
-const SNAPSHOT_DIR = path.join(process.cwd(), "data", "dmm");
-const SNAPSHOT_FILE = path.join(process.cwd(), CATALOG_SNAPSHOT_RELATIVE_PATH);
-
-let cachedSnapshotItems: DmmItem[] | null = null;
+/** @deprecated Use CATALOG_MANIFEST_RELATIVE / shard paths. Kept for path checks. */
+export const CATALOG_SNAPSHOT_RELATIVE_PATH = CATALOG_LEGACY_SNAPSHOT_RELATIVE;
 
 export function clearCatalogSnapshotCache(): void {
-  cachedSnapshotItems = null;
+  clearCatalogShardCache();
 }
 
-function readCatalogSnapshotRaw(): unknown {
-  if (!existsSync(SNAPSHOT_FILE)) {
-    return [];
-  }
-
-  try {
-    return parseJsonMaybe(readFileSync(SNAPSHOT_FILE, "utf-8"));
-  } catch {
-    return [];
-  }
-}
-
+/** ローカルファイルから全カタログ作品を読む（shard 優先、legacy はフォールバック） */
 export function readCatalogSnapshot(): DmmItem[] {
-  if (cachedSnapshotItems) {
-    return cachedSnapshotItems;
-  }
-
-  cachedSnapshotItems = parseCatalogSnapshot(readCatalogSnapshotRaw()).items;
-  return cachedSnapshotItems;
+  return getAllCatalogWorks();
 }
 
+/** 全作品を shard 群へ書き直す（巨大単一 JSON は作らない） */
 export function writeCatalogSnapshot(items: DmmItem[]): void {
-  const raw = readCatalogSnapshotRaw();
-  const saveData = buildCatalogOutput(raw, items);
-
-  mkdirSync(SNAPSHOT_DIR, { recursive: true });
-  writeFileSync(SNAPSHOT_FILE, serializeCatalogSnapshot(saveData), "utf-8");
-  clearCatalogSnapshotCache();
+  rewriteAllCatalogShardsLocally(items);
 }
 
 export function normalizeCatalogContentId(value: string): string {
@@ -64,4 +40,8 @@ export function catalogHasContentId(
   );
 }
 
-export { CATALOG_SNAPSHOT_RELATIVE_PATH };
+export function getCatalogSnapshotFingerprint(): string {
+  return getCatalogFingerprint();
+}
+
+export { CATALOG_LEGACY_SNAPSHOT_RELATIVE };

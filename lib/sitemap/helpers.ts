@@ -1,10 +1,9 @@
-import { normalizeSiteUrl, SITE_URL } from "@/lib/constants";
+import { buildSiteUrl } from "@/lib/constants";
 import type { SitemapEntry } from "@/lib/sitemap/types";
 
 /** サイトマップ用の絶対URLを生成（canonical と同じ未エンコードパスを使用） */
 export function buildSitemapUrl(path: string): string {
-  const normalized = path.startsWith("/") ? path : `/${path}`;
-  return normalizeSiteUrl(`${SITE_URL}${normalized}`);
+  return buildSiteUrl(path);
 }
 
 /** URL重複を除去（先勝ち） */

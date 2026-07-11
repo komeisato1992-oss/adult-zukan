@@ -25,3 +25,20 @@ ${body}
 </urlset>
 `;
 }
+
+export function serializeSitemapIndexToXml(entries: SitemapEntry[]): string {
+  const body = entries
+    .map(
+      (entry) => `<sitemap>
+<loc>${escapeXml(entry.loc)}</loc>
+<lastmod>${escapeXml(entry.lastmod)}</lastmod>
+</sitemap>`,
+    )
+    .join("\n");
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${body}
+</sitemapindex>
+`;
+}

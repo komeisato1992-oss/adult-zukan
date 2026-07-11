@@ -23,6 +23,7 @@ import type {
   SeoChanceTabId,
   SeoPeriodDays,
   SeoTabId,
+  SitemapAdminActionResult,
 } from "@/lib/admin/seo-types";
 import { SEO_TABS } from "@/lib/admin/seo-types";
 
@@ -44,7 +45,14 @@ export function SeoDashboardClient({
   const [activeTab, setActiveTab] = useState<SeoTabId>("overview");
   const [chanceTab, setChanceTab] = useState<SeoChanceTabId>("ctr");
   const [refreshing, setRefreshing] = useState(false);
-  const [refreshingSitemaps, setRefreshingSitemaps] = useState(false);
+  const [gscRefreshing, setGscRefreshing] = useState(false);
+  const [refreshingKey, setRefreshingKey] = useState<string | null>(null);
+  const [submittingKey, setSubmittingKey] = useState<string | null>(null);
+  const [bulkRefreshing, setBulkRefreshing] = useState(false);
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
+  const [sitemapActionMessage, setSitemapActionMessage] = useState<string | null>(
+    null,
+  );
   const [submittingSitemap, setSubmittingSitemap] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -128,9 +136,9 @@ export function SeoDashboardClient({
     }
   }, []);
 
-  const refreshSitemaps = useCallback(async () => {
-    setRefreshingSitemaps(true);
-    setToast(null);
+  const refreshGscSitemaps = useCallback(async () => {
+    setGscRefreshing(true);
+    setSitemapActionMessage(null);
     try {
       const response = await fetch("/api/admin/seo/refresh-sitemaps", {
         method: "POST",
@@ -144,20 +152,194 @@ export function SeoDashboardClient({
         setData(payload.data);
       }
       if (!response.ok || payload.error) {
-        setToast(payload.error ?? "サイトマップ情報の再取得に失敗しました。");
+        setSitemapActionMessage(
+          payload.error ?? "Search Consoleからのサイトマップ情報再取得に失敗しました。",
+        );
         return;
       }
-      setToast(payload.message ?? "サイトマップ情報を再取得しました。");
+      setSitemapActionMessage(
+        payload.message ?? "Search Consoleからサイトマップ情報を再取得しました。",
+      );
     } catch (refreshError) {
-      setToast(
+      setSitemapActionMessage(
         refreshError instanceof Error
           ? refreshError.message
-          : "サイトマップ情報の再取得に失敗しました。",
+          : "Search Consoleからのサイトマップ情報再取得に失敗しました。",
       );
     } finally {
-      setRefreshingSitemaps(false);
+      setGscRefreshing(false);
     }
   }, []);
+
+  const formatRefreshMessage = useCallback(
+    (result: NonNullable<SitemapAdminActionResult["refresh"]>) => {
+      const addedText =
+        result.addedCount != null
+          ? `${result.addedCount >= 0 ? "+" : ""}${result.addedCount}件`
+          : "—";
+      const previousText =
+        result.previousUrlCount != null
+          ? `${result.previousUrlCount.toLocaleString()}件`
+          : "—";
+      return [
+        `${result.label}サイトマップを更新しました。`,
+        `URL数：${result.urlCount.toLocaleString()}件`,
+        `更新前：${previousText}`,
+        `追加：${addedText}`,
+        `重複URL：${result.duplicateCount.toLocaleString()}件`,
+        `HTTP：${result.httpStatus}`,
+        `更新日時：${new Date(result.generatedAt).toLocaleString("ja-JP")}`,
+      ].join("\n");
+    },
+    [],
+  );
+
+  const formatSubmitMessage = useCallback(
+    (result: NonNullable<SitemapAdminActionResult["submit"]>) => {
+      const lines = [
+        "Google再送信：",
+        result.submitted ? "成功" : result.skipped ? "省略" : "失敗",
+      ];
+      if (result.sitemapUrl) {
+        lines.push(`送信URL：${result.sitemapUrl}`);
+      }
+      if (result.submittedAt) {
+        lines.push(
+          `送信日時：${new Date(result.submittedAt).toLocaleString("ja-JP")}`,
+        );
+      }
+      if (result.reason) {
+        lines.push(`理由：${result.reason}`);
+      }
+      lines.push(
+        "",
+        "補足：Googleへの送信は、クロールや登録を保証するものではありません。",
+      );
+      return lines.join("\n");
+    },
+    [],
+  );
+
+  const refreshSitemapKey = useCallback(
+    async (key: string) => {
+      setRefreshingKey(key);
+      setSitemapActionMessage(null);
+      try {
+        const response = await fetch("/api/admin/seo/sitemaps/refresh", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key }),
+        });
+        const payload = (await response.json()) as SitemapAdminActionResult & {
+          success?: boolean;
+          error?: string;
+        };
+        if (!response.ok || !payload.success || !payload.refresh) {
+          throw new Error(payload.error ?? "サイトマップ更新に失敗しました。");
+        }
+        setSitemapActionMessage(formatRefreshMessage(payload.refresh));
+      } catch (actionError) {
+        setSitemapActionMessage(
+          actionError instanceof Error
+            ? actionError.message
+            : "サイトマップ更新に失敗しました。",
+        );
+      } finally {
+        setRefreshingKey(null);
+      }
+    },
+    [formatRefreshMessage],
+  );
+
+  const submitSitemapKey = useCallback(
+    async (key: string) => {
+      setSubmittingKey(key);
+      setSitemapActionMessage(null);
+      try {
+        const response = await fetch("/api/admin/seo/sitemaps/submit", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ key }),
+        });
+        const payload = (await response.json()) as SitemapAdminActionResult & {
+          success?: boolean;
+          error?: string;
+          data?: SeoCachePayload;
+        };
+        if (!response.ok || !payload.success || !payload.submit) {
+          throw new Error(payload.error ?? "Googleへの再送信に失敗しました。");
+        }
+        if (payload.data) setData(payload.data);
+        setSitemapActionMessage(formatSubmitMessage(payload.submit));
+      } catch (actionError) {
+        setSitemapActionMessage(
+          actionError instanceof Error
+            ? actionError.message
+            : "Googleへの再送信に失敗しました。",
+        );
+      } finally {
+        setSubmittingKey(null);
+      }
+    },
+    [formatSubmitMessage],
+  );
+
+  const refreshAllSitemaps = useCallback(async () => {
+    setBulkRefreshing(true);
+    setSitemapActionMessage(null);
+    try {
+      const response = await fetch("/api/admin/seo/sitemaps/refresh-all", {
+        method: "POST",
+      });
+      const payload = (await response.json()) as {
+        success?: boolean;
+        error?: string;
+        results?: NonNullable<SitemapAdminActionResult["refresh"]>[];
+      };
+      if (!response.ok || !payload.success || !payload.results) {
+        throw new Error(payload.error ?? "サイトマップ一括更新に失敗しました。");
+      }
+      setSitemapActionMessage(
+        payload.results.map((result) => formatRefreshMessage(result)).join("\n\n"),
+      );
+    } catch (actionError) {
+      setSitemapActionMessage(
+        actionError instanceof Error
+          ? actionError.message
+          : "サイトマップ一括更新に失敗しました。",
+      );
+    } finally {
+      setBulkRefreshing(false);
+    }
+  }, [formatRefreshMessage]);
+
+  const submitAllSitemaps = useCallback(async () => {
+    setBulkSubmitting(true);
+    setSitemapActionMessage(null);
+    try {
+      const response = await fetch("/api/admin/seo/sitemaps/submit-all", {
+        method: "POST",
+      });
+      const payload = (await response.json()) as SitemapAdminActionResult & {
+        success?: boolean;
+        error?: string;
+        data?: SeoCachePayload;
+      };
+      if (!response.ok || !payload.success || !payload.submit) {
+        throw new Error(payload.error ?? "Googleへの一括再送信に失敗しました。");
+      }
+      if (payload.data) setData(payload.data);
+      setSitemapActionMessage(formatSubmitMessage(payload.submit));
+    } catch (actionError) {
+      setSitemapActionMessage(
+        actionError instanceof Error
+          ? actionError.message
+          : "Googleへの一括再送信に失敗しました。",
+      );
+    } finally {
+      setBulkSubmitting(false);
+    }
+  }, [formatSubmitMessage]);
 
   const submitSitemap = useCallback(async () => {
     setSubmittingSitemap(true);
@@ -266,8 +448,17 @@ export function SeoDashboardClient({
           chanceTab={chanceTab}
           onChanceTabChange={setChanceTab}
           onNavigate={handleNavigate}
-          onRefreshSitemaps={refreshSitemaps}
-          refreshingSitemaps={refreshingSitemaps}
+          onRefreshGscSitemaps={refreshGscSitemaps}
+          gscRefreshing={gscRefreshing}
+          refreshingKey={refreshingKey}
+          submittingKey={submittingKey}
+          bulkRefreshing={bulkRefreshing}
+          bulkSubmitting={bulkSubmitting}
+          sitemapActionMessage={sitemapActionMessage}
+          onRefreshAllSitemaps={refreshAllSitemaps}
+          onSubmitAllSitemaps={submitAllSitemaps}
+          onRefreshSitemapKey={refreshSitemapKey}
+          onSubmitSitemapKey={submitSitemapKey}
         />
       ) : null}
       {activeTab === "queries" ? (

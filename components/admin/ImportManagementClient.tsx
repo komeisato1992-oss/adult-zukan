@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ImportCandidateCard } from "@/components/admin/ImportCandidateCard";
 import { ImportFilterBar } from "@/components/admin/ImportFilterBar";
@@ -30,6 +31,7 @@ import {
 } from "@/lib/admin/import-quality";
 import { buildAddSelectedWorksPayload } from "@/lib/admin/import-add-payload";
 import { parseJsonResponseBody } from "@/lib/admin/bulk-add-safe";
+import type { SitemapPostImportResult } from "@/lib/admin/seo-types";
 import type { DmmItem } from "@/lib/dmm/types";
 
 type ImportManagementClientProps = {
@@ -127,6 +129,14 @@ export function ImportManagementClient({
   const [previousOffset, setPreviousOffset] = useState<number | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [addMessage, setAddMessage] = useState<string | null>(null);
+  const [addSummary, setAddSummary] = useState<{
+    addedCount: number;
+    duplicateCount: number;
+    catalogCount: number | null;
+    updatedShardFiles: string[];
+    newShardFiles: string[];
+    sitemap: SitemapPostImportResult | null;
+  } | null>(null);
   const [addError, setAddError] = useState<string | null>(null);
   const [addDebug, setAddDebug] = useState<string | null>(null);
   const [isFetchingCandidates, setIsFetchingCandidates] = useState(false);
@@ -287,6 +297,7 @@ export function ImportManagementClient({
   const handleAddSelected = useCallback(async () => {
     setAddError(null);
     setAddMessage(null);
+    setAddSummary(null);
     setAddDebug(null);
 
     const selectedCandidates = candidates.filter((candidate) =>
@@ -337,11 +348,15 @@ export function ImportManagementClient({
         phase?: string;
         details?: Record<string, unknown>;
         addedContentIds?: string[];
+        sitemap?: SitemapPostImportResult;
         summary?: {
           addedCount: number;
           catalogDuplicateCount: number;
           selectionDuplicateCount: number;
           invalidCount: number;
+          catalogCountAfter?: number;
+          updatedShardFiles?: string[];
+          newShardFiles?: string[];
         };
       };
 
@@ -391,6 +406,23 @@ export function ImportManagementClient({
       }
 
       setAddMessage(parsedBody.message ?? "追加が完了しました。");
+
+      if (parsedBody.summary) {
+        const duplicateCount =
+          parsedBody.summary.catalogDuplicateCount +
+          parsedBody.summary.selectionDuplicateCount;
+        setAddSummary({
+          addedCount: parsedBody.summary.addedCount,
+          duplicateCount,
+          catalogCount:
+            typeof parsedBody.summary.catalogCountAfter === "number"
+              ? parsedBody.summary.catalogCountAfter
+              : null,
+          updatedShardFiles: parsedBody.summary.updatedShardFiles ?? [],
+          newShardFiles: parsedBody.summary.newShardFiles ?? [],
+          sitemap: parsedBody.sitemap ?? null,
+        });
+      }
 
       if (parsedBody.addedContentIds && parsedBody.addedContentIds.length > 0) {
         const addedIdSet = new Set(
@@ -819,9 +851,84 @@ export function ImportManagementClient({
           {isAddingWorks ? "追加中..." : "選択した作品を追加"}
         </button>
         {addMessage ? (
-          <p className="mt-3 whitespace-pre-line text-sm text-green-700">
-            {addMessage}
-          </p>
+          <div className="mt-3 space-y-3">
+            <p className="whitespace-pre-line text-sm text-green-700">
+              {addMessage}
+            </p>
+            {addSummary ? (
+              <div className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-900">
+                <dl className="grid gap-2 sm:grid-cols-2">
+                  <div>
+                    <dt className="text-green-800">追加成功</dt>
+                    <dd className="font-medium">
+                      {addSummary.addedCount.toLocaleString()}件
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-green-800">重複除外</dt>
+                    <dd className="font-medium">
+                      {addSummary.duplicateCount.toLocaleString()}件
+                    </dd>
+                  </div>
+                  {addSummary.catalogCount != null ? (
+                    <div>
+                      <dt className="text-green-800">現在の総作品数</dt>
+                      <dd className="font-medium">
+                        {addSummary.catalogCount.toLocaleString()}件
+                      </dd>
+                    </div>
+                  ) : null}
+                  {addSummary.updatedShardFiles.length > 0 ? (
+                    <div>
+                      <dt className="text-green-800">更新shard</dt>
+                      <dd className="font-medium">
+                        {addSummary.updatedShardFiles.join(", ")}
+                      </dd>
+                    </div>
+                  ) : null}
+                  {addSummary.newShardFiles.length > 0 ? (
+                    <div>
+                      <dt className="text-green-800">新規shard</dt>
+                      <dd className="font-medium">
+                        {addSummary.newShardFiles.join(", ")}
+                      </dd>
+                    </div>
+                  ) : null}
+                  {addSummary.sitemap ? (
+                    <>
+                      <div>
+                        <dt className="text-green-800">サイトマップ</dt>
+                        <dd className="font-medium">
+                          {addSummary.sitemap.sitemapUpdated
+                            ? "更新済み"
+                            : "更新失敗（SEO管理画面から再実行）"}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt className="text-green-800">Google再送信</dt>
+                        <dd className="font-medium">
+                          {addSummary.sitemap.googleSubmission.submitted
+                            ? "送信済み"
+                            : addSummary.sitemap.googleSubmission.reason ===
+                                "recently-submitted"
+                              ? "前回送信から30分以内のため省略"
+                              : addSummary.sitemap.googleSubmission.dryRun
+                                ? "ローカルdry-run"
+                                : "未送信"}
+                        </dd>
+                      </div>
+                    </>
+                  ) : null}
+                </dl>
+                <Link
+                  href="/admin/seo"
+                  className="mt-3 inline-block text-sm text-accent underline"
+                >
+                  SEO管理画面で確認
+                </Link>
+              </div>
+            ) : null}
+          </div>
         ) : null}
         {addError ? (
           <p className="mt-3 text-sm text-red-600">{addError}</p>

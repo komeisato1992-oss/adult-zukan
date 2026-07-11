@@ -471,6 +471,7 @@ export async function getSeoDashboardData(): Promise<SeoDashboardData> {
             series: 0,
             genres: 0,
           },
+          totalWorks,
         ),
     },
   };
@@ -508,6 +509,7 @@ export async function refreshSeoSitemapsOnly(): Promise<SeoCachePayload> {
       siteUrl: resolvedSiteUrl,
       gscRows: sitemaps,
       entityPageCounts,
+      worksCount: entityPageCounts.works,
       fetchedAt,
     });
 
@@ -538,6 +540,7 @@ export async function refreshSeoSitemapsOnly(): Promise<SeoCachePayload> {
         siteUrl: resolvedSiteUrl,
         gscRows: cache.sitemaps,
         entityPageCounts,
+        worksCount: entityPageCounts.works,
         fetchedAt: cache.sitemapStatus?.fetchedAt ?? null,
         fetchError: message,
       }),
@@ -590,7 +593,7 @@ export async function refreshSeoDashboardData(): Promise<SeoCachePayload> {
         totalSitePages,
       },
       entityPageCounts,
-      sitemapStatus: createEmptySitemapStatusSnapshot(siteUrl, entityPageCounts),
+      sitemapStatus: createEmptySitemapStatusSnapshot(siteUrl, entityPageCounts, totalWorks),
       entityWorkCounts,
     };
 
@@ -662,6 +665,7 @@ export async function refreshSeoDashboardData(): Promise<SeoCachePayload> {
       siteUrl: resolvedSiteUrl,
       gscRows: sitemaps,
       entityPageCounts,
+      worksCount: entityPageCounts.works,
       fetchedAt,
     });
 

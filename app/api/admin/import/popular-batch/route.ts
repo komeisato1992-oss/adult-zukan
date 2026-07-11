@@ -13,7 +13,7 @@ import {
 import { runPopularBatchCollect } from "@/lib/admin/popular-batch";
 import { isDmmConfigured } from "@/lib/dmm/client";
 import { isGitHubCatalogConfigured } from "@/lib/admin/github-config";
-import { ImportBatchJobConflictError } from "@/lib/admin/import-batch-job-store";
+import { ImportBatchJobConflictError, recoverStaleImportBatchJob } from "@/lib/admin/import-batch-job-store";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -71,6 +71,7 @@ export async function POST(request: Request) {
       addLimit?: unknown;
       maxBatches?: unknown;
       addAfterCollect?: boolean;
+      idempotencyKey?: string;
     };
 
     const { state } = await loadImportCollectionState();
@@ -84,12 +85,16 @@ export async function POST(request: Request) {
     const maxBatches = parseMaxBatches(body.maxBatches);
     const addAfterCollect = body.addAfterCollect !== false;
 
+    await recoverStaleImportBatchJob();
+
     const result = await runPopularBatchCollect({
       targetTotalCount,
       startOffset,
       requestCount,
       addLimit,
       maxBatches,
+      addAfterCollect,
+      idempotencyKey: body.idempotencyKey ?? null,
     });
 
     if (!addAfterCollect) {

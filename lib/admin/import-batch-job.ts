@@ -1,4 +1,8 @@
-import type { ImportCollectExclusionStats } from "@/lib/admin/import-collect-types";
+import type {
+  ImportCollectExclusionStats,
+  ImportCollectionMode,
+} from "@/lib/admin/import-collect-types";
+import type { ImportCollectionState } from "@/lib/admin/import-collection-state";
 import type { DmmItem } from "@/lib/dmm/types";
 
 export type ImportWorkAddStatus =
@@ -47,6 +51,10 @@ export type ImportBatchJobRunStats = {
 
 export type ImportBatchJob = {
   processId: string;
+  /** 実行中ロックの所有者。完了・失敗時は null */
+  activeJobId: string | null;
+  mode: ImportCollectionMode | "idle";
+  idempotencyKey: string | null;
   status: ImportBatchJobStatus;
   phase: ImportBatchJobPhase;
   targetTotalCount: number;
@@ -80,6 +88,9 @@ export function createEmptyBatchJob(): ImportBatchJob {
   const now = new Date().toISOString();
   return {
     processId: "",
+    activeJobId: null,
+    mode: "idle",
+    idempotencyKey: null,
     status: "idle",
     phase: "idle",
     targetTotalCount: 10000,
@@ -131,6 +142,84 @@ export function isBatchJobStale(
 
   const updatedAt = Date.parse(job.updatedAt);
   return !Number.isFinite(updatedAt) || now - updatedAt >= staleMs;
+}
+
+export function isBatchJobActive(
+  job: ImportBatchJob,
+  staleMs: number,
+  now = Date.now(),
+): boolean {
+  if (job.status !== "running") return false;
+  if (!job.activeJobId || job.activeJobId !== job.processId) return false;
+  return !isBatchJobStale(job, staleMs, now);
+}
+
+export function hasCollectionResultAfterJob(
+  job: ImportBatchJob,
+  collectionState: ImportCollectionState,
+): boolean {
+  if (job.status !== "running" || job.mode !== "popular") return false;
+
+  const lastCollectedAt = collectionState.lastPopularCollectedAt;
+  if (!lastCollectedAt) return false;
+
+  const collectedAt = Date.parse(lastCollectedAt);
+  const jobUpdatedAt = Date.parse(job.updatedAt);
+  const jobCreatedAt = Date.parse(job.createdAt);
+
+  if (!Number.isFinite(collectedAt)) return false;
+
+  const reference = Number.isFinite(jobUpdatedAt)
+    ? jobUpdatedAt
+    : Number.isFinite(jobCreatedAt)
+      ? jobCreatedAt
+      : 0;
+
+  return collectedAt > reference;
+}
+
+export function recoverCompletedBatchJobFromCollectionState(
+  job: ImportBatchJob,
+  collectionState: ImportCollectionState,
+): ImportBatchJob | null {
+  if (!hasCollectionResultAfterJob(job, collectionState)) return null;
+
+  const now = new Date().toISOString();
+  return {
+    ...job,
+    status: "completed",
+    phase: "completed",
+    activeJobId: null,
+    progressMessage: "候補保存完了により自動復旧しました。",
+    completedAt: collectionState.lastPopularCollectedAt ?? now,
+    updatedAt: now,
+    errorCode: null,
+  };
+}
+
+export function releaseBatchJobLock(
+  job: ImportBatchJob,
+  status: "completed" | "failed" | "idle",
+  patch: Partial<ImportBatchJob> = {},
+): ImportBatchJob {
+  const now = new Date().toISOString();
+  return {
+    ...job,
+    ...patch,
+    status,
+    activeJobId: null,
+    phase:
+      status === "completed"
+        ? "completed"
+        : status === "failed"
+          ? "failed"
+          : "idle",
+    completedAt:
+      status === "completed" || status === "failed"
+        ? (patch.completedAt ?? job.completedAt ?? now)
+        : null,
+    updatedAt: now,
+  };
 }
 
 export function parseBatchJob(raw: unknown): ImportBatchJob {
@@ -202,9 +291,32 @@ export function parseBatchJob(raw: unknown): ImportBatchJob {
           ? "idle"
           : "running";
 
+  const processId =
+    typeof value.processId === "string" ? value.processId : defaults.processId;
+
+  const parsedMode =
+    value.mode === "new" ||
+    value.mode === "past" ||
+    value.mode === "popular" ||
+    value.mode === "idle"
+      ? (value.mode as ImportCollectionMode | "idle")
+      : processId &&
+          parsedPhase !== "idle" &&
+          parsedPhase !== "completed" &&
+          parsedPhase !== "failed"
+        ? "popular"
+        : defaults.mode;
+  const rawActiveJobId =
+    typeof value.activeJobId === "string" ? value.activeJobId : null;
+
   return {
-    processId:
-      typeof value.processId === "string" ? value.processId : defaults.processId,
+    processId,
+    activeJobId:
+      rawActiveJobId ??
+      (derivedStatus === "running" && processId ? processId : null),
+    mode: parsedMode,
+    idempotencyKey:
+      typeof value.idempotencyKey === "string" ? value.idempotencyKey : null,
     status: validStatuses.has(rawStatus as ImportBatchJobStatus)
       ? (rawStatus as ImportBatchJobStatus)
       : derivedStatus,

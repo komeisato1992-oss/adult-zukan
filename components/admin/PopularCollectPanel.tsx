@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ImportBatchJob } from "@/lib/admin/import-batch-job";
 import {
   IMPORT_POPULAR_ADD_LIMIT,
@@ -47,6 +47,10 @@ export function PopularCollectPanel({
   const [serverInProgress, setServerInProgress] = useState(false);
   const [job, setJob] = useState<ImportBatchJob | null>(null);
   const [collectOnly, setCollectOnly] = useState(false);
+  const runInFlightRef = useRef(false);
+  const idempotencyKeyRef = useRef(
+    `popular-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  );
 
   const remaining = Math.max(0, targetTotalCount - currentCatalogCount);
   const savedNextOffset = popularOffset;
@@ -77,6 +81,10 @@ export function PopularCollectPanel({
   }, [pollJob]);
 
   async function handleRun() {
+    if (runInFlightRef.current) {
+      return;
+    }
+    runInFlightRef.current = true;
     setIsRunning(true);
     setOffsetError(null);
 
@@ -85,6 +93,7 @@ export function PopularCollectPanel({
       if (!Number.isInteger(numeric) || numeric < 0) {
         setOffsetError("開始offsetは0以上の整数で指定してください。");
         setIsRunning(false);
+        runInFlightRef.current = false;
         return;
       }
     }
@@ -104,6 +113,7 @@ export function PopularCollectPanel({
           addLimit,
           maxBatches: 1,
           addAfterCollect: !collectOnly,
+          idempotencyKey: idempotencyKeyRef.current,
         }),
       });
 
@@ -120,6 +130,7 @@ export function PopularCollectPanel({
 
       if (payload.job) setJob(payload.job);
       setStartOffsetInput("");
+      idempotencyKeyRef.current = `popular-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       await onRefresh();
       onComplete(
         payload.message ??
@@ -135,11 +146,15 @@ export function PopularCollectPanel({
     } finally {
       window.clearInterval(timer);
       setIsRunning(false);
+      runInFlightRef.current = false;
       pollJob().catch(() => undefined);
     }
   }
 
-  const isActiveJob = serverInProgress || job?.status === "running";
+  const isActiveJob =
+    job?.status === "running" &&
+    job.activeJobId != null &&
+    (serverInProgress || isRunning);
   const isDisabled = disabled || isRunning || isActiveJob;
 
   return (
@@ -231,7 +246,7 @@ export function PopularCollectPanel({
         </div>
 
         <p className="text-xs text-muted">
-          保存済み次回offset：{savedNextOffset.toLocaleString()}
+          保存済み次回offset（人気順）：{savedNextOffset.toLocaleString()}
           {job?.runStats
             ? ` / 前回開始：${job.runStats.startOffset.toLocaleString()} / 次回：${job.runStats.nextOffset.toLocaleString()}`
             : null}

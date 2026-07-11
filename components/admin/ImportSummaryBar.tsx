@@ -111,7 +111,7 @@ export function ImportSummaryBar({
               </dd>
             </div>
             <div className="flex justify-between gap-4 sm:block">
-              <dt className="text-muted">過去作品offset</dt>
+              <dt className="text-muted">過去作品offset（日付順）</dt>
               <dd className="font-semibold text-foreground">
                 保存済み {collectionState.pastOffset.toLocaleString()} / 次回{" "}
                 {collectionState.nextPastOffset.toLocaleString()}

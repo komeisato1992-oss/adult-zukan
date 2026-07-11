@@ -70,6 +70,8 @@ export type PopularBatchCollectOptions = {
   requestCount: number;
   addLimit: number;
   maxBatches: number;
+  addAfterCollect?: boolean;
+  idempotencyKey?: string | null;
 };
 
 export type PopularBatchCollectResult = {

@@ -5,17 +5,22 @@ import path from "path";
 import { isGitHubCatalogConfigured } from "@/lib/admin/github-config";
 import {
   createEmptyBatchJob,
+  isBatchJobActive,
   isBatchJobStale,
   isBatchJobTerminal,
   parseBatchJob,
+  recoverCompletedBatchJobFromCollectionState,
+  releaseBatchJobLock,
   serializeBatchJob,
   type ImportBatchJob,
 } from "@/lib/admin/import-batch-job";
 import { IMPORT_BATCH_JOB_RELATIVE_PATH } from "@/lib/admin/import-batch-job-path";
+import { loadImportCollectionState } from "@/lib/admin/import-collection-state-store";
 import {
   IMPORT_BATCH_JOB_STALE_MS,
   IMPORT_BATCH_JOB_UPDATE_MAX_RETRIES,
 } from "@/lib/admin/import-constants";
+import { GitHubBatchJobError } from "@/lib/admin/github-import-batch-job";
 
 const JOB_FILE = path.join(process.cwd(), IMPORT_BATCH_JOB_RELATIVE_PATH);
 
@@ -85,29 +90,41 @@ export async function saveImportBatchJob(
 
 function isGitHubConflict(error: unknown): boolean {
   return (
-    error instanceof Error &&
-    "status" in error &&
-    (error as Error & { status?: number }).status === 409
+    error instanceof GitHubBatchJobError &&
+    (error.status === 409 || error.status === 422)
   );
 }
 
 function markStaleJobFailed(job: ImportBatchJob): ImportBatchJob {
-  const now = new Date().toISOString();
-  return {
-    ...job,
-    status: "failed",
-    phase: "failed",
-    progressMessage: "5分以上更新がないため異常終了しました。",
+  return releaseBatchJobLock(job, "failed", {
+    progressMessage: "10分以上更新がないため異常終了しました。",
     errorCode: "STALE_BATCH_TIMEOUT",
-    completedAt: now,
-    updatedAt: now,
-  };
+  });
+}
+
+async function normalizeLoadedJob(job: ImportBatchJob): Promise<ImportBatchJob> {
+  const { state } = await loadImportCollectionState();
+
+  const recoveredFromCollection =
+    recoverCompletedBatchJobFromCollectionState(job, state);
+  if (recoveredFromCollection) {
+    return recoveredFromCollection;
+  }
+
+  if (isBatchJobStale(job, IMPORT_BATCH_JOB_STALE_MS)) {
+    return markStaleJobFailed(job);
+  }
+
+  return job;
+}
+
+export async function readImportBatchJobForDisplay(): Promise<ImportBatchJob> {
+  const { job } = await loadImportBatchJob();
+  return normalizeLoadedJob(job);
 }
 
 async function saveWithConflictRetry(
-  buildNext: (
-    current: ImportBatchJob,
-  ) => ImportBatchJob | Promise<ImportBatchJob>,
+  buildNext: (current: ImportBatchJob) => ImportBatchJob | Promise<ImportBatchJob>,
   message: string,
 ): Promise<ImportBatchJob> {
   let lastError: unknown;
@@ -117,7 +134,8 @@ async function saveWithConflictRetry(
     attempt <= IMPORT_BATCH_JOB_UPDATE_MAX_RETRIES;
     attempt += 1
   ) {
-    const { job: current, sha } = await loadImportBatchJob();
+    const { job: currentRaw, sha } = await loadImportBatchJob();
+    const current = await normalizeLoadedJob(currentRaw);
     const next = await buildNext(current);
 
     try {
@@ -137,39 +155,62 @@ async function saveWithConflictRetry(
   throw lastError;
 }
 
+function jobNeedsPersist(
+  raw: ImportBatchJob,
+  normalized: ImportBatchJob,
+): boolean {
+  return (
+    raw.status !== normalized.status ||
+    raw.activeJobId !== normalized.activeJobId ||
+    raw.phase !== normalized.phase ||
+    raw.completedAt !== normalized.completedAt
+  );
+}
+
 export async function recoverStaleImportBatchJob(): Promise<ImportBatchJob> {
-  const { job } = await loadImportBatchJob();
-  if (!isBatchJobStale(job, IMPORT_BATCH_JOB_STALE_MS)) {
-    return job;
+  const { job: currentRaw } = await loadImportBatchJob();
+  const normalized = await normalizeLoadedJob(currentRaw);
+
+  if (!jobNeedsPersist(currentRaw, normalized)) {
+    return normalized;
   }
 
-  return saveWithConflictRetry(
-    (current) =>
-      isBatchJobStale(current, IMPORT_BATCH_JOB_STALE_MS)
-        ? markStaleJobFailed(current)
-        : current,
-    "Fail stale popular batch job",
-  );
+  return saveWithConflictRetry(() => normalized, "Recover stale import batch job");
 }
 
 export async function claimImportBatchJob(
   newJob: ImportBatchJob,
+  idempotencyKey?: string | null,
 ): Promise<ImportBatchJob> {
   return saveWithConflictRetry((current) => {
-    const available = isBatchJobStale(current, IMPORT_BATCH_JOB_STALE_MS)
+    const normalized = isBatchJobStale(current, IMPORT_BATCH_JOB_STALE_MS)
       ? markStaleJobFailed(current)
       : current;
 
-    if (!isBatchJobTerminal(available)) {
+    if (
+      idempotencyKey &&
+      normalized.idempotencyKey === idempotencyKey &&
+      normalized.processId
+    ) {
+      return normalized;
+    }
+
+    if (isBatchJobActive(normalized, IMPORT_BATCH_JOB_STALE_MS)) {
       throw new ImportBatchJobConflictError(
-        `現在処理中です（${available.fetchedCount.toLocaleString()}件取得済み）`,
+        `現在処理中です（${normalized.fetchedCount.toLocaleString()}件取得済み）`,
       );
     }
 
+    const now = new Date().toISOString();
     return {
       ...newJob,
       status: "running",
-      updatedAt: new Date().toISOString(),
+      activeJobId: newJob.processId,
+      idempotencyKey: idempotencyKey ?? null,
+      updatedAt: now,
+      createdAt: newJob.createdAt || now,
+      completedAt: null,
+      errorCode: null,
     };
   }, "Start popular batch collect");
 }
@@ -183,6 +224,20 @@ export async function updateImportBatchJob(
 ): Promise<ImportBatchJob> {
   return saveWithConflictRetry(async (current) => {
     if (current.processId !== processId) {
+      if (
+        isBatchJobTerminal(current) ||
+        isBatchJobStale(current, IMPORT_BATCH_JOB_STALE_MS) ||
+        !isBatchJobActive(current, IMPORT_BATCH_JOB_STALE_MS)
+      ) {
+        const next = await update(current);
+        return {
+          ...next,
+          processId,
+          activeJobId: next.status === "running" ? processId : null,
+          updatedAt: new Date().toISOString(),
+        };
+      }
+
       throw new ImportBatchJobConflictError(
         "別のバッチジョブが開始されているため、状態を更新できません。",
       );
@@ -191,7 +246,26 @@ export async function updateImportBatchJob(
     const next = await update(current);
     return {
       ...next,
+      activeJobId: next.status === "running" ? processId : null,
       updatedAt: new Date().toISOString(),
     };
   }, message);
+}
+
+export async function releaseImportBatchJobLock(
+  processId: string,
+  status: "completed" | "failed" | "idle",
+  patch: Partial<ImportBatchJob> = {},
+): Promise<ImportBatchJob> {
+  return saveWithConflictRetry(
+    (current) =>
+      releaseBatchJobLock(
+        current.processId === processId
+          ? current
+          : { ...current, processId },
+        status,
+        patch,
+      ),
+    `Release import batch job lock (${status})`,
+  );
 }

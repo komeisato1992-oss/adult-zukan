@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ImportBulkConfirmModal } from "@/components/admin/ImportBulkConfirmModal";
 import { ImportBulkSnsPanel } from "@/components/admin/ImportBulkSnsPanel";
 import { ImportBulkToolbar } from "@/components/admin/ImportBulkToolbar";
 import { ImportCandidateCard } from "@/components/admin/ImportCandidateCard";
+import { ImportDebugPanel } from "@/components/admin/ImportDebugPanel";
 import { ImportFilterBar } from "@/components/admin/ImportFilterBar";
 import { ImportSortBar } from "@/components/admin/ImportSortBar";
 import { ImportSummaryBar, type ImportCollectParams } from "@/components/admin/ImportSummaryBar";
@@ -24,6 +25,18 @@ import { IMPORT_BULK_ADD_DEFAULT } from "@/lib/admin/import-constants";
 import { formatImportSourceLabel } from "@/lib/admin/import-source-labels";
 import type { ImportBulkConfirmSummary, ImportFilterKey } from "@/lib/admin/import-quality";
 import { getImportQualityFlags } from "@/lib/admin/import-quality";
+import type { ImportBatchJob } from "@/lib/admin/import-batch-job";
+import {
+  clearSelectionState,
+  countSelected,
+  createEmptySelectionState,
+  isCandidateSelected,
+  selectAllMatching,
+  selectExplicitIds,
+  serializeSelectionForBulkAdd,
+  toggleCandidateSelection,
+  type ImportSelectionState,
+} from "@/lib/admin/import-selection";
 import type { DmmItem } from "@/lib/dmm/types";
 
 type ImportManagementInitialData = ImportCandidatesListResult & {
@@ -47,7 +60,9 @@ export function ImportManagementClient({
   const [data, setData] = useState(initialData);
   const [page, setPage] = useState(initialData.pagination.page);
   const [sort, setSort] = useState<ImportCandidateSortKey>("collectedAt-desc");
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selection, setSelection] = useState<ImportSelectionState>(
+    createEmptySelectionState(),
+  );
   const [selectedItemById, setSelectedItemById] = useState<Record<string, DmmItem>>(
     {},
   );
@@ -85,30 +100,36 @@ export function ImportManagementClient({
   const [jsonCorrupt, setJsonCorrupt] = useState(Boolean(initialData.jsonCorrupt));
   const [isResettingJson, setIsResettingJson] = useState(false);
   const [resetJsonMessage, setResetJsonMessage] = useState<string | null>(null);
+  const [batchJob, setBatchJob] = useState<ImportBatchJob | null>(null);
+  const [serverBatchInProgress, setServerBatchInProgress] = useState(false);
+  const collectInFlightRef = useRef(false);
 
   const visibleCandidates = useMemo(
     () => data.candidates,
     [data.candidates],
   );
 
-  const selectedCount = selectedIds.size;
+  const filteredTotalCount = data.pagination.totalCount;
+  const selectedCount = countSelected(selection, filteredTotalCount);
 
   const selectedWorksForBulk = useMemo(
     () =>
-      [...selectedIds]
-        .map((contentId) => ({
-          contentId,
-          item: selectedItemById[contentId],
-        }))
-        .filter(
-          (
-            entry,
-          ): entry is {
-            contentId: string;
-            item: DmmItem;
-          } => Boolean(entry.item),
-        ),
-    [selectedIds, selectedItemById],
+      selection.mode === "explicit"
+        ? [...selection.selectedIds]
+            .map((contentId) => ({
+              contentId,
+              item: selectedItemById[contentId],
+            }))
+            .filter(
+              (
+                entry,
+              ): entry is {
+                contentId: string;
+                item: DmmItem;
+              } => Boolean(entry.item),
+            )
+        : [],
+    [selection, selectedItemById],
   );
 
   const comparePool = useMemo(
@@ -154,12 +175,40 @@ export function ImportManagementClient({
       setSort(targetSort);
 
       if (!options.preserveSelection) {
-        setSelectedIds(new Set());
+        setSelection(clearSelectionState());
         setSelectedItemById({});
       }
     },
     [page, sort, activeFilters],
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const pollBatchJob = () =>
+      fetch("/api/admin/import/batch-job", { cache: "no-store" })
+        .then(async (response) => {
+          if (!response.ok || cancelled) return null;
+          return (await response.json()) as {
+            job?: ImportBatchJob;
+            inProgress?: boolean;
+          };
+        })
+        .then((payload) => {
+          if (!payload || cancelled) return;
+          if (payload.job) setBatchJob(payload.job);
+          setServerBatchInProgress(payload.inProgress === true);
+        })
+        .catch(() => undefined);
+
+    pollBatchJob();
+    const timer = window.setInterval(pollBatchJob, 2000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -205,11 +254,12 @@ export function ImportManagementClient({
           throw new Error(payload.error ?? "除外に失敗しました。");
         }
 
-        setSelectedIds((current) => {
-          const next = new Set(current);
-          next.delete(contentId);
-          return next;
-        });
+        setSelection((current) =>
+          toggleCandidateSelection(current, contentId, false, {
+            filters: [...activeFilters],
+            sort,
+          }),
+        );
         setSelectedItemById((current) => {
           const next = { ...current };
           delete next[contentId];
@@ -224,32 +274,31 @@ export function ImportManagementClient({
         );
       }
     },
-    [loadCandidates],
+    [loadCandidates, activeFilters, sort],
   );
 
   const handleSelectedChange = useCallback(
     (contentId: string, selected: boolean, item?: DmmItem) => {
-      setSelectedIds((current) => {
-        const next = new Set(current);
-        if (selected) {
-          next.add(contentId);
-        } else {
-          next.delete(contentId);
-        }
-        return next;
-      });
+      setSelection((current) =>
+        toggleCandidateSelection(current, contentId, selected, {
+          filters: [...activeFilters],
+          sort,
+        }),
+      );
 
       setSelectedItemById((current) => {
-        const next = { ...current };
-        if (selected && item) {
-          next[contentId] = item;
-        } else {
+        if (selection.mode === "allMatching" || selected === false) {
+          const next = { ...current };
           delete next[contentId];
+          return next;
         }
-        return next;
+        if (selected && item) {
+          return { ...current, [contentId]: item };
+        }
+        return current;
       });
     },
-    [],
+    [activeFilters, sort, selection.mode],
   );
 
   const handleToggleFilter = useCallback(
@@ -299,16 +348,12 @@ export function ImportManagementClient({
     }
   }, [loadCandidates]);
 
-  const handleSelectAll = useCallback(() => {
-    setSelectedIds((current) => {
-      const next = new Set(current);
-      for (const candidate of visibleCandidates) {
-        if (!addedIds.has(candidate.contentId)) {
-          next.add(candidate.contentId);
-        }
-      }
-      return next;
-    });
+  const handleSelectPage = useCallback(() => {
+    const pageIds = visibleCandidates
+      .filter((candidate) => !addedIds.has(candidate.contentId))
+      .map((candidate) => candidate.contentId);
+
+    setSelection(selectExplicitIds(pageIds));
     setSelectedItemById((current) => {
       const next = { ...current };
       for (const candidate of visibleCandidates) {
@@ -320,23 +365,31 @@ export function ImportManagementClient({
     });
   }, [visibleCandidates, addedIds]);
 
+  const handleSelectAllMatching = useCallback(() => {
+    setSelection(
+      selectAllMatching({
+        filters: [...activeFilters],
+        sort,
+      }),
+    );
+    setSelectedItemById({});
+  }, [activeFilters, sort]);
+
   const handleClearSelection = useCallback(() => {
-    setSelectedIds(new Set());
+    setSelection(clearSelectionState());
     setSelectedItemById({});
   }, []);
 
   const handleSelectByFlag = useCallback(
     (flag: ImportFilterKey) => {
-      setSelectedIds((current) => {
-        const next = new Set(current);
-        for (const candidate of visibleCandidates) {
-          if (addedIds.has(candidate.contentId)) continue;
-          if (getImportQualityFlags(candidate.item)[flag]) {
-            next.add(candidate.contentId);
-          }
-        }
-        return next;
-      });
+      const pageIds = visibleCandidates
+        .filter((candidate) => {
+          if (addedIds.has(candidate.contentId)) return false;
+          return getImportQualityFlags(candidate.item)[flag];
+        })
+        .map((candidate) => candidate.contentId);
+
+      setSelection(selectExplicitIds(pageIds));
       setSelectedItemById((current) => {
         const next = { ...current };
         for (const candidate of visibleCandidates) {
@@ -355,6 +408,11 @@ export function ImportManagementClient({
     mode: ImportCollectionMode,
     params: ImportCollectParams,
   ) {
+    if (collectInFlightRef.current) {
+      return;
+    }
+    collectInFlightRef.current = true;
+
     setCollectingMode(mode);
     setError(null);
     setCollectMessage(null);
@@ -366,6 +424,7 @@ export function ImportManagementClient({
       if (!Number.isInteger(numeric) || numeric < 0) {
         setOffsetError("開始offsetは0以上の整数で指定してください。");
         setCollectingMode(null);
+        collectInFlightRef.current = false;
         return;
       }
     }
@@ -437,7 +496,7 @@ export function ImportManagementClient({
           message: undefined,
         }));
         setPage(payload.pagination?.page ?? 1);
-        setSelectedIds(new Set());
+        setSelection(clearSelectionState());
         setSelectedItemById({});
         setActiveFilters(new Set());
       } else {
@@ -464,6 +523,7 @@ export function ImportManagementClient({
       window.clearInterval(progressTimer);
       setCollectProgress(null);
       setCollectingMode(null);
+      collectInFlightRef.current = false;
     }
   }
 
@@ -537,15 +597,25 @@ export function ImportManagementClient({
   async function handleBulkAddRequest() {
     setBulkAddError(null);
 
-    if (selectedWorksForBulk.length === 0) {
+    if (selectedCount === 0) {
       setBulkAddError("追加する作品を選択してください。");
       return;
     }
 
-    const appliedLimit = resolveBulkAddLimit(addLimit, selectedWorksForBulk.length);
-    const worksToPreview = selectedWorksForBulk.slice(0, appliedLimit);
+    const appliedLimit = resolveBulkAddLimit(addLimit, selectedCount);
+    const requestBody = serializeSelectionForBulkAdd(
+      selection,
+      selectedWorksForBulk.map((candidate) => ({
+        contentId: candidate.contentId,
+        item: candidate.item,
+      })),
+      appliedLimit,
+    );
 
-    if (worksToPreview.length === 0) {
+    if (
+      requestBody.mode === "explicit" &&
+      requestBody.selectedWorks.length === 0
+    ) {
       setBulkAddError("追加する作品を選択してください。");
       return;
     }
@@ -558,13 +628,7 @@ export function ImportManagementClient({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          selectedWorks: worksToPreview.map((candidate) => ({
-            contentId: candidate.contentId,
-            item: candidate.item,
-          })),
-          addLimit: appliedLimit,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       const payload = (await response.json()) as {
@@ -597,7 +661,9 @@ export function ImportManagementClient({
         noDescription: payload.qualitySummary.noDescription,
         noSampleImages: payload.qualitySummary.noSampleImages,
       });
-      setPendingBulkWorks(worksToPreview);
+      setPendingBulkWorks(
+        selection.mode === "explicit" ? selectedWorksForBulk.slice(0, appliedLimit) : [],
+      );
       setShowConfirmModal(true);
     } catch (previewError) {
       setBulkAddError(
@@ -611,7 +677,7 @@ export function ImportManagementClient({
   }
 
   async function handleBulkAddConfirm() {
-    if (pendingBulkWorks.length === 0) {
+    if (pendingBulkWorks.length === 0 && selection.mode !== "allMatching") {
       setBulkAddError("追加する作品を選択してください。");
       setShowConfirmModal(false);
       return;
@@ -621,18 +687,22 @@ export function ImportManagementClient({
     setBulkAddError(null);
 
     try {
+      const appliedLimit = resolveBulkAddLimit(addLimit, selectedCount);
       const response = await fetch("/api/admin/import/bulk-add-works", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          selectedWorks: pendingBulkWorks.map((candidate) => ({
-            contentId: candidate.contentId,
-            item: candidate.item,
-          })),
-          addLimit: pendingBulkWorks.length,
-        }),
+        body: JSON.stringify(
+          serializeSelectionForBulkAdd(
+            selection,
+            pendingBulkWorks.map((candidate) => ({
+              contentId: candidate.contentId,
+              item: candidate.item,
+            })),
+            appliedLimit,
+          ),
+        ),
       });
 
       const payload = (await response.json()) as {
@@ -654,7 +724,7 @@ export function ImportManagementClient({
           .filter((candidate) => addedContentIds.includes(candidate.contentId))
           .map((candidate) => candidate.item),
       );
-      setSelectedIds(new Set());
+      setSelection(clearSelectionState());
       setSelectedItemById({});
       setPendingBulkWorks([]);
       setBulkAddMessage(
@@ -695,6 +765,20 @@ export function ImportManagementClient({
 
   return (
     <div className="space-y-6">
+      <ImportDebugPanel
+        job={batchJob}
+        serverInProgress={serverBatchInProgress}
+        currentOffsetInput={startOffsetInput}
+        persistedPastOffset={data.summary.collectionState.pastOffset}
+        persistedNextPastOffset={data.summary.collectionState.nextPastOffset}
+        persistedPopularOffset={data.summary.collectionState.nextPopularOffset}
+        candidateTotalCount={data.summary.candidateCount}
+        visibleCount={visibleCandidates.length}
+        filteredTotalCount={filteredTotalCount}
+        selection={selection}
+        selectedCount={selectedCount}
+      />
+
       <ImportSummaryBar
         summary={data.summary}
         visibleCount={data.summary.candidateCount}
@@ -797,10 +881,13 @@ export function ImportManagementClient({
       {!isLoading && visibleCandidates.length > 0 ? (
         <ImportBulkToolbar
           selectedCount={selectedCount}
+          filteredTotalCount={filteredTotalCount}
+          visibleCount={visibleCandidates.length}
           addLimit={addLimit}
           isBulkAdding={isBulkAdding || isPreviewLoading}
           onAddLimitChange={setAddLimit}
-          onSelectAll={handleSelectAll}
+          onSelectPage={handleSelectPage}
+          onSelectAllMatching={handleSelectAllMatching}
           onClearSelection={handleClearSelection}
           onSelectByFlag={handleSelectByFlag}
           onBulkAdd={handleBulkAddRequest}
@@ -838,7 +925,10 @@ export function ImportManagementClient({
               item={candidate.item}
               source={candidate.source}
               sourceLabel={formatImportSourceLabel(candidate.source)}
-              selected={selectedIds.has(candidate.contentId)}
+              selected={
+                isCandidateSelected(selection, candidate.contentId) &&
+                !addedIds.has(candidate.contentId)
+              }
               isAdded={addedIds.has(candidate.contentId)}
               emphasizeSns={recentlyAddedIds.has(candidate.contentId)}
               comparePool={comparePool}

@@ -14,10 +14,13 @@ import type { ImportFilterKey } from "@/lib/admin/import-quality";
 
 type ImportBulkToolbarProps = {
   selectedCount: number;
+  filteredTotalCount: number;
+  visibleCount: number;
   addLimit: BulkAddLimitChoice;
   isBulkAdding: boolean;
   onAddLimitChange: (limit: BulkAddLimitChoice) => void;
-  onSelectAll: () => void;
+  onSelectPage: () => void;
+  onSelectAllMatching: () => void;
   onClearSelection: () => void;
   onSelectByFlag: (flag: ImportFilterKey) => void;
   onBulkAdd: () => void;
@@ -36,10 +39,13 @@ const LIMIT_OPTIONS: BulkAddLimitChoice[] = [
 
 export function ImportBulkToolbar({
   selectedCount,
+  filteredTotalCount,
+  visibleCount,
   addLimit,
   isBulkAdding,
   onAddLimitChange,
-  onSelectAll,
+  onSelectPage,
+  onSelectAllMatching,
   onClearSelection,
   onSelectByFlag,
   onBulkAdd,
@@ -51,7 +57,11 @@ export function ImportBulkToolbar({
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div className="space-y-2">
           <p className="text-sm font-bold text-foreground">
-            選択中：{selectedCount}件
+            選択中：{selectedCount.toLocaleString()}件
+          </p>
+          <p className="text-xs text-muted">
+            表示中：{visibleCount.toLocaleString()}件 / 候補総数：
+            {filteredTotalCount.toLocaleString()}件
           </p>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <label className="flex items-center gap-2 text-sm text-foreground">
@@ -72,7 +82,7 @@ export function ImportBulkToolbar({
             </label>
             <p className="text-xs text-muted">
               {addCount > 0
-                ? `${addCount}件を一括追加します（1回最大${IMPORT_BULK_ADD_ABSOLUTE_MAX}件）`
+                ? `${addCount.toLocaleString()}件を一括追加します（1回最大${IMPORT_BULK_ADD_ABSOLUTE_MAX}件）`
                 : `1回最大${IMPORT_BULK_ADD_ABSOLUTE_MAX}件`}
             </p>
           </div>
@@ -90,10 +100,17 @@ export function ImportBulkToolbar({
       <div className="mt-3 flex flex-wrap gap-2">
         <button
           type="button"
-          onClick={onSelectAll}
+          onClick={onSelectPage}
           className="rounded-lg border border-border px-3 py-1.5 text-xs text-foreground hover:border-accent hover:text-accent"
         >
-          全選択
+          このページの{visibleCount.toLocaleString()}件を選択
+        </button>
+        <button
+          type="button"
+          onClick={onSelectAllMatching}
+          className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-foreground hover:border-accent hover:text-accent"
+        >
+          検索結果{filteredTotalCount.toLocaleString()}件をすべて選択
         </button>
         <button
           type="button"

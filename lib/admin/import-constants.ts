@@ -16,7 +16,7 @@ export const IMPORT_POPULAR_REQUEST_COUNT = 500;
 export const IMPORT_POPULAR_ADD_LIMIT = 500;
 export const IMPORT_POPULAR_MAX_BATCHES = 1;
 /** この時間更新されていない実行中ジョブは異常終了として解除する */
-export const IMPORT_BATCH_JOB_STALE_MS = 5 * 60 * 1000;
+export const IMPORT_BATCH_JOB_STALE_MS = 10 * 60 * 1000;
 /** GitHub のジョブ状態更新が競合した場合の最大リトライ回数 */
 export const IMPORT_BATCH_JOB_UPDATE_MAX_RETRIES = 3;
 

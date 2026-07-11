@@ -594,7 +594,12 @@ export async function collectImportCandidates(
       );
 
       runStats.collectionState = nextState;
-      runStats.nextOffset = mode === "new" ? 1 : nextState.popularOffset;
+      runStats.nextOffset =
+        mode === "past"
+          ? nextState.pastOffset
+          : mode === "popular"
+            ? nextState.popularOffset
+            : 1;
 
       return {
         ...(await buildEmptyConfiguredResult(

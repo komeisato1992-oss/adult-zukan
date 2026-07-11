@@ -3,7 +3,7 @@ import {
   addWorksToCatalog,
   toAddWorkErrorMessage,
 } from "@/lib/admin/add-work";
-import { parseBulkAddRequestBody } from "@/lib/admin/bulk-add-request";
+import { resolveBulkAddSelection } from "@/lib/admin/resolve-bulk-selection";
 import { isAdminAuthenticated } from "@/lib/admin/auth";
 import { formatIndexUpdateStats } from "@/lib/dmm/index-builders";
 import { logCatalogSnapshotThrownError } from "@/lib/dmm/catalog-snapshot-json";
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
 
   try {
     const body = (await request.json()) as unknown;
-    const { works } = parseBulkAddRequestBody(body, "selectedWorks");
+    const { works } = await resolveBulkAddSelection(body);
     const result = await addWorksToCatalog(works);
 
     const addedCount = result.addedContentIds.length;

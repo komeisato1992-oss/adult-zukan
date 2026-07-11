@@ -4,7 +4,7 @@ import {
   previewBulkAddWorks,
   toAddWorkErrorMessage,
 } from "@/lib/admin/add-work";
-import { parseBulkAddRequestBody } from "@/lib/admin/bulk-add-request";
+import { resolveBulkAddSelection } from "@/lib/admin/resolve-bulk-selection";
 import { isAdminAuthenticated } from "@/lib/admin/auth";
 
 export async function POST(request: Request) {
@@ -14,7 +14,7 @@ export async function POST(request: Request) {
 
   try {
     const body = (await request.json()) as unknown;
-    const { works } = parseBulkAddRequestBody(body, "selectedWorks");
+    const { works } = await resolveBulkAddSelection(body);
     const preview = await previewBulkAddWorks(works);
 
     return NextResponse.json(preview);

@@ -36,26 +36,8 @@
     ],
     "source": "fanza-rank",
     "collectedAt": "2026-07-11T08:13:12.549Z",
-    "status": "candidate",
-    "collectionMode": "popular",
-    "rankPosition": 2119,
-    "seoScore": 264,
-    "seoReasons": [
-      "ランキング作品",
-      "人気女優（木下ひまり（花沢ひまり）・56作品）",
-      "人気メーカー（ビビアン・19作品）",
-      "レビュー223件",
-      "セール中",
-      "優先度調整（-6）"
-    ],
-    "seoFlags": {
-      "isRankingListed": true,
-      "isNewRelease": false,
-      "hasPopularActress": true,
-      "hasPopularMaker": true,
-      "hasPopularSeries": false,
-      "isOnSale": true
-    },
+    "status": "added",
+    "rankPosition": null,
     "item": {
       "service_code": "digital",
       "service_name": "動画",
@@ -259,26 +241,8 @@
     ],
     "source": "fanza-rank",
     "collectedAt": "2026-07-11T08:13:12.549Z",
-    "status": "candidate",
-    "collectionMode": "popular",
-    "rankPosition": 2214,
-    "seoScore": 238,
-    "seoReasons": [
-      "ランキング作品",
-      "人気女優（未歩なな・26作品）",
-      "人気メーカー（エスワン ナンバーワンスタイル・489作品）",
-      "レビュー193件",
-      "セール中",
-      "優先度調整（-12）"
-    ],
-    "seoFlags": {
-      "isRankingListed": true,
-      "isNewRelease": false,
-      "hasPopularActress": true,
-      "hasPopularMaker": true,
-      "hasPopularSeries": false,
-      "isOnSale": true
-    },
+    "status": "added",
+    "rankPosition": null,
     "item": {
       "service_code": "digital",
       "service_name": "動画",
@@ -522,26 +486,8 @@
     ],
     "source": "fanza-rank",
     "collectedAt": "2026-07-11T08:13:12.548Z",
-    "status": "candidate",
-    "collectionMode": "popular",
-    "rankPosition": 2047,
-    "seoScore": 228,
-    "seoReasons": [
-      "ランキング作品",
-      "人気女優（夢乃あいか・53作品）",
-      "複数人気女優出演",
-      "人気メーカー（ROOKIE・25作品）",
-      "セール中",
-      "優先度調整（-12）"
-    ],
-    "seoFlags": {
-      "isRankingListed": true,
-      "isNewRelease": false,
-      "hasPopularActress": true,
-      "hasPopularMaker": true,
-      "hasPopularSeries": false,
-      "isOnSale": true
-    },
+    "status": "added",
+    "rankPosition": null,
     "item": {
       "service_code": "digital",
       "service_name": "動画",
@@ -926,26 +872,8 @@
     ],
     "source": "fanza-rank",
     "collectedAt": "2026-07-11T08:13:12.549Z",
-    "status": "candidate",
-    "collectionMode": "popular",
-    "rankPosition": 2333,
-    "seoScore": 208,
-    "seoReasons": [
-      "ランキング作品",
-      "人気女優（神宮寺ナオ・46作品）",
-      "複数人気女優出演",
-      "人気メーカー（桃太郎映像出版・173作品）",
-      "セール中",
-      "優先度調整（-12）"
-    ],
-    "seoFlags": {
-      "isRankingListed": true,
-      "isNewRelease": false,
-      "hasPopularActress": true,
-      "hasPopularMaker": true,
-      "hasPopularSeries": false,
-      "isOnSale": true
-    },
+    "status": "added",
+    "rankPosition": null,
     "item": {
       "service_code": "digital",
       "service_name": "動画",
@@ -1242,26 +1170,8 @@
     ],
     "source": "fanza-rank",
     "collectedAt": "2026-07-11T08:13:12.549Z",
-    "status": "candidate",
-    "collectionMode": "popular",
-    "rankPosition": 2230,
-    "seoScore": 204,
-    "seoReasons": [
-      "ランキング作品",
-      "人気女優（黒川すみれ・31作品）",
-      "人気メーカー（プレミアム・47作品）",
-      "レビュー20件",
-      "セール中",
-      "優先度調整（-6）"
-    ],
-    "seoFlags": {
-      "isRankingListed": true,
-      "isNewRelease": false,
-      "hasPopularActress": true,
-      "hasPopularMaker": true,
-      "hasPopularSeries": false,
-      "isOnSale": true
-    },
+    "status": "added",
+    "rankPosition": null,
     "item": {
       "service_code": "digital",
       "service_name": "動画",
@@ -1472,25 +1382,8 @@
     ],
     "source": "fanza-rank",
     "collectedAt": "2026-07-11T08:13:12.548Z",
-    "status": "candidate",
-    "collectionMode": "popular",
-    "rankPosition": 2053,
-    "seoScore": 178,
-    "seoReasons": [
-      "ランキング作品",
-      "人気メーカー（Hunter・77作品）",
-      "人気シリーズ（プレミアム☆セレクト・4作品）",
-      "セール中",
-      "優先度調整（-12）"
-    ],
-    "seoFlags": {
-      "isRankingListed": true,
-      "isNewRelease": false,
-      "hasPopularActress": false,
-      "hasPopularMaker": true,
-      "hasPopularSeries": true,
-      "isOnSale": true
-    },
+    "status": "added",
+    "rankPosition": null,
     "item": {
       "service_code": "digital",
       "service_name": "動画",
@@ -1687,26 +1580,8 @@
     ],
     "source": "fanza-rank",
     "collectedAt": "2026-07-11T08:13:12.548Z",
-    "status": "candidate",
-    "collectionMode": "popular",
-    "rankPosition": 2003,
-    "seoScore": 158,
-    "seoReasons": [
-      "ランキング作品",
-      "佐田茉莉子出演",
-      "人気メーカー（マドンナ・302作品）",
-      "レビュー27件",
-      "セール中",
-      "優先度調整（-12）"
-    ],
-    "seoFlags": {
-      "isRankingListed": true,
-      "isNewRelease": false,
-      "hasPopularActress": false,
-      "hasPopularMaker": true,
-      "hasPopularSeries": false,
-      "isOnSale": true
-    },
+    "status": "added",
+    "rankPosition": null,
     "item": {
       "service_code": "digital",
       "service_name": "動画",
@@ -1920,26 +1795,8 @@
     ],
     "source": "fanza-rank",
     "collectedAt": "2026-07-11T08:13:12.548Z",
-    "status": "candidate",
-    "collectionMode": "popular",
-    "rankPosition": 2021,
-    "seoScore": 158,
-    "seoReasons": [
-      "ランキング作品",
-      "秋山祥子出演",
-      "人気メーカー（アタッカーズ・119作品）",
-      "レビュー21件",
-      "セール中",
-      "優先度調整（-12）"
-    ],
-    "seoFlags": {
-      "isRankingListed": true,
-      "isNewRelease": false,
-      "hasPopularActress": false,
-      "hasPopularMaker": true,
-      "hasPopularSeries": false,
-      "isOnSale": true
-    },
+    "status": "added",
+    "rankPosition": null,
     "item": {
       "service_code": "digital",
       "service_name": "動画",
@@ -2143,24 +2000,8 @@
     ],
     "source": "fanza-rank",
     "collectedAt": "2026-07-11T08:13:12.549Z",
-    "status": "candidate",
-    "collectionMode": "popular",
-    "rankPosition": 2143,
-    "seoScore": 154,
-    "seoReasons": [
-      "ランキング作品",
-      "人気メーカー（桃太郎映像出版・173作品）",
-      "セール中",
-      "優先度調整（-6）"
-    ],
-    "seoFlags": {
-      "isRankingListed": true,
-      "isNewRelease": false,
-      "hasPopularActress": false,
-      "hasPopularMaker": true,
-      "hasPopularSeries": false,
-      "isOnSale": true
-    },
+    "status": "added",
+    "rankPosition": null,
     "item": {
       "service_code": "digital",
       "service_name": "動画",
@@ -2358,25 +2199,8 @@
     ],
     "source": "fanza-rank",
     "collectedAt": "2026-07-11T08:13:12.549Z",
-    "status": "candidate",
-    "collectionMode": "popular",
-    "rankPosition": 2299,
-    "seoScore": 152,
-    "seoReasons": [
-      "ランキング作品",
-      "人気メーカー（OPPAI・52作品）",
-      "レビュー27件",
-      "セール中",
-      "優先度調整（-18）"
-    ],
-    "seoFlags": {
-      "isRankingListed": true,
-      "isNewRelease": false,
-      "hasPopularActress": false,
-      "hasPopularMaker": true,
-      "hasPopularSeries": false,
-      "isOnSale": true
-    },
+    "status": "added",
+    "rankPosition": null,
     "item": {
       "service_code": "digital",
       "service_name": "動画",
@@ -2565,24 +2389,8 @@
     ],
     "source": "fanza-rank",
     "collectedAt": "2026-07-11T08:13:12.548Z",
-    "status": "candidate",
-    "collectionMode": "popular",
-    "rankPosition": 2064,
-    "seoScore": 148,
-    "seoReasons": [
-      "ランキング作品",
-      "人気メーカー（kawaii・91作品）",
-      "セール中",
-      "優先度調整（-12）"
-    ],
-    "seoFlags": {
-      "isRankingListed": true,
-      "isNewRelease": false,
-      "hasPopularActress": false,
-      "hasPopularMaker": true,
-      "hasPopularSeries": false,
-      "isOnSale": true
-    },
+    "status": "added",
+    "rankPosition": null,
     "item": {
       "service_code": "digital",
       "service_name": "動画",
@@ -2797,24 +2605,8 @@
     ],
     "source": "fanza-rank",
     "collectedAt": "2026-07-11T08:13:12.549Z",
-    "status": "candidate",
-    "collectionMode": "popular",
-    "rankPosition": 2263,
-    "seoScore": 134,
-    "seoReasons": [
-      "ランキング作品",
-      "宝生めい出演",
-      "人気メーカー（プラム・34作品）",
-      "優先度調整（-6）"
-    ],
-    "seoFlags": {
-      "isRankingListed": true,
-      "isNewRelease": false,
-      "hasPopularActress": false,
-      "hasPopularMaker": true,
-      "hasPopularSeries": false,
-      "isOnSale": false
-    },
+    "status": "added",
+    "rankPosition": null,
     "item": {
       "service_code": "digital",
       "service_name": "動画",
@@ -3041,24 +2833,8 @@
     ],
     "source": "fanza-rank",
     "collectedAt": "2026-07-11T08:13:12.549Z",
-    "status": "candidate",
-    "collectionMode": "popular",
-    "rankPosition": 2440,
-    "seoScore": 134,
-    "seoReasons": [
-      "ランキング作品",
-      "卯水咲流出演",
-      "人気メーカー（親父の個撮・12作品）",
-      "優先度調整（-6）"
-    ],
-    "seoFlags": {
-      "isRankingListed": true,
-      "isNewRelease": false,
-      "hasPopularActress": false,
-      "hasPopularMaker": true,
-      "hasPopularSeries": false,
-      "isOnSale": false
-    },
+    "status": "added",
+    "rankPosition": null,
     "item": {
       "service_code": "digital",
       "service_name": "動画",
@@ -3270,23 +3046,8 @@
     ],
     "source": "fanza-rank",
     "collectedAt": "2026-07-11T08:13:12.549Z",
-    "status": "candidate",
-    "collectionMode": "popular",
-    "rankPosition": 2128,
-    "seoScore": 128,
-    "seoReasons": [
-      "ランキング作品",
-      "人気メーカー（素人39・8作品）",
-      "優先度調整（-12）"
-    ],
-    "seoFlags": {
-      "isRankingListed": true,
-      "isNewRelease": false,
-      "hasPopularActress": false,
-      "hasPopularMaker": true,
-      "hasPopularSeries": false,
-      "isOnSale": false
-    },
+    "status": "added",
+    "rankPosition": null,
     "item": {
       "service_code": "digital",
       "service_name": "動画",
@@ -3493,23 +3254,8 @@
     ],
     "source": "fanza-rank",
     "collectedAt": "2026-07-11T08:13:12.548Z",
-    "status": "candidate",
-    "collectionMode": "popular",
-    "rankPosition": 2085,
-    "seoScore": 82,
-    "seoReasons": [
-      "ランキング作品",
-      "藤咲紫出演",
-      "優先度調整（-18）"
-    ],
-    "seoFlags": {
-      "isRankingListed": true,
-      "isNewRelease": false,
-      "hasPopularActress": false,
-      "hasPopularMaker": false,
-      "hasPopularSeries": false,
-      "isOnSale": false
-    },
+    "status": "added",
+    "rankPosition": null,
     "item": {
       "service_code": "digital",
       "service_name": "動画",
@@ -3743,22 +3489,8 @@
     ],
     "source": "fanza-rank",
     "collectedAt": "2026-07-11T08:13:12.549Z",
-    "status": "candidate",
-    "collectionMode": "popular",
-    "rankPosition": 2487,
-    "seoScore": 82,
-    "seoReasons": [
-      "ランキング作品",
-      "優先度調整（-18）"
-    ],
-    "seoFlags": {
-      "isRankingListed": true,
-      "isNewRelease": false,
-      "hasPopularActress": false,
-      "hasPopularMaker": false,
-      "hasPopularSeries": false,
-      "isOnSale": false
-    },
+    "status": "added",
+    "rankPosition": null,
     "item": {
       "service_code": "digital",
       "service_name": "動画",

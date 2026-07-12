@@ -3,7 +3,11 @@ import { isAdminAuthenticated } from "@/lib/admin/auth";
 import {
   applyActressImageManualSelection,
   getActressImageReview,
+  getClothedPriorityReselectStatus,
+  processClothedPriorityReselectChunk,
+  startClothedPriorityReselect,
 } from "@/lib/admin/actress-image-admin";
+import { ensureActressImageOverridesLoaded } from "@/lib/dmm/actress-image-overrides";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +26,7 @@ export async function GET(request: Request) {
   }
 
   try {
+    await ensureActressImageOverridesLoaded();
     const review = await getActressImageReview(name);
     return NextResponse.json({ success: true, review });
   } catch (error) {
@@ -50,7 +55,23 @@ export async function POST(request: Request) {
       isSoloWork?: boolean;
       faceDetected?: boolean;
       score?: number;
+      action?: "reselect-start" | "reselect-tick" | "reselect-status";
     };
+
+    if (body.action === "reselect-status") {
+      const job = await getClothedPriorityReselectStatus();
+      return NextResponse.json({ success: true, job });
+    }
+
+    if (body.action === "reselect-start") {
+      const job = await startClothedPriorityReselect();
+      return NextResponse.json({ success: true, job });
+    }
+
+    if (body.action === "reselect-tick") {
+      const job = await processClothedPriorityReselectChunk(8);
+      return NextResponse.json({ success: true, job });
+    }
 
     if (!body.actressName?.trim() || !body.mode) {
       return NextResponse.json(

@@ -33,6 +33,69 @@ type RefreshStepResult = {
   detail: string;
 };
 
+function summarizeError(detail: string, max = 180): string {
+  const compact = detail.replace(/\s+/g, " ").trim();
+  if (compact.length <= max) return compact;
+  return `${compact.slice(0, max)}…`;
+}
+
+function evaluateSourceRefresh(
+  source: OpsRefreshSource,
+  payload: OpsDashboardPayload,
+): { ok: boolean; detail: string } {
+  if (source === "ga4") {
+    if (payload.ga4.fetchError || payload.ga4.connectionStatus === "error") {
+      return {
+        ok: false,
+        detail: summarizeError(
+          payload.ga4.authDiagnostics?.errorCode
+            ? `${payload.ga4.authDiagnostics.errorCode}: ${payload.ga4.fetchError ?? "取得失敗"}`
+            : payload.ga4.fetchError ?? "GA4取得に失敗しました。",
+        ),
+      };
+    }
+    if (!payload.ga4.lastSuccessfulAt && payload.ga4.connectionStatus !== "connected") {
+      return { ok: false, detail: "GA4データを取得できませんでした。" };
+    }
+    return { ok: true, detail: "成功" };
+  }
+
+  if (source === "seo") {
+    if (payload.seo.fetchError || payload.seo.connectionStatus === "error") {
+      return {
+        ok: false,
+        detail: summarizeError(
+          payload.seo.fetchError ?? "Search Console取得に失敗しました。",
+        ),
+      };
+    }
+    if (!payload.seo.updatedAt && payload.seo.connectionStatus !== "connected") {
+      return { ok: false, detail: "Search Consoleデータを取得できませんでした。" };
+    }
+    return { ok: true, detail: "成功" };
+  }
+
+  if (source === "dmm") {
+    if (payload.dmm.fetchError || payload.dmm.connectionStatus === "error") {
+      return {
+        ok: false,
+        detail: summarizeError(
+          payload.dmm.fetchError ?? "DMM成果の取得に失敗しました。",
+        ),
+      };
+    }
+    if (payload.dmm.rowCount <= 0 && payload.dmm.connectionStatus === "unconfigured") {
+      return {
+        ok: false,
+        detail: "DMM成果データが未取込です。CSVをアップロードしてください。",
+      };
+    }
+    return { ok: true, detail: "成功" };
+  }
+
+  return { ok: true, detail: "成功" };
+}
+
 async function postOpsRefresh(source: OpsRefreshSource): Promise<OpsDashboardPayload> {
   const response = await fetch("/api/admin/ops/refresh", {
     method: "POST",
@@ -108,12 +171,18 @@ export function OpsDashboardClient({
       try {
         const payload = await postOpsRefresh(source);
         applyPayload(payload);
-        setMessage(`${label}が完了しました。`);
-        setRefreshResults([{ label, ok: true, detail: "成功" }]);
+        const outcome = evaluateSourceRefresh(source, payload);
+        setRefreshResults([{ label, ok: outcome.ok, detail: outcome.detail }]);
+        setMessage(
+          outcome.ok
+            ? `${label}が完了しました。`
+            : `${label}に失敗しました。${outcome.detail}`,
+        );
       } catch (error) {
-        const detail =
-          error instanceof Error ? error.message : "更新に失敗しました。";
-        setMessage(detail);
+        const detail = summarizeError(
+          error instanceof Error ? error.message : "更新に失敗しました。",
+        );
+        setMessage(`${label}に失敗しました。${detail}`);
         setRefreshResults([{ label, ok: false, detail }]);
         try {
           const response = await fetch("/api/admin/ops/data");
@@ -148,13 +217,19 @@ export function OpsDashboardClient({
         try {
           const payload = await postOpsRefresh(step.source);
           applyPayload(payload);
-          results.push({ label: step.label, ok: true, detail: "成功" });
+          const outcome = evaluateSourceRefresh(step.source, payload);
+          results.push({
+            label: step.label,
+            ok: outcome.ok,
+            detail: outcome.detail,
+          });
         } catch (error) {
           results.push({
             label: step.label,
             ok: false,
-            detail:
+            detail: summarizeError(
               error instanceof Error ? error.message : "更新に失敗しました。",
+            ),
           });
         }
       }

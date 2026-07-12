@@ -49,6 +49,10 @@ function filterDisplayableItems(items: DmmItem[]): DmmItem[] {
 
 /** TOP・作品一覧で共有するカタログ作品リスト */
 export async function getSharedCatalogWorks(): Promise<DmmItem[]> {
+  const { ensureActressImageOverridesLoaded } = await import(
+    "@/lib/dmm/actress-image-overrides"
+  );
+  await ensureActressImageOverridesLoaded();
   const { getCatalogWorks } = await import("@/lib/catalog");
   return getCatalogWorks();
 }

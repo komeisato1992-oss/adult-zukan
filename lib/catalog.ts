@@ -46,7 +46,14 @@ function createSummariesLoader<T>(
   });
 }
 
-export const getActressSummaries = createSummariesLoader(getCatalogActresses);
+export const getActressSummaries = cache(async () => {
+  const { ensureActressImageOverridesLoaded } = await import(
+    "@/lib/dmm/actress-image-overrides"
+  );
+  await ensureActressImageOverridesLoaded();
+  const items = await getCatalogWorks();
+  return getCatalogActresses(items);
+});
 
 export const getMakerSummaries = createSummariesLoader(getCatalogMakers);
 
@@ -111,6 +118,10 @@ export const getGenreWorksBySlug = cache(async (slug: string) => {
 });
 
 export const getActressSummaryBySlug = cache(async (slug: string) => {
+  const { ensureActressImageOverridesLoaded } = await import(
+    "@/lib/dmm/actress-image-overrides"
+  );
+  await ensureActressImageOverridesLoaded();
   const items = await getCatalogWorks();
   return getCatalogActressBySlug(items, slug);
 });

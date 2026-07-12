@@ -1,10 +1,10 @@
 import "server-only";
 
+import { BetaAnalyticsDataClient, protos } from "@google-analytics/data";
 import {
-  getGoogleAccessTokenForScopes,
-  GOOGLE_SCOPE_ANALYTICS,
-} from "@/lib/admin/google-access-token";
-import { getServiceAccountCredentialsFromEnv } from "@/lib/admin/seo-env";
+  getServiceAccountCredentialsFromEnv,
+  getServiceAccountJsonSource,
+} from "@/lib/admin/seo-env";
 import {
   loadGa4CachePersisted,
   saveGa4CachePersisted,
@@ -20,6 +20,12 @@ import {
   type Ga4SourceRow,
 } from "@/lib/admin/ga4-types";
 
+const MetricAggregation =
+  protos.google.analytics.data.v1beta.MetricAggregation;
+
+type IRunReportRequest =
+  protos.google.analytics.data.v1beta.IRunReportRequest;
+
 export type {
   Ga4CachePayload,
   Ga4DailyPoint,
@@ -33,20 +39,38 @@ export { createEmptyGa4Cache } from "@/lib/admin/ga4-types";
 
 type Ga4RunReportResponse = {
   rows?: Array<{
-    dimensionValues?: Array<{ value?: string }>;
-    metricValues?: Array<{ value?: string }>;
-  }>;
+    dimensionValues?: Array<{ value?: string | null } | null> | null;
+    metricValues?: Array<{ value?: string | null } | null> | null;
+  } | null> | null;
   totals?: Array<{
-    metricValues?: Array<{ value?: string }>;
-  }>;
+    metricValues?: Array<{ value?: string | null } | null> | null;
+  } | null> | null;
 };
 
-function getGa4PropertyId(): string | null {
+/** 環境変数の生値（数字のみ / properties/xxx 両方を許容） */
+function getGa4PropertyIdRaw(): string | null {
   return (
     process.env.GA4_PROPERTY_ID?.trim() ||
     process.env.GOOGLE_ANALYTICS_PROPERTY_ID?.trim() ||
     null
   );
+}
+
+/** キャッシュ表示用の数値ID */
+function getGa4PropertyId(): string | null {
+  const raw = getGa4PropertyIdRaw();
+  if (!raw) return null;
+  return raw.replace(/^properties\//i, "").trim() || null;
+}
+
+/**
+ * runReport に渡す正形式。
+ * OK: properties/123456789
+ * NG: 123456789 だけ / properties/properties/123...
+ */
+export function toGa4PropertyResource(raw: string): string {
+  const id = raw.trim().replace(/^properties\//i, "");
+  return `properties/${id}`;
 }
 
 export function isGa4Configured(): boolean {
@@ -63,38 +87,109 @@ function subtractDays(date: Date, days: number): Date {
   return next;
 }
 
-function num(value: string | undefined): number {
+function num(value: string | null | undefined): number {
   const parsed = Number(value ?? 0);
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-async function runGa4Report(input: {
-  propertyId: string;
-  token: string;
-  body: Record<string, unknown>;
-}): Promise<Ga4RunReportResponse> {
-  const response = await fetch(
-    `https://analyticsdata.googleapis.com/v1beta/properties/${input.propertyId}:runReport`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${input.token}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(input.body),
-      cache: "no-store",
-    },
-  );
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`GA4 API error ${response.status}: ${text.slice(0, 400)}`);
+function createGa4Client(): {
+  client: BetaAnalyticsDataClient;
+  clientEmail: string;
+} {
+  const credentials = getServiceAccountCredentialsFromEnv();
+  if (!credentials) {
+    throw new Error(
+      "GOOGLE_SERVICE_ACCOUNT_JSON が未設定です（Search Console と同じ環境変数を使用します）。",
+    );
   }
 
-  return (await response.json()) as Ga4RunReportResponse;
+  const source = getServiceAccountJsonSource();
+  console.info("[ga4] service account (shared with Search Console)", {
+    source,
+    client_email: credentials.client_email,
+  });
+
+  const client = new BetaAnalyticsDataClient({
+    credentials: {
+      client_email: credentials.client_email,
+      private_key: credentials.private_key,
+    },
+  });
+
+  return { client, clientEmail: credentials.client_email };
 }
 
-function metricsFromValues(values: Array<{ value?: string } | undefined>): Ga4MetricSnapshot {
+function serializeGa4ApiError(error: unknown): string {
+  if (!(error instanceof Error)) {
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return String(error);
+    }
+  }
+
+  const anyError = error as Error & {
+    code?: unknown;
+    details?: unknown;
+    statusDetails?: unknown;
+    errors?: unknown;
+    response?: unknown;
+    note?: unknown;
+  };
+
+  const payload = {
+    name: anyError.name,
+    message: anyError.message,
+    code: anyError.code,
+    details: anyError.details,
+    statusDetails: anyError.statusDetails,
+    errors: anyError.errors,
+    response: anyError.response,
+    note: anyError.note,
+    stack: anyError.stack,
+  };
+
+  try {
+    return JSON.stringify(payload, null, 2);
+  } catch {
+    return `${anyError.name}: ${anyError.message}`;
+  }
+}
+
+async function runGa4Report(input: {
+  client: BetaAnalyticsDataClient;
+  clientEmail: string;
+  propertyResource: string;
+  body: Omit<IRunReportRequest, "property">;
+}): Promise<Ga4RunReportResponse> {
+  const request: IRunReportRequest = {
+    property: input.propertyResource,
+    ...input.body,
+  };
+
+  console.log("[ga4] runReport request", {
+    client_email: input.clientEmail,
+    property: request.property,
+    requestBody: input.body,
+  });
+
+  try {
+    const [response] = await input.client.runReport(request);
+    return response as Ga4RunReportResponse;
+  } catch (error) {
+    const full = serializeGa4ApiError(error);
+    console.error("[ga4] API error full response:\n", full);
+    const statusHint =
+      error instanceof Error && /403|PERMISSION_DENIED/i.test(error.message)
+        ? "403 PERMISSION_DENIED"
+        : "GA4 API error";
+    throw new Error(`${statusHint}: ${full}`);
+  }
+}
+
+function metricsFromValues(
+  values: Array<{ value?: string | null } | null | undefined>,
+): Ga4MetricSnapshot {
   const users = num(values[0]?.value);
   const newUsers = num(values[1]?.value);
   const sessions = num(values[2]?.value);
@@ -115,14 +210,16 @@ function metricsFromValues(values: Array<{ value?: string } | undefined>): Ga4Me
 }
 
 async function fetchPeriodMetrics(
-  propertyId: string,
-  token: string,
+  client: BetaAnalyticsDataClient,
+  clientEmail: string,
+  propertyResource: string,
   startDate: string,
   endDate: string,
 ): Promise<Ga4MetricSnapshot> {
   const report = await runGa4Report({
-    propertyId,
-    token,
+    client,
+    clientEmail,
+    propertyResource,
     body: {
       dateRanges: [{ startDate, endDate }],
       metrics: [
@@ -134,7 +231,7 @@ async function fetchPeriodMetrics(
         { name: "eventCount" },
         { name: "bounceRate" },
       ],
-      metricAggregations: ["TOTAL"],
+      metricAggregations: [MetricAggregation.TOTAL],
     },
   });
 
@@ -203,9 +300,18 @@ export async function refreshGa4DashboardData(): Promise<Ga4CachePayload> {
   }
 
   const propertyId = getGa4PropertyId()!;
+  const propertyResource = toGa4PropertyResource(propertyId);
 
   try {
-    const token = await getGoogleAccessTokenForScopes([GOOGLE_SCOPE_ANALYTICS]);
+    const { client, clientEmail } = createGa4Client();
+    console.info("[ga4] starting refresh", {
+      propertyId,
+      property: propertyResource,
+      client_email: clientEmail,
+      credentialSource: getServiceAccountJsonSource(),
+      sharedWithSearchConsole: true,
+    });
+
     const end = new Date();
     const periodDefs: Ga4PeriodDays[] = [1, 7, 28, 90];
     const periods = {} as Ga4CachePayload["periods"];
@@ -216,15 +322,28 @@ export async function refreshGa4DashboardData(): Promise<Ga4CachePayload> {
       const previousEnd = formatDate(subtractDays(end, days));
       const previousStart = formatDate(subtractDays(end, days * 2 - 1));
       const [current, previousMetrics] = await Promise.all([
-        fetchPeriodMetrics(propertyId, token, currentStart, currentEnd),
-        fetchPeriodMetrics(propertyId, token, previousStart, previousEnd),
+        fetchPeriodMetrics(
+          client,
+          clientEmail,
+          propertyResource,
+          currentStart,
+          currentEnd,
+        ),
+        fetchPeriodMetrics(
+          client,
+          clientEmail,
+          propertyResource,
+          previousStart,
+          previousEnd,
+        ),
       ]);
       periods[days] = { current, previous: previousMetrics };
     }
 
     const dailyReport = await runGa4Report({
-      propertyId,
-      token,
+      client,
+      clientEmail,
+      propertyResource,
       body: {
         dateRanges: [
           {
@@ -243,24 +362,27 @@ export async function refreshGa4DashboardData(): Promise<Ga4CachePayload> {
       },
     });
 
-    const daily: Ga4DailyPoint[] = (dailyReport.rows ?? []).map((row) => {
-      const rawDate = row.dimensionValues?.[0]?.value ?? "";
-      const date =
-        rawDate.length === 8
-          ? `${rawDate.slice(0, 4)}-${rawDate.slice(4, 6)}-${rawDate.slice(6, 8)}`
-          : rawDate;
-      return {
-        date,
-        users: num(row.metricValues?.[0]?.value),
-        newUsers: num(row.metricValues?.[1]?.value),
-        pageViews: num(row.metricValues?.[2]?.value),
-        sessions: num(row.metricValues?.[3]?.value),
-      };
-    });
+    const daily: Ga4DailyPoint[] = (dailyReport.rows ?? [])
+      .filter((row): row is NonNullable<typeof row> => Boolean(row))
+      .map((row) => {
+        const rawDate = row.dimensionValues?.[0]?.value ?? "";
+        const date =
+          rawDate.length === 8
+            ? `${rawDate.slice(0, 4)}-${rawDate.slice(4, 6)}-${rawDate.slice(6, 8)}`
+            : rawDate;
+        return {
+          date,
+          users: num(row.metricValues?.[0]?.value),
+          newUsers: num(row.metricValues?.[1]?.value),
+          pageViews: num(row.metricValues?.[2]?.value),
+          sessions: num(row.metricValues?.[3]?.value),
+        };
+      });
 
     const pagesReport = await runGa4Report({
-      propertyId,
-      token,
+      client,
+      clientEmail,
+      propertyResource,
       body: {
         dateRanges: [
           {
@@ -279,20 +401,23 @@ export async function refreshGa4DashboardData(): Promise<Ga4CachePayload> {
       },
     });
 
-    const topPages: Ga4PageRow[] = (pagesReport.rows ?? []).map((row) => {
-      const users = num(row.metricValues?.[1]?.value);
-      const engagement = num(row.metricValues?.[2]?.value);
-      return {
-        path: row.dimensionValues?.[0]?.value ?? "/",
-        pageViews: num(row.metricValues?.[0]?.value),
-        users,
-        avgEngagementSeconds: users > 0 ? engagement / users : 0,
-      };
-    });
+    const topPages: Ga4PageRow[] = (pagesReport.rows ?? [])
+      .filter((row): row is NonNullable<typeof row> => Boolean(row))
+      .map((row) => {
+        const users = num(row.metricValues?.[1]?.value);
+        const engagement = num(row.metricValues?.[2]?.value);
+        return {
+          path: row.dimensionValues?.[0]?.value ?? "/",
+          pageViews: num(row.metricValues?.[0]?.value),
+          users,
+          avgEngagementSeconds: users > 0 ? engagement / users : 0,
+        };
+      });
 
     const sourceReport = await runGa4Report({
-      propertyId,
-      token,
+      client,
+      clientEmail,
+      propertyResource,
       body: {
         dateRanges: [
           {
@@ -307,11 +432,13 @@ export async function refreshGa4DashboardData(): Promise<Ga4CachePayload> {
       },
     });
 
-    const sources: Ga4SourceRow[] = (sourceReport.rows ?? []).map((row) => ({
-      source: row.dimensionValues?.[0]?.value ?? "Other",
-      sessions: num(row.metricValues?.[0]?.value),
-      users: num(row.metricValues?.[1]?.value),
-    }));
+    const sources: Ga4SourceRow[] = (sourceReport.rows ?? [])
+      .filter((row): row is NonNullable<typeof row> => Boolean(row))
+      .map((row) => ({
+        source: row.dimensionValues?.[0]?.value ?? "Other",
+        sessions: num(row.metricValues?.[0]?.value),
+        users: num(row.metricValues?.[1]?.value),
+      }));
 
     const now = new Date().toISOString();
     const payload: Ga4CachePayload = {
@@ -332,6 +459,7 @@ export async function refreshGa4DashboardData(): Promise<Ga4CachePayload> {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "GA4取得に失敗しました。";
+    console.error("[ga4] refresh failed (full):\n", message);
     const stale: Ga4CachePayload = {
       ...previous,
       version: 2,
@@ -342,7 +470,7 @@ export async function refreshGa4DashboardData(): Promise<Ga4CachePayload> {
       updatedAt: previous.updatedAt,
       lastSuccessfulAt: previous.lastSuccessfulAt,
       configMessage: previous.lastSuccessfulAt
-        ? `前回取得日時: ${previous.lastSuccessfulAt}`
+        ? `${previous.lastSuccessfulAt}時点のキャッシュを表示しています`
         : message,
     };
     await saveGa4CachePersisted(stale);

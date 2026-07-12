@@ -204,13 +204,13 @@ export function OpsDashboardClient({
     });
   }
 
-  function uploadDmm(file: File, format: "json" | "csv") {
+  function uploadDmm(file: File, type: "category" | "direct") {
     startUploadTransition(async () => {
       setMessage(null);
       try {
         const body = new FormData();
         body.append("file", file);
-        body.append("format", format);
+        body.append("type", type);
         const response = await fetch("/api/admin/dmm/upload", {
           method: "POST",
           body,
@@ -221,17 +221,24 @@ export function OpsDashboardClient({
           inserted?: number;
           updated?: number;
           total?: number;
+          type?: string;
+          data?: OpsDashboardPayload;
         };
         if (!response.ok || !json.success) {
           throw new Error(json.error ?? "アップロードに失敗しました。");
         }
-        const dataResponse = await fetch("/api/admin/ops/data");
-        const dataJson = (await dataResponse.json()) as {
-          data?: OpsDashboardPayload;
-        };
-        if (dataJson.data) applyPayload(dataJson.data);
+        if (json.data) {
+          applyPayload(json.data);
+        } else {
+          const dataResponse = await fetch("/api/admin/ops/data");
+          const dataJson = (await dataResponse.json()) as {
+            data?: OpsDashboardPayload;
+          };
+          if (dataJson.data) applyPayload(dataJson.data);
+        }
+        const typeLabel = type === "category" ? "カテゴリ" : "ダイレクト";
         setMessage(
-          `取込完了: 新規 ${json.inserted ?? 0} / 更新 ${json.updated ?? 0} / 合計 ${json.total ?? 0} 件`,
+          `${typeLabel}CSV取込完了: 新規 ${json.inserted ?? 0} / 更新 ${json.updated ?? 0} / 合計 ${json.total ?? 0} 件`,
         );
       } catch (error) {
         setMessage(

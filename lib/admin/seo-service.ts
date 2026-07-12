@@ -443,12 +443,20 @@ export async function getSeoDashboardData(): Promise<SeoDashboardData> {
       ...cache,
       siteUrl: config.gscSiteUrl ?? cache.siteUrl,
       configured: config.configured,
-      configMessage: config.configured ? undefined : cache.configMessage,
-      connectionStatus: config.configured
-        ? cache.connectionStatus === "connected"
-          ? "connected"
-          : cache.connectionStatus
-        : "unconfigured",
+      configMessage: config.configured
+        ? cache.stale || cache.fetchError
+          ? cache.configMessage
+          : undefined
+        : (config.configMessage ?? cache.configMessage),
+      connectionStatus: !config.configured
+        ? "unconfigured"
+        : cache.stale || cache.fetchError
+          ? "error"
+          : cache.connectionStatus === "connected"
+            ? "connected"
+            : cache.connectionStatus,
+      fetchError: cache.fetchError,
+      stale: cache.stale,
       overview: {
         ...cache.overview,
         totalWorks,
@@ -717,6 +725,8 @@ export async function refreshSeoDashboardData(): Promise<SeoCachePayload> {
       configured: true,
       connectionStatus: "connected",
       stale: false,
+      fetchError: undefined,
+      configMessage: undefined,
       overview,
       periods,
       dailyStats: dailyStats.map((stat) => ({
@@ -768,6 +778,38 @@ export async function refreshSeoDashboardData(): Promise<SeoCachePayload> {
       error: message,
       siteUrl: resolvedSiteUrl,
     });
+
+    const previous = await loadSeoCache();
+    if (previous.updatedAt) {
+      const stale: SeoCachePayload = {
+        ...previous,
+        connectionStatus: "error",
+        stale: true,
+        fetchError: message,
+        configMessage: `${previous.updatedAt}時点のキャッシュを表示しています`,
+      };
+      await saveSeoCache(stale);
+      return stale;
+    }
+
+    const empty: SeoCachePayload = {
+      ...createEmptySeoCache(resolvedSiteUrl),
+      configured: true,
+      connectionStatus: "error",
+      fetchError: message,
+      configMessage: message,
+      overview: {
+        ...createEmptySeoCache(resolvedSiteUrl).overview,
+        totalWorks,
+      },
+      index: {
+        ...createEmptySeoCache(resolvedSiteUrl).index,
+        totalSitePages,
+      },
+      entityPageCounts,
+      entityWorkCounts,
+    };
+    await saveSeoCache(empty);
     throw error;
   }
 }

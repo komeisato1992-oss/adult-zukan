@@ -93,14 +93,12 @@ function formatStaleDetail(
   lastSuccessfulAt: string | null,
   formatDateTime: (value: string | null) => string,
 ): string {
-  if (fetchError && lastSuccessfulAt) {
-    return `最新取得に失敗しました。${formatDateTime(lastSuccessfulAt)}取得のデータを表示しています。${fetchError ? `（${fetchError}）` : ""}`;
+  if (lastSuccessfulAt) {
+    const stamped = `${formatDateTime(lastSuccessfulAt)}時点のキャッシュを表示しています`;
+    return fetchError ? `${stamped}（最新取得失敗: ${fetchError}）` : stamped;
   }
   if (fetchError) {
     return `取得に失敗しました: ${fetchError}`;
-  }
-  if (lastSuccessfulAt) {
-    return `${formatDateTime(lastSuccessfulAt)}取得のデータを表示しています。`;
   }
   return "最新取得に失敗しました。";
 }

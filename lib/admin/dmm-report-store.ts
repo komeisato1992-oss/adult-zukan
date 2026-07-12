@@ -10,16 +10,17 @@ import {
 } from "@/lib/admin/github-dmm-reports";
 import {
   createEmptyDmmReportsDocument,
-  mergeEntityStats,
-  parseDmmReportsCsv,
+  decodeDmmCsvBuffer,
   parseDmmReportsDocument,
-  parseDmmReportsJson,
+  parseDmmRewardCsv,
+  resolveDmmRewardType,
   serializeDmmReportsDocument,
-  upsertDmmReportRows,
+  upsertDmmRewardRows,
 } from "@/lib/admin/dmm-report-parse";
 import type {
   DmmImportResult,
   DmmReportsDocument,
+  DmmRewardType,
 } from "@/lib/admin/dmm-report-types";
 
 const ADMIN_DATA_DIR = path.join(process.cwd(), "data", "admin");
@@ -59,7 +60,10 @@ export async function loadDmmReportsDocument(): Promise<{
   sha: string | null;
 }> {
   const memory = getMemoryStore();
-  if (memory.__dmmReportsDocument) {
+  const hasRows =
+    Boolean(memory.__dmmReportsDocument?.updatedAt) ||
+    (memory.__dmmReportsDocument?.rows.length ?? 0) > 0;
+  if (memory.__dmmReportsDocument && hasRows) {
     return {
       document: memory.__dmmReportsDocument,
       sha: memory.__dmmReportsSha ?? null,
@@ -73,20 +77,23 @@ export async function loadDmmReportsDocument(): Promise<{
       memory.__dmmReportsSha = loaded.sha;
       return loaded;
     } catch (error) {
-      if (error instanceof GitHubDmmReportsError && error.status === 404) {
-        const empty = createEmptyDmmReportsDocument();
-        memory.__dmmReportsDocument = empty;
-        memory.__dmmReportsSha = null;
-        return { document: empty, sha: null };
+      if (!(error instanceof GitHubDmmReportsError && error.status === 404)) {
+        // fall through
       }
-      // GitHub失敗時はローカルへフォールバック
     }
   }
 
   const local = readDmmReportsLocal();
-  memory.__dmmReportsDocument = local;
+  if (local.updatedAt || local.rows.length > 0) {
+    memory.__dmmReportsDocument = local;
+    memory.__dmmReportsSha = null;
+    return { document: local, sha: null };
+  }
+
+  const empty = createEmptyDmmReportsDocument();
+  memory.__dmmReportsDocument = empty;
   memory.__dmmReportsSha = null;
-  return { document: local, sha: null };
+  return { document: empty, sha: null };
 }
 
 export async function saveDmmReportsDocument(
@@ -100,7 +107,7 @@ export async function saveDmmReportsDocument(
     try {
       writeDmmReportsLocal(document);
     } catch {
-      // Vercel 等の読み取り専用FSでは無視（メモリ/GitHubが正）
+      // Vercel read-only FS
     }
   };
 
@@ -123,34 +130,40 @@ export async function saveDmmReportsDocument(
   memory.__dmmReportsSha = null;
 }
 
-export async function importDmmReportsText(input: {
-  text: string;
-  format: "json" | "csv";
+export async function importDmmRewardCsv(input: {
+  text?: string;
+  buffer?: ArrayBuffer;
+  type?: string | null;
   fileName?: string | null;
-  source?: DmmReportsDocument["source"];
 }): Promise<DmmImportResult> {
-  const parsed =
-    input.format === "csv"
-      ? parseDmmReportsCsv(input.text)
-      : parseDmmReportsJson(input.text);
+  const text =
+    input.text ??
+    (input.buffer ? decodeDmmCsvBuffer(input.buffer) : null);
+  if (!text) {
+    throw new Error("CSV本文が空です。");
+  }
 
+  const type: DmmRewardType = resolveDmmRewardType({
+    type: input.type,
+    fileName: input.fileName,
+  });
+  const incoming = parseDmmRewardCsv(text, type);
   const { document, sha } = await loadDmmReportsDocument();
-  const upserted = upsertDmmReportRows(document.rows, parsed.rows);
+  const upserted = upsertDmmRewardRows(document.rows, incoming);
   const now = new Date().toISOString();
 
   const next: DmmReportsDocument = {
-    version: 1,
+    version: 2,
     updatedAt: now,
     importedAt: now,
-    source: input.source ?? input.format,
+    source: "csv",
     fileName: input.fileName ?? document.fileName,
     rows: upserted.rows,
-    entities: mergeEntityStats(document.entities, parsed.entities),
   };
 
   await saveDmmReportsDocument(
     next,
-    `Update DMM affiliate reports (${upserted.inserted} inserted, ${upserted.updated} updated)`,
+    `Update DMM ${type} rewards (${upserted.inserted} inserted, ${upserted.updated} updated)`,
     sha,
   );
 
@@ -160,6 +173,7 @@ export async function importDmmReportsText(input: {
     inserted: upserted.inserted,
     updated: upserted.updated,
     total: next.rows.length,
+    type,
     dateRange: {
       start: dates[0] ?? null,
       end: dates[dates.length - 1] ?? null,
@@ -168,8 +182,28 @@ export async function importDmmReportsText(input: {
   };
 }
 
+/** @deprecated use importDmmRewardCsv */
+export async function importDmmReportsText(input: {
+  text: string;
+  format: "json" | "csv";
+  fileName?: string | null;
+  source?: DmmReportsDocument["source"];
+  type?: string | null;
+}): Promise<DmmImportResult> {
+  if (input.format !== "csv") {
+    throw new Error("DMM取込はカテゴリ/ダイレクトCSVのみ対応しています。");
+  }
+  return importDmmRewardCsv({
+    text: input.text,
+    fileName: input.fileName,
+    type: input.type,
+  });
+}
+
 export function invalidateDmmReportsMemoryCache(): void {
   const memory = getMemoryStore();
   memory.__dmmReportsDocument = null;
   memory.__dmmReportsSha = null;
 }
+
+export { decodeDmmCsvBuffer, resolveDmmRewardType };

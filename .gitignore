@@ -35,6 +35,9 @@ yarn-error.log*
 
 # admin runtime cache
 /data/admin/seo-cache.json
+/data/admin/search-console-cache.json
+/data/admin/ga4-cache.json
+/data/admin/dmm-reports.json
 
 # local catalog backups (shards are the source of truth)
 /data/dmm/catalog-snapshot.json

@@ -24,6 +24,7 @@
     "test:works-sort": "node scripts/verify-works-sort.mjs"
   },
   "dependencies": {
+    "@google-analytics/data": "^6.1.0",
     "@next/third-parties": "^15.5.20",
     "chart.js": "^4.5.1",
     "html-to-image": "^1.11.13",

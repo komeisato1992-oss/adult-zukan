@@ -9,7 +9,7 @@ import type { StructuredDataAuditResult } from "@/lib/admin/seo-audit-structured
 import type { OpsAnalyticsKpis } from "@/lib/admin/ops-analytics-kpis";
 
 export type OpsGscPeriod = "1" | "7" | "28" | "90";
-export type OpsDmmPeriod = "today" | "yesterday" | "7d" | "28d" | "90d";
+export type OpsDmmPeriod = "today" | "7d" | "28d" | "365d";
 export type OpsGa4Period = 1 | 7 | 28 | 90;
 export type OpsRefreshSource = "seo" | "ga4" | "dmm" | "all";
 

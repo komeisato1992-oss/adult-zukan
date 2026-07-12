@@ -1,9 +1,7 @@
 import "server-only";
 
-import { buildDmmAiInsights } from "@/lib/admin/dmm-report-insights";
 import {
   invalidateDmmReportsMemoryCache,
-  importDmmReportsText,
   loadDmmReportsDocument,
 } from "@/lib/admin/dmm-report-store";
 import type {
@@ -11,8 +9,7 @@ import type {
   DmmAffiliateDailyPoint,
   DmmAffiliateMetrics,
   DmmAffiliatePeriod,
-  DmmEntityStat,
-  DmmReportRow,
+  DmmRewardRow,
 } from "@/lib/admin/dmm-report-types";
 
 export type {
@@ -20,44 +17,37 @@ export type {
   DmmAffiliateDailyPoint,
   DmmAffiliateMetrics,
   DmmAffiliatePeriod,
+  DmmTypeBreakdownRow,
 } from "@/lib/admin/dmm-report-types";
+
+export { buildTypeBreakdown } from "@/lib/admin/dmm-metrics";
 
 function emptyMetrics(): DmmAffiliateMetrics {
   return {
-    clicks: 0,
-    conversions: 0,
-    conversionRate: 0,
     reward: 0,
+    count: 0,
+    sales: 0,
+    avgReward: 0,
     categoryReward: 0,
     directReward: 0,
-    clickUnitPrice: 0,
-    conversionUnitPrice: 0,
+    categoryCount: 0,
+    directCount: 0,
+    categorySales: 0,
+    directSales: 0,
   };
 }
 
-function withDerived(input: {
-  clicks: number;
-  conversions: number;
-  reward: number;
-  categoryReward: number;
-  directReward: number;
-}): DmmAffiliateMetrics {
+function withAvg(metrics: Omit<DmmAffiliateMetrics, "avgReward">): DmmAffiliateMetrics {
   return {
-    clicks: input.clicks,
-    conversions: input.conversions,
-    conversionRate:
-      input.clicks > 0 ? input.conversions / input.clicks : 0,
-    reward: input.reward,
-    categoryReward: input.categoryReward,
-    directReward: input.directReward,
-    clickUnitPrice: input.clicks > 0 ? input.reward / input.clicks : 0,
-    conversionUnitPrice:
-      input.conversions > 0 ? input.reward / input.conversions : 0,
+    ...metrics,
+    avgReward: metrics.count > 0 ? metrics.reward / metrics.count : 0,
   };
 }
 
 function formatDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
+  // JST日付（運営ダッシュボード向け）
+  const jst = new Date(date.getTime() + 9 * 60 * 60 * 1000);
+  return jst.toISOString().slice(0, 10);
 }
 
 function subtractDays(date: Date, days: number): Date {
@@ -67,86 +57,106 @@ function subtractDays(date: Date, days: number): Date {
 }
 
 function sumRows(
-  rows: DmmReportRow[],
+  rows: DmmRewardRow[],
   startInclusive: string,
   endInclusive: string,
 ): DmmAffiliateMetrics {
-  let clicks = 0;
-  let conversions = 0;
   let reward = 0;
+  let count = 0;
+  let sales = 0;
   let categoryReward = 0;
   let directReward = 0;
+  let categoryCount = 0;
+  let directCount = 0;
+  let categorySales = 0;
+  let directSales = 0;
 
   for (const row of rows) {
     if (row.date < startInclusive || row.date > endInclusive) continue;
-    clicks += row.clicks;
-    conversions += row.sales;
     reward += row.reward;
-    categoryReward += row.category_reward;
-    directReward += row.direct_reward;
+    count += row.count;
+    sales += row.sales;
+    if (row.type === "category") {
+      categoryReward += row.reward;
+      categoryCount += row.count;
+      categorySales += row.sales;
+    } else {
+      directReward += row.reward;
+      directCount += row.count;
+      directSales += row.sales;
+    }
   }
 
-  return withDerived({
-    clicks,
-    conversions,
+  return withAvg({
     reward,
+    count,
+    sales,
     categoryReward,
     directReward,
+    categoryCount,
+    directCount,
+    categorySales,
+    directSales,
   });
 }
 
-function toDailyPoints(rows: DmmReportRow[]): DmmAffiliateDailyPoint[] {
-  return rows.map((row) => ({
-    date: row.date,
-    clicks: row.clicks,
-    conversions: row.sales,
-    reward: row.reward,
-    categoryReward: row.category_reward,
-    directReward: row.direct_reward,
-  }));
-}
+function toDailyPoints(rows: DmmRewardRow[]): DmmAffiliateDailyPoint[] {
+  const byDate = new Map<string, DmmAffiliateDailyPoint>();
 
-function topByReward(entities: DmmEntityStat[], kind: DmmEntityStat["kind"]) {
-  return entities
-    .filter((row) => row.kind === kind)
-    .sort((a, b) => b.reward - a.reward || b.sales - a.sales)
-    .slice(0, 10);
-}
+  for (const row of rows) {
+    const current = byDate.get(row.date) ?? {
+      date: row.date,
+      categoryReward: 0,
+      directReward: 0,
+      reward: 0,
+      categoryCount: 0,
+      directCount: 0,
+      categorySales: 0,
+      directSales: 0,
+      count: 0,
+      sales: 0,
+    };
 
-function hasAutoSource(): boolean {
-  return Boolean(
-    process.env.DMM_AFFILIATE_REPORT_URL?.trim() ||
-      process.env.DMM_AFFILIATE_REPORT_JSON?.trim() ||
-      process.env.DMM_AFFILIATE_REPORT_CSV?.trim(),
-  );
+    if (row.type === "category") {
+      current.categoryReward += row.reward;
+      current.categoryCount += row.count;
+      current.categorySales += row.sales;
+    } else {
+      current.directReward += row.reward;
+      current.directCount += row.count;
+      current.directSales += row.sales;
+    }
+    current.reward = current.categoryReward + current.directReward;
+    current.count = current.categoryCount + current.directCount;
+    current.sales = current.categorySales + current.directSales;
+    byDate.set(row.date, current);
+  }
+
+  return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
 }
 
 export function createEmptyDmmAffiliateCache(
   message?: string,
 ): DmmAffiliateCachePayload {
-  const auto = hasAutoSource();
   return {
-    version: 3,
+    version: 4,
     updatedAt: null,
     importedAt: null,
     lastSuccessfulAt: null,
-    configured: auto,
+    configured: true,
     configMessage:
       message ??
-      (auto
-        ? "DMM成果の自動取得設定があります。更新ボタンまたはCronで取得してください。"
-        : "DMM_AFFILIATE_REPORT_URL / DMM_AFFILIATE_REPORT_JSON / DMM_AFFILIATE_REPORT_CSV を設定するか、/admin/dmm から手動取込してください。"),
-    connectionStatus: auto ? "error" : "unconfigured",
+      "カテゴリCSV / ダイレクトCSVをアップロードしてください。",
+    connectionStatus: "unconfigured",
     rowCount: 0,
     dateRange: { start: null, end: null },
     source: null,
     fileName: null,
     periods: {
       today: emptyMetrics(),
-      yesterday: emptyMetrics(),
       "7d": emptyMetrics(),
       "28d": emptyMetrics(),
-      "90d": emptyMetrics(),
+      "365d": emptyMetrics(),
     },
     daily: [],
     insights: {
@@ -161,14 +171,13 @@ export function createEmptyDmmAffiliateCache(
 }
 
 function buildPayloadFromRows(
-  rows: DmmReportRow[],
+  rows: DmmRewardRow[],
   meta: {
     updatedAt: string | null;
     importedAt: string | null;
     lastSuccessfulAt: string | null;
     source: DmmAffiliateCachePayload["source"];
     fileName: string | null;
-    entities: DmmEntityStat[];
     fetchError?: string;
     connectionStatus?: DmmAffiliateCachePayload["connectionStatus"];
   },
@@ -182,7 +191,7 @@ function buildPayloadFromRows(
       connectionStatus: meta.connectionStatus ?? empty.connectionStatus,
       configMessage: meta.fetchError
         ? meta.lastSuccessfulAt
-          ? `前回取得日時: ${meta.lastSuccessfulAt}`
+          ? `${meta.lastSuccessfulAt}時点のキャッシュを表示しています`
           : meta.fetchError
         : empty.configMessage,
     };
@@ -190,15 +199,13 @@ function buildPayloadFromRows(
 
   const end = new Date();
   const today = formatDate(end);
-  const yesterday = formatDate(subtractDays(end, 1));
   const start7 = formatDate(subtractDays(end, 6));
   const start28 = formatDate(subtractDays(end, 27));
-  const start90 = formatDate(subtractDays(end, 89));
+  const start365 = formatDate(subtractDays(end, 364));
   const dates = rows.map((row) => row.date).sort();
-  const insights = buildDmmAiInsights(meta.entities);
 
   return {
-    version: 3,
+    version: 4,
     updatedAt: meta.updatedAt,
     importedAt: meta.importedAt,
     lastSuccessfulAt: meta.lastSuccessfulAt,
@@ -206,7 +213,7 @@ function buildPayloadFromRows(
     connectionStatus: meta.connectionStatus ?? "connected",
     fetchError: meta.fetchError,
     configMessage: meta.fetchError
-      ? `前回取得日時: ${meta.lastSuccessfulAt ?? meta.updatedAt}`
+      ? `${meta.lastSuccessfulAt ?? meta.updatedAt}時点のキャッシュを表示しています`
       : undefined,
     rowCount: rows.length,
     dateRange: {
@@ -217,21 +224,23 @@ function buildPayloadFromRows(
     fileName: meta.fileName,
     periods: {
       today: sumRows(rows, today, today),
-      yesterday: sumRows(rows, yesterday, yesterday),
       "7d": sumRows(rows, start7, today),
       "28d": sumRows(rows, start28, today),
-      "90d": sumRows(rows, start90, today),
+      "365d": sumRows(rows, start365, today),
     },
-    daily: toDailyPoints(rows).slice(-120),
-    insights,
-    rankings: {
-      works: topByReward(meta.entities, "work"),
-      actresses: topByReward(meta.entities, "actress"),
+    daily: toDailyPoints(rows).slice(-400),
+    insights: {
+      highConversionWorks: [],
+      lowConversionWorks: [],
+      topRewardGenres: [],
+      topRewardActresses: [],
+      topRewardMakers: [],
     },
+    rankings: { works: [], actresses: [] },
   };
 }
 
-/** キャッシュ優先（APIは叩かない） */
+/** キャッシュ優先（外部APIは叩かない） */
 export async function getDmmAffiliateData(): Promise<DmmAffiliateCachePayload> {
   try {
     const { document } = await loadDmmReportsDocument();
@@ -241,13 +250,8 @@ export async function getDmmAffiliateData(): Promise<DmmAffiliateCachePayload> {
       lastSuccessfulAt: document.updatedAt,
       source: document.source,
       fileName: document.fileName,
-      entities: document.entities,
       connectionStatus:
-        document.rows.length > 0
-          ? "connected"
-          : hasAutoSource()
-            ? "error"
-            : "unconfigured",
+        document.rows.length > 0 ? "connected" : "unconfigured",
     });
   } catch (error) {
     return createEmptyDmmAffiliateCache(
@@ -258,87 +262,10 @@ export async function getDmmAffiliateData(): Promise<DmmAffiliateCachePayload> {
   }
 }
 
-async function importFromEnvSources(): Promise<boolean> {
-  const reportUrl = process.env.DMM_AFFILIATE_REPORT_URL?.trim();
-  const jsonEnv = process.env.DMM_AFFILIATE_REPORT_JSON?.trim();
-  const csvEnv = process.env.DMM_AFFILIATE_REPORT_CSV?.trim();
-
-  // 優先: URL → JSON → CSV
-  if (reportUrl) {
-    const response = await fetch(reportUrl, { cache: "no-store" });
-    if (!response.ok) {
-      throw new Error(`DMM report fetch failed: HTTP ${response.status}`);
-    }
-    const text = await response.text();
-    const contentType = response.headers.get("content-type") ?? "";
-    const format =
-      contentType.includes("csv") ||
-      reportUrl.toLowerCase().endsWith(".csv") ||
-      (!text.trim().startsWith("{") && !text.trim().startsWith("["))
-        ? "csv"
-        : "json";
-    await importDmmReportsText({
-      text,
-      format,
-      source: "url",
-      fileName: reportUrl,
-    });
-    return true;
-  }
-
-  if (jsonEnv) {
-    await importDmmReportsText({
-      text: jsonEnv,
-      format: "json",
-      source: "env",
-      fileName: "DMM_AFFILIATE_REPORT_JSON",
-    });
-    return true;
-  }
-
-  if (csvEnv) {
-    await importDmmReportsText({
-      text: csvEnv,
-      format: "csv",
-      source: "env",
-      fileName: "DMM_AFFILIATE_REPORT_CSV",
-    });
-    return true;
-  }
-
-  return false;
-}
-
-/** 環境変数ソースから自動取込し、失敗時は前回データを保持 */
+/** CSV手動取込以外の自動取得は廃止。キャッシュ再読込のみ */
 export async function refreshDmmAffiliateData(): Promise<DmmAffiliateCachePayload> {
-  const previous = await getDmmAffiliateData();
   invalidateDmmReportsMemoryCache();
-
-  try {
-    const imported = await importFromEnvSources();
-    if (!imported && previous.rowCount === 0) {
-      return createEmptyDmmAffiliateCache();
-    }
-    const next = await getDmmAffiliateData();
-    return {
-      ...next,
-      lastSuccessfulAt: next.updatedAt ?? previous.lastSuccessfulAt,
-      connectionStatus: next.rowCount > 0 ? "connected" : next.connectionStatus,
-    };
-  } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "外部レポートの再取込に失敗しました。";
-    return {
-      ...previous,
-      connectionStatus: previous.rowCount > 0 ? "stale" : "error",
-      fetchError: message,
-      configMessage: previous.lastSuccessfulAt
-        ? `前回取得日時: ${previous.lastSuccessfulAt}`
-        : message,
-    };
-  }
+  return getDmmAffiliateData();
 }
 
 export type DmmAdminStatus = {
@@ -363,7 +290,7 @@ export async function getDmmAdminStatus(): Promise<DmmAdminStatus> {
     dateRange: dashboard.dateRange,
     source: dashboard.source,
     fileName: dashboard.fileName,
-    autoConfigured: hasAutoSource(),
+    autoConfigured: false,
     dashboard,
   };
 }

@@ -278,10 +278,10 @@ export function OpsOverviewTab({
               <p className="text-sm text-muted">DMM成果データ未取得</p>
             ) : (
               <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 xl:grid-cols-4">
-                <OpsKpiCard label="クリック数" value={formatSeoNumber(dmmToday.clicks)} />
-                <OpsKpiCard label="成果件数" value={formatSeoNumber(dmmToday.conversions)} />
-                <OpsKpiCard label="報酬" value={formatYen(dmmToday.reward)} />
-                <OpsKpiCard label="成果率" value={formatSeoPercent(dmmToday.conversionRate)} />
+                <OpsKpiCard label="総報酬" value={formatYen(dmmToday.reward)} />
+                <OpsKpiCard label="成果件数" value={formatSeoNumber(dmmToday.count)} />
+                <OpsKpiCard label="販売金額" value={formatYen(dmmToday.sales)} />
+                <OpsKpiCard label="平均報酬" value={formatYen(dmmToday.avgReward)} />
               </div>
             )}
           </div>

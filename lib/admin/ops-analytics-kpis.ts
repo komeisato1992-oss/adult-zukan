@@ -58,9 +58,20 @@ export function buildOpsAnalyticsKpis(
     : null;
 
   const salesToday = dmmReady ? dmm.periods.today.reward : null;
-  const salesYesterday = dmmReady ? dmm.periods.yesterday.reward : null;
+  const yesterdayKey = (() => {
+    const end = new Date();
+    const jst = new Date(end.getTime() + 9 * 60 * 60 * 1000);
+    jst.setUTCDate(jst.getUTCDate() - 1);
+    return jst.toISOString().slice(0, 10);
+  })();
+  const salesYesterday = dmmReady
+    ? dmm.daily.find((row) => row.date === yesterdayKey)?.reward ?? 0
+    : null;
   const sales28d = dmmReady ? dmm.periods["28d"].reward : null;
-  const cvr = dmmReady ? dmm.periods["28d"].conversionRate : null;
+  const cvr =
+    dmmReady && dmm.periods["28d"].sales > 0
+      ? dmm.periods["28d"].count / dmm.periods["28d"].sales
+      : null;
 
   const pageViews28 = ga4Ready ? ga4.periods[28]?.current.pageViews ?? null : null;
   const rpm =

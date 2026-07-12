@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin/auth";
 import { DmmReportParseError } from "@/lib/admin/dmm-report-parse";
-import { importDmmReportsText } from "@/lib/admin/dmm-report-store";
-import { getDmmAdminStatus } from "@/lib/admin/dmm-affiliate-service";
+import { importDmmRewardCsv } from "@/lib/admin/dmm-report-store";
+import { getOpsDashboardData } from "@/lib/admin/ops-service";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   try {
     const form = await request.formData();
     const file = form.get("file");
-    const formatRaw = String(form.get("format") ?? "").toLowerCase();
+    const typeRaw = String(form.get("type") ?? "").toLowerCase();
 
     if (!(file instanceof File)) {
       return NextResponse.json(
@@ -24,33 +24,31 @@ export async function POST(request: Request) {
       );
     }
 
-    const format: "json" | "csv" =
-      formatRaw === "csv" || file.name.toLowerCase().endsWith(".csv")
-        ? "csv"
-        : "json";
+    if (!file.name.toLowerCase().endsWith(".csv") && typeRaw !== "category" && typeRaw !== "direct") {
+      // still allow if type is set
+    }
 
-    const text = await file.text();
-    const result = await importDmmReportsText({
-      text,
-      format,
+    const buffer = await file.arrayBuffer();
+    const result = await importDmmRewardCsv({
+      buffer,
+      type: typeRaw || null,
       fileName: file.name,
-      source: format,
     });
 
-    const status = await getDmmAdminStatus();
+    const ops = await getOpsDashboardData();
 
     return NextResponse.json({
       success: true,
       inserted: result.inserted,
       updated: result.updated,
       total: result.total,
+      type: result.type,
       dateRange: result.dateRange,
       updatedAt: result.updatedAt,
-      data: status,
+      data: ops,
     });
   } catch (error) {
-    const status =
-      error instanceof DmmReportParseError ? error.status : 500;
+    const status = error instanceof DmmReportParseError ? error.status : 500;
     return NextResponse.json(
       {
         success: false,

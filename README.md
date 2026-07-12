@@ -194,8 +194,8 @@ GITHUB_BRANCH=main
 
 ### キャッシュ
 
-- **常にメモリキャッシュのみ**（Production / Vercel 含む）
-- JSON ファイル（`data/admin/seo-cache.json`）への保存は行いません
+- キャッシュは `data/admin/seo-cache.json`（＋ GitHub 設定時はリポジトリ同期）へ永続化します
+- 画面表示時は API を呼ばずキャッシュのみ読みます。更新ボタン / Cron のみ Search Console API を呼びます
 
 ### ローカル設定例（`.env.local`）
 

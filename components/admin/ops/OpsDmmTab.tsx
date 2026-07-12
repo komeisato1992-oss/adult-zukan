@@ -5,7 +5,6 @@ import { OpsLineChart } from "@/components/admin/ops/OpsCharts";
 import {
   OpsKpiCard,
   formatSeoNumber,
-  formatSeoPercent,
   formatYen,
 } from "@/components/admin/ops/OpsShared";
 import {
@@ -16,14 +15,14 @@ import {
 } from "@/components/admin/ops/OpsUi";
 import { deriveDmmDataStatus } from "@/components/admin/ops/ops-dashboard-utils";
 import { formatSeoDateTime } from "@/components/admin/seo/format";
+import { buildTypeBreakdown } from "@/lib/admin/dmm-metrics";
 import type { OpsDashboardPayload, OpsDmmPeriod } from "@/lib/admin/ops-types";
 
 const DMM_PERIODS: Array<{ id: OpsDmmPeriod; label: string }> = [
   { id: "today", label: "今日" },
-  { id: "yesterday", label: "昨日" },
   { id: "7d", label: "7日" },
   { id: "28d", label: "28日" },
-  { id: "90d", label: "90日" },
+  { id: "365d", label: "365日" },
 ];
 
 type OpsDmmTabProps = {
@@ -33,8 +32,24 @@ type OpsDmmTabProps = {
   refreshing: boolean;
   onRefresh: () => void;
   uploadPending: boolean;
-  onUpload: (file: File, format: "json" | "csv") => void;
+  onUpload: (file: File, type: "category" | "direct") => void;
 };
+
+function filterDaily(
+  daily: OpsDashboardPayload["dmm"]["daily"],
+  period: OpsDmmPeriod,
+) {
+  if (daily.length === 0) return [];
+  const end = daily[daily.length - 1]?.date;
+  if (!end) return [];
+  const endDate = new Date(`${end}T00:00:00Z`);
+  const days =
+    period === "today" ? 1 : period === "7d" ? 7 : period === "28d" ? 28 : 365;
+  const start = new Date(endDate);
+  start.setUTCDate(start.getUTCDate() - (days - 1));
+  const startKey = start.toISOString().slice(0, 10);
+  return daily.filter((row) => row.date >= startKey && row.date <= end);
+}
 
 export function OpsDmmTab({
   data,
@@ -47,17 +62,13 @@ export function OpsDmmTab({
 }: OpsDmmTabProps) {
   const status = deriveDmmDataStatus(data.dmm, refreshing, formatSeoDateTime);
   const metrics = data.dmm.periods[period];
-  const dmmLabels = data.dmm.daily.map((row) => row.date.slice(5));
-  const jsonInputRef = useRef<HTMLInputElement>(null);
-  const csvInputRef = useRef<HTMLInputElement>(null);
+  const daily = filterDaily(data.dmm.daily, period);
+  const labels = daily.map((row) => row.date.slice(5));
+  const categoryInputRef = useRef<HTMLInputElement>(null);
+  const directInputRef = useRef<HTMLInputElement>(null);
   const hasData =
     status.kind === "ok" || status.kind === "stale" || status.kind === "refreshing";
-  const works = data.dmm.rankings?.works ?? [];
-  const actresses = data.dmm.rankings?.actresses ?? [];
-  const makers = data.dmm.insights?.topRewardMakers ?? [];
-  const genres = data.dmm.insights?.topRewardGenres ?? [];
-  const hasAnyRanking =
-    works.length > 0 || actresses.length > 0 || makers.length > 0 || genres.length > 0;
+  const breakdown = buildTypeBreakdown(metrics);
 
   return (
     <div className="space-y-6">
@@ -71,155 +82,139 @@ export function OpsDmmTab({
           type="button"
           onClick={onRefresh}
           disabled={refreshing || uploadPending}
-          className="min-h-11 shrink-0 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+          className="min-h-11 shrink-0 rounded-lg border border-border bg-white px-4 py-2.5 text-sm font-semibold text-foreground hover:bg-red-50 disabled:opacity-60"
         >
-          {refreshing ? "更新中…" : "DMM成果を更新"}
+          {refreshing ? "更新中…" : "表示を再読込"}
         </button>
       </div>
 
       <OpsDataStatusBanner status={status} />
 
-      <OpsSectionCard title="操作">
+      <OpsSectionCard title="CSVアップロード">
+        <p className="mb-3 text-sm text-muted">
+          カテゴリCSV / ダイレクトCSV（日付・報酬件数・販売金額・報酬額）を取り込むと、すぐにダッシュボードへ反映されます。
+        </p>
         <div className="flex flex-wrap gap-3">
           <button
             type="button"
-            onClick={() => jsonInputRef.current?.click()}
+            onClick={() => categoryInputRef.current?.click()}
             disabled={uploadPending}
-            className="min-h-11 rounded-lg border border-border bg-white px-4 py-2.5 text-sm font-semibold text-foreground hover:bg-red-50 disabled:opacity-60"
+            className="min-h-11 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
           >
-            JSONアップロード
+            カテゴリCSVをアップロード
           </button>
           <button
             type="button"
-            onClick={() => csvInputRef.current?.click()}
+            onClick={() => directInputRef.current?.click()}
             disabled={uploadPending}
-            className="min-h-11 rounded-lg border border-border bg-white px-4 py-2.5 text-sm font-semibold text-foreground hover:bg-red-50 disabled:opacity-60"
+            className="min-h-11 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
           >
-            CSVアップロード
+            ダイレクトCSVをアップロード
           </button>
-          <a
-            href="/admin/dmm"
-            className="inline-flex min-h-11 items-center rounded-lg border border-accent px-4 py-2.5 text-sm font-semibold text-accent hover:bg-red-50"
-          >
-            取込管理ページ
-          </a>
         </div>
         <input
-          ref={jsonInputRef}
+          ref={categoryInputRef}
           type="file"
-          accept="application/json,.json"
+          accept=".csv,text/csv"
           className="hidden"
           onChange={(event) => {
             const file = event.target.files?.[0];
-            if (file) onUpload(file, "json");
+            if (file) onUpload(file, "category");
             event.target.value = "";
           }}
         />
         <input
-          ref={csvInputRef}
+          ref={directInputRef}
           type="file"
-          accept="text/csv,.csv"
+          accept=".csv,text/csv"
           className="hidden"
           onChange={(event) => {
             const file = event.target.files?.[0];
-            if (file) onUpload(file, "csv");
+            if (file) onUpload(file, "direct");
             event.target.value = "";
           }}
         />
       </OpsSectionCard>
 
       {!hasData ? (
-        <OpsEmptyState
-          message={
-            status.kind === "unconfigured"
-              ? "DMM成果の自動取得が未設定です。JSON/CSVアップロードか環境変数を設定してください。"
-              : "DMM成果データ未取得"
-          }
-        />
+        <OpsEmptyState message="DMM成果データ未取得" />
       ) : (
         <>
-          <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 xl:grid-cols-3">
-            <OpsKpiCard label="クリック数" value={formatSeoNumber(metrics.clicks)} />
-            <OpsKpiCard label="成果件数" value={formatSeoNumber(metrics.conversions)} />
-            <OpsKpiCard label="成果率" value={formatSeoPercent(metrics.conversionRate)} />
-            <OpsKpiCard label="報酬" value={formatYen(metrics.reward)} />
-            <OpsKpiCard label="クリック単価" value={formatYen(metrics.clickUnitPrice)} />
-            <OpsKpiCard label="成果単価" value={formatYen(metrics.conversionUnitPrice)} />
+          <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 xl:grid-cols-4">
+            <OpsKpiCard label="総報酬" value={formatYen(metrics.reward)} />
+            <OpsKpiCard label="成果件数" value={formatSeoNumber(metrics.count)} />
+            <OpsKpiCard label="販売金額" value={formatYen(metrics.sales)} />
+            <OpsKpiCard label="平均報酬" value={formatYen(metrics.avgReward)} />
           </div>
 
-          {data.dmm.daily.length === 0 ? (
+          {daily.length === 0 ? (
             <OpsEmptyState message="日別推移データはまだありません" />
           ) : (
-            <div className="grid gap-4 lg:grid-cols-3">
-              <OpsLineChart
-                labels={dmmLabels}
-                series={[
-                  {
-                    label: "クリック推移",
-                    data: data.dmm.daily.map((row) => row.clicks),
-                    color: "#2563eb",
-                  },
-                ]}
-              />
-              <OpsLineChart
-                labels={dmmLabels}
-                series={[
-                  {
-                    label: "成果件数推移",
-                    data: data.dmm.daily.map((row) => row.conversions),
-                    color: "#16a34a",
-                  },
-                ]}
-              />
-              <OpsLineChart
-                labels={dmmLabels}
-                series={[
-                  {
-                    label: "報酬推移",
-                    data: data.dmm.daily.map((row) => row.reward),
-                    color: "#c2410c",
-                  },
-                ]}
-              />
-            </div>
+            <OpsLineChart
+              labels={labels}
+              emptyMessage="日別推移データはまだありません"
+              series={[
+                {
+                  label: "カテゴリ報酬",
+                  data: daily.map((row) => row.categoryReward),
+                  color: "#2563eb",
+                },
+                {
+                  label: "ダイレクト報酬",
+                  data: daily.map((row) => row.directReward),
+                  color: "#c2410c",
+                },
+                {
+                  label: "合計報酬",
+                  data: daily.map((row) => row.reward),
+                  color: "#16a34a",
+                },
+              ]}
+            />
           )}
 
-          <OpsSectionCard title="内訳">
-            <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 xl:grid-cols-3">
-              <OpsKpiCard label="ダイレクト報酬" value={formatYen(metrics.directReward)} />
-              <OpsKpiCard
-                label="カテゴリー報酬"
-                value={formatYen(metrics.categoryReward)}
-              />
-              <OpsKpiCard
-                label="サービス新規報酬"
-                value="—"
-              >
-                <p className="text-xs text-muted">レポート項目が無いため未取得</p>
-              </OpsKpiCard>
+          <OpsSectionCard title="カテゴリ・ダイレクト別集計">
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-surface/50 text-muted">
+                  <tr>
+                    <th className="px-3 py-2">種別</th>
+                    <th className="px-3 py-2">成果件数</th>
+                    <th className="px-3 py-2">販売金額</th>
+                    <th className="px-3 py-2">報酬額</th>
+                    <th className="px-3 py-2">平均報酬</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {breakdown.map((row) => (
+                    <tr key={row.type} className="border-t border-border">
+                      <td className="px-3 py-2 font-medium">{row.label}</td>
+                      <td className="px-3 py-2">{formatSeoNumber(row.count)}</td>
+                      <td className="px-3 py-2">{formatYen(row.sales)}</td>
+                      <td className="px-3 py-2">{formatYen(row.reward)}</td>
+                      <td className="px-3 py-2">{formatYen(row.avgReward)}</td>
+                    </tr>
+                  ))}
+                  <tr className="border-t border-border bg-surface/30 font-semibold">
+                    <td className="px-3 py-2">合計</td>
+                    <td className="px-3 py-2">{formatSeoNumber(metrics.count)}</td>
+                    <td className="px-3 py-2">{formatYen(metrics.sales)}</td>
+                    <td className="px-3 py-2">{formatYen(metrics.reward)}</td>
+                    <td className="px-3 py-2">{formatYen(metrics.avgReward)}</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
           </OpsSectionCard>
 
-          {hasAnyRanking ? (
-            <OpsSectionCard title="ランキング">
-              <div className="grid gap-4 xl:grid-cols-2">
-                <RankingList title="作品別成果" rows={works} empty="作品別成果はまだありません" />
-                <RankingList
-                  title="女優別成果"
-                  rows={actresses}
-                  empty="女優別成果はまだありません"
-                />
-                <RankingList title="メーカー別成果" rows={makers} empty="メーカー別成果はまだありません" />
-                <RankingList title="ジャンル別成果" rows={genres} empty="ジャンル別成果はまだありません" />
-              </div>
-            </OpsSectionCard>
-          ) : (
-            <OpsEmptyState message="ランキングデータはまだありません（entities付きレポート取込で表示）" />
-          )}
-
           <OpsSectionCard title="データ取得状態">
             <dl className="grid grid-cols-1 gap-3 text-sm min-[420px]:grid-cols-2">
-              <StatusItem label="最終取得日時" value={formatSeoDateTime(data.dmm.lastSuccessfulAt ?? data.dmm.updatedAt)} />
+              <StatusItem
+                label="最終取込日時"
+                value={formatSeoDateTime(
+                  data.dmm.lastSuccessfulAt ?? data.dmm.updatedAt,
+                )}
+              />
               <StatusItem
                 label="取得期間"
                 value={
@@ -228,52 +223,15 @@ export function OpsDmmTab({
                     : "—"
                 }
               />
-              <StatusItem label="ソース" value={data.dmm.source ?? "—"} />
-              <StatusItem label="取得件数" value={formatSeoNumber(data.dmm.rowCount)} />
+              <StatusItem label="ソース" value={data.dmm.source ?? "csv"} />
               <StatusItem
-                label="成功／失敗"
-                value={
-                  status.kind === "ok"
-                    ? "成功"
-                    : status.kind === "stale"
-                      ? "前回成功データを表示"
-                      : status.label
-                }
+                label="取得件数"
+                value={formatSeoNumber(data.dmm.rowCount)}
               />
-              <StatusItem
-                label="エラー内容"
-                value={data.dmm.fetchError ?? "なし"}
-              />
+              <StatusItem label="最新ファイル" value={data.dmm.fileName ?? "—"} />
             </dl>
           </OpsSectionCard>
         </>
-      )}
-    </div>
-  );
-}
-
-function RankingList({
-  title,
-  rows,
-  empty,
-}: {
-  title: string;
-  rows: Array<{ key: string; name: string; reward: number; sales: number }>;
-  empty: string;
-}) {
-  return (
-    <div className="rounded-lg border border-border px-3 py-3">
-      <p className="font-semibold text-foreground">{title}</p>
-      {rows.length === 0 ? (
-        <p className="mt-2 text-sm text-muted">{empty}</p>
-      ) : (
-        <ul className="mt-2 space-y-1 text-sm">
-          {rows.slice(0, 10).map((row) => (
-            <li key={row.key}>
-              {row.name} — {formatYen(row.reward)} / 成果 {row.sales}
-            </li>
-          ))}
-        </ul>
       )}
     </div>
   );

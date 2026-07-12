@@ -170,11 +170,11 @@ export function buildOpsSuggestions(
     );
   }
 
-  if (dmm && !dmm.configured) {
+  if (dmm && (dmm.rowCount <= 0 || dmm.connectionStatus === "unconfigured")) {
     pushSuggestion(
       suggestions,
       "dmm-unconfigured",
-      "DMMアフィリエイト成果が未取込です。/admin/dmm からJSONまたはCSVをアップロードしてください。",
+      "DMMアフィリエイト成果が未取込です。カテゴリCSV / ダイレクトCSVをアップロードしてください。",
       3,
     );
   }

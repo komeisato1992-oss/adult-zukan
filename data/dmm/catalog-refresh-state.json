@@ -1,0 +1,21 @@
+{
+  "nextRefreshOffset": 500,
+  "batchSize": 500,
+  "lastCompletedAt": "2026-07-12T17:08:43.199Z",
+  "cycleCount": 0,
+  "lastBatchSummary": {
+    "targetCount": 500,
+    "updatedCount": 500,
+    "unchangedCount": 0,
+    "unavailableCount": 0,
+    "failedCount": 0,
+    "priceChangedCount": 69,
+    "saleStartedCount": 0,
+    "saleEndedCount": 69,
+    "availabilityChangedCount": 0,
+    "nextRefreshOffset": 500,
+    "cycleCount": 0,
+    "elapsedMs": 92495,
+    "failures": []
+  }
+}

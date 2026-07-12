@@ -1,8 +1,12 @@
 {
   "crons": [
     {
-      "path": "/api/admin/seo/cron",
-      "schedule": "0 3 * * *"
+      "path": "/api/admin/ops/cron",
+      "schedule": "0 20 * * *"
+    },
+    {
+      "path": "/api/admin/ops/cron",
+      "schedule": "0 8 * * *"
     },
     {
       "path": "/api/cron/fanza-sync",

@@ -186,7 +186,10 @@ GITHUB_BRANCH=main
 | `GOOGLE_SERVICE_ACCOUNT_EMAIL` | 分割設定: サービスアカウントのメール |
 | `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` | 分割設定: private key（`\\n` エスケープ） |
 | `GSC_SITE_URL` | Search Console プロパティ URL（例: `https://adult-zukan.jp/` または `sc-domain:adult-zukan.jp`） |
-| `CRON_SECRET` | 日次自動更新用（Vercel Cron。任意） |
+| `GA4_PROPERTY_ID` | GA4 プロパティ ID（数字のみ。例: `123456789`）。サービスアカウントに Analytics 閲覧権限が必要 |
+| `DMM_AFFILIATE_REPORT_URL` | DMMアフィリエイト成果 JSON を返すエンドポイント（任意） |
+| `DMM_AFFILIATE_REPORT_JSON` | 上記の代わりに直接 JSON を埋め込む場合（任意） |
+| `CRON_SECRET` | 自動更新用（Vercel Cron。任意） |
 
 ### キャッシュ
 
@@ -198,6 +201,7 @@ GITHUB_BRANCH=main
 ```bash
 GOOGLE_SERVICE_ACCOUNT_JSON={"type":"service_account","project_id":"your-project","private_key_id":"...","private_key":"-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n","client_email":"seo@your-project.iam.gserviceaccount.com","client_id":"...","auth_uri":"https://accounts.google.com/o/oauth2/auth","token_uri":"https://oauth2.googleapis.com/token","auth_provider_x509_cert_url":"https://www.googleapis.com/oauth2/v1/certs","client_x509_cert_url":"..."}
 GSC_SITE_URL=https://adult-zukan.jp/
+GA4_PROPERTY_ID=123456789
 CRON_SECRET=your-random-secret
 ```
 
@@ -213,8 +217,9 @@ CRON_SECRET=your-random-secret
 
 1. Vercel → **Settings** → **Environment Variables**
 2. `GOOGLE_SERVICE_ACCOUNT_JSON` と `GSC_SITE_URL` を **Production**（必要なら Preview）に追加
-3. 日次自動更新を使う場合は `CRON_SECRET` も追加
-4. 再デプロイ後、管理画面 `/admin/seo` の **更新** ボタンでデータ取得
+3. GA4 を使う場合は `GA4_PROPERTY_ID` も追加（Google Analytics Data API 有効化 + サービスアカウントに閲覧権限）
+4. 自動更新（毎日 5:00 / 17:00 JST）を使う場合は `CRON_SECRET` も追加
+5. 再デプロイ後、管理画面 `/admin`（運営ダッシュボード）または `/admin/seo` の **更新** ボタンでデータ取得
 
 ### エラー表示
 

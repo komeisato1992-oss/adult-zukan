@@ -4,7 +4,6 @@ import { refreshOpsDashboardData } from "@/lib/admin/ops-service";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-/** @deprecated Prefer /api/admin/ops/cron — kept for backward compatibility */
 export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET?.trim();
   const authHeader = request.headers.get("authorization");
@@ -24,12 +23,14 @@ export async function GET(request: Request) {
     const data = await refreshOpsDashboardData();
     return NextResponse.json({
       success: true,
-      updatedAt: data.top.updatedAt,
       generatedAt: data.generatedAt,
+      updatedAt: data.top.updatedAt,
+      seoScore: data.seoScore.total,
+      alertCount: data.alerts.length,
     });
   } catch (error) {
     const message =
-      error instanceof Error ? error.message : "SEO cron refresh failed.";
+      error instanceof Error ? error.message : "Ops cron refresh failed.";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

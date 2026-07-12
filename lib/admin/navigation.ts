@@ -38,10 +38,9 @@ export const adminNavItems: AdminNavItem[] = [
   },
   {
     id: "analytics",
-    label: "Analytics（準備中）",
+    label: "Analytics",
     icon: "📊",
-    href: "/admin/analytics",
-    disabled: true,
+    href: "/admin",
   },
   {
     id: "settings",

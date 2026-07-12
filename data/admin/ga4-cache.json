@@ -1,11 +1,10 @@
 {
   "version": 3,
-  "updatedAt": null,
-  "lastSuccessfulAt": null,
+  "updatedAt": "2026-07-12T07:27:24.766Z",
+  "lastSuccessfulAt": "2026-07-12T07:27:24.766Z",
   "configured": true,
-  "configMessage": "403 PERMISSION_DENIED: {\n  \"name\": \"Error\",\n  \"message\": \"7 PERMISSION_DENIED: User does not have sufficient permissions for this property. To learn more about Property ID, see https://developers.google.com/analytics/devguides/reporting/data/v1/property-id.\",\n  \"code\": 7,\n  \"details\": \"User does not have sufficient permissions for this property. To learn more about Property ID, see https://developers.google.com/analytics/devguides/reporting/data/v1/property-id.\"\n}",
   "propertyId": "544245702",
-  "connectionStatus": "error",
+  "connectionStatus": "connected",
   "authDiagnostics": {
     "clientEmail": "adult-zukan-search-console@adult-zukan-seo.iam.gserviceaccount.com",
     "projectId": "adult-zukan-seo",
@@ -16,41 +15,41 @@
     "runtimeEnvironment": "production",
     "expectedClientEmail": "adult-zukan-search-console@adult-zukan-seo-502016.iam.gserviceaccount.com",
     "clientEmailMatchesExpected": false,
-    "errorCode": "PERMISSION_DENIED (7)"
+    "errorCode": null
   },
   "periods": {
     "1": {
       "current": {
-        "users": 0,
-        "newUsers": 0,
-        "sessions": 0,
-        "pageViews": 0,
-        "avgEngagementSeconds": 0,
-        "eventCount": 0,
-        "bounceRate": 0,
-        "pagesPerSession": 0
+        "users": 81,
+        "newUsers": 73,
+        "sessions": 88,
+        "pageViews": 142,
+        "avgEngagementSeconds": 13.74074074074074,
+        "eventCount": 371,
+        "bounceRate": 0.9772727272727273,
+        "pagesPerSession": 1.6136363636363635
       },
       "previous": {
-        "users": 0,
-        "newUsers": 0,
-        "sessions": 0,
-        "pageViews": 0,
-        "avgEngagementSeconds": 0,
-        "eventCount": 0,
-        "bounceRate": 0,
-        "pagesPerSession": 0
+        "users": 118,
+        "newUsers": 116,
+        "sessions": 130,
+        "pageViews": 234,
+        "avgEngagementSeconds": 13.161016949152541,
+        "eventCount": 586,
+        "bounceRate": 0.6692307692307692,
+        "pagesPerSession": 1.8
       }
     },
     "7": {
       "current": {
-        "users": 0,
-        "newUsers": 0,
-        "sessions": 0,
-        "pageViews": 0,
-        "avgEngagementSeconds": 0,
-        "eventCount": 0,
-        "bounceRate": 0,
-        "pagesPerSession": 0
+        "users": 709,
+        "newUsers": 707,
+        "sessions": 784,
+        "pageViews": 1375,
+        "avgEngagementSeconds": 17.843441466854724,
+        "eventCount": 3612,
+        "bounceRate": 0.7385204081632653,
+        "pagesPerSession": 1.753826530612245
       },
       "previous": {
         "users": 0,
@@ -65,14 +64,14 @@
     },
     "28": {
       "current": {
-        "users": 0,
-        "newUsers": 0,
-        "sessions": 0,
-        "pageViews": 0,
-        "avgEngagementSeconds": 0,
-        "eventCount": 0,
-        "bounceRate": 0,
-        "pagesPerSession": 0
+        "users": 709,
+        "newUsers": 707,
+        "sessions": 784,
+        "pageViews": 1375,
+        "avgEngagementSeconds": 17.843441466854724,
+        "eventCount": 3612,
+        "bounceRate": 0.7385204081632653,
+        "pagesPerSession": 1.753826530612245
       },
       "previous": {
         "users": 0,
@@ -87,14 +86,14 @@
     },
     "90": {
       "current": {
-        "users": 0,
-        "newUsers": 0,
-        "sessions": 0,
-        "pageViews": 0,
-        "avgEngagementSeconds": 0,
-        "eventCount": 0,
-        "bounceRate": 0,
-        "pagesPerSession": 0
+        "users": 709,
+        "newUsers": 707,
+        "sessions": 784,
+        "pageViews": 1375,
+        "avgEngagementSeconds": 17.843441466854724,
+        "eventCount": 3612,
+        "bounceRate": 0.7385204081632653,
+        "pagesPerSession": 1.753826530612245
       },
       "previous": {
         "users": 0,
@@ -108,8 +107,214 @@
       }
     }
   },
-  "daily": [],
-  "topPages": [],
-  "sources": [],
-  "fetchError": "403 PERMISSION_DENIED: {\n  \"name\": \"Error\",\n  \"message\": \"7 PERMISSION_DENIED: User does not have sufficient permissions for this property. To learn more about Property ID, see https://developers.google.com/analytics/devguides/reporting/data/v1/property-id.\",\n  \"code\": 7,\n  \"details\": \"User does not have sufficient permissions for this property. To learn more about Property ID, see https://developers.google.com/analytics/devguides/reporting/data/v1/property-id.\"\n}"
+  "daily": [
+    {
+      "date": "2026-07-06",
+      "users": 6,
+      "newUsers": 6,
+      "pageViews": 47,
+      "sessions": 12
+    },
+    {
+      "date": "2026-07-07",
+      "users": 99,
+      "newUsers": 97,
+      "pageViews": 333,
+      "sessions": 114
+    },
+    {
+      "date": "2026-07-08",
+      "users": 131,
+      "newUsers": 130,
+      "pageViews": 211,
+      "sessions": 138
+    },
+    {
+      "date": "2026-07-09",
+      "users": 168,
+      "newUsers": 167,
+      "pageViews": 231,
+      "sessions": 172
+    },
+    {
+      "date": "2026-07-10",
+      "users": 121,
+      "newUsers": 118,
+      "pageViews": 177,
+      "sessions": 133
+    },
+    {
+      "date": "2026-07-11",
+      "users": 118,
+      "newUsers": 116,
+      "pageViews": 234,
+      "sessions": 130
+    },
+    {
+      "date": "2026-07-12",
+      "users": 81,
+      "newUsers": 73,
+      "pageViews": 142,
+      "sessions": 88
+    }
+  ],
+  "topPages": [
+    {
+      "path": "/works",
+      "pageViews": 186,
+      "users": 6,
+      "avgEngagementSeconds": 250.83333333333334
+    },
+    {
+      "path": "/",
+      "pageViews": 164,
+      "users": 69,
+      "avgEngagementSeconds": 13.927536231884059
+    },
+    {
+      "path": "/works/cawb00018",
+      "pageViews": 44,
+      "users": 36,
+      "avgEngagementSeconds": 7.388888888888889
+    },
+    {
+      "path": "/actresses",
+      "pageViews": 42,
+      "users": 5,
+      "avgEngagementSeconds": 67.2
+    },
+    {
+      "path": "/works/ofje00615",
+      "pageViews": 29,
+      "users": 27,
+      "avgEngagementSeconds": 3.7777777777777777
+    },
+    {
+      "path": "/actresses/花咲ゆら",
+      "pageViews": 28,
+      "users": 25,
+      "avgEngagementSeconds": 5.28
+    },
+    {
+      "path": "/works/snos00320",
+      "pageViews": 28,
+      "users": 24,
+      "avgEngagementSeconds": 4.208333333333333
+    },
+    {
+      "path": "/search",
+      "pageViews": 25,
+      "users": 3,
+      "avgEngagementSeconds": 82.66666666666667
+    },
+    {
+      "path": "/admin/import",
+      "pageViews": 22,
+      "users": 1,
+      "avgEngagementSeconds": 2997
+    },
+    {
+      "path": "/actresses/白石るな",
+      "pageViews": 18,
+      "users": 15,
+      "avgEngagementSeconds": 4.4
+    },
+    {
+      "path": "/works/1jera00041",
+      "pageViews": 18,
+      "users": 17,
+      "avgEngagementSeconds": 2.5294117647058822
+    },
+    {
+      "path": "/works/1namh00069",
+      "pageViews": 16,
+      "users": 16,
+      "avgEngagementSeconds": 2.1875
+    },
+    {
+      "path": "/works/h_1732orecs00337",
+      "pageViews": 16,
+      "users": 13,
+      "avgEngagementSeconds": 9.692307692307692
+    },
+    {
+      "path": "/works/npjs00264",
+      "pageViews": 16,
+      "users": 16,
+      "avgEngagementSeconds": 10.0625
+    },
+    {
+      "path": "/works/snos00370",
+      "pageViews": 16,
+      "users": 13,
+      "avgEngagementSeconds": 10.923076923076923
+    },
+    {
+      "path": "/works/mizd00544",
+      "pageViews": 14,
+      "users": 13,
+      "avgEngagementSeconds": 0.8461538461538461
+    },
+    {
+      "path": "/series/ロスでナンパした-を勝手にavデビュー",
+      "pageViews": 13,
+      "users": 8,
+      "avgEngagementSeconds": 7.875
+    },
+    {
+      "path": "/works/1sdmm00201",
+      "pageViews": 12,
+      "users": 11,
+      "avgEngagementSeconds": 2.4545454545454546
+    },
+    {
+      "path": "/works/mimk00275",
+      "pageViews": 11,
+      "users": 7,
+      "avgEngagementSeconds": 38.57142857142857
+    },
+    {
+      "path": "/works/gqhb00024",
+      "pageViews": 10,
+      "users": 7,
+      "avgEngagementSeconds": 28.571428571428573
+    }
+  ],
+  "sources": [
+    {
+      "source": "Organic Search",
+      "sessions": 583,
+      "users": 570
+    },
+    {
+      "source": "Direct",
+      "sessions": 138,
+      "users": 114
+    },
+    {
+      "source": "Unassigned",
+      "sessions": 37,
+      "users": 34
+    },
+    {
+      "source": "AI Assistant",
+      "sessions": 26,
+      "users": 1
+    },
+    {
+      "source": "Referral",
+      "sessions": 17,
+      "users": 9
+    },
+    {
+      "source": "Cross-network",
+      "sessions": 10,
+      "users": 10
+    },
+    {
+      "source": "Organic Social",
+      "sessions": 4,
+      "users": 4
+    }
+  ]
 }

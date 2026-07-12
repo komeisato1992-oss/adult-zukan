@@ -32,8 +32,21 @@ export type Ga4SourceRow = {
   users: number;
 };
 
+export type Ga4AuthDiagnostics = {
+  clientEmail: string | null;
+  projectId: string | null;
+  propertyId: string | null;
+  property: string | null;
+  credentialSource: string | null;
+  sharedWithSearchConsole: boolean;
+  runtimeEnvironment: "production" | "preview" | "development";
+  expectedClientEmail: string;
+  clientEmailMatchesExpected: boolean | null;
+  errorCode: string | null;
+};
+
 export type Ga4CachePayload = {
-  version: 2;
+  version: 3;
   updatedAt: string | null;
   /** 直近の正常取得日時（障害時も保持） */
   lastSuccessfulAt: string | null;
@@ -42,6 +55,7 @@ export type Ga4CachePayload = {
   propertyId: string | null;
   connectionStatus: "connected" | "error" | "unconfigured" | "stale";
   fetchError?: string;
+  authDiagnostics?: Ga4AuthDiagnostics;
   periods: Record<
     Ga4PeriodDays,
     {
@@ -75,7 +89,7 @@ export function createEmptyGa4Cache(options?: {
   const configured = options?.configured ?? false;
   const propertyId = options?.propertyId ?? null;
   return {
-    version: 2,
+    version: 3,
     updatedAt: null,
     lastSuccessfulAt: null,
     configured,
@@ -86,6 +100,7 @@ export function createEmptyGa4Cache(options?: {
         : "GA4_PROPERTY_ID を設定し、サービスアカウントに Analytics 閲覧権限を付与してください。"),
     propertyId,
     connectionStatus: configured ? "error" : "unconfigured",
+    authDiagnostics: undefined,
     periods: {
       1: { current: emptyGa4Metrics(), previous: emptyGa4Metrics() },
       7: { current: emptyGa4Metrics(), previous: emptyGa4Metrics() },

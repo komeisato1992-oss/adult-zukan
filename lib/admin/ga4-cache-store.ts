@@ -84,7 +84,7 @@ export async function loadGa4CachePersisted(): Promise<Ga4CachePayload> {
       propertyId: parsed.propertyId,
     }),
     ...parsed,
-    version: 2,
+    version: 3,
     lastSuccessfulAt:
       parsed.lastSuccessfulAt ??
       (parsed.connectionStatus === "connected" ? parsed.updatedAt : null),

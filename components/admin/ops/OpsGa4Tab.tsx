@@ -71,6 +71,78 @@ export function OpsGa4Tab({
 
       <OpsDataStatusBanner status={status} />
 
+      <OpsSectionCard title="GA4認証診断">
+        <dl className="grid grid-cols-1 gap-3 text-sm min-[420px]:grid-cols-2">
+          <DiagItem
+            label="使用中のサービスアカウント"
+            value={data.ga4.authDiagnostics?.clientEmail ?? "—"}
+          />
+          <DiagItem
+            label="想定サービスアカウント"
+            value={
+              data.ga4.authDiagnostics?.expectedClientEmail ??
+              "adult-zukan-search-console@adult-zukan-seo-502016.iam.gserviceaccount.com"
+            }
+          />
+          <DiagItem
+            label="client_email一致"
+            value={
+              data.ga4.authDiagnostics?.clientEmailMatchesExpected == null
+                ? "—"
+                : data.ga4.authDiagnostics.clientEmailMatchesExpected
+                  ? "一致"
+                  : "不一致（403の主因になりやすい）"
+            }
+          />
+          <DiagItem
+            label="project_id"
+            value={data.ga4.authDiagnostics?.projectId ?? "—"}
+          />
+          <DiagItem
+            label="使用中のプロパティID"
+            value={
+              data.ga4.authDiagnostics?.property ??
+              (data.ga4.propertyId
+                ? `properties/${data.ga4.propertyId}`
+                : "—")
+            }
+          />
+          <DiagItem
+            label="エラーコード"
+            value={data.ga4.authDiagnostics?.errorCode ?? (data.ga4.fetchError ? "あり（詳細は下部）" : "なし")}
+          />
+          <DiagItem
+            label="最終取得日時"
+            value={formatSeoDateTime(data.ga4.lastSuccessfulAt ?? data.ga4.updatedAt)}
+          />
+          <DiagItem
+            label="実行環境"
+            value={data.ga4.authDiagnostics?.runtimeEnvironment ?? "—"}
+          />
+          <DiagItem
+            label="Search Consoleと同一認証"
+            value={
+              data.ga4.authDiagnostics?.sharedWithSearchConsole
+                ? "はい（getServiceAccountCredentialsFromEnv）"
+                : "—"
+            }
+          />
+        </dl>
+        {data.ga4.fetchError ? (
+          <pre className="mt-4 max-h-64 overflow-auto rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-900 whitespace-pre-wrap break-all">
+            {data.ga4.fetchError}
+          </pre>
+        ) : null}
+        {data.ga4.authDiagnostics?.clientEmailMatchesExpected === false ? (
+          <p className="mt-3 text-sm text-amber-800">
+            Vercel の GOOGLE_SERVICE_ACCOUNT_JSON の client_email と、GA4
+            プロパティアクセス管理に登録したメールが一致していません。実際の
+            client_email を GA4 に閲覧者追加するか、Vercel の JSON
+            を正しいサービスアカウントへ差し替えてください。
+          </p>
+        ) : null}
+      </OpsSectionCard>
+
       {status.kind === "unconfigured" ? (
         <OpsEmptyState message="GA4 APIが未設定です" />
       ) : null}
@@ -236,6 +308,15 @@ export function OpsGa4Tab({
           }
         />
       ) : null}
+    </div>
+  );
+}
+
+function DiagItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-border px-3 py-2">
+      <dt className="text-xs text-muted">{label}</dt>
+      <dd className="mt-1 break-all font-medium text-foreground">{value}</dd>
     </div>
   );
 }

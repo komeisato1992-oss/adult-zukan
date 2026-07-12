@@ -2,8 +2,10 @@ import "server-only";
 
 import { BetaAnalyticsDataClient, protos } from "@google-analytics/data";
 import {
+  detectRuntimeEnvironment,
   getServiceAccountCredentialsFromEnv,
   getServiceAccountJsonSource,
+  getServiceAccountPublicInfo,
 } from "@/lib/admin/seo-env";
 import {
   loadGa4CachePersisted,
@@ -12,6 +14,7 @@ import {
 import {
   createEmptyGa4Cache,
   emptyGa4Metrics,
+  type Ga4AuthDiagnostics,
   type Ga4CachePayload,
   type Ga4DailyPoint,
   type Ga4MetricSnapshot,
@@ -26,7 +29,12 @@ const MetricAggregation =
 type IRunReportRequest =
   protos.google.analytics.data.v1beta.IRunReportRequest;
 
+/** GA4プロパティアクセス管理に登録済み想定のサービスアカウント */
+export const EXPECTED_GA4_CLIENT_EMAIL =
+  "adult-zukan-search-console@adult-zukan-seo-502016.iam.gserviceaccount.com";
+
 export type {
+  Ga4AuthDiagnostics,
   Ga4CachePayload,
   Ga4DailyPoint,
   Ga4MetricSnapshot,
@@ -47,7 +55,6 @@ type Ga4RunReportResponse = {
   } | null> | null;
 };
 
-/** 環境変数の生値（数字のみ / properties/xxx 両方を許容） */
 function getGa4PropertyIdRaw(): string | null {
   return (
     process.env.GA4_PROPERTY_ID?.trim() ||
@@ -56,18 +63,13 @@ function getGa4PropertyIdRaw(): string | null {
   );
 }
 
-/** キャッシュ表示用の数値ID */
 function getGa4PropertyId(): string | null {
   const raw = getGa4PropertyIdRaw();
   if (!raw) return null;
   return raw.replace(/^properties\//i, "").trim() || null;
 }
 
-/**
- * runReport に渡す正形式。
- * OK: properties/123456789
- * NG: 123456789 だけ / properties/properties/123...
- */
+/** OK: properties/544245702 */
 export function toGa4PropertyResource(raw: string): string {
   const id = raw.trim().replace(/^properties\//i, "");
   return `properties/${id}`;
@@ -75,6 +77,25 @@ export function toGa4PropertyResource(raw: string): string {
 
 export function isGa4Configured(): boolean {
   return Boolean(getServiceAccountCredentialsFromEnv() && getGa4PropertyId());
+}
+
+function buildAuthDiagnostics(errorCode: string | null = null): Ga4AuthDiagnostics {
+  const publicInfo = getServiceAccountPublicInfo();
+  const propertyId = getGa4PropertyId();
+  return {
+    clientEmail: publicInfo.clientEmail,
+    projectId: publicInfo.projectId,
+    propertyId,
+    property: propertyId ? toGa4PropertyResource(propertyId) : null,
+    credentialSource: publicInfo.source,
+    sharedWithSearchConsole: true,
+    runtimeEnvironment: detectRuntimeEnvironment(),
+    expectedClientEmail: EXPECTED_GA4_CLIENT_EMAIL,
+    clientEmailMatchesExpected: publicInfo.clientEmail
+      ? publicInfo.clientEmail === EXPECTED_GA4_CLIENT_EMAIL
+      : null,
+    errorCode,
+  };
 }
 
 function formatDate(date: Date): string {
@@ -95,28 +116,48 @@ function num(value: string | null | undefined): number {
 function createGa4Client(): {
   client: BetaAnalyticsDataClient;
   clientEmail: string;
+  projectId: string | null;
 } {
   const credentials = getServiceAccountCredentialsFromEnv();
   if (!credentials) {
     throw new Error(
-      "GOOGLE_SERVICE_ACCOUNT_JSON が未設定です（Search Console と同じ環境変数を使用します）。",
+      "GOOGLE_SERVICE_ACCOUNT_JSON が未設定です（Search Console と同じ getServiceAccountCredentialsFromEnv を使用）。",
     );
   }
-
-  const source = getServiceAccountJsonSource();
-  console.info("[ga4] service account (shared with Search Console)", {
-    source,
-    client_email: credentials.client_email,
-  });
 
   const client = new BetaAnalyticsDataClient({
     credentials: {
       client_email: credentials.client_email,
       private_key: credentials.private_key,
     },
+    projectId: credentials.project_id ?? undefined,
   });
 
-  return { client, clientEmail: credentials.client_email };
+  return {
+    client,
+    clientEmail: credentials.client_email,
+    projectId: credentials.project_id,
+  };
+}
+
+function extractGa4ErrorCode(error: unknown): string {
+  const anyError = error as {
+    code?: unknown;
+    status?: unknown;
+    message?: string;
+  };
+  if (typeof anyError?.code === "number" || typeof anyError?.code === "string") {
+    const code = String(anyError.code);
+    if (code === "7") return "PERMISSION_DENIED (7)";
+    return code;
+  }
+  if (typeof anyError?.status === "number" || typeof anyError?.status === "string") {
+    return String(anyError.status);
+  }
+  const message = anyError?.message ?? String(error);
+  if (/PERMISSION_DENIED/i.test(message)) return "PERMISSION_DENIED";
+  if (/403/.test(message)) return "403";
+  return "UNKNOWN";
 }
 
 function serializeGa4ApiError(error: unknown): string {
@@ -133,7 +174,6 @@ function serializeGa4ApiError(error: unknown): string {
     details?: unknown;
     statusDetails?: unknown;
     errors?: unknown;
-    response?: unknown;
     note?: unknown;
   };
 
@@ -144,9 +184,7 @@ function serializeGa4ApiError(error: unknown): string {
     details: anyError.details,
     statusDetails: anyError.statusDetails,
     errors: anyError.errors,
-    response: anyError.response,
     note: anyError.note,
-    stack: anyError.stack,
   };
 
   try {
@@ -159,7 +197,9 @@ function serializeGa4ApiError(error: unknown): string {
 async function runGa4Report(input: {
   client: BetaAnalyticsDataClient;
   clientEmail: string;
+  projectId: string | null;
   propertyResource: string;
+  propertyIdEnv: string;
   body: Omit<IRunReportRequest, "property">;
 }): Promise<Ga4RunReportResponse> {
   const request: IRunReportRequest = {
@@ -169,21 +209,38 @@ async function runGa4Report(input: {
 
   console.log("[ga4] runReport request", {
     client_email: input.clientEmail,
+    project_id: input.projectId,
     property: request.property,
-    requestBody: input.body,
+    GA4_PROPERTY_ID: input.propertyIdEnv,
+    runtime: detectRuntimeEnvironment(),
+    metrics: input.body.metrics?.map((metric) => metric.name),
+    dimensions: input.body.dimensions?.map((dimension) => dimension.name),
+    dateRanges: input.body.dateRanges,
   });
 
   try {
     const [response] = await input.client.runReport(request);
     return response as Ga4RunReportResponse;
   } catch (error) {
+    const code = extractGa4ErrorCode(error);
     const full = serializeGa4ApiError(error);
-    console.error("[ga4] API error full response:\n", full);
-    const statusHint =
-      error instanceof Error && /403|PERMISSION_DENIED/i.test(error.message)
-        ? "403 PERMISSION_DENIED"
-        : "GA4 API error";
-    throw new Error(`${statusHint}: ${full}`);
+    console.error("[ga4] API error", {
+      errorCode: code,
+      client_email: input.clientEmail,
+      project_id: input.projectId,
+      property: input.propertyResource,
+      GA4_PROPERTY_ID: input.propertyIdEnv,
+      runtime: detectRuntimeEnvironment(),
+      response: full,
+    });
+    throw Object.assign(
+      new Error(
+        code.includes("PERMISSION") || code.includes("403")
+          ? `403 PERMISSION_DENIED: ${full}`
+          : `GA4 API error (${code}): ${full}`,
+      ),
+      { ga4ErrorCode: code },
+    );
   }
 }
 
@@ -212,14 +269,18 @@ function metricsFromValues(
 async function fetchPeriodMetrics(
   client: BetaAnalyticsDataClient,
   clientEmail: string,
+  projectId: string | null,
   propertyResource: string,
+  propertyIdEnv: string,
   startDate: string,
   endDate: string,
 ): Promise<Ga4MetricSnapshot> {
   const report = await runGa4Report({
     client,
     clientEmail,
+    projectId,
     propertyResource,
+    propertyIdEnv,
     body: {
       dateRanges: [{ startDate, endDate }],
       metrics: [
@@ -247,6 +308,9 @@ function withConfigFlags(payload: Ga4CachePayload): Ga4CachePayload {
     ...payload,
     configured,
     propertyId: getGa4PropertyId(),
+    authDiagnostics: buildAuthDiagnostics(
+      payload.authDiagnostics?.errorCode ?? null,
+    ),
     configMessage: configured
       ? payload.configMessage
       : "GA4_PROPERTY_ID を設定し、サービスアカウントに Analytics 閲覧権限を付与してください。",
@@ -275,6 +339,8 @@ export async function getGa4DashboardData(): Promise<Ga4CachePayload> {
       topPages: cached.lastSuccessfulAt ? cached.topPages : [],
       sources: cached.lastSuccessfulAt ? cached.sources : [],
       updatedAt: cached.updatedAt,
+      authDiagnostics: buildAuthDiagnostics(null),
+      fetchError: cached.fetchError,
     };
   }
   return cached;
@@ -288,30 +354,38 @@ export async function refreshGa4DashboardData(): Promise<Ga4CachePayload> {
       configured: false,
       propertyId: getGa4PropertyId(),
     });
-    await saveGa4CachePersisted({
+    const payload = {
       ...empty,
       lastSuccessfulAt: previous.lastSuccessfulAt,
       periods: previous.lastSuccessfulAt ? previous.periods : empty.periods,
       daily: previous.lastSuccessfulAt ? previous.daily : [],
       topPages: previous.lastSuccessfulAt ? previous.topPages : [],
       sources: previous.lastSuccessfulAt ? previous.sources : [],
-    });
+      authDiagnostics: buildAuthDiagnostics(null),
+    };
+    await saveGa4CachePersisted(payload);
     return getGa4DashboardData();
   }
 
   const propertyId = getGa4PropertyId()!;
   const propertyResource = toGa4PropertyResource(propertyId);
+  const publicInfo = getServiceAccountPublicInfo();
+
+  console.info("[ga4] credential check (no secrets)", {
+    client_email: publicInfo.clientEmail,
+    project_id: publicInfo.projectId,
+    property: propertyResource,
+    GA4_PROPERTY_ID: propertyId,
+    runtime: detectRuntimeEnvironment(),
+    credentialSource: getServiceAccountJsonSource(),
+    sharedLoader: publicInfo.sharedCredentialLoader,
+    expectedClientEmail: EXPECTED_GA4_CLIENT_EMAIL,
+    clientEmailMatchesExpected:
+      publicInfo.clientEmail === EXPECTED_GA4_CLIENT_EMAIL,
+  });
 
   try {
-    const { client, clientEmail } = createGa4Client();
-    console.info("[ga4] starting refresh", {
-      propertyId,
-      property: propertyResource,
-      client_email: clientEmail,
-      credentialSource: getServiceAccountJsonSource(),
-      sharedWithSearchConsole: true,
-    });
-
+    const { client, clientEmail, projectId } = createGa4Client();
     const end = new Date();
     const periodDefs: Ga4PeriodDays[] = [1, 7, 28, 90];
     const periods = {} as Ga4CachePayload["periods"];
@@ -325,14 +399,18 @@ export async function refreshGa4DashboardData(): Promise<Ga4CachePayload> {
         fetchPeriodMetrics(
           client,
           clientEmail,
+          projectId,
           propertyResource,
+          propertyId,
           currentStart,
           currentEnd,
         ),
         fetchPeriodMetrics(
           client,
           clientEmail,
+          projectId,
           propertyResource,
+          propertyId,
           previousStart,
           previousEnd,
         ),
@@ -343,7 +421,9 @@ export async function refreshGa4DashboardData(): Promise<Ga4CachePayload> {
     const dailyReport = await runGa4Report({
       client,
       clientEmail,
+      projectId,
       propertyResource,
+      propertyIdEnv: propertyId,
       body: {
         dateRanges: [
           {
@@ -382,7 +462,9 @@ export async function refreshGa4DashboardData(): Promise<Ga4CachePayload> {
     const pagesReport = await runGa4Report({
       client,
       clientEmail,
+      projectId,
       propertyResource,
+      propertyIdEnv: propertyId,
       body: {
         dateRanges: [
           {
@@ -417,7 +499,9 @@ export async function refreshGa4DashboardData(): Promise<Ga4CachePayload> {
     const sourceReport = await runGa4Report({
       client,
       clientEmail,
+      projectId,
       propertyResource,
+      propertyIdEnv: propertyId,
       body: {
         dateRanges: [
           {
@@ -442,12 +526,13 @@ export async function refreshGa4DashboardData(): Promise<Ga4CachePayload> {
 
     const now = new Date().toISOString();
     const payload: Ga4CachePayload = {
-      version: 2,
+      version: 3,
       updatedAt: now,
       lastSuccessfulAt: now,
       configured: true,
       propertyId,
       connectionStatus: "connected",
+      authDiagnostics: buildAuthDiagnostics(null),
       periods,
       daily,
       topPages,
@@ -459,16 +544,28 @@ export async function refreshGa4DashboardData(): Promise<Ga4CachePayload> {
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "GA4取得に失敗しました。";
-    console.error("[ga4] refresh failed (full):\n", message);
+    const errorCode =
+      (error as { ga4ErrorCode?: string })?.ga4ErrorCode ??
+      extractGa4ErrorCode(error);
+    console.error("[ga4] refresh failed", {
+      errorCode,
+      client_email: publicInfo.clientEmail,
+      project_id: publicInfo.projectId,
+      property: propertyResource,
+      GA4_PROPERTY_ID: propertyId,
+      runtime: detectRuntimeEnvironment(),
+      message: message.slice(0, 2000),
+    });
     const stale: Ga4CachePayload = {
       ...previous,
-      version: 2,
+      version: 3,
       configured: true,
       propertyId,
       connectionStatus: previous.lastSuccessfulAt ? "stale" : "error",
       fetchError: message,
       updatedAt: previous.updatedAt,
       lastSuccessfulAt: previous.lastSuccessfulAt,
+      authDiagnostics: buildAuthDiagnostics(errorCode),
       configMessage: previous.lastSuccessfulAt
         ? `${previous.lastSuccessfulAt}時点のキャッシュを表示しています`
         : message,

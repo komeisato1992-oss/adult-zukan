@@ -355,6 +355,93 @@ export function OpsDashboardClient({ initialData }: OpsDashboardClientProps) {
 
       <section>
         <h2 className="mb-4 text-lg font-bold text-foreground">ダッシュボードTOP</h2>
+        <div className="mb-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+          <OpsKpiCard
+            label="今日の売上"
+            value={
+              data.analyticsKpis.salesToday == null
+                ? "—"
+                : formatYen(data.analyticsKpis.salesToday)
+            }
+          />
+          <OpsKpiCard
+            label="昨日の売上"
+            value={
+              data.analyticsKpis.salesYesterday == null
+                ? "—"
+                : formatYen(data.analyticsKpis.salesYesterday)
+            }
+          />
+          <OpsKpiCard
+            label="28日売上"
+            value={
+              data.analyticsKpis.sales28d == null
+                ? "—"
+                : formatYen(data.analyticsKpis.sales28d)
+            }
+          />
+          <OpsKpiCard
+            label="Google流入数"
+            value={
+              data.analyticsKpis.googleSessions28d == null
+                ? "—"
+                : formatSeoNumber(data.analyticsKpis.googleSessions28d)
+            }
+          />
+          <OpsKpiCard
+            label="検索クリック数"
+            value={
+              data.analyticsKpis.searchClicks28d == null
+                ? "—"
+                : formatSeoNumber(data.analyticsKpis.searchClicks28d)
+            }
+          />
+          <OpsKpiCard
+            label="平均順位"
+            value={
+              data.analyticsKpis.avgPosition28d == null
+                ? "—"
+                : formatSeoPosition(data.analyticsKpis.avgPosition28d)
+            }
+          />
+          <OpsKpiCard
+            label="CTR"
+            value={
+              data.analyticsKpis.ctr28d == null
+                ? "—"
+                : formatSeoPercent(data.analyticsKpis.ctr28d)
+            }
+          />
+          <OpsKpiCard
+            label="成果率 / CVR"
+            value={
+              data.analyticsKpis.cvr28d == null
+                ? "—"
+                : formatSeoPercent(data.analyticsKpis.cvr28d)
+            }
+          />
+          <OpsKpiCard
+            label="RPM"
+            value={
+              data.analyticsKpis.rpm28d == null
+                ? "—"
+                : formatYen(data.analyticsKpis.rpm28d)
+            }
+          />
+          <OpsKpiCard
+            label="前回正常取得"
+            value={formatSeoDateTime(
+              data.analyticsKpis.lastSuccessfulAt.ga4 ??
+                data.analyticsKpis.lastSuccessfulAt.dmm ??
+                data.analyticsKpis.lastSuccessfulAt.seo,
+            )}
+          >
+            <p className="text-xs text-muted">
+              GA4: {formatSeoDateTime(data.analyticsKpis.lastSuccessfulAt.ga4)} /
+              DMM: {formatSeoDateTime(data.analyticsKpis.lastSuccessfulAt.dmm)}
+            </p>
+          </OpsKpiCard>
+        </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {(
             [
@@ -718,6 +805,13 @@ export function OpsDashboardClient({ initialData }: OpsDashboardClientProps) {
             {data.ga4.configMessage}
           </p>
         ) : null}
+        {data.ga4.connectionStatus === "stale" || data.ga4.fetchError ? (
+          <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            {data.ga4.fetchError
+              ? `GA4取得エラー（前回取得日時: ${formatSeoDateTime(data.ga4.lastSuccessfulAt)}）: ${data.ga4.fetchError}`
+              : `前回取得日時: ${formatSeoDateTime(data.ga4.lastSuccessfulAt)}`}
+          </p>
+        ) : null}
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <OpsKpiCard
             label="ユーザー数"
@@ -855,6 +949,13 @@ export function OpsDashboardClient({ initialData }: OpsDashboardClientProps) {
             {data.dmm.configMessage}
           </p>
         ) : null}
+        {data.dmm.connectionStatus === "stale" || data.dmm.fetchError ? (
+          <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            {data.dmm.fetchError
+              ? `DMM取得エラー（前回取得日時: ${formatSeoDateTime(data.dmm.lastSuccessfulAt)}）: ${data.dmm.fetchError}`
+              : `前回取得日時: ${formatSeoDateTime(data.dmm.lastSuccessfulAt)}`}
+          </p>
+        ) : null}
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           <OpsKpiCard label="クリック数" value={formatSeoNumber(dmmMetrics.clicks)} />
           <OpsKpiCard
@@ -906,6 +1007,40 @@ export function OpsDashboardClient({ initialData }: OpsDashboardClientProps) {
               },
             ]}
           />
+        </div>
+        <div className="grid gap-4 xl:grid-cols-2">
+          <div className="rounded-xl border border-border bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+            <p className="font-semibold">作品別ランキング（報酬）</p>
+            <ul className="mt-2 space-y-1 text-sm">
+              {(data.dmm.rankings?.works ?? []).map((row) => (
+                <li key={row.key}>
+                  {row.name} — ¥{Math.round(row.reward).toLocaleString("ja-JP")} /
+                  成果 {row.sales}
+                </li>
+              ))}
+              {(data.dmm.rankings?.works ?? []).length === 0 ? (
+                <li className="text-muted">
+                  entities 付きレポート取込で自動生成されます
+                </li>
+              ) : null}
+            </ul>
+          </div>
+          <div className="rounded-xl border border-border bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+            <p className="font-semibold">女優別ランキング（報酬）</p>
+            <ul className="mt-2 space-y-1 text-sm">
+              {(data.dmm.rankings?.actresses ?? []).map((row) => (
+                <li key={row.key}>
+                  {row.name} — ¥{Math.round(row.reward).toLocaleString("ja-JP")} /
+                  成果 {row.sales}
+                </li>
+              ))}
+              {(data.dmm.rankings?.actresses ?? []).length === 0 ? (
+                <li className="text-muted">
+                  entities 付きレポート取込で自動生成されます
+                </li>
+              ) : null}
+            </ul>
+          </div>
         </div>
         {data.dmm.insights &&
         (data.dmm.insights.highConversionWorks.length > 0 ||

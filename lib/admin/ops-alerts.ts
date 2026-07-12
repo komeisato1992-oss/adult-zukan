@@ -125,12 +125,19 @@ export function buildOpsAlerts(
     });
   }
 
-  if (ga4.connectionStatus === "error" || Boolean(ga4.fetchError)) {
+  if (ga4.connectionStatus === "error" && !ga4.lastSuccessfulAt) {
     alerts.push({
       id: "ga4-api-fail",
       title: "API取得失敗",
       detail: ga4.fetchError ?? "GA4 Data APIの取得に失敗しました。",
       severity: "critical",
+    });
+  } else if (ga4.connectionStatus === "stale") {
+    alerts.push({
+      id: "ga4-stale",
+      title: "GA4前回データ表示中",
+      detail: `前回取得日時: ${ga4.lastSuccessfulAt ?? "不明"}`,
+      severity: "warning",
     });
   }
 

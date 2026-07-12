@@ -25,6 +25,7 @@ import {
   ensureSeoAudits,
   refreshSeoAudits,
 } from "@/lib/admin/seo-audit-store";
+import { buildOpsAnalyticsKpis } from "@/lib/admin/ops-analytics-kpis";
 import { getSitemapEntries } from "@/lib/sitemap/build-entries";
 
 function latestUpdatedAt(
@@ -86,7 +87,7 @@ async function buildOpsPayload(
       : seo.index.registrationRate;
 
   return {
-    version: 2,
+    version: 3,
     generatedAt: new Date().toISOString(),
     top: {
       catalog: {
@@ -112,11 +113,14 @@ async function buildOpsPayload(
       updatedAt: latestUpdatedAt([
         seo.updatedAt,
         ga4.updatedAt,
+        ga4.lastSuccessfulAt,
         dmm.updatedAt,
+        dmm.lastSuccessfulAt,
         audits.internalLinks?.inspectedAt,
         audits.structuredData?.inspectedAt,
       ]),
     },
+    analyticsKpis: buildOpsAnalyticsKpis(seo, ga4, dmm),
     seoScore,
     suggestions,
     tasks,

@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "updatedAt": null,
+  "lastSuccessfulAt": null,
+  "configured": false,
+  "propertyId": null,
+  "connectionStatus": "unconfigured",
+  "periods": {
+    "1": { "current": { "users": 0, "newUsers": 0, "sessions": 0, "pageViews": 0, "avgEngagementSeconds": 0, "eventCount": 0, "bounceRate": 0, "pagesPerSession": 0 }, "previous": { "users": 0, "newUsers": 0, "sessions": 0, "pageViews": 0, "avgEngagementSeconds": 0, "eventCount": 0, "bounceRate": 0, "pagesPerSession": 0 } },
+    "7": { "current": { "users": 0, "newUsers": 0, "sessions": 0, "pageViews": 0, "avgEngagementSeconds": 0, "eventCount": 0, "bounceRate": 0, "pagesPerSession": 0 }, "previous": { "users": 0, "newUsers": 0, "sessions": 0, "pageViews": 0, "avgEngagementSeconds": 0, "eventCount": 0, "bounceRate": 0, "pagesPerSession": 0 } },
+    "28": { "current": { "users": 0, "newUsers": 0, "sessions": 0, "pageViews": 0, "avgEngagementSeconds": 0, "eventCount": 0, "bounceRate": 0, "pagesPerSession": 0 }, "previous": { "users": 0, "newUsers": 0, "sessions": 0, "pageViews": 0, "avgEngagementSeconds": 0, "eventCount": 0, "bounceRate": 0, "pagesPerSession": 0 } },
+    "90": { "current": { "users": 0, "newUsers": 0, "sessions": 0, "pageViews": 0, "avgEngagementSeconds": 0, "eventCount": 0, "bounceRate": 0, "pagesPerSession": 0 }, "previous": { "users": 0, "newUsers": 0, "sessions": 0, "pageViews": 0, "avgEngagementSeconds": 0, "eventCount": 0, "bounceRate": 0, "pagesPerSession": 0 } }
+  },
+  "daily": [],
+  "topPages": [],
+  "sources": []
+}

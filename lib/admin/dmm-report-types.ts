@@ -73,12 +73,13 @@ export type DmmAiInsights = {
 };
 
 export type DmmAffiliateCachePayload = {
-  version: 2;
+  version: 3;
   updatedAt: string | null;
   importedAt: string | null;
+  lastSuccessfulAt: string | null;
   configured: boolean;
   configMessage?: string;
-  connectionStatus: "connected" | "error" | "unconfigured";
+  connectionStatus: "connected" | "error" | "unconfigured" | "stale";
   fetchError?: string;
   rowCount: number;
   dateRange: { start: string | null; end: string | null };
@@ -87,6 +88,10 @@ export type DmmAffiliateCachePayload = {
   periods: Record<DmmAffiliatePeriod, DmmAffiliateMetrics>;
   daily: DmmAffiliateDailyPoint[];
   insights: DmmAiInsights;
+  rankings: {
+    works: DmmEntityStat[];
+    actresses: DmmEntityStat[];
+  };
 };
 
 export type DmmImportResult = {

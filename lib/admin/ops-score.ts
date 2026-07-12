@@ -298,7 +298,7 @@ function scoreGa4(ga4: Ga4CachePayload, now: string): CategoryScore {
     };
   }
 
-  if (ga4.connectionStatus === "error") {
+  if (ga4.connectionStatus === "error" && !ga4.lastSuccessfulAt) {
     return {
       key: "ga4",
       label: "GA4",

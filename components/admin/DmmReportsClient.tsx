@@ -126,7 +126,7 @@ export function DmmReportsClient({ initialStatus }: DmmReportsClientProps) {
             DMMアフィリエイト成果
           </h1>
           <p className="mt-2 text-sm text-muted">
-            JSON / CSV を取り込み、ダッシュボードへ自動集計します
+            自動取得: DMM_AFFILIATE_REPORT_URL → JSON → CSV。手動アップロードも併用可。
           </p>
         </div>
         <button

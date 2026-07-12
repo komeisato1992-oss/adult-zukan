@@ -3,7 +3,7 @@
   "updatedAt": null,
   "lastSuccessfulAt": null,
   "configured": true,
-  "configMessage": "GA4 API error 403: {\n  \"error\": {\n    \"code\": 403,\n    \"message\": \"Google Analytics Data API has not been used in project 746313707294 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/analyticsdata.googleapis.com/overview?project=746313707294 then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry.\",\n    \"stat",
+  "configMessage": "GA4 API error 403: {\n  \"error\": {\n    \"code\": 403,\n    \"message\": \"User does not have sufficient permissions for this property. To learn more about Property ID, see https://developers.google.com/analytics/devguides/reporting/data/v1/property-id.\",\n    \"status\": \"PERMISSION_DENIED\"\n  }\n}\n",
   "propertyId": "544245702",
   "connectionStatus": "error",
   "periods": {
@@ -99,5 +99,5 @@
   "daily": [],
   "topPages": [],
   "sources": [],
-  "fetchError": "GA4 API error 403: {\n  \"error\": {\n    \"code\": 403,\n    \"message\": \"Google Analytics Data API has not been used in project 746313707294 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/analyticsdata.googleapis.com/overview?project=746313707294 then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry.\",\n    \"stat"
+  "fetchError": "GA4 API error 403: {\n  \"error\": {\n    \"code\": 403,\n    \"message\": \"User does not have sufficient permissions for this property. To learn more about Property ID, see https://developers.google.com/analytics/devguides/reporting/data/v1/property-id.\",\n    \"status\": \"PERMISSION_DENIED\"\n  }\n}\n"
 }

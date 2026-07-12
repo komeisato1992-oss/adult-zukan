@@ -449,6 +449,14 @@ async function commitPreparedItemsOnce(input: {
       })),
     );
     clearCatalogShardCache();
+    try {
+      const { clearEntityRankingCache } = await import(
+        "@/lib/ranking/entity-ranking-service"
+      );
+      clearEntityRankingCache();
+    } catch {
+      // ignore
+    }
     return {
       addedContentIds: itemsToAdd.map((item) => item.content_id),
       catalogCountAfter: append.manifest.totalCount,

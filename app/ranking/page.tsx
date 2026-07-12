@@ -5,6 +5,9 @@ import { SectionHeader } from "@/components/ui/SectionHeader";
 import {
   DmmRankedWorkList,
   RankedEntityList,
+  RankingEmptyState,
+  toMakerEntityCards,
+  toSeriesEntityCards,
 } from "@/components/ranking/RankingList";
 import { DmmActressCarousel } from "@/components/home/DmmActressCarousel";
 import { RankingNav } from "@/components/ranking/RankingNav";
@@ -18,12 +21,14 @@ import {
 import {
   getMonthlyRankingWorks,
   getPopularWorks,
-  getRankedActresses,
-  getRankedMakers,
-  getRankedSeries,
   getSharedCatalogWorks,
   getWeeklyRankingWorks,
 } from "@/lib/works/catalog";
+import {
+  getPopularActresses,
+  getPopularMakers,
+  getPopularSeries,
+} from "@/lib/ranking/entity-ranking-service";
 
 export const revalidate = 3600;
 
@@ -39,9 +44,20 @@ export default async function RankingPage() {
   const popularWorks = toRankingWorkCardItems(getPopularWorks(catalog, 10));
   const weeklyWorks = toRankingWorkCardItems(getWeeklyRankingWorks(catalog, 10));
   const monthlyWorks = toRankingWorkCardItems(getMonthlyRankingWorks(catalog, 10));
-  const rankedMakers = getRankedMakers(catalog, 10);
-  const rankedSeries = getRankedSeries(catalog, 10);
-  const popularActresses = getRankedActresses(catalog, 10);
+  const [actressesResult, makersResult, seriesResult] = await Promise.all([
+    getPopularActresses(10),
+    getPopularMakers(10),
+    getPopularSeries(10),
+  ]);
+  const popularActresses = actressesResult.items.map((actress) => ({
+    name: actress.name,
+    slug: actress.slug,
+    workCount: actress.workCount,
+    imageUrl: actress.imageUrl,
+    imageFromMultiActressWork: actress.imageFromMultiActressWork,
+  }));
+  const rankedMakers = makersResult.items;
+  const rankedSeries = seriesResult.items;
 
   return (
     <>
@@ -102,10 +118,16 @@ export default async function RankingPage() {
             id="rank-actresses"
             href="/ranking/actresses"
           />
-          <DmmActressCarousel
-            actresses={popularActresses}
-            id="rank-actresses-list"
-          />
+          {actressesResult.error ? (
+            <RankingEmptyState message="ランキングを取得できませんでした。時間をおいて再度お試しください。" />
+          ) : popularActresses.length === 0 ? (
+            <RankingEmptyState message="ランキングデータを集計中です" />
+          ) : (
+            <DmmActressCarousel
+              actresses={popularActresses}
+              id="rank-actresses-list"
+            />
+          )}
         </section>
 
         <div className="grid gap-8 lg:grid-cols-2">
@@ -115,13 +137,11 @@ export default async function RankingPage() {
               id="rank-makers"
               href="/ranking/makers"
             />
-            <RankedEntityList
-              items={rankedMakers.map((maker) => ({
-                name: maker.name,
-                href: `/makers/${maker.slug}`,
-                meta: `${maker.workCount}作品`,
-              }))}
-            />
+            {makersResult.error ? (
+              <RankingEmptyState message="ランキングを取得できませんでした。時間をおいて再度お試しください。" />
+            ) : (
+              <RankedEntityList items={toMakerEntityCards(rankedMakers)} />
+            )}
           </section>
 
           <section aria-labelledby="rank-series">
@@ -130,13 +150,11 @@ export default async function RankingPage() {
               id="rank-series"
               href="/ranking/series"
             />
-            <RankedEntityList
-              items={rankedSeries.map((series) => ({
-                name: series.name,
-                href: `/series/${series.slug}`,
-                meta: `${series.workCount}作品`,
-              }))}
-            />
+            {seriesResult.error ? (
+              <RankingEmptyState message="ランキングを取得できませんでした。時間をおいて再度お試しください。" />
+            ) : (
+              <RankedEntityList items={toSeriesEntityCards(rankedSeries)} />
+            )}
           </section>
         </div>
       </PageLayout>

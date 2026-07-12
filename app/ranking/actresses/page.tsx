@@ -1,22 +1,29 @@
 import { PageLayout } from "@/components/layout/PageLayout";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { PageIntro } from "@/components/ui/PageIntro";
-import { RankedActressList } from "@/components/ranking/RankingList";
+import {
+  RankedActressList,
+  RankingEmptyState,
+} from "@/components/ranking/RankingList";
 import { RankingNav } from "@/components/ranking/RankingNav";
 import { JsonLd } from "@/components/seo/JsonLd";
-import { getRankedActresses } from "@/data/actresses";
+import { getPopularActresses } from "@/lib/ranking/entity-ranking-service";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import { createBreadcrumbJsonLd, createItemListJsonLd } from "@/lib/seo/json-ld";
 import { siteConfig } from "@/lib/site-config";
 
+export const revalidate = 21600;
+
 export const metadata = createPageMetadata({
   title: "人気女優ランキング",
-  description: "アダルト図鑑の人気女優ランキングTOP30。",
+  description: "アダルト図鑑の人気女優ランキングTOP30。公開中作品の実データから集計。",
   path: "/ranking/actresses",
 });
 
-export default function RankingActressesPage() {
-  const actresses = getRankedActresses(30);
+export default async function RankingActressesPage() {
+  const result = await getPopularActresses(30);
+  const showScore = process.env.NODE_ENV !== "production";
+  const actresses = result.items;
 
   return (
     <>
@@ -31,7 +38,7 @@ export default function RankingActressesPage() {
             "人気女優ランキング",
             actresses.map((actress) => ({
               name: actress.name,
-              url: `${siteConfig.url}/actresses/${actress.slug}`,
+              url: `${siteConfig.url}${actress.href}`,
             })),
           ),
         ]}
@@ -48,10 +55,16 @@ export default function RankingActressesPage() {
           <h1 className="border-l-4 border-accent pl-3 text-2xl font-bold text-foreground">
             人気女優ランキング
           </h1>
-          <PageIntro text="出演作品数と人気度をもとに集計した女優ランキングです。" />
+          <PageIntro text="公開中作品の出演数・人気スコア・新作出演をもとに集計した女優ランキングです。" />
         </header>
         <RankingNav current="/ranking/actresses" />
-        <RankedActressList actresses={actresses} />
+        {result.error ? (
+          <RankingEmptyState message="ランキングを取得できませんでした。時間をおいて再度お試しください。" />
+        ) : actresses.length === 0 ? (
+          <RankingEmptyState message="ランキングデータを集計中です" />
+        ) : (
+          <RankedActressList actresses={actresses} showScore={showScore} />
+        )}
       </PageLayout>
     </>
   );

@@ -1,22 +1,30 @@
 import { PageLayout } from "@/components/layout/PageLayout";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { PageIntro } from "@/components/ui/PageIntro";
-import { RankedEntityList } from "@/components/ranking/RankingList";
+import {
+  RankedEntityList,
+  RankingEmptyState,
+  toSeriesEntityCards,
+} from "@/components/ranking/RankingList";
 import { RankingNav } from "@/components/ranking/RankingNav";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import { createBreadcrumbJsonLd, createItemListJsonLd } from "@/lib/seo/json-ld";
 import { siteConfig } from "@/lib/site-config";
-import { getRankedSeriesWithCounts } from "@/lib/works/repository";
+import { getPopularSeries } from "@/lib/ranking/entity-ranking-service";
+
+export const revalidate = 21600;
 
 export const metadata = createPageMetadata({
   title: "人気シリーズランキング",
-  description: "アダルト図鑑の人気シリーズランキングTOP20。",
+  description: "アダルト図鑑の人気シリーズランキングTOP30。公開中作品の実データから集計。",
   path: "/ranking/series",
 });
 
 export default async function RankingSeriesPage() {
-  const rankedSeries = await getRankedSeriesWithCounts(20);
+  const result = await getPopularSeries(30);
+  const showScore = process.env.NODE_ENV !== "production";
+  const rankedSeries = result.items;
 
   return (
     <>
@@ -29,9 +37,9 @@ export default async function RankingSeriesPage() {
           ]),
           createItemListJsonLd(
             "人気シリーズランキング",
-            rankedSeries.map(({ series }) => ({
+            rankedSeries.map((series) => ({
               name: series.name,
-              url: `${siteConfig.url}/series/${series.slug}`,
+              url: `${siteConfig.url}${series.href}`,
             })),
           ),
         ]}
@@ -48,16 +56,18 @@ export default async function RankingSeriesPage() {
           <h1 className="border-l-4 border-accent pl-3 text-2xl font-bold text-foreground">
             人気シリーズランキング
           </h1>
-          <PageIntro text="作品数と人気度をもとに集計したシリーズランキングです。" />
+          <PageIntro text="公開中作品数と人気スコアをもとに集計したシリーズランキングです。" />
         </header>
         <RankingNav current="/ranking/series" />
-        <RankedEntityList
-          items={rankedSeries.map(({ series, workCount }) => ({
-            name: series.name,
-            href: `/series/${series.slug}`,
-            meta: `${workCount}作品`,
-          }))}
-        />
+        {result.error ? (
+          <RankingEmptyState message="ランキングを取得できませんでした。時間をおいて再度お試しください。" />
+        ) : rankedSeries.length === 0 ? (
+          <RankingEmptyState message="ランキングデータを集計中です" />
+        ) : (
+          <RankedEntityList
+            items={toSeriesEntityCards(rankedSeries, showScore)}
+          />
+        )}
       </PageLayout>
     </>
   );

@@ -2,17 +2,18 @@ import "server-only";
 
 import {
   getDmmItemMakerName,
-  getDmmItemSeriesName,
 } from "@/lib/dmm/display";
 import { isValidDmmListItem } from "@/lib/dmm/filter";
 import type { DmmItem } from "@/lib/dmm/types";
-import { encodeActressSlug } from "@/lib/actresses/slug";
-import { iterateItemActresses } from "@/lib/dmm/actress-names";
-import { buildActressRepresentativeImageMap } from "@/lib/dmm/actress-representative-image";
+import {
+  computePopularActresses,
+  computePopularMakers,
+  computePopularSeries,
+} from "@/lib/ranking/entity-ranking";
 import { parseDmmPrice, slugify } from "@/lib/utils";
 import { isWorkOnSale } from "@/lib/dmm/work-sale-info";
 import { parseWorkSortParam, sortWorks } from "@/lib/works/sort";
-import { getValidImageUrl, hasValidImage } from "@/lib/works";
+import { hasValidImage } from "@/lib/works";
 
 export const HOME_SECTION_LIMIT = 6;
 export const HERO_CAROUSEL_LIMIT = 5;
@@ -112,50 +113,22 @@ export function getRankedMakers(
   items: DmmItem[],
   limit = 8,
 ): RankedNameCount[] {
-  const counts = new Map<string, number>();
-
-  for (const item of filterDisplayableItems(items)) {
-    const name = getDmmItemMakerName(item);
-    if (!name) continue;
-    counts.set(name, (counts.get(name) ?? 0) + 1);
-  }
-
-  return [...counts.entries()]
-    .map(([name, workCount]) => ({
-      name,
-      slug: slugify(name),
-      workCount,
-    }))
-    .sort(
-      (a, b) =>
-        b.workCount - a.workCount || a.name.localeCompare(b.name, "ja"),
-    )
-    .slice(0, limit);
+  return computePopularMakers(items, limit).map((maker) => ({
+    name: maker.name,
+    slug: maker.slug,
+    workCount: maker.workCount,
+  }));
 }
 
 export function getRankedSeries(
   items: DmmItem[],
   limit = 8,
 ): RankedNameCount[] {
-  const counts = new Map<string, number>();
-
-  for (const item of filterDisplayableItems(items)) {
-    const name = getDmmItemSeriesName(item);
-    if (!name) continue;
-    counts.set(name, (counts.get(name) ?? 0) + 1);
-  }
-
-  return [...counts.entries()]
-    .map(([name, workCount]) => ({
-      name,
-      slug: slugify(name),
-      workCount,
-    }))
-    .sort(
-      (a, b) =>
-        b.workCount - a.workCount || a.name.localeCompare(b.name, "ja"),
-    )
-    .slice(0, limit);
+  return computePopularSeries(items, limit).map((series) => ({
+    name: series.name,
+    slug: series.slug,
+    workCount: series.workCount,
+  }));
 }
 
 export function getRankedGenres(
@@ -189,43 +162,13 @@ export function getRankedActresses(
   items: DmmItem[],
   limit = 10,
 ): RankedActress[] {
-  const valid = filterDisplayableItems(items);
-  const map = new Map<string, { count: number }>();
-
-  for (const item of valid) {
-    for (const actress of iterateItemActresses(item)) {
-      const existing = map.get(actress.name);
-      map.set(actress.name, {
-        count: (existing?.count ?? 0) + 1,
-      });
-    }
-  }
-
-  const actresses = [...map.entries()]
-    .map(([name, { count }]) => ({
-      name,
-      slug: encodeActressSlug(name),
-      workCount: count,
-    }))
-    .filter((actress) => actress.workCount >= 1)
-    .sort(
-      (a, b) =>
-        b.workCount - a.workCount || a.name.localeCompare(b.name, "ja"),
-    );
-
-  const imageByActress = buildActressRepresentativeImageMap(valid, actresses);
-
-  return actresses
-    .map((actress) => {
-      const image = imageByActress.get(actress.name);
-
-      return {
-        ...actress,
-        imageUrl: image?.imageUrl,
-        imageFromMultiActressWork: image?.isFromMultiActressWork,
-      };
-    })
-    .slice(0, limit);
+  return computePopularActresses(items, limit).map((actress) => ({
+    name: actress.name,
+    slug: actress.slug,
+    workCount: actress.workCount,
+    imageUrl: actress.imageUrl,
+    imageFromMultiActressWork: actress.imageFromMultiActressWork,
+  }));
 }
 
 export function filterCatalogWorks(

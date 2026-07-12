@@ -18,7 +18,7 @@ export function DmmActressCarousel({
   title = "人気女優",
 }: DmmActressCarouselProps) {
   const visibleActresses = actresses
-    .filter((actress) => isValidImageUrl(actress.imageUrl))
+    .filter((actress) => actress.workCount >= 1)
     .slice(0, 6);
 
   if (visibleActresses.length === 0) return null;
@@ -33,8 +33,8 @@ export function DmmActressCarousel({
             className="group w-[140px] shrink-0 snap-start sm:w-[160px]"
           >
             <Link href={getActressDetailPath(actress.name)} className="block">
-              <div className="relative aspect-[3/4] overflow-hidden rounded-lg shadow-sm transition-all duration-300 ease-out group-hover:-translate-y-1.5 group-hover:shadow-xl">
-                {actress.imageUrl && (
+              <div className="relative aspect-[3/4] overflow-hidden rounded-lg bg-surface shadow-sm transition-all duration-300 ease-out group-hover:-translate-y-1.5 group-hover:shadow-xl">
+                {isValidImageUrl(actress.imageUrl) && actress.imageUrl ? (
                   <Image
                     src={actress.imageUrl}
                     alt={actress.name}
@@ -44,7 +44,7 @@ export function DmmActressCarousel({
                     loading="lazy"
                     unoptimized
                   />
-                )}
+                ) : null}
                 {actress.imageFromMultiActressWork ? (
                   <MultiActressPackageBanner />
                 ) : null}

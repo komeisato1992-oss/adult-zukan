@@ -1,22 +1,30 @@
 import { PageLayout } from "@/components/layout/PageLayout";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { PageIntro } from "@/components/ui/PageIntro";
-import { RankedEntityList } from "@/components/ranking/RankingList";
+import {
+  RankedEntityList,
+  RankingEmptyState,
+  toMakerEntityCards,
+} from "@/components/ranking/RankingList";
 import { RankingNav } from "@/components/ranking/RankingNav";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import { createBreadcrumbJsonLd, createItemListJsonLd } from "@/lib/seo/json-ld";
 import { siteConfig } from "@/lib/site-config";
-import { getRankedMakersWithCounts } from "@/lib/works/repository";
+import { getPopularMakers } from "@/lib/ranking/entity-ranking-service";
+
+export const revalidate = 21600;
 
 export const metadata = createPageMetadata({
   title: "人気メーカーランキング",
-  description: "アダルト図鑑の人気メーカーランキングTOP20。",
+  description: "アダルト図鑑の人気メーカーランキングTOP30。公開中作品の実データから集計。",
   path: "/ranking/makers",
 });
 
 export default async function RankingMakersPage() {
-  const rankedMakers = await getRankedMakersWithCounts(20);
+  const result = await getPopularMakers(30);
+  const showScore = process.env.NODE_ENV !== "production";
+  const rankedMakers = result.items;
 
   return (
     <>
@@ -29,9 +37,9 @@ export default async function RankingMakersPage() {
           ]),
           createItemListJsonLd(
             "人気メーカーランキング",
-            rankedMakers.map(({ maker }) => ({
+            rankedMakers.map((maker) => ({
               name: maker.name,
-              url: `${siteConfig.url}/makers/${maker.slug}`,
+              url: `${siteConfig.url}${maker.href}`,
             })),
           ),
         ]}
@@ -48,16 +56,18 @@ export default async function RankingMakersPage() {
           <h1 className="border-l-4 border-accent pl-3 text-2xl font-bold text-foreground">
             人気メーカーランキング
           </h1>
-          <PageIntro text="作品数と人気度をもとに集計したメーカーランキングです。" />
+          <PageIntro text="公開中作品数と人気スコアをもとに集計したメーカーランキングです。" />
         </header>
         <RankingNav current="/ranking/makers" />
-        <RankedEntityList
-          items={rankedMakers.map(({ maker, workCount }) => ({
-            name: maker.name,
-            href: `/makers/${maker.slug}`,
-            meta: `${workCount}作品`,
-          }))}
-        />
+        {result.error ? (
+          <RankingEmptyState message="ランキングを取得できませんでした。時間をおいて再度お試しください。" />
+        ) : rankedMakers.length === 0 ? (
+          <RankingEmptyState message="ランキングデータを集計中です" />
+        ) : (
+          <RankedEntityList
+            items={toMakerEntityCards(rankedMakers, showScore)}
+          />
+        )}
       </PageLayout>
     </>
   );

@@ -235,39 +235,41 @@ export async function getWorkSlugs(): Promise<string[]> {
 }
 
 export async function getRankedMakersWithCounts(limit = 10) {
-  const works = await getAllWorks();
-  const makers = getAllMakers();
-
-  return makers
-    .map((maker) => ({
-      maker,
-      workCount: works.filter((w) => w.makerSlug === maker.slug).length,
-      topScore: Math.max(
-        ...works
-          .filter((w) => w.makerSlug === maker.slug)
-          .map((w) => w.rankingScore),
-        0,
-      ),
-    }))
-    .sort((a, b) => b.topScore - a.topScore)
-    .slice(0, limit);
+  const { getPopularMakers } = await import(
+    "@/lib/ranking/entity-ranking-service"
+  );
+  const result = await getPopularMakers(limit);
+  return result.items.map((maker) => ({
+    maker: {
+      slug: maker.slug,
+      name: maker.name,
+      description: "",
+      longDescription: "",
+      labelSlugs: [] as string[],
+    },
+    workCount: maker.workCount,
+    topScore: maker.score,
+  }));
 }
 
 export async function getRankedSeriesWithCounts(limit = 10) {
-  const works = await getAllWorks();
-  const series = getAllSeries();
-
-  return series
-    .map((s) => ({
-      series: s,
-      workCount: works.filter((w) => w.seriesSlug === s.slug).length,
-      topScore: Math.max(
-        ...works.filter((w) => w.seriesSlug === s.slug).map((w) => w.rankingScore),
-        0,
-      ),
-    }))
-    .sort((a, b) => b.topScore - a.topScore)
-    .slice(0, limit);
+  const { getPopularSeries } = await import(
+    "@/lib/ranking/entity-ranking-service"
+  );
+  const result = await getPopularSeries(limit);
+  return result.items.map((series) => ({
+    series: {
+      slug: series.slug,
+      name: series.name,
+      description: "",
+      longDescription: "",
+      makerSlug: "",
+      makerName: "",
+      genreSlugs: [] as string[],
+    },
+    workCount: series.workCount,
+    topScore: series.score,
+  }));
 }
 
 export async function getRankedLabelsWithCounts(limit = 10) {

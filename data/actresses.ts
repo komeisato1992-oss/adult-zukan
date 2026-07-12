@@ -12,6 +12,7 @@ export function getActressBySlug(slug: string): Actress | undefined {
 }
 
 export function getRankedActresses(limit = 10): Actress[] {
+  // ダミーカタログ由来。公開ランキングは getPopularActresses を使うこと。
   return [...actresses]
     .sort((a, b) => b.rankingScore - a.rankingScore)
     .slice(0, limit);

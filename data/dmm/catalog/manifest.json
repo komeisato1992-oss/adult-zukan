@@ -2,7 +2,7 @@
   "version": 1,
   "totalCount": 12300,
   "shardSize": 500,
-  "updatedAt": "2026-07-12T15:51:59.029Z",
+  "updatedAt": "2026-07-12T15:53:10.605Z",
   "shards": [
     {
       "file": "catalog-0001.json",

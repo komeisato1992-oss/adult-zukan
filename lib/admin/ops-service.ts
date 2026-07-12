@@ -41,7 +41,7 @@ export async function getOpsDashboardData(): Promise<OpsDashboardPayload> {
   ]);
 
   const seo = seoDashboard.data;
-  const suggestions = buildOpsSuggestions(seo, ga4);
+  const suggestions = buildOpsSuggestions(seo, ga4, dmm);
   const tasks = buildOpsTasks(seo, suggestions);
   const alerts = buildOpsAlerts(seo, ga4, dmm);
   const seoScore = computeOpsSeoScore(seo, ga4);

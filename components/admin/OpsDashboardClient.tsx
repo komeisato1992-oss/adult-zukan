@@ -45,6 +45,7 @@ const DMM_PERIODS: Array<{ id: OpsDmmPeriod; label: string }> = [
   { id: "yesterday", label: "昨日" },
   { id: "7d", label: "7日" },
   { id: "28d", label: "28日" },
+  { id: "90d", label: "90日" },
 ];
 
 const TASK_BUCKET_LABEL: Record<OpsTaskBucket, string> = {
@@ -692,7 +693,15 @@ export function OpsDashboardClient({ initialData }: OpsDashboardClientProps) {
 
       <section className="space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-lg font-bold text-foreground">DMMアフィリエイト</h2>
+          <div>
+            <h2 className="text-lg font-bold text-foreground">DMMアフィリエイト</h2>
+            <p className="mt-1 text-xs text-muted">
+              取込管理:{" "}
+              <a href="/admin/dmm" className="text-accent underline">
+                /admin/dmm
+              </a>
+            </p>
+          </div>
           <PeriodButtons
             options={DMM_PERIODS}
             value={dmmPeriod}
@@ -756,6 +765,38 @@ export function OpsDashboardClient({ initialData }: OpsDashboardClientProps) {
             ]}
           />
         </div>
+        {data.dmm.insights &&
+        (data.dmm.insights.highConversionWorks.length > 0 ||
+          data.dmm.insights.topRewardGenres.length > 0) ? (
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-xl border border-border bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+              <p className="font-semibold">成果率が高い作品</p>
+              <ul className="mt-2 space-y-1 text-sm text-foreground">
+                {data.dmm.insights.highConversionWorks.map((row) => (
+                  <li key={row.key}>
+                    {row.name}（{(row.conversion_rate * 100).toFixed(1)}%）
+                  </li>
+                ))}
+                {data.dmm.insights.highConversionWorks.length === 0 ? (
+                  <li className="text-muted">データなし（entities取込が必要）</li>
+                ) : null}
+              </ul>
+            </div>
+            <div className="rounded-xl border border-border bg-white p-4 dark:border-zinc-700 dark:bg-zinc-900">
+              <p className="font-semibold">報酬の多いジャンル</p>
+              <ul className="mt-2 space-y-1 text-sm text-foreground">
+                {data.dmm.insights.topRewardGenres.map((row) => (
+                  <li key={row.key}>
+                    {row.name}（¥{Math.round(row.reward).toLocaleString("ja-JP")}）
+                  </li>
+                ))}
+                {data.dmm.insights.topRewardGenres.length === 0 ? (
+                  <li className="text-muted">データなし（entities取込が必要）</li>
+                ) : null}
+              </ul>
+            </div>
+          </div>
+        ) : null}
       </section>
 
       <section className="space-y-4">

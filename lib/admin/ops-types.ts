@@ -4,7 +4,7 @@ import type { DmmAffiliateCachePayload } from "@/lib/admin/dmm-affiliate-service
 import type { SeoCachePayload } from "@/lib/admin/seo-types";
 
 export type OpsGscPeriod = "1" | "7" | "28" | "90";
-export type OpsDmmPeriod = "today" | "yesterday" | "7d" | "28d";
+export type OpsDmmPeriod = "today" | "yesterday" | "7d" | "28d" | "90d";
 export type OpsGa4Period = 1 | 7 | 28 | 90;
 
 export type OpsSeoScoreBreakdown = {

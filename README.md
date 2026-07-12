@@ -187,8 +187,8 @@ GITHUB_BRANCH=main
 | `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` | 分割設定: private key（`\\n` エスケープ） |
 | `GSC_SITE_URL` | Search Console プロパティ URL（例: `https://adult-zukan.jp/` または `sc-domain:adult-zukan.jp`） |
 | `GA4_PROPERTY_ID` | GA4 プロパティ ID（数字のみ。例: `123456789`）。サービスアカウントに Analytics 閲覧権限が必要 |
-| `DMM_AFFILIATE_REPORT_URL` | DMMアフィリエイト成果 JSON を返すエンドポイント（任意） |
-| `DMM_AFFILIATE_REPORT_JSON` | 上記の代わりに直接 JSON を埋め込む場合（任意） |
+| `DMM_AFFILIATE_REPORT_URL` | 任意: 外部JSON/CSV URL（更新ボタンで再取込） |
+| `DMM_AFFILIATE_REPORT_JSON` | 任意: 環境変数に直接 JSON を埋め込む場合 |
 | `CRON_SECRET` | 自動更新用（Vercel Cron。任意） |
 
 ### キャッシュ

@@ -17,6 +17,12 @@ export const adminNavItems: AdminNavItem[] = [
     href: "/admin/actress-images",
   },
   {
+    id: "dmm",
+    label: "DMM成果",
+    icon: "💰",
+    href: "/admin/dmm",
+  },
+  {
     id: "ai",
     label: "AI記事（準備中）",
     icon: "🤖",

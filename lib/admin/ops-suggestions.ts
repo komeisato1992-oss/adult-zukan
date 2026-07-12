@@ -1,4 +1,5 @@
 import type { Ga4CachePayload } from "@/lib/admin/ga4-service";
+import type { DmmAffiliateCachePayload } from "@/lib/admin/dmm-affiliate-service";
 import type { SeoCachePayload } from "@/lib/admin/seo-types";
 import type {
   OpsSuggestion,
@@ -6,6 +7,7 @@ import type {
   OpsTask,
 } from "@/lib/admin/ops-types";
 import { buildRisingQueries } from "@/lib/admin/seo-insights";
+import { buildDmmInsightSuggestions } from "@/lib/admin/dmm-report-insights";
 
 function starsFor(priority: OpsSuggestionPriority): string {
   if (priority === 5) return "★★★★★";
@@ -25,6 +27,7 @@ function pushSuggestion(
 export function buildOpsSuggestions(
   seo: SeoCachePayload,
   ga4: Ga4CachePayload,
+  dmm?: DmmAffiliateCachePayload,
 ): OpsSuggestion[] {
   const suggestions: OpsSuggestion[] = [];
   const period = seo.periods[28];
@@ -127,6 +130,21 @@ export function buildOpsSuggestions(
       "直帰率が高めです。人気ページの導線・関連リンクを見直してください。",
       3,
     );
+  }
+
+  if (dmm && !dmm.configured) {
+    pushSuggestion(
+      suggestions,
+      "dmm-unconfigured",
+      "DMMアフィリエイト成果が未取込です。/admin/dmm からJSONまたはCSVをアップロードしてください。",
+      3,
+    );
+  }
+
+  if (dmm?.insights) {
+    for (const item of buildDmmInsightSuggestions(dmm.insights)) {
+      pushSuggestion(suggestions, item.id, item.text, item.priority);
+    }
   }
 
   if (suggestions.length === 0) {

@@ -19,7 +19,10 @@ import {
   buildOpsTasks,
 } from "@/lib/admin/ops-suggestions";
 import { buildOpsAlerts } from "@/lib/admin/ops-alerts";
-import type { OpsDashboardPayload } from "@/lib/admin/ops-types";
+import type {
+  OpsDashboardPayload,
+  OpsRefreshSource,
+} from "@/lib/admin/ops-types";
 import { buildGscSitemapSummary } from "@/lib/admin/seo-sitemap-gsc-summary";
 import {
   ensureSeoAudits,
@@ -138,6 +141,81 @@ export async function getOpsDashboardData(): Promise<OpsDashboardPayload> {
   return buildOpsPayload(false);
 }
 
+export type { OpsRefreshSource };
+
+function errorMessage(reason: unknown): string {
+  return reason instanceof Error ? reason.message : "Unknown refresh error";
+}
+
+async function attachRefreshErrors(
+  payload: OpsDashboardPayload,
+  errors: string[],
+): Promise<OpsDashboardPayload> {
+  if (errors.length === 0) return payload;
+  return {
+    ...payload,
+    alerts: [
+      {
+        id: "refresh-partial-fail",
+        title: "API取得失敗",
+        detail: errors.join(" / "),
+        severity: "critical",
+      },
+      ...payload.alerts.filter((alert) => alert.id !== "refresh-partial-fail"),
+    ],
+  };
+}
+
+/** Search Console / サイトマップ / SEO監査を更新してダッシュボードを再構築 */
+export async function refreshOpsSeoSource(): Promise<OpsDashboardPayload> {
+  const results = await Promise.allSettled([
+    refreshSeoDashboardData(),
+    refreshSeoAudits(),
+  ]);
+  const errors = results
+    .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+    .map((result) => errorMessage(result.reason));
+  return attachRefreshErrors(await buildOpsPayload(false), errors);
+}
+
+/** GA4のみ更新してダッシュボードを再構築 */
+export async function refreshOpsGa4Source(): Promise<OpsDashboardPayload> {
+  const errors: string[] = [];
+  try {
+    await refreshGa4DashboardData();
+  } catch (error) {
+    errors.push(errorMessage(error));
+  }
+  return attachRefreshErrors(await buildOpsPayload(false), errors);
+}
+
+/** DMMのみ更新してダッシュボードを再構築 */
+export async function refreshOpsDmmSource(): Promise<OpsDashboardPayload> {
+  const errors: string[] = [];
+  try {
+    await refreshDmmAffiliateData();
+  } catch (error) {
+    errors.push(errorMessage(error));
+  }
+  return attachRefreshErrors(await buildOpsPayload(false), errors);
+}
+
+export async function refreshOpsSource(
+  source: OpsRefreshSource,
+): Promise<OpsDashboardPayload> {
+  switch (source) {
+    case "seo":
+      return refreshOpsSeoSource();
+    case "ga4":
+      return refreshOpsGa4Source();
+    case "dmm":
+      return refreshOpsDmmSource();
+    case "all":
+    default:
+      return refreshOpsDashboardData();
+  }
+}
+
 export async function refreshOpsDashboardData(): Promise<OpsDashboardPayload> {
   const results = await Promise.allSettled([
     refreshSeoDashboardData(),
@@ -148,25 +226,7 @@ export async function refreshOpsDashboardData(): Promise<OpsDashboardPayload> {
 
   const errors = results
     .filter((result): result is PromiseRejectedResult => result.status === "rejected")
-    .map((result) =>
-      result.reason instanceof Error
-        ? result.reason.message
-        : "Unknown refresh error",
-    );
+    .map((result) => errorMessage(result.reason));
 
-  const payload = await buildOpsPayload(false);
-
-  if (errors.length > 0) {
-    payload.alerts = [
-      {
-        id: "refresh-partial-fail",
-        title: "API取得失敗",
-        detail: errors.join(" / "),
-        severity: "critical",
-      },
-      ...payload.alerts.filter((alert) => alert.id !== "refresh-partial-fail"),
-    ];
-  }
-
-  return payload;
+  return attachRefreshErrors(await buildOpsPayload(false), errors);
 }

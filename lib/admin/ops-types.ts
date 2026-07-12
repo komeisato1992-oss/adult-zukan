@@ -11,6 +11,7 @@ import type { OpsAnalyticsKpis } from "@/lib/admin/ops-analytics-kpis";
 export type OpsGscPeriod = "1" | "7" | "28" | "90";
 export type OpsDmmPeriod = "today" | "yesterday" | "7d" | "28d" | "90d";
 export type OpsGa4Period = 1 | 7 | 28 | 90;
+export type OpsRefreshSource = "seo" | "ga4" | "dmm" | "all";
 
 /** @deprecated use OpsSeoScore from ops-score */
 export type OpsSeoScoreBreakdown = {

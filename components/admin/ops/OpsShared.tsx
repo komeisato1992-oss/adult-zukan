@@ -57,9 +57,11 @@ export function OpsKpiCard({
   children?: ReactNode;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+    <div className="min-w-0 rounded-xl border border-border bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
       <p className="text-sm text-muted">{label}</p>
-      <p className="mt-2 text-2xl font-bold text-foreground">{value}</p>
+      <p className="mt-2 break-words text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+        {value}
+      </p>
       {children ? <div className="mt-2 space-y-1">{children}</div> : null}
     </div>
   );

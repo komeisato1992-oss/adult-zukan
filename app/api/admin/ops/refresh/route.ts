@@ -1,18 +1,38 @@
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin/auth";
-import { refreshOpsDashboardData } from "@/lib/admin/ops-service";
+import { refreshOpsSource } from "@/lib/admin/ops-service";
+import type { OpsRefreshSource } from "@/lib/admin/ops-types";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-export async function POST() {
+function parseSource(value: unknown): OpsRefreshSource {
+  if (value === "seo" || value === "ga4" || value === "dmm" || value === "all") {
+    return value;
+  }
+  return "all";
+}
+
+export async function POST(request: Request) {
   if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   try {
-    const data = await refreshOpsDashboardData();
-    return NextResponse.json({ success: true, data });
+    let source: OpsRefreshSource = "all";
+    const contentType = request.headers.get("content-type") ?? "";
+    if (contentType.includes("application/json")) {
+      const body = (await request.json().catch(() => null)) as {
+        source?: unknown;
+      } | null;
+      source = parseSource(body?.source);
+    } else {
+      const url = new URL(request.url);
+      source = parseSource(url.searchParams.get("source"));
+    }
+
+    const data = await refreshOpsSource(source);
+    return NextResponse.json({ success: true, source, data });
   } catch (error) {
     const message =
       error instanceof Error

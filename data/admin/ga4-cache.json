@@ -1,11 +1,23 @@
 {
-  "version": 2,
+  "version": 3,
   "updatedAt": null,
   "lastSuccessfulAt": null,
   "configured": true,
-  "configMessage": "GA4 API error 403: {\n  \"error\": {\n    \"code\": 403,\n    \"message\": \"User does not have sufficient permissions for this property. To learn more about Property ID, see https://developers.google.com/analytics/devguides/reporting/data/v1/property-id.\",\n    \"status\": \"PERMISSION_DENIED\"\n  }\n}\n",
+  "configMessage": "403 PERMISSION_DENIED: {\n  \"name\": \"Error\",\n  \"message\": \"7 PERMISSION_DENIED: User does not have sufficient permissions for this property. To learn more about Property ID, see https://developers.google.com/analytics/devguides/reporting/data/v1/property-id.\",\n  \"code\": 7,\n  \"details\": \"User does not have sufficient permissions for this property. To learn more about Property ID, see https://developers.google.com/analytics/devguides/reporting/data/v1/property-id.\"\n}",
   "propertyId": "544245702",
   "connectionStatus": "error",
+  "authDiagnostics": {
+    "clientEmail": "adult-zukan-search-console@adult-zukan-seo.iam.gserviceaccount.com",
+    "projectId": "adult-zukan-seo",
+    "propertyId": "544245702",
+    "property": "properties/544245702",
+    "credentialSource": "GOOGLE_SERVICE_ACCOUNT_JSON",
+    "sharedWithSearchConsole": true,
+    "runtimeEnvironment": "production",
+    "expectedClientEmail": "adult-zukan-search-console@adult-zukan-seo-502016.iam.gserviceaccount.com",
+    "clientEmailMatchesExpected": false,
+    "errorCode": "PERMISSION_DENIED (7)"
+  },
   "periods": {
     "1": {
       "current": {
@@ -99,5 +111,5 @@
   "daily": [],
   "topPages": [],
   "sources": [],
-  "fetchError": "GA4 API error 403: {\n  \"error\": {\n    \"code\": 403,\n    \"message\": \"User does not have sufficient permissions for this property. To learn more about Property ID, see https://developers.google.com/analytics/devguides/reporting/data/v1/property-id.\",\n    \"status\": \"PERMISSION_DENIED\"\n  }\n}\n"
+  "fetchError": "403 PERMISSION_DENIED: {\n  \"name\": \"Error\",\n  \"message\": \"7 PERMISSION_DENIED: User does not have sufficient permissions for this property. To learn more about Property ID, see https://developers.google.com/analytics/devguides/reporting/data/v1/property-id.\",\n  \"code\": 7,\n  \"details\": \"User does not have sufficient permissions for this property. To learn more about Property ID, see https://developers.google.com/analytics/devguides/reporting/data/v1/property-id.\"\n}"
 }

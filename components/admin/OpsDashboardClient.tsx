@@ -54,14 +54,18 @@ const TASK_BUCKET_LABEL: Record<OpsTaskBucket, string> = {
   backlog: "余裕があれば",
 };
 
-const SCORE_LABELS: Array<{ key: keyof OpsDashboardPayload["seoScore"]["breakdown"]; label: string }> = [
-  { key: "searchConsole", label: "Search Console" },
-  { key: "ga4", label: "GA4" },
-  { key: "indexRate", label: "インデックス率" },
-  { key: "sitemap", label: "サイトマップ" },
-  { key: "internalLinks", label: "内部リンク" },
-  { key: "structuredData", label: "構造化データ" },
-];
+function alertClass(severity: OpsDashboardPayload["alerts"][number]["severity"]): string {
+  switch (severity) {
+    case "critical":
+      return "border-red-300 bg-red-50 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200";
+    case "warning":
+      return "border-amber-300 bg-amber-50 text-amber-900 dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100";
+    case "success":
+      return "border-green-300 bg-green-50 text-green-800 dark:border-green-800 dark:bg-green-950/40 dark:text-green-100";
+    default:
+      return "border-border bg-white text-foreground dark:border-zinc-700 dark:bg-zinc-900";
+  }
+}
 
 function emptyMetrics(): SeoPeriodMetrics {
   return { clicks: 0, impressions: 0, ctr: 0, position: 0 };
@@ -151,6 +155,7 @@ export function OpsDashboardClient({ initialData }: OpsDashboardClientProps) {
   const [dmmPeriod, setDmmPeriod] = useState<OpsDmmPeriod>("7d");
   const [tasks, setTasks] = useState<OpsTask[]>(initialData.tasks);
   const [message, setMessage] = useState<string | null>(null);
+  const [expandedScoreKey, setExpandedScoreKey] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
   const gscCurrent = useMemo(() => {
@@ -277,7 +282,7 @@ export function OpsDashboardClient({ initialData }: OpsDashboardClientProps) {
             {data.alerts.map((alert) => (
               <div
                 key={alert.id}
-                className="rounded-xl border border-red-300 bg-red-50 p-4 text-red-800 dark:border-red-800 dark:bg-red-950/40 dark:text-red-200"
+                className={`rounded-xl border p-4 ${alertClass(alert.severity)}`}
               >
                 <p className="font-bold">{alert.title}</p>
                 <p className="mt-1 text-sm">{alert.detail}</p>
@@ -292,23 +297,59 @@ export function OpsDashboardClient({ initialData }: OpsDashboardClientProps) {
           <div>
             <p className="text-sm text-muted">SEO SCORE</p>
             <p className="mt-1 text-5xl font-bold text-foreground">
-              {data.seoScore.total}
+              {data.seoScore.total == null ? "—" : data.seoScore.total}
               <span className="ml-2 text-base font-medium text-muted">/ 100</span>
             </p>
+            {data.seoScore.partial ? (
+              <p className="mt-2 text-sm font-medium text-amber-700">
+                一部データ未取得（取得済み {data.seoScore.earned.toFixed(1)} / {data.seoScore.availableMax} を100点換算）
+              </p>
+            ) : null}
+            <p className="mt-1 text-xs text-muted">
+              最終計算: {formatSeoDateTime(data.seoScore.calculatedAt)}
+            </p>
           </div>
-          <div className="grid w-full gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:w-auto">
-            {SCORE_LABELS.map((item) => (
-              <div
-                key={item.key}
-                className="rounded-lg border border-border px-3 py-2 text-sm"
+        </div>
+        <div className="mt-4 grid gap-3 lg:grid-cols-2">
+          {data.seoScore.categories.map((category) => {
+            const open = expandedScoreKey === category.key;
+            return (
+              <button
+                key={category.key}
+                type="button"
+                onClick={() =>
+                  setExpandedScoreKey(open ? null : category.key)
+                }
+                className="rounded-lg border border-border px-4 py-3 text-left hover:bg-surface/40"
               >
-                <span className="text-muted">{item.label}</span>
-                <span className="ml-2 font-semibold text-foreground">
-                  {data.seoScore.breakdown[item.key]}
-                </span>
-              </div>
-            ))}
-          </div>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="font-semibold text-foreground">{category.label}</p>
+                  <p className="text-sm font-bold text-foreground">
+                    {category.available
+                      ? `${category.points} / ${category.maxPoints}`
+                      : "未取得"}
+                  </p>
+                </div>
+                <p className="mt-1 text-xs text-muted">{category.evidence}</p>
+                {open ? (
+                  <div className="mt-3 space-y-2 border-t border-border pt-3 text-xs text-foreground">
+                    <p>状態: {category.statusLabel}</p>
+                    <p>計算日時: {formatSeoDateTime(category.calculatedAt)}</p>
+                    <p>改善: {category.improvement}</p>
+                    {category.details.map((detail) => (
+                      <p key={detail.label}>
+                        ・{detail.label}:{" "}
+                        {detail.available
+                          ? `${detail.points}/${detail.maxPoints}`
+                          : "未取得"}{" "}
+                       （{detail.evidence}）
+                      </p>
+                    ))}
+                  </div>
+                ) : null}
+              </button>
+            );
+          })}
         </div>
       </section>
 
@@ -323,16 +364,42 @@ export function OpsDashboardClient({ initialData }: OpsDashboardClientProps) {
               ["レーベル数", data.top.catalog.labels],
               ["シリーズ数", data.top.catalog.series],
               ["ジャンル数", data.top.catalog.genres],
-              ["Google登録ページ数", data.top.indexedPages],
-              ["Google未登録ページ数", data.top.notIndexedPages],
             ] as const
           ).map(([label, value]) => (
             <OpsKpiCard
               key={label}
               label={label}
-              value={value == null ? "—" : formatSeoNumber(value)}
+              value={formatSeoNumber(value)}
             />
           ))}
+          <OpsKpiCard
+            label="Google登録ページ数"
+            value={
+              data.top.indexedPages == null
+                ? "—"
+                : formatSeoNumber(data.top.indexedPages)
+            }
+          >
+            {data.top.indexEstimated ? (
+              <p className="text-xs text-muted">推定値</p>
+            ) : null}
+          </OpsKpiCard>
+          <OpsKpiCard
+            label="Google未登録ページ数"
+            value={
+              data.top.notIndexedPages == null
+                ? "推定不可"
+                : formatSeoNumber(data.top.notIndexedPages)
+            }
+          />
+          <OpsKpiCard
+            label="インデックス対象URL"
+            value={
+              data.top.indexableUrlCount == null
+                ? "—"
+                : formatSeoNumber(data.top.indexableUrlCount)
+            }
+          />
           <OpsKpiCard
             label="インデックス率"
             value={
@@ -552,13 +619,88 @@ export function OpsDashboardClient({ initialData }: OpsDashboardClientProps) {
             }
           />
           <OpsKpiCard
-            label="サイトマップ送信状況"
-            value={`${
-              (data.seo.sitemapStatus?.rows ?? []).filter(
-                (row) => row.status === "success",
-              ).length
-            }/${(data.seo.sitemapStatus?.rows ?? []).length}`}
-          />
+            label="送信済みサイトマップ"
+            value={
+              data.sitemapSummary.state === "success_with_data"
+                ? `${data.sitemapSummary.gscSubmittedCount}件`
+                : data.sitemapSummary.state === "success_empty"
+                  ? "0件"
+                  : data.sitemapSummary.state === "error"
+                    ? "取得失敗"
+                    : data.sitemapSummary.state === "unavailable"
+                      ? "未設定"
+                      : "取得中"
+            }
+          >
+            <p className="text-xs text-muted">{data.sitemapSummary.message}</p>
+            <p className="text-xs text-muted">
+              サイト側生成：{data.sitemapSummary.siteGeneratedCount}件 /
+              正常 {data.sitemapSummary.healthyCount} /
+              警告 {data.sitemapSummary.warningCount} /
+              エラー {data.sitemapSummary.errorCount}
+            </p>
+          </OpsKpiCard>
+        </div>
+
+        <div className="overflow-x-auto rounded-xl border border-border bg-white dark:border-zinc-700 dark:bg-zinc-900">
+          <div className="border-b border-border px-4 py-3 font-semibold">
+            Search Console サイトマップ一覧（sitemaps.list）
+          </div>
+          <table className="min-w-full text-left text-sm">
+            <thead className="bg-surface/50 text-muted">
+              <tr>
+                <th className="px-3 py-2">URL</th>
+                <th className="px-3 py-2">種別</th>
+                <th className="px-3 py-2">送信日時</th>
+                <th className="px-3 py-2">最終DL</th>
+                <th className="px-3 py-2">状態</th>
+                <th className="px-3 py-2">警告</th>
+                <th className="px-3 py-2">エラー</th>
+                <th className="px-3 py-2">検出URL</th>
+                <th className="px-3 py-2">検出動画</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.seo.sitemaps.map((row) => (
+                <tr key={row.path} className="border-t border-border">
+                  <td className="max-w-[240px] truncate px-3 py-2" title={row.path}>
+                    {row.path}
+                  </td>
+                  <td className="px-3 py-2">{row.typeLabel ?? "—"}</td>
+                  <td className="px-3 py-2">
+                    {formatSeoDateTime(row.lastSubmitted ?? null)}
+                  </td>
+                  <td className="px-3 py-2">
+                    {formatSeoDateTime(row.lastDownloaded ?? null)}
+                  </td>
+                  <td className="px-3 py-2">
+                    {row.errors > 0
+                      ? "エラーあり"
+                      : row.isPending
+                        ? "処理中"
+                        : row.warnings > 0
+                          ? "警告あり"
+                          : "正常"}
+                  </td>
+                  <td className="px-3 py-2">{formatSeoNumber(row.warnings)}</td>
+                  <td className="px-3 py-2">{formatSeoNumber(row.errors)}</td>
+                  <td className="px-3 py-2">
+                    {formatSeoNumber(row.contentsCount)}
+                  </td>
+                  <td className="px-3 py-2">
+                    {formatSeoNumber(row.videoSubmitted ?? 0)}
+                  </td>
+                </tr>
+              ))}
+              {data.seo.sitemaps.length === 0 ? (
+                <tr>
+                  <td className="px-3 py-4 text-muted" colSpan={9}>
+                    {data.sitemapSummary.message}
+                  </td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
         </div>
       </section>
 

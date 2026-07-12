@@ -3,6 +3,10 @@
 import { useState } from "react";
 import { SeoDataTable } from "@/components/admin/seo/SeoDataTable";
 import { formatSeoDateTime, formatSeoNumber } from "@/components/admin/seo/format";
+import {
+  classifyGscSitemapRow,
+  gscSitemapHealthLabel,
+} from "@/lib/admin/seo-sitemap-gsc-summary";
 import type { SeoSitemapRow } from "@/lib/admin/seo-types";
 
 type SeoSitemapsTabProps = {
@@ -38,7 +42,7 @@ export function SeoSitemapsTab({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-muted">
-          Search Console に登録されているサイトマップ情報を表示します。
+          Search Console API（sitemaps.list）の取得結果をそのまま表示します。
         </p>
         <button
           type="button"
@@ -68,12 +72,20 @@ export function SeoSitemapsTab({
         columns={[
           {
             key: "path",
-            label: "サイトマップ",
+            label: "サイトマップURL",
             sortable: true,
             sortValue: (row) => row.path,
             render: (row) => (
               <span className="break-all [overflow-wrap:anywhere]">{row.path}</span>
             ),
+          },
+          {
+            key: "typeLabel",
+            label: "種別",
+            sortable: true,
+            sortValue: (row) => row.typeLabel ?? "",
+            className: "whitespace-nowrap",
+            render: (row) => row.typeLabel ?? "—",
           },
           {
             key: "lastSubmitted",
@@ -84,6 +96,38 @@ export function SeoSitemapsTab({
             render: (row) => formatSeoDateTime(row.lastSubmitted ?? null),
           },
           {
+            key: "lastDownloaded",
+            label: "最終ダウンロード",
+            sortable: true,
+            sortValue: (row) => row.lastDownloaded ?? "",
+            className: "whitespace-nowrap",
+            render: (row) => formatSeoDateTime(row.lastDownloaded ?? null),
+          },
+          {
+            key: "status",
+            label: "状態",
+            sortable: true,
+            sortValue: (row) => classifyGscSitemapRow(row),
+            className: "whitespace-nowrap",
+            render: (row) => gscSitemapHealthLabel(classifyGscSitemapRow(row)),
+          },
+          {
+            key: "warnings",
+            label: "警告数",
+            sortable: true,
+            sortValue: (row) => row.warnings,
+            className: "whitespace-nowrap",
+            render: (row) => formatSeoNumber(row.warnings),
+          },
+          {
+            key: "errors",
+            label: "エラー数",
+            sortable: true,
+            sortValue: (row) => row.errors,
+            className: "whitespace-nowrap",
+            render: (row) => formatSeoNumber(row.errors),
+          },
+          {
             key: "contentsCount",
             label: "検出URL数",
             sortable: true,
@@ -92,20 +136,20 @@ export function SeoSitemapsTab({
             render: (row) => formatSeoNumber(row.contentsCount),
           },
           {
+            key: "videoSubmitted",
+            label: "検出動画数",
+            sortable: true,
+            sortValue: (row) => row.videoSubmitted ?? 0,
+            className: "whitespace-nowrap",
+            render: (row) => formatSeoNumber(row.videoSubmitted ?? 0),
+          },
+          {
             key: "indexedCount",
-            label: "登録URL数",
+            label: "取得結果(indexed)",
             sortable: true,
             sortValue: (row) => row.indexedCount,
             className: "whitespace-nowrap",
             render: (row) => formatSeoNumber(row.indexedCount),
-          },
-          {
-            key: "errors",
-            label: "エラー件数",
-            sortable: true,
-            sortValue: (row) => row.errors,
-            className: "whitespace-nowrap",
-            render: (row) => formatSeoNumber(row.errors),
           },
         ]}
       />

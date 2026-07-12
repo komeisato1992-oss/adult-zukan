@@ -31,6 +31,9 @@ type SitemapEntry = {
   path?: string;
   lastSubmitted?: string;
   lastDownloaded?: string;
+  isPending?: boolean;
+  isSitemapsIndex?: boolean;
+  type?: string;
   contents?: Array<{
     type?: string;
     submitted?: string;
@@ -109,6 +112,7 @@ async function searchConsoleFetch<T>(
   init?: RequestInit,
   siteUrl?: string,
 ): Promise<T> {
+  const startedAt = Date.now();
   logSearchConsoleRequest(apiMethod, siteUrl);
 
   const token = await getGoogleAccessToken();
@@ -128,12 +132,22 @@ async function searchConsoleFetch<T>(
     logGoogleApiError("Search Console API request failed", apiMethod, parsed, {
       siteUrl,
       serviceAccountEmail: getServiceAccountEmail(),
+      durationMs: Date.now() - startedAt,
+      httpStatus: response.status,
     });
     throw classifySearchConsoleApiError(response.status, text, {
       siteUrl,
       apiMethod,
     });
   }
+
+  console.info("[seo-gsc] Search Console API success", {
+    apiMethod,
+    siteUrl: siteUrl ?? "(n/a)",
+    serviceAccountEmail: getServiceAccountEmail(),
+    httpStatus: response.status,
+    durationMs: Date.now() - startedAt,
+  });
 
   if (response.status === 204) {
     return {} as T;
@@ -359,14 +373,46 @@ export async function fetchPageSearchAnalytics(
 }
 
 export async function fetchSitemaps(siteUrl: string): Promise<SitemapEntry[]> {
+  const startedAt = Date.now();
   const site = encodeSiteUrl(siteUrl);
-  const data = await searchConsoleFetch<SitemapsListResponse>(
-    `/${site}/sitemaps`,
-    "sitemaps.list",
-    undefined,
-    siteUrl,
-  );
-  return data.sitemap ?? [];
+  try {
+    const data = await searchConsoleFetch<SitemapsListResponse>(
+      `/${site}/sitemaps`,
+      "sitemaps.list",
+      undefined,
+      siteUrl,
+    );
+    const entries = data.sitemap ?? [];
+    console.info("[seo-gsc] sitemaps.list completed", {
+      siteUrl,
+      serviceAccountEmail: getServiceAccountEmail(),
+      apiMethod: "sitemaps.list",
+      count: entries.length,
+      durationMs: Date.now() - startedAt,
+      paths: entries
+        .map((entry) => entry.path)
+        .filter(Boolean)
+        .slice(0, 20),
+    });
+    return entries;
+  } catch (error) {
+    console.error("[seo-gsc] sitemaps.list failed", {
+      siteUrl,
+      serviceAccountEmail: getServiceAccountEmail(),
+      apiMethod: "sitemaps.list",
+      durationMs: Date.now() - startedAt,
+      message: error instanceof Error ? error.message : String(error),
+      code:
+        error instanceof GoogleSearchConsoleError
+          ? error.code
+          : undefined,
+      googleStatus:
+        error instanceof GoogleSearchConsoleError
+          ? error.googleError?.status
+          : undefined,
+    });
+    throw error;
+  }
 }
 
 export async function submitSitemap(
@@ -460,6 +506,25 @@ export function mapSitemapRows(entries: SitemapEntry[]) {
         (sum, item) => sum + Number.parseInt(item.indexed ?? "0", 10),
         0,
       );
+      const videoSubmitted = contents
+        .filter((item) => (item.type ?? "").toLowerCase() === "video")
+        .reduce(
+          (sum, item) => sum + Number.parseInt(item.submitted ?? "0", 10),
+          0,
+        );
+      const contentTypes = [
+        ...new Set(
+          contents
+            .map((item) => item.type)
+            .filter((value): value is string => Boolean(value)),
+        ),
+      ];
+
+      const typeLabel = entry.isSitemapsIndex
+        ? "サイトマップインデックス"
+        : contentTypes.length > 0
+          ? contentTypes.join(", ")
+          : entry.type ?? "urlset";
 
       return {
         path: entry.path ?? "",
@@ -469,6 +534,11 @@ export function mapSitemapRows(entries: SitemapEntry[]) {
         indexedCount,
         errors: Number.parseInt(entry.errors ?? "0", 10),
         warnings: Number.parseInt(entry.warnings ?? "0", 10),
+        isPending: Boolean(entry.isPending),
+        isSitemapsIndex: Boolean(entry.isSitemapsIndex),
+        contentTypes,
+        videoSubmitted,
+        typeLabel,
       };
     })
     .filter((row) => row.path.length > 0);

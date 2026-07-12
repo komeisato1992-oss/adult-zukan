@@ -10,9 +10,10 @@ import {
 } from "@/components/admin/seo/format";
 import { SeoKpiCard } from "@/components/admin/seo/SeoKpiCard";
 import {
-  countSubmittedSitemaps,
+  formatSitemapKpiSubLabel,
   formatSitemapKpiValue,
 } from "@/lib/admin/seo-sitemap-status-utils";
+import { buildGscSitemapSummary } from "@/lib/admin/seo-sitemap-gsc-summary";
 import {
   computeChangePercent,
   computePositionDelta,
@@ -48,33 +49,45 @@ export function SeoKpiGrid({ data, period }: SeoKpiGridProps) {
   );
   const positionDelta = computePositionDelta(current.position, previous.position);
 
+  const sitemapSummary = buildGscSitemapSummary({
+    configured: data.configured,
+    sitemaps: data.sitemaps,
+    fetchedAt: data.sitemapStatus?.fetchedAt ?? null,
+    fetchError: data.sitemapStatus?.fetchError,
+    worksCount: data.overview.totalWorks,
+    siteUrl: data.siteUrl,
+  });
+
   const indexedLabel =
     data.index.indexedSource === "sitemap"
-      ? "サイトマップ推定"
+      ? "Google登録ページ数（推定）"
       : data.index.indexedSource === "search_impressions"
-        ? "検索表示確認"
+        ? "検索表示確認（推定）"
         : undefined;
 
   const notIndexedValue =
-    data.index.notIndexedPages !== null
+    data.index.notIndexedPages !== null && data.index.indexedSource === "sitemap"
       ? formatSeoNumber(data.index.notIndexedPages)
-      : "—";
+      : "推定不可";
 
   return (
     <section className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
       <SeoKpiCard
         label="サイトマップ"
-        value={formatSitemapKpiValue(data.sitemapStatus)}
-        subLabel={
-          data.sitemapStatus.fetchError && !data.sitemapStatus.fetchedAt
-            ? "取得失敗"
-            : "Search Console"
-        }
+        value={formatSitemapKpiValue(sitemapSummary)}
+        subLabel={formatSitemapKpiSubLabel(sitemapSummary)}
         changeTone={
-          data.sitemapStatus.fetchError &&
-          countSubmittedSitemaps(data.sitemapStatus).submitted === 0
+          sitemapSummary.state === "error" ||
+          sitemapSummary.state === "success_empty"
             ? "down"
-            : "none"
+            : sitemapSummary.state === "success_with_data"
+              ? "up"
+              : "none"
+        }
+        hint={
+          sitemapSummary.state === "success_with_data"
+            ? `サイト側生成：${sitemapSummary.siteGeneratedCount}件`
+            : sitemapSummary.message
         }
       />
       <SeoKpiCard
@@ -106,9 +119,7 @@ export function SeoKpiGrid({ data, period }: SeoKpiGridProps) {
             : undefined
         }
         changeTone={
-          fetched
-            ? metricTone(current.ctr - previous.ctr)
-            : "none"
+          fetched ? metricTone(current.ctr - previous.ctr) : "none"
         }
       />
       <SeoKpiCard
@@ -138,14 +149,18 @@ export function SeoKpiGrid({ data, period }: SeoKpiGridProps) {
         hint={
           data.index.indexedSource === "unavailable"
             ? "取得不可"
-            : undefined
+            : data.index.indexedSource === "sitemap" ||
+                data.index.indexedSource === "search_impressions"
+              ? "推定値です"
+              : undefined
         }
       />
       <SeoKpiCard
         label="未登録ページ数"
         value={notIndexedValue}
         subLabel={
-          data.index.notIndexedPages === null
+          data.index.notIndexedPages === null ||
+          data.index.indexedSource !== "sitemap"
             ? "推定不可"
             : "総公開 − 登録推定"
         }

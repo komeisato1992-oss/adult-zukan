@@ -3,12 +3,13 @@ import type { DmmAffiliateCachePayload } from "@/lib/admin/dmm-affiliate-service
 import type { SeoCachePayload } from "@/lib/admin/seo-types";
 import type { OpsAlert } from "@/lib/admin/ops-types";
 import { computeChangePercent } from "@/lib/admin/seo-insights";
-import { countSubmittedSitemaps } from "@/lib/admin/seo-sitemap-status-utils";
+import type { GscSitemapSummary } from "@/lib/admin/seo-sitemap-gsc-summary";
 
 export function buildOpsAlerts(
   seo: SeoCachePayload,
   ga4: Ga4CachePayload,
   dmm: DmmAffiliateCachePayload,
+  sitemapSummary: GscSitemapSummary,
 ): OpsAlert[] {
   const alerts: OpsAlert[] = [];
   const current = seo.periods[28]?.current;
@@ -55,27 +56,64 @@ export function buildOpsAlerts(
     }
   }
 
-  const sitemapRows = seo.sitemapStatus?.rows ?? [];
-  const fetchErrors = sitemapRows.filter((row) => row.status === "fetch_error");
-  if (seo.sitemapStatus?.fetchError || fetchErrors.length > 0) {
+  if (sitemapSummary.state === "error") {
     alerts.push({
-      id: "sitemap-fail",
-      title: "サイトマップ送信失敗",
+      id: "sitemap-fetch-fail",
+      title: "サイトマップ情報の取得に失敗しました",
       detail:
-        seo.sitemapStatus?.fetchError ??
-        `${fetchErrors.length}件のサイトマップで取得/送信エラーがあります。`,
+        sitemapSummary.fetchError ??
+        "Search Console APIからサイトマップ一覧を取得できませんでした。",
       severity: "critical",
     });
-  } else if (seo.sitemapStatus && sitemapRows.length > 0) {
-    const { submitted } = countSubmittedSitemaps(seo.sitemapStatus);
-    if (submitted === 0) {
+  } else if (sitemapSummary.state === "success_empty") {
+    alerts.push({
+      id: "sitemap-empty",
+      title: "サイトマップ未送信",
+      detail: "Search Consoleに送信済みのサイトマップがありません",
+      severity: "critical",
+    });
+  } else if (sitemapSummary.state === "success_with_data") {
+    if (sitemapSummary.errorCount > 0) {
       alerts.push({
-        id: "sitemap-unsubmitted",
-        title: "サイトマップ送信失敗",
-        detail: "送信済みサイトマップがありません。",
+        id: "sitemap-errors",
+        title: "サイトマップエラー",
+        detail: `${sitemapSummary.errorCount}件のサイトマップにエラーがあります。`,
+        severity: "critical",
+      });
+    } else if (sitemapSummary.warningCount > 0) {
+      alerts.push({
+        id: "sitemap-warnings",
+        title: "サイトマップ警告",
+        detail: `${sitemapSummary.warningCount}件のサイトマップに警告があります。`,
         severity: "warning",
       });
+    } else {
+      alerts.push({
+        id: "sitemap-ok",
+        title: "サイトマップは正常に送信されています",
+        detail: `送信済み ${sitemapSummary.gscSubmittedCount}件（正常 ${sitemapSummary.healthyCount}件）`,
+        severity: "success",
+      });
     }
+
+    const downloadFailed = seo.sitemaps.some(
+      (row) => !row.lastDownloaded && row.errors > 0,
+    );
+    if (downloadFailed) {
+      alerts.push({
+        id: "sitemap-download-fail",
+        title: "サイトマップ最終ダウンロード失敗",
+        detail: "一部サイトマップで最終ダウンロードに失敗しています。",
+        severity: "critical",
+      });
+    }
+  } else if (sitemapSummary.state === "unavailable") {
+    alerts.push({
+      id: "sitemap-unavailable",
+      title: "サイトマップ未設定",
+      detail: sitemapSummary.message,
+      severity: "info",
+    });
   }
 
   if (seo.connectionStatus === "error" || Boolean(seo.fetchError)) {
@@ -107,13 +145,11 @@ export function buildOpsAlerts(
 
   const notFound = seo.crawlErrors?.find((group) => group.type === "404");
   if (notFound && notFound.count > 0) {
-    const prev404 =
-      seo.crawlErrors?.find((group) => group.type === "404")?.count ?? 0;
     alerts.push({
       id: "404-increase",
       title: "404増加",
       detail: `404関連のクロール問題が ${notFound.count} 件検出されています。`,
-      severity: notFound.count >= 10 || prev404 > 0 ? "critical" : "warning",
+      severity: notFound.count >= 10 ? "critical" : "warning",
     });
   }
 

@@ -2,24 +2,26 @@ import type { AdminSiteStats } from "@/lib/admin/stats";
 import type { Ga4CachePayload } from "@/lib/admin/ga4-service";
 import type { DmmAffiliateCachePayload } from "@/lib/admin/dmm-affiliate-service";
 import type { SeoCachePayload } from "@/lib/admin/seo-types";
+import type { OpsSeoScore } from "@/lib/admin/ops-score";
+import type { GscSitemapSummary } from "@/lib/admin/seo-sitemap-gsc-summary";
+import type { InternalLinkAuditResult } from "@/lib/admin/seo-audit-internal-links";
+import type { StructuredDataAuditResult } from "@/lib/admin/seo-audit-structured-data";
 
 export type OpsGscPeriod = "1" | "7" | "28" | "90";
 export type OpsDmmPeriod = "today" | "yesterday" | "7d" | "28d" | "90d";
 export type OpsGa4Period = 1 | 7 | 28 | 90;
 
+/** @deprecated use OpsSeoScore from ops-score */
 export type OpsSeoScoreBreakdown = {
-  searchConsole: number;
-  ga4: number;
-  indexRate: number;
-  sitemap: number;
-  internalLinks: number;
-  structuredData: number;
+  searchConsole: number | null;
+  ga4: number | null;
+  indexRate: number | null;
+  sitemap: number | null;
+  internalLinks: number | null;
+  structuredData: number | null;
 };
 
-export type OpsSeoScore = {
-  total: number;
-  breakdown: OpsSeoScoreBreakdown;
-};
+export type { OpsSeoScore };
 
 export type OpsSuggestionPriority = 3 | 4 | 5;
 
@@ -39,7 +41,7 @@ export type OpsTask = {
   completed: boolean;
 };
 
-export type OpsAlertSeverity = "critical" | "warning";
+export type OpsAlertSeverity = "critical" | "warning" | "success" | "info";
 
 export type OpsAlert = {
   id: string;
@@ -56,17 +58,22 @@ export type OpsTopStats = {
   indexedPages: number | null;
   notIndexedPages: number | null;
   indexRate: number | null;
+  indexEstimated: boolean;
+  indexableUrlCount: number | null;
   updatedAt: string | null;
 };
 
 export type OpsDashboardPayload = {
-  version: 1;
+  version: 2;
   generatedAt: string;
   top: OpsTopStats;
   seoScore: OpsSeoScore;
   suggestions: OpsSuggestion[];
   tasks: OpsTask[];
   alerts: OpsAlert[];
+  sitemapSummary: GscSitemapSummary;
+  internalLinkAudit: InternalLinkAuditResult | null;
+  structuredDataAudit: StructuredDataAuditResult | null;
   seo: SeoCachePayload;
   ga4: Ga4CachePayload;
   dmm: DmmAffiliateCachePayload;

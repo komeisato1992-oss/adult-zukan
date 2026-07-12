@@ -91,6 +91,11 @@ export type SeoSitemapRow = {
   indexedCount: number;
   errors: number;
   warnings: number;
+  isPending?: boolean;
+  isSitemapsIndex?: boolean;
+  contentTypes?: string[];
+  videoSubmitted?: number;
+  typeLabel?: string;
 };
 
 export type SeoEntitySitemapId =
@@ -172,6 +177,8 @@ export type SitemapAdminActionResult = {
 export type SeoSitemapStatusSnapshot = {
   fetchedAt: string | null;
   fetchError?: string;
+  /** GSC sitemaps.list の実件数（サイト側生成数とは別） */
+  gscSubmittedCount?: number;
   rows: SeoEntitySitemapStatus[];
 };
 

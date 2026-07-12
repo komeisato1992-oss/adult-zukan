@@ -7,7 +7,6 @@ import {
   formatSeoPercent,
 } from "@/components/admin/seo/format";
 import { SeoSectionHeading } from "@/components/admin/seo/SeoSectionHeading";
-import { countSubmittedSitemaps } from "@/lib/admin/seo-sitemap-status-utils";
 import type {
   SeoEntitySitemapStatus,
   SeoSitemapStatusSnapshot,
@@ -401,14 +400,12 @@ export function SeoSitemapSubmissionSection({
           <CoverageRow key={`coverage-${row.id}`} row={row} />
         ))}
         <p className="text-xs text-muted">
-          GSC確認済{" "}
-          {(() => {
-            const { submitted, total } = countSubmittedSitemaps(snapshot);
-            return `${submitted}/${total}`;
-          })()}
+          Search Console送信済み {snapshot.gscSubmittedCount ?? 0}件 /
+          サイト側管理行 {snapshot.rows.length}件
           {snapshot.fetchedAt
             ? ` / GSC最終取得 ${formatSeoDateTime(snapshot.fetchedAt)}`
             : ""}
+          {snapshot.fetchError ? ` / 取得エラー: ${snapshot.fetchError}` : ""}
         </p>
         <p className="text-xs text-muted">
           Googleへの再送信は、クロールや登録を保証するものではありません。

@@ -73,7 +73,7 @@ export function buildEntitySitemapStatuses(options: {
   const definitions = buildSitemapDefinitions({
     siteUrl: options.siteUrl,
     worksCount: options.worksCount,
-  }).filter((definition) => definition.key !== "index");
+  });
 
   const googleSubmission = getLastGoogleSitemapSubmission();
 
@@ -172,6 +172,7 @@ export function buildEntitySitemapStatuses(options: {
   return {
     fetchedAt: options.fetchedAt,
     fetchError: options.fetchError,
+    gscSubmittedCount: options.fetchError ? 0 : options.gscRows.length,
     rows,
   };
 }

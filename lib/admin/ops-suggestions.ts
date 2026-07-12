@@ -6,6 +6,8 @@ import type {
   OpsSuggestionPriority,
   OpsTask,
 } from "@/lib/admin/ops-types";
+import type { OpsSeoScore } from "@/lib/admin/ops-score";
+import type { GscSitemapSummary } from "@/lib/admin/seo-sitemap-gsc-summary";
 import { buildRisingQueries } from "@/lib/admin/seo-insights";
 import { buildDmmInsightSuggestions } from "@/lib/admin/dmm-report-insights";
 
@@ -28,6 +30,8 @@ export function buildOpsSuggestions(
   seo: SeoCachePayload,
   ga4: Ga4CachePayload,
   dmm?: DmmAffiliateCachePayload,
+  seoScore?: OpsSeoScore,
+  sitemapSummary?: GscSitemapSummary,
 ): OpsSuggestion[] {
   const suggestions: OpsSuggestion[] = [];
   const period = seo.periods[28];
@@ -35,15 +39,67 @@ export function buildOpsSuggestions(
   const queries = period?.queries ?? seo.queries ?? [];
   const previousQueries = period?.previousQueries ?? [];
 
+  if (seo.connectionStatus === "error" || seo.fetchError) {
+    pushSuggestion(
+      suggestions,
+      "gsc-error",
+      "Search Console APIの取得に失敗しています。認証・権限設定を確認してください。",
+      5,
+    );
+  }
+
+  if (sitemapSummary?.state === "error") {
+    pushSuggestion(
+      suggestions,
+      "sitemap-fetch-error",
+      "サイトマップ情報の取得に失敗しています。Search Console APIの権限を確認してください。",
+      5,
+    );
+  } else if (sitemapSummary?.state === "success_empty") {
+    pushSuggestion(
+      suggestions,
+      "sitemap-empty",
+      "Search Consoleに送信済みサイトマップがありません。/sitemap.xml の送信を確認してください。",
+      5,
+    );
+  } else if (
+    sitemapSummary?.state === "success_with_data" &&
+    sitemapSummary.errorCount > 0
+  ) {
+    pushSuggestion(
+      suggestions,
+      "sitemap-errors",
+      `サイトマップにエラーが${sitemapSummary.errorCount}件あります。エラー内容を確認してください。`,
+      5,
+    );
+  }
+
+  const indexCategory = seoScore?.categories.find(
+    (category) => category.key === "indexRate",
+  );
+  if (
+    indexCategory?.available &&
+    indexCategory.points != null &&
+    indexCategory.points <= 10
+  ) {
+    pushSuggestion(
+      suggestions,
+      "low-index-rate",
+      `${indexCategory.evidence}。人気作品・ランキング・新着ページから作品詳細への内部リンクを増やしてください。`,
+      5,
+    );
+  }
+
   const midRankPages = pages.filter(
-    (page) => page.position >= 8 && page.position <= 15 && page.impressions >= 30,
+    (page) =>
+      page.position >= 8 && page.position <= 20 && page.impressions >= 30,
   );
   if (midRankPages.length > 0) {
     pushSuggestion(
       suggestions,
       "mid-rank-pages",
-      `平均順位8〜15位のページが${midRankPages.length}件あります。タイトル改善を推奨。`,
-      5,
+      `平均順位8〜20位のページが${midRankPages.length}件あります。内部リンクとタイトルの改善を推奨。`,
+      4,
     );
   }
 
@@ -55,17 +111,49 @@ export function buildOpsSuggestions(
       suggestions,
       "low-ctr-pages",
       `CTRが2%未満のページが${lowCtrPages.length}件あります。タイトル・ディスクリプション改善を推奨。`,
-      5,
+      4,
     );
   }
 
-  const notIndexed = seo.index.notIndexedPages;
-  if (notIndexed != null && notIndexed > 0) {
+  const internal = seoScore?.categories.find(
+    (category) => category.key === "internalLinks",
+  );
+  if (internal?.available && internal.points != null && internal.points < 12) {
     pushSuggestion(
       suggestions,
-      "not-indexed",
-      `Google未登録ページが${notIndexed.toLocaleString("ja-JP")}件あります。内部リンク追加を推奨。`,
-      5,
+      "internal-links",
+      `内部リンク達成率が低めです（${internal.evidence}）。関連作品リンクの追加を推奨。`,
+      4,
+    );
+  }
+
+  const structured = seoScore?.categories.find(
+    (category) => category.key === "structuredData",
+  );
+  if (
+    structured?.available &&
+    structured.points != null &&
+    structured.points < 9
+  ) {
+    pushSuggestion(
+      suggestions,
+      "structured-data",
+      `構造化データに改善余地があります（${structured.evidence}）。`,
+      3,
+    );
+  }
+
+  if (
+    ga4.configured &&
+    ga4.connectionStatus === "connected" &&
+    ((ga4.periods[28]?.current.avgEngagementSeconds ?? 0) < 30 ||
+      (ga4.periods[28]?.current.pagesPerSession ?? 0) < 1.5)
+  ) {
+    pushSuggestion(
+      suggestions,
+      "ga4-engagement",
+      "GA4の回遊・エンゲージメントが低めです。関連リンクと導線を見直してください。",
+      3,
     );
   }
 
@@ -78,56 +166,6 @@ export function buildOpsSuggestions(
       suggestions,
       "rising-queries",
       `表示回数が急増している検索キーワードが${surge.length}件あります。関連記事作成を推奨。`,
-      4,
-    );
-  }
-
-  if ((period?.pages?.length ?? 0) >= 5) {
-    pushSuggestion(
-      suggestions,
-      "related-links",
-      "人気ページに関連記事リンクを追加してください。",
-      3,
-    );
-  }
-
-  const indexRate = seo.index.registrationRate;
-  if (indexRate != null && indexRate < 0.7) {
-    pushSuggestion(
-      suggestions,
-      "index-rate",
-      `インデックス率が${(indexRate * 100).toFixed(1)}%です。サイトマップ再送信と内部リンク強化を推奨。`,
-      4,
-    );
-  }
-
-  if (seo.connectionStatus === "error" || seo.fetchError) {
-    pushSuggestion(
-      suggestions,
-      "gsc-error",
-      "Search Console APIの取得に失敗しています。認証・権限設定を確認してください。",
-      5,
-    );
-  }
-
-  if (ga4.connectionStatus === "error" || ga4.fetchError) {
-    pushSuggestion(
-      suggestions,
-      "ga4-error",
-      "GA4 Data APIの取得に失敗しています。プロパティIDとサービスアカウント権限を確認してください。",
-      4,
-    );
-  }
-
-  if (
-    ga4.configured &&
-    ga4.connectionStatus === "connected" &&
-    (ga4.periods[28]?.current.bounceRate ?? 0) > 0.8
-  ) {
-    pushSuggestion(
-      suggestions,
-      "high-bounce",
-      "直帰率が高めです。人気ページの導線・関連リンクを見直してください。",
       3,
     );
   }

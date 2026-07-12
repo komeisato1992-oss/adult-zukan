@@ -1,9 +1,58 @@
 {
-  "version": 1,
-  "updatedAt": null,
-  "importedAt": null,
-  "source": null,
-  "fileName": null,
-  "rows": [],
-  "entities": []
+  "version": 2,
+  "updatedAt": "2026-07-12T07:03:31.049Z",
+  "importedAt": "2026-07-12T07:03:31.049Z",
+  "source": "csv",
+  "fileName": "report_reward_category_daily_2026-07-06_2026-07-12 (1).csv",
+  "rows": [
+    {
+      "date": "2026-07-06",
+      "type": "category",
+      "count": 0,
+      "sales": 0,
+      "reward": 0
+    },
+    {
+      "date": "2026-07-07",
+      "type": "category",
+      "count": 0,
+      "sales": 0,
+      "reward": 0
+    },
+    {
+      "date": "2026-07-08",
+      "type": "category",
+      "count": 0,
+      "sales": 0,
+      "reward": 0
+    },
+    {
+      "date": "2026-07-09",
+      "type": "category",
+      "count": 0,
+      "sales": 0,
+      "reward": 0
+    },
+    {
+      "date": "2026-07-10",
+      "type": "category",
+      "count": 9,
+      "sales": 14320,
+      "reward": 2864
+    },
+    {
+      "date": "2026-07-11",
+      "type": "category",
+      "count": 0,
+      "sales": 0,
+      "reward": 0
+    },
+    {
+      "date": "2026-07-12",
+      "type": "category",
+      "count": 0,
+      "sales": 0,
+      "reward": 0
+    }
+  ]
 }

@@ -1,5 +1,23 @@
 {
   "version": 2,
-  "updatedAt": "2026-07-12T07:27:40.189Z",
-  "overrides": []
+  "updatedAt": "2026-07-12T07:41:47.869Z",
+  "overrides": [
+    {
+      "id": "override_%E6%B8%9A%E3%81%BF%E3%81%A4%E3%81%8D",
+      "actress_id": "%E6%B8%9A%E3%81%BF%E3%81%A4%E3%81%8D",
+      "key": "%E6%B8%9A%E3%81%BF%E3%81%A4%E3%81%8D",
+      "work_id": "avsw00064",
+      "image_url": "https://pics.dmm.co.jp/digital/video/avsw00064/avsw00064pl.jpg",
+      "selection_type": "manual",
+      "selected_by": "admin",
+      "selected_at": "2026-07-12T07:41:47.869Z",
+      "updated_at": "2026-07-12T07:41:47.869Z",
+      "note": "manual-pick",
+      "score": 265,
+      "faceDetected": true,
+      "isSoloWork": true,
+      "imageUrl": "https://pics.dmm.co.jp/digital/video/avsw00064/avsw00064pl.jpg",
+      "workId": "avsw00064"
+    }
+  ]
 }

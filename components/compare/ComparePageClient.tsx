@@ -175,7 +175,7 @@ export function ComparePageClient() {
                 <p>
                   <span className="text-muted">価格:</span>{" "}
                   {item.price ? (
-                    <span className="font-bold text-accent">{item.price}</span>
+                    <span className="font-bold text-price">{item.price}</span>
                   ) : (
                     "-"
                   )}

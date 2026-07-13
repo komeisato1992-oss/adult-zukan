@@ -16,7 +16,7 @@ import { isGitHubCatalogConfigured } from "@/lib/admin/github-config";
 import { ImportBatchJobConflictError, recoverStaleImportBatchJob } from "@/lib/admin/import-batch-job-store";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
+export const maxDuration = 60;
 
 function parseTargetTotalCount(value: unknown): number {
   if (value === undefined || value === null || value === "") {

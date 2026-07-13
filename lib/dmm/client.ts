@@ -26,9 +26,9 @@ export async function fetchDmmItemList(
   const url = new URL(DMM_API_BASE);
   url.searchParams.set("api_id", apiId);
   url.searchParams.set("affiliate_id", affiliateId);
-  url.searchParams.set("site", "FANZA");
-  url.searchParams.set("service", "digital");
-  url.searchParams.set("floor", "videoa");
+  url.searchParams.set("site", options.site ?? "FANZA");
+  url.searchParams.set("service", options.service ?? "digital");
+  url.searchParams.set("floor", options.floor ?? "videoa");
   url.searchParams.set("output", "json");
   url.searchParams.set("hits", String(options.hits ?? 100));
   url.searchParams.set("offset", String(options.offset ?? 1));

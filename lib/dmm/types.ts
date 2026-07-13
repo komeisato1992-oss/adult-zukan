@@ -176,9 +176,15 @@ export type DmmItemListResponse = {
 export type DmmFetchOptions = {
   hits?: number;
   offset?: number;
-  sort?: "rank" | "date" | "price" | "review";
+  sort?: "rank" | "date" | "price" | "review" | "-price" | "match";
   keyword?: string;
   cid?: string;
+  /** 未指定時は FANZA（既存AV互換） */
+  site?: string;
+  /** 未指定時は digital（既存AV互換） */
+  service?: string;
+  /** 未指定時は videoa（既存AV互換） */
+  floor?: string;
   cache?: RequestCache;
   revalidate?: number;
 };

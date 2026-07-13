@@ -50,7 +50,7 @@ function DmmWorkCard({ item }: { item: DmmItem }) {
               </Link>
               <p className="mt-2 text-sm text-muted">{item.content_id}</p>
               {getDmmItemPrice(item) && (
-                <p className="mt-2 text-lg font-bold text-accent">
+                <p className="mt-2 text-lg font-bold text-price">
                   {getDmmItemPrice(item)}
                 </p>
               )}

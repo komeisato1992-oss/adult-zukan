@@ -47,7 +47,7 @@ export function DmmRelatedWorkCard({ item }: DmmRelatedWorkCardProps) {
       </div>
       <div className="px-3 pt-1">
         <CompactNameList names={actressNames} />
-        {price && <p className="mt-1 text-sm font-bold text-accent">{price}</p>}
+        {price && <p className="mt-1 text-sm font-bold text-price">{price}</p>}
         <p className="mt-1 text-[11px] text-muted/90">{item.content_id}</p>
       </div>
       <div className="px-3 pb-3">

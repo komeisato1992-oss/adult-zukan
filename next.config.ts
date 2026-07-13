@@ -11,6 +11,10 @@ const nextConfig: NextConfig = {
         protocol: "https",
         hostname: "*.dmm.co.jp",
       },
+      {
+        protocol: "https",
+        hostname: "doujin-assets.dmm.co.jp",
+      },
     ],
   },
   async redirects() {

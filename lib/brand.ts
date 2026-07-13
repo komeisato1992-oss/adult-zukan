@@ -3,4 +3,6 @@ export const brand = {
   primary: "#E60012",
   primaryHover: "#C40010",
   primaryLight: "#FFF0F0",
+  /** 価格表示色（同人図鑑と共通） */
+  price: "#E60012",
 } as const;

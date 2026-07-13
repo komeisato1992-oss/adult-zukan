@@ -134,7 +134,7 @@ export function DmmWorkHero({
               {price && (
                 <div>
                   <dt className="text-muted">価格</dt>
-                  <dd className="mt-0.5 text-xl font-bold text-accent">
+                  <dd className="mt-0.5 text-xl font-bold text-price">
                     {price}
                   </dd>
                 </div>

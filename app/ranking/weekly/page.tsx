@@ -16,7 +16,7 @@ import {
   getWeeklyRankingWorks,
 } from "@/lib/works/catalog";
 
-export const revalidate = 3600;
+export const revalidate = 21600;
 
 export const metadata = createPageMetadata({
   title: "週間ランキング",

@@ -17,6 +17,12 @@ export const adminNavItems: AdminNavItem[] = [
     href: "/admin/actress-images",
   },
   {
+    id: "doujin",
+    label: "同人図鑑",
+    icon: "📚",
+    href: "/admin/doujin",
+  },
+  {
     id: "dmm",
     label: "DMM成果",
     icon: "💰",

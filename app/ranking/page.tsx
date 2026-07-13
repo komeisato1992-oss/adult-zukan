@@ -30,7 +30,7 @@ import {
   getPopularSeries,
 } from "@/lib/ranking/entity-ranking-service";
 
-export const revalidate = 3600;
+export const revalidate = 21600;
 
 export const metadata = createPageMetadata({
   title: "ランキング",

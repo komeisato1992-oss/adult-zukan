@@ -5,7 +5,7 @@ import { CompareFloatingButton } from "@/components/compare/CompareFloatingButto
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
 
-const BARE_PATH_PREFIXES = ["/age-denied", "/admin"];
+const BARE_PATH_PREFIXES = ["/age-denied", "/admin", "/doujin"];
 
 function isBarePath(pathname: string): boolean {
   return BARE_PATH_PREFIXES.some(

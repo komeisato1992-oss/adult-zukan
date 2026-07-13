@@ -84,7 +84,7 @@ export function DmmWorkCard({
         <CompactNameList names={actressNames} />
         {current && (
           <div className="mt-2.5 flex items-baseline gap-2">
-            <span className={`font-bold text-accent ${priceSize}`}>{current}</span>
+            <span className={`font-bold text-price ${priceSize}`}>{current}</span>
             {original && (
               <span className="text-xs text-muted line-through">{original}</span>
             )}

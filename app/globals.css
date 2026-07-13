@@ -15,7 +15,110 @@
   --accent: var(--brand-primary);
   --accent-hover: var(--brand-primary-hover);
   --accent-light: var(--brand-primary-light);
+  --price-color: #e60012;
   --surface: #f7f7f7;
+}
+
+/* 同人図鑑テーマ（既存アダルト図鑑の赤テーマには影響しない） */
+[data-site="doujin"] {
+  --doujin-primary: #f78fa7;
+  --doujin-primary-hover: #e56b8a;
+  --doujin-primary-light: #fff0f4;
+  --doujin-primary-border: #f9c2cf;
+  --brand-primary: var(--doujin-primary);
+  --brand-primary-hover: var(--doujin-primary-hover);
+  --brand-primary-light: var(--doujin-primary-light);
+  --accent: var(--doujin-primary);
+  --accent-hover: var(--doujin-primary-hover);
+  --accent-light: var(--doujin-primary-light);
+  /* 価格だけアダルト図鑑と同じ赤を維持 */
+  --price-color: #e60012;
+}
+
+/* 同人作品カード：全体表示 + 枠内で最大限大きく（トリミングなし） */
+.doujin-work-card__image-wrapper {
+  position: relative;
+  display: flex;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #f5f5f5;
+}
+
+/* 共通 img { max-width/height } や cover 指定より優先（同人カードサムネのみ） */
+.doujin-work-card .doujin-work-card__image,
+.doujin-work-card__image-wrapper .doujin-work-card__image,
+[data-site-type="doujin"] .doujin-work-card__image {
+  position: absolute;
+  inset: 0;
+  max-width: none !important;
+  max-height: none !important;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  transform: none !important;
+}
+
+/* 同人詳細：メイン画像（トリミングなし・全体表示） */
+.doujin-work-detail__image-frame {
+  display: flex;
+  width: 100%;
+  max-height: 520px;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 8px;
+  background: #f7f7f7;
+}
+
+.doujin-work-detail__image {
+  width: 100% !important;
+  height: auto !important;
+  max-height: 520px !important;
+  object-fit: contain !important;
+  object-position: center !important;
+  transform: none !important;
+}
+
+/* 同人詳細：サンプル画像一覧（トリミングなし） */
+.doujin-sample-gallery__image {
+  object-fit: contain !important;
+  object-position: center !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  transform: none !important;
+}
+
+.doujin-sample-lightbox__image {
+  object-fit: contain !important;
+  object-position: center !important;
+  transform: none !important;
+}
+
+/* 同人作者カード：代表作品画像（トリミングなし） */
+.doujin-author-card__image-wrapper {
+  position: relative;
+  display: flex;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #f5f5f5;
+  border-radius: 8px 8px 0 0;
+}
+
+.doujin-author-card__image {
+  object-fit: contain !important;
+  object-position: center !important;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  transform: none !important;
 }
 
 @theme inline {
@@ -26,6 +129,7 @@
   --color-accent: var(--accent);
   --color-accent-hover: var(--accent-hover);
   --color-accent-light: var(--accent-light);
+  --color-price: var(--price-color);
   --color-surface: var(--surface);
   --color-brand: var(--brand-primary);
   --color-brand-hover: var(--brand-primary-hover);

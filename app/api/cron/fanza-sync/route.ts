@@ -6,9 +6,9 @@ import { fanzaSyncProgressPercent } from "@/lib/admin/fanza-sync-job";
  *  JST 17:00 の2回目は Pro プランか、外部 cron から同一エンドポイントを呼ぶ。 */
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 300;
+export const maxDuration = 60;
 
-const CRON_DEADLINE_MS = 280_000;
+const CRON_DEADLINE_MS = 50_000;
 
 export async function GET(request: Request) {
   const cronSecret = process.env.CRON_SECRET?.trim();

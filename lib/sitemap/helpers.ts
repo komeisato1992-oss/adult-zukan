@@ -62,4 +62,5 @@ export const SITEMAP_EXCLUDED_PATHS = new Set([
   "/feed.xml",
   "/works?sale=1",
   "/sitemap",
+  "/doujin",
 ]);

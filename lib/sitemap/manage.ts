@@ -83,7 +83,8 @@ export async function listSitemapDefinitions(): Promise<SitemapDefinition[]> {
 }
 
 export function revalidateSitemapPaths(pathnames: string[]): void {
-  for (const pathname of pathnames) {
+  const unique = [...new Set(pathnames.filter(Boolean))];
+  for (const pathname of unique) {
     revalidatePath(pathname);
   }
 }
@@ -92,7 +93,7 @@ export async function revalidateAllSitemapPaths(): Promise<string[]> {
   const definitions = await listSitemapDefinitions();
   const pathnames = definitions.map((definition) => definition.pathname);
   revalidateSitemapPaths(pathnames);
-  return pathnames;
+  return [...new Set(pathnames)];
 }
 
 export async function revalidateSitemapByKey(key: string): Promise<string[]> {
@@ -103,11 +104,8 @@ export async function revalidateSitemapByKey(key: string): Promise<string[]> {
   }
 
   if (key === "index") {
-    const pathnames = (await listSitemapDefinitions()).map(
-      (entry) => entry.pathname,
-    );
-    revalidateSitemapPaths(pathnames);
-    return pathnames;
+    // index 更新時のみ全 path を一度に無効化（呼び出し側で重複させない）
+    return revalidateAllSitemapPaths();
   }
 
   revalidateSitemapPaths([definition.pathname, "/sitemap.xml"]);
@@ -216,6 +214,7 @@ export async function refreshSitemapByKey(key: string): Promise<SitemapRefreshRe
     throw new Error(`未知のサイトマップキーです: ${key}`);
   }
 
+  // refreshAll 側でまとめて revalidate するため、単体更新時のみここで無効化
   await revalidateSitemapByKey(key);
 
   const xml = await buildXmlForDefinition(definition);
@@ -246,10 +245,39 @@ export async function refreshSitemapByKey(key: string): Promise<SitemapRefreshRe
 
 export async function refreshAllSitemaps(): Promise<SitemapRefreshResult[]> {
   const definitions = await listSitemapDefinitions();
-  const results: SitemapRefreshResult[] = [];
+  // 先に全 path をユニークに1回だけ無効化
+  await revalidateAllSitemapPaths();
 
+  const results: SitemapRefreshResult[] = [];
   for (const definition of definitions) {
-    results.push(await refreshSitemapByKey(definition.key));
+    const works = await getCatalogWorks();
+    const def = findSitemapDefinitionByKey(definition.key, works.length);
+    if (!def) continue;
+
+    const xml = await buildXmlForDefinition(def);
+    const validation = validateSitemapXml(xml, {
+      expectedRoot: expectedRootForKind(def.kind),
+    });
+    const previous = readPreviousMeta(def.key);
+    const generatedAt = new Date().toISOString();
+    writeMeta(def.key, validation.urlCount, generatedAt);
+
+    results.push({
+      key: def.key,
+      label: def.label,
+      url: def.url,
+      pathname: def.pathname,
+      urlCount: validation.urlCount,
+      previousUrlCount: previous?.urlCount ?? null,
+      addedCount:
+        previous?.urlCount != null
+          ? validation.urlCount - previous.urlCount
+          : null,
+      duplicateCount: validation.duplicateCount,
+      httpStatus: validation.ok ? 200 : 500,
+      generatedAt,
+      validation,
+    });
   }
 
   return results;

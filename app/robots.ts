@@ -7,7 +7,14 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        disallow: ["/favorites", "/history", "/age-denied", "/admin", "/api/"],
+        disallow: [
+          "/favorites",
+          "/history",
+          "/age-denied",
+          "/admin",
+          "/api/",
+          "/doujin",
+        ],
       },
     ],
     host: getCanonicalHostname(),

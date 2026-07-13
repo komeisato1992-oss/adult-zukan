@@ -16,7 +16,7 @@ import {
 } from "@/lib/seo/json-ld";
 import { parseWorkSortParam, getWorksCanonicalPath } from "@/lib/works/sort";
 
-export const revalidate = 3600;
+export const dynamic = "force-dynamic";
 
 type SearchPageProps = {
   searchParams: Promise<{ q?: string; page?: string; sort?: string }>;

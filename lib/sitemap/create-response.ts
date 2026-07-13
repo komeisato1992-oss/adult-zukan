@@ -7,7 +7,7 @@ import {
   serializeSitemapToXml,
 } from "@/lib/sitemap/serialize";
 
-export const revalidate = 3600;
+export const revalidate = 86400;
 
 const XML_HEADERS = {
   "Content-Type": "application/xml; charset=utf-8",

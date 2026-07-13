@@ -36,7 +36,7 @@ export function WorkListCard({
         {priceDisplayMode === "sale" && item.saleInfo ? (
           <WorkListSalePrice item={item} />
         ) : item.displayPrice ? (
-          <p className="mt-1.5 text-sm font-bold text-accent">{item.displayPrice}</p>
+          <p className="mt-1.5 text-sm font-bold text-price">{item.displayPrice}</p>
         ) : null}
         <p className="mt-1 text-[11px] text-muted/90">{item.contentId}</p>
       </div>

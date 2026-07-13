@@ -39,7 +39,7 @@ function RandomCompareCard({ item }: { item: DmmItem }) {
           </div>
           <div>
             <dt className="inline text-muted">価格：</dt>
-            <dd className="inline font-bold text-accent">{price ?? "-"}</dd>
+            <dd className="inline font-bold text-price">{price ?? "-"}</dd>
           </div>
         </dl>
       </div>

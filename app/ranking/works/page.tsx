@@ -17,7 +17,7 @@ import {
   getSharedCatalogWorks,
 } from "@/lib/works/catalog";
 
-export const revalidate = 3600;
+export const revalidate = 21600;
 
 type RankingWorksPageProps = {
   searchParams: Promise<{ page?: string }>;

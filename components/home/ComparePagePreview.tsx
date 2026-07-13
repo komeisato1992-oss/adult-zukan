@@ -62,7 +62,7 @@ function ComparePreviewCard({ item }: { item: DmmItem }) {
         </div>
         <div>
           <dt className="inline text-muted">価格：</dt>
-          <dd className="inline font-bold text-accent">
+          <dd className="inline font-bold text-price">
             {getDmmItemPrice(item) ?? "-"}
           </dd>
         </div>

@@ -55,7 +55,7 @@ export function RankingWorkCard({
         <CompactNameList names={item.actressNames} />
         {item.displayPrice ? (
           <div className="mt-2.5 flex items-baseline gap-2">
-            <span className={`font-bold text-accent ${priceSize}`}>
+            <span className={`font-bold text-price ${priceSize}`}>
               {item.displayPrice}
             </span>
             {item.originalPrice ? (

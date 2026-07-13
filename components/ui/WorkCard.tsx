@@ -80,7 +80,7 @@ export function WorkCard({
       <div className={`${paddingX} pt-1.5`}>
         <CompactNameList names={work.actressNames} />
         <div className="mt-2.5 flex items-baseline gap-2">
-          <span className={`font-bold text-accent ${priceSize}`}>
+          <span className={`font-bold text-price ${priceSize}`}>
             {formatPrice(current)}
           </span>
           {original && (

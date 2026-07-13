@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # admin runtime cache
 /data/admin/seo-cache.json
@@ -44,9 +45,10 @@ yarn-error.log*
 /data/dmm/catalog-snapshot.legacy.json
 /data/dmm/.catalog-test-backup/
 
-# vercel
-.vercel
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
+# 同人図鑑: ジョブ/ログはローカルのみ。表示用カタログJSONは本番反映のため追跡する
+/data/doujin/import-jobs.json
+/data/doujin/sync-jobs.json
+/data/doujin/fetch-job.json
+/data/doujin/fetch-logs.json
+/data/doujin/works-raw/
+/data/backups/

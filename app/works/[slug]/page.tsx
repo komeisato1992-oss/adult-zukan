@@ -45,7 +45,8 @@ import {
 import { formatPrice, getDisplayPrice } from "@/lib/format";
 import { AFFILIATE_LINK_REL, slugify } from "@/lib/utils";
 
-export const revalidate = 86400;
+/** 作品詳細 ISR: 7日（旧 86400）。ロールバック時は 86400 に戻す */
+export const revalidate = 604800;
 
 export const dynamicParams = true;
 

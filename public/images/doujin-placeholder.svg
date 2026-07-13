@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="600" viewBox="0 0 800 600" role="img" aria-label="????????????">
+  <defs>
+    <linearGradient id="doujinPhBg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#FFF0F4"/>
+      <stop offset="100%" stop-color="#F9C2CF"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="600" fill="url(#doujinPhBg)"/>
+  <rect x="80" y="90" width="640" height="420" rx="28" fill="#ffffff" fill-opacity="0.7" stroke="#F78FA7" stroke-width="2"/>
+  <circle cx="400" cy="260" r="64" fill="#F78FA7" fill-opacity="0.3"/>
+  <rect x="280" y="360" width="240" height="18" rx="9" fill="#F78FA7" fill-opacity="0.4"/>
+  <rect x="310" y="396" width="180" height="14" rx="7" fill="#F78FA7" fill-opacity="0.25"/>
+  <text x="400" y="470" text-anchor="middle" font-family="sans-serif" font-size="28" font-weight="700" fill="#E56B8A">NO IMAGE</text>
+</svg>

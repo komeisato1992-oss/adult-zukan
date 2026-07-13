@@ -17,7 +17,7 @@ export function WorkListSalePrice({ item }: WorkListSalePriceProps) {
         <span className="text-sm text-muted line-through">
           ¥{regularPrice.toLocaleString("ja-JP")}
         </span>
-        <span className="text-lg font-bold leading-none text-accent">
+        <span className="text-lg font-bold leading-none text-price">
           ¥{currentPrice.toLocaleString("ja-JP")}
         </span>
       </div>

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { DoujinFooterFavoritesLink } from "@/components/doujin/DoujinFooterFavoritesLink";
-import { DoujinLogo } from "@/components/doujin/DoujinLogo";
+import { FooterZukanSwitch } from "@/components/layout/FooterZukanSwitch";
 import {
   doujinLegalLinks,
   doujinNavItems,
@@ -19,16 +19,7 @@ export function DoujinFooter() {
             <h2 id="doujin-footer-about" className="sr-only">
               {doujinSiteConfig.name}
             </h2>
-            <Link
-              href="/doujin"
-              className="inline-block"
-              aria-label={`${doujinSiteConfig.name} トップページ`}
-            >
-              <DoujinLogo variant="footer" />
-            </Link>
-            <p className="mt-3 text-sm leading-relaxed text-muted">
-              {doujinSiteConfig.description}
-            </p>
+            <FooterZukanSwitch currentSite="doujin" />
           </section>
 
           <nav aria-labelledby="doujin-footer-nav">

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { FooterFavoritesLink } from "@/components/layout/FooterFavoritesLink";
+import { FooterZukanSwitch } from "@/components/layout/FooterZukanSwitch";
 import { navItems, siteConfig, sidebarSections, legalLinks } from "@/lib/site-config";
 
 export function Footer() {
@@ -13,9 +14,9 @@ export function Footer() {
             <h2 id="footer-about" className="text-sm font-bold text-accent">
               {siteConfig.name}
             </h2>
-            <p className="mt-3 text-sm leading-relaxed text-muted">
-              {siteConfig.description}
-            </p>
+            <div className="mt-4">
+              <FooterZukanSwitch currentSite="adult" />
+            </div>
           </section>
 
           <nav aria-labelledby="footer-nav">

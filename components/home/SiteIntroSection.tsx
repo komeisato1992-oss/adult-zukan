@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ZukanSwitchButton } from "@/components/home/ZukanSwitchButton";
 
 export function SiteIntroSection() {
   return (
@@ -37,21 +38,30 @@ export function SiteIntroSection() {
             </p>
           </div>
 
-          <div className="mt-8 flex flex-wrap items-center justify-center gap-3 sm:gap-4">
-            <Link
-              href="/works"
-              prefetch
-              className="inline-flex h-11 min-w-[160px] items-center justify-center rounded-lg bg-accent px-6 text-sm font-semibold text-white transition-colors hover:bg-accent-hover"
-            >
-              作品を探す
-            </Link>
-            <Link
-              href="/compare"
-              prefetch
-              className="inline-flex h-11 min-w-[160px] items-center justify-center rounded-lg border border-accent bg-white px-6 text-sm font-semibold text-accent transition-colors hover:bg-[#FFF2F2]"
-            >
-              比較機能を見る
-            </Link>
+          <div className="mt-8 flex flex-col items-center">
+            <div className="flex w-full flex-wrap items-center justify-center gap-3 sm:gap-4">
+              <Link
+                href="/works"
+                prefetch
+                className="inline-flex h-11 min-w-[160px] flex-1 items-center justify-center rounded-lg bg-accent px-6 text-sm font-semibold text-white transition-colors hover:bg-accent-hover sm:flex-none"
+              >
+                作品を探す
+              </Link>
+              <Link
+                href="/compare"
+                prefetch
+                className="inline-flex h-11 min-w-[160px] flex-1 items-center justify-center rounded-lg border border-accent bg-white px-6 text-sm font-semibold text-accent transition-colors hover:bg-[#FFF2F2] sm:flex-none"
+              >
+                比較機能を見る
+              </Link>
+            </div>
+            <ZukanSwitchButton
+              label="同人図鑑はこちら"
+              href="/doujin"
+              variant="doujin"
+              fromSite="adult"
+              toSite="doujin"
+            />
           </div>
         </div>
       </div>

@@ -32,8 +32,8 @@ export function FavoriteNavLabel() {
   }, []);
 
   if (count > 0) {
-    return <>お気に入り（{count}）</>;
+    return <>お気に入り❤️（{count}）</>;
   }
 
-  return <>❤️ お気に入り</>;
+  return <>お気に入り❤️</>;
 }

@@ -24,10 +24,6 @@ function isNavItemActive(
     );
   }
 
-  if (href === "/works?sale=1") {
-    return pathname === "/works" && searchParams.get("sale") === "1";
-  }
-
   const baseHref = href.split("?")[0];
   return pathname === baseHref || pathname.startsWith(`${baseHref}/`);
 }

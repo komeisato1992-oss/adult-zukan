@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ZukanSwitchButton } from "@/components/home/ZukanSwitchButton";
+import { ZukanCrossLinkCard } from "@/components/home/ZukanCrossLinkCard";
 import { doujinSiteConfig } from "@/lib/doujin/site-config";
 
 export function DoujinSiteIntroSection() {
@@ -46,12 +46,16 @@ export function DoujinSiteIntroSection() {
                 比較機能を見る
               </Link>
             </div>
-            <ZukanSwitchButton
-              label="アダルト図鑑はこちら"
+
+            <ZukanCrossLinkCard
+              title="動画作品を探している方へ"
+              description="動画作品を、女優・メーカー・レーベル・シリーズ・ジャンルから検索・比較できます。"
+              label="アダルト図鑑を見る →"
               href="/"
               variant="adult"
               fromSite="doujin"
               toSite="adult"
+              placement="top_hero_card"
             />
           </div>
         </div>

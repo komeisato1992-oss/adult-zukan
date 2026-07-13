@@ -2,7 +2,7 @@ import "server-only";
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
-import { isGitHubCatalogConfigured, getGitHubConfig } from "@/lib/admin/github-config";
+import { isGitHubProductionConfigured, getGitHubProductionConfig } from "@/lib/admin/github-config";
 import type { Ga4CachePayload } from "@/lib/admin/ga4-types";
 import { createEmptyGa4Cache } from "@/lib/admin/ga4-types";
 
@@ -44,7 +44,7 @@ async function githubRequest<T>(
   url: string,
   init: RequestInit = {},
 ): Promise<T> {
-  const config = getGitHubConfig();
+  const config = getGitHubProductionConfig();
   if (!config) throw new Error("GitHub未設定");
 
   const response = await fetch(url, {
@@ -90,9 +90,9 @@ export async function loadGa4CachePersisted(): Promise<Ga4CachePayload> {
       (parsed.connectionStatus === "connected" ? parsed.updatedAt : null),
   });
 
-  if (isGitHubCatalogConfigured()) {
+  if (isGitHubProductionConfigured()) {
     try {
-      const config = getGitHubConfig()!;
+      const config = getGitHubProductionConfig()!;
       const data = await githubRequest<{ content: string; sha: string }>(
         `https://api.github.com/repos/${config.owner}/${config.repo}/contents/${GA4_CACHE_GITHUB_PATH}?ref=${encodeURIComponent(config.branch)}`,
       );
@@ -130,10 +130,10 @@ export async function saveGa4CachePersisted(
   store.__ga4CachePayload = payload;
   writeLocalSafe(payload);
 
-  if (!isGitHubCatalogConfigured()) return;
+  if (!isGitHubProductionConfigured()) return;
 
   try {
-    const config = getGitHubConfig()!;
+    const config = getGitHubProductionConfig()!;
     const body: Record<string, string> = {
       message: `Update GA4 analytics cache (${payload.updatedAt ?? "partial"})`,
       content: Buffer.from(`${JSON.stringify(payload, null, 2)}\n`, "utf-8").toString(

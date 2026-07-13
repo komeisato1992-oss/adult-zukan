@@ -12,8 +12,8 @@ import type { SeoCachePayload } from "@/lib/admin/seo-types";
 import { toGoogleSearchConsoleErrorMessage } from "@/lib/admin/google-search-console-errors";
 import { getSiteUrl } from "@/lib/constants";
 import {
-  getGitHubConfig,
-  isGitHubCatalogConfigured,
+  getGitHubProductionConfig,
+  isGitHubProductionConfigured,
 } from "@/lib/admin/github-config";
 
 const ADMIN_DATA_DIR = path.join(process.cwd(), "data", "admin");
@@ -41,7 +41,7 @@ function hasPersistedSeoData(payload: SeoCachePayload | null | undefined): boole
 }
 
 export function getSeoCacheBackend(): "github" | "local" | "memory" {
-  if (isGitHubCatalogConfigured()) return "github";
+  if (isGitHubProductionConfigured()) return "github";
   return "local";
 }
 
@@ -71,7 +71,7 @@ async function githubRequest<T>(
   url: string,
   init: RequestInit = {},
 ): Promise<T> {
-  const config = getGitHubConfig();
+  const config = getGitHubProductionConfig();
   if (!config) throw new Error("GitHub未設定");
 
   const response = await fetch(url, {
@@ -109,9 +109,9 @@ export async function loadSeoCache(): Promise<SeoCachePayload> {
     return store.__seoMemoryCache!;
   }
 
-  if (isGitHubCatalogConfigured()) {
+  if (isGitHubProductionConfigured()) {
     try {
-      const config = getGitHubConfig()!;
+      const config = getGitHubProductionConfig()!;
       const data = await githubRequest<{ content: string; sha: string }>(
         `https://api.github.com/repos/${config.owner}/${config.repo}/contents/${SEO_CACHE_GITHUB_PATH}?ref=${encodeURIComponent(config.branch)}`,
       );
@@ -145,10 +145,10 @@ export async function saveSeoCache(payload: SeoCachePayload): Promise<void> {
   store.__seoMemoryCache = payload;
   writeLocalSafe(payload);
 
-  if (!isGitHubCatalogConfigured()) return;
+  if (!isGitHubProductionConfigured()) return;
 
   try {
-    const config = getGitHubConfig()!;
+    const config = getGitHubProductionConfig()!;
     const body: Record<string, string> = {
       message: `Update Search Console cache (${payload.updatedAt ?? "partial"})`,
       content: Buffer.from(serializeSeoCache(payload), "utf-8").toString("base64"),

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getGitHubConfig } from "@/lib/admin/github-config";
+import { getGitHubProductionConfig } from "@/lib/admin/github-config";
 import {
   createEmptyDmmReportsDocument,
   parseDmmReportsDocument,
@@ -27,7 +27,7 @@ export class GitHubDmmReportsError extends Error {
 }
 
 function getContentsUrl(path: string): string {
-  const config = getGitHubConfig();
+  const config = getGitHubProductionConfig();
   if (!config) {
     throw new GitHubDmmReportsError("GitHub連携の設定が未完了です。", 503);
   }
@@ -38,7 +38,7 @@ async function githubRequest<T>(
   url: string,
   init: RequestInit = {},
 ): Promise<T> {
-  const config = getGitHubConfig();
+  const config = getGitHubProductionConfig();
   if (!config) {
     throw new GitHubDmmReportsError("GitHub連携の設定が未完了です。", 503);
   }
@@ -90,7 +90,7 @@ export async function fetchDmmReportsFromGitHub(): Promise<{
   document: DmmReportsDocument;
   sha: string | null;
 }> {
-  const config = getGitHubConfig();
+  const config = getGitHubProductionConfig();
   if (!config) {
     throw new GitHubDmmReportsError("GitHub連携の設定が未完了です。", 503);
   }
@@ -116,7 +116,7 @@ export async function commitDmmReportsToGitHub(
   sha: string | null,
   message: string,
 ): Promise<void> {
-  const config = getGitHubConfig();
+  const config = getGitHubProductionConfig();
   if (!config) {
     throw new GitHubDmmReportsError("GitHub連携の設定が未完了です。", 503);
   }

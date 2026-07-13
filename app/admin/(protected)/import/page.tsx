@@ -10,28 +10,29 @@ export default function AdminImportPage() {
           作品管理
         </h1>
         <p className="mt-2 text-sm text-muted">
-          未掲載作品の追加と、掲載済み作品のFANZA同期（価格・セール・販売状態）を分けて実行します。
+          未掲載作品の追加と、掲載済み作品の更新は作業用ブランチへ保存します。本番反映は最後に1回だけ実行します。
         </p>
       </section>
 
       <section className="rounded-xl border border-border bg-surface p-4 text-sm text-muted">
-        <p className="font-medium text-foreground">2つの独立したフロー</p>
-        <ul className="mt-2 list-inside list-disc space-y-1">
+        <p className="font-medium text-foreground">3つのフロー</p>
+        <ul className="mt-2 list-inside list-disc space-y-2">
           <li>
             <strong className="text-foreground">掲載作品を最新に更新</strong>
-            ：全掲載作品のFANZA同期（バックグラウンドジョブ・優先順位付き）
+            ：掲載中作品の価格・セール・評価等を更新します。変更は作業用ブランチへ保存されます。
           </li>
           <li>
             <strong className="text-foreground">A. 未掲載作品を取得・追加</strong>
-            ：FANZA人気順から未掲載作品だけ候補取得 → 選択した作品のみ追加
+            ：FANZA人気順または新着順から候補を取得し、選択作品を作業用ブランチへ追加します。
           </li>
           <li>
-            <strong className="text-foreground">B. 掲載済み作品の部分更新</strong>
-            ：カタログ既存作品の価格・セール・販売状態のみ更新（新規追加なし）
+            <strong className="text-foreground">本番反映・デプロイ</strong>
+            ：すべての追加・更新作業が終わったあと、変更をmainへまとめて反映し、Productionデプロイを1回実行します。
           </li>
-          <li>追加・更新とも GitHub へ 1 バッチ 1 commit</li>
-          <li>同期ジョブ状態は fanza-sync-job.json に保存</li>
         </ul>
+        <p className="mt-4 rounded-md bg-amber-500/15 px-3 py-2 font-medium text-amber-950 dark:text-amber-50">
+          作品追加や更新だけでは本番サイトへ反映されません。
+        </p>
       </section>
 
       <ImportManagement />

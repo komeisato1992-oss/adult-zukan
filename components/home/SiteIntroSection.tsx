@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ZukanSwitchButton } from "@/components/home/ZukanSwitchButton";
+import { ZukanCrossLinkCard } from "@/components/home/ZukanCrossLinkCard";
 
 export function SiteIntroSection() {
   return (
@@ -55,12 +55,16 @@ export function SiteIntroSection() {
                 比較機能を見る
               </Link>
             </div>
-            <ZukanSwitchButton
-              label="同人図鑑はこちら"
+
+            <ZukanCrossLinkCard
+              title="同人作品を探している方へ"
+              description="同人作品を、サークル・作者・シリーズ・ジャンルから検索・比較できます。"
+              label="同人図鑑を見る →"
               href="/doujin"
               variant="doujin"
               fromSite="adult"
               toSite="doujin"
+              placement="top_hero_card"
             />
           </div>
         </div>

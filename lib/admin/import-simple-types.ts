@@ -1,6 +1,14 @@
 import type { DmmItem } from "@/lib/dmm/types";
 
-export type ImportFetchSort = "popular";
+export type ImportFetchSort = "popular" | "new";
+
+/** @deprecated ImportFetchSort を使用 */
+export type ImportSortMode = ImportFetchSort;
+
+export const IMPORT_SORT_MODE_LABELS: Record<ImportFetchSort, string> = {
+  popular: "FANZA人気順",
+  new: "FANZA新着順",
+};
 
 export type ImportCandidateMeta = {
   sourceSort: ImportFetchSort;

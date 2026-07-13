@@ -501,10 +501,20 @@ export async function commitGitDataBundle(
 
   const config = getGitHubConfig();
   if (!config) {
-    throw new GitHubCatalogError("GitHub連携の設定が未完了です。", 503, {
-      phase: "fetch-ref",
-    });
+    throw new GitHubCatalogError(
+      "作業用ブランチ (ADULT_CATALOG_WORKING_BRANCH) が未設定です。Production への直接保存は禁止されています。",
+      503,
+      {
+        phase: "fetch-ref",
+      },
+    );
   }
+
+  // 作業用ブランチが無ければ Production から作成（サーバー側のみ）
+  const { ensureCatalogWorkingBranch } = await import(
+    "@/lib/admin/catalog-branch"
+  );
+  await ensureCatalogWorkingBranch();
 
   const repoBase = getRepoApiBase();
   let retryCount = 0;

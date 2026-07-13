@@ -44,9 +44,9 @@ export const IMPORT_SIMPLE_ADD_MAX_RETRIES = 2;
 
 /**
  * 管理画面の一括追加：クライアントが API を呼ぶ単位。
- * 500件選択時はブラウザ側からこの件数ずつ順次 POST する。
+ * 1回の管理操作あたり GitHub コミットを1件に近づけるため 300 件。
  */
-export const ADD_BATCH_SIZE = 100;
+export const ADD_BATCH_SIZE = 300;
 /** 422 時の自動縮小の最小単位 */
 export const ADD_BATCH_MIN_SIZE = 10;
 /** 1 API リクエストあたりの作品上限（ADD_BATCH_SIZE と同値） */

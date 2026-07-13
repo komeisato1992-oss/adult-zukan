@@ -262,8 +262,8 @@ function classifySelectedWorks(
 }
 
 function buildCommitMessage(addedCount: number): string {
-  if (addedCount <= 0) return "Add works from admin import";
-  return `Add ${addedCount} works from admin import`;
+  if (addedCount <= 0) return "chore(catalog-staging): add works from admin import";
+  return `chore(catalog-staging): add ${addedCount} works from admin import`;
 }
 
 function buildResultMessage(input: {
@@ -297,7 +297,9 @@ function buildResultMessage(input: {
   }
 
   const lines = [
-    `${summary.addedCount}件を追加しました。`,
+    `${summary.addedCount}件を作業用データへ追加しました。`,
+    "本番サイトにはまだ反映されていません。",
+    "続けて作品を追加するか、最後に『本番反映・デプロイ』を実行してください。",
     `受信：${summary.selectedCount}件`,
     `掲載済み除外：${summary.catalogDuplicateCount}件`,
     summary.selectionDuplicateCount > 0
@@ -317,26 +319,10 @@ function buildResultMessage(input: {
   ].filter(Boolean) as string[];
 
   if (committedToGitHub || summary.githubCommitSucceeded) {
-    lines.push("GitHub commit：成功");
+    lines.push("作業用ブランチへ保存：成功");
   }
 
-  if (sitemap) {
-    lines.push(
-      "",
-      sitemap.sitemapUpdated
-        ? "サイトマップ：更新済み"
-        : "サイトマップ：更新に失敗（SEO管理画面から再実行してください）",
-    );
-    if (sitemap.googleSubmission.submitted) {
-      lines.push("Google再送信：送信済み");
-    } else if (sitemap.googleSubmission.reason === "recently-submitted") {
-      lines.push("Google再送信：前回送信から30分以内のため省略");
-    } else if (sitemap.googleSubmission.reason === "local-dry-run") {
-      lines.push("Google再送信：ローカル環境のためdry-run");
-    } else if (sitemap.sitemapUpdated) {
-      lines.push("Google再送信：未送信");
-    }
-  }
+  void sitemap;
 
   return lines.join("\n");
 }
@@ -771,52 +757,16 @@ export async function addSelectedWorksToCatalog(
     githubCommitSucceeded: committedToGitHub || (localMode && commitCount > 0),
   };
 
-  let sitemap: AddSelectedWorksResult["sitemap"];
-  if (
-    updateSitemap &&
-    (committedToGitHub || localMode) &&
-    addedContentIds.length > 0
-  ) {
-    try {
-      const { handlePostImportSitemapUpdate } = await import(
-        "@/lib/admin/sitemap-admin-service"
-      );
-      const sitemapResult = await handlePostImportSitemapUpdate();
-      sitemap = {
-        sitemapUpdated: sitemapResult.sitemapUpdated,
-        sitemapError: sitemapResult.sitemapError,
-        googleSubmission: {
-          submitted: sitemapResult.googleSubmission.submitted,
-          skipped: sitemapResult.googleSubmission.skipped,
-          reason: sitemapResult.googleSubmission.reason,
-          dryRun: sitemapResult.googleSubmission.dryRun,
-        },
-        refreshResults: sitemapResult.refreshResults
-          .filter(
-            (entry) =>
-              entry.key === "works" || entry.key.startsWith("works-"),
-          )
-          .map((entry) => ({
-            key: entry.key,
-            urlCount: entry.urlCount,
-            addedCount: entry.addedCount,
-          })),
-      };
-    } catch (error) {
-      sitemap = {
-        sitemapUpdated: false,
-        sitemapError:
-          error instanceof Error
-            ? error.message
-            : "サイトマップ更新に失敗しました。",
-        googleSubmission: {
-          submitted: false,
-          skipped: true,
-          reason: "sitemap-update-failed",
-        },
-      };
-    }
+  if (addedContentIds.length > 0) {
+    const { noteCatalogWorkActivity } = await import(
+      "@/lib/admin/catalog-promote"
+    );
+    noteCatalogWorkActivity({ addedCount: addedContentIds.length });
   }
+
+  // サイトマップは本番反映時のみ。追加フローでは実行しない。
+  const sitemap: AddSelectedWorksResult["sitemap"] = undefined;
+  void updateSitemap;
 
   return {
     summary,

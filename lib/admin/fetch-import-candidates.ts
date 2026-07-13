@@ -108,12 +108,12 @@ function parseFetchSort(value: unknown): ImportFetchSort {
     return "popular";
   }
 
-  if (value === "popular") {
-    return "popular";
+  if (value === "popular" || value === "new") {
+    return value;
   }
 
   throw new FetchImportCandidatesError(
-    '並び順は "popular" のみ指定できます。',
+    '並び順は "popular" または "new" を指定してください。',
   );
 }
 
@@ -255,12 +255,14 @@ function buildFetchSummaryMessage(summary: FetchImportCandidatesSummary): string
 
   const rangeText =
     popularityRangeMin != null && popularityRangeMax != null
-      ? `人気順位範囲：${popularityRangeMin.toLocaleString()}位〜${popularityRangeMax.toLocaleString()}位`
+      ? `順位範囲：${popularityRangeMin.toLocaleString()}〜${popularityRangeMax.toLocaleString()}`
       : null;
 
+  // message は呼び出し側で sort を知る必要があるため、汎用文言にする
   if (targetReached) {
     return [
-      `FANZA人気順から${apiFetchedCount.toLocaleString()}件を確認し、未掲載の人気作品${candidateCount.toLocaleString()}件を候補として取得しました。`,
+      `FANZA APIから${apiFetchedCount.toLocaleString()}件を確認し、未掲載作品${candidateCount.toLocaleString()}件を候補として取得しました。`,
+      `API取得：${apiFetchedCount.toLocaleString()}件 / 既掲載除外：${summary.publishedExcludedCount.toLocaleString()}件 / 同一取得内重複：${summary.duplicateExcludedCount.toLocaleString()}件 / 未掲載候補：${candidateCount.toLocaleString()}件`,
       rangeText,
     ]
       .filter(Boolean)
@@ -268,7 +270,8 @@ function buildFetchSummaryMessage(summary: FetchImportCandidatesSummary): string
   }
 
   return [
-    `FANZA人気順を最大${maxScanCount.toLocaleString()}件確認し、未掲載候補を${candidateCount.toLocaleString()}件取得しました。指定数${requestedCount.toLocaleString()}件には届きませんでした。`,
+    `FANZA APIを最大${maxScanCount.toLocaleString()}件確認し、未掲載候補を${candidateCount.toLocaleString()}件取得しました。指定数${requestedCount.toLocaleString()}件には届きませんでした。`,
+    `API取得：${apiFetchedCount.toLocaleString()}件 / 既掲載除外：${summary.publishedExcludedCount.toLocaleString()}件 / 同一取得内重複：${summary.duplicateExcludedCount.toLocaleString()}件 / 未掲載候補：${candidateCount.toLocaleString()}件`,
     rangeText,
   ]
     .filter(Boolean)

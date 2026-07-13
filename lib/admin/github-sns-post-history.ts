@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getGitHubConfig } from "@/lib/admin/github-config";
+import { getGitHubProductionConfig } from "@/lib/admin/github-config";
 import {
   parseSnsPostHistoryJson,
   serializeSnsPostHistory,
@@ -27,7 +27,7 @@ export class GitHubSnsPostHistoryError extends Error {
 }
 
 function getContentsUrl(path: string): string {
-  const config = getGitHubConfig();
+  const config = getGitHubProductionConfig();
   if (!config) {
     throw new GitHubSnsPostHistoryError("GitHub連携の設定が未完了です。", 503);
   }
@@ -39,7 +39,7 @@ async function githubRequest<T>(
   url: string,
   init: RequestInit = {},
 ): Promise<T> {
-  const config = getGitHubConfig();
+  const config = getGitHubProductionConfig();
   if (!config) {
     throw new GitHubSnsPostHistoryError("GitHub連携の設定が未完了です。", 503);
   }
@@ -96,7 +96,7 @@ export async function fetchSnsPostHistoryFromGitHub(): Promise<{
   records: SnsPostHistoryEntry[];
   sha: string | null;
 }> {
-  const config = getGitHubConfig();
+  const config = getGitHubProductionConfig();
   if (!config) {
     throw new GitHubSnsPostHistoryError("GitHub連携の設定が未完了です。", 503);
   }
@@ -131,7 +131,7 @@ export async function commitSnsPostHistoryToGitHub(
   sha: string | null,
   message: string,
 ): Promise<void> {
-  const config = getGitHubConfig();
+  const config = getGitHubProductionConfig();
   if (!config) {
     throw new GitHubSnsPostHistoryError("GitHub連携の設定が未完了です。", 503);
   }

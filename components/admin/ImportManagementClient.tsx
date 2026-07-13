@@ -29,7 +29,9 @@ import {
 import type {
   FetchedImportCandidate,
   FetchImportCandidatesSummary,
+  ImportFetchSort,
 } from "@/lib/admin/import-simple-types";
+import { IMPORT_SORT_MODE_LABELS } from "@/lib/admin/import-simple-types";
 import { formatImportSourceLabel } from "@/lib/admin/import-source-labels";
 import {
   matchesImportFilters,
@@ -43,6 +45,7 @@ import type { DmmItem } from "@/lib/dmm/types";
 type ImportManagementClientProps = {
   configured: boolean;
   dmmConfigured: boolean;
+  githubConfigured?: boolean;
 };
 
 type AddBatchProgress = {
@@ -142,9 +145,13 @@ function candidateHasPrice(candidate: FetchedImportCandidate): boolean {
 export function ImportManagementClient({
   configured,
   dmmConfigured,
+  githubConfigured = false,
 }: ImportManagementClientProps) {
   const restoredSession = useMemo(() => readCandidatesSession(), []);
 
+  const [fetchSort, setFetchSort] = useState<ImportFetchSort>(
+    restoredSession?.sort === "new" ? "new" : "popular",
+  );
   const [candidates, setCandidates] = useState<FetchedImportCandidate[]>(
     restoredSession?.candidates ?? [],
   );
@@ -233,11 +240,11 @@ export function ImportManagementClient({
   useEffect(() => {
     if (candidates.length === 0) return;
     writeCandidatesSession({
-      sort: "popular",
+      sort: fetchSort,
       candidates,
       summary,
     });
-  }, [candidates, summary]);
+  }, [candidates, summary, fetchSort]);
 
   const filteredCandidates = useMemo(() => {
     const filtered = candidates.filter((candidate) =>
@@ -264,9 +271,9 @@ export function ImportManagementClient({
       }
     }
 
-    const stored = readStoredOffset("popular");
+    const stored = readStoredOffset(fetchSort);
     return stored ?? 0;
-  }, [startOffsetInput]);
+  }, [startOffsetInput, fetchSort]);
 
   const handleFetchCandidates = useCallback(async () => {
     setFetchError(null);
@@ -282,7 +289,7 @@ export function ImportManagementClient({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          sort: "popular",
+          sort: fetchSort,
           offset: startOffset,
           requestedCount,
         }),
@@ -313,10 +320,10 @@ export function ImportManagementClient({
       setSummary(nextSummary);
       setSelectedIds(new Set());
       setPage(1);
-      setSort("popular-desc");
+      setSort(fetchSort === "new" ? "releaseDate-desc" : "popular-desc");
 
       if (nextSummary) {
-        writeStoredOffset("popular", nextSummary.nextOffset);
+        writeStoredOffset(fetchSort, nextSummary.nextOffset);
       }
 
       window.requestAnimationFrame(() => {
@@ -335,7 +342,7 @@ export function ImportManagementClient({
     } finally {
       setIsFetchingCandidates(false);
     }
-  }, [requestedCount, resolveStartOffset]);
+  }, [requestedCount, resolveStartOffset, fetchSort]);
 
   const runAddBatches = useCallback(
     async (
@@ -557,58 +564,9 @@ export function ImportManagementClient({
           });
         }
 
-        let sitemap: SitemapPostImportResult | null = null;
-        if (addedCount > 0 && failedBatchIndex == null) {
-          try {
-            const sitemapResponse = await fetch(
-              "/api/admin/import/post-add-sitemap",
-              { method: "POST" },
-            );
-            const sitemapBody = await sitemapResponse.json();
-            if (sitemapResponse.ok && sitemapBody.sitemap) {
-              sitemap = sitemapBody.sitemap as SitemapPostImportResult;
-            } else {
-              sitemap = {
-                sitemapUpdated: false,
-                sitemapError:
-                  sitemapBody.error ??
-                  "サイトマップ更新に失敗しました。SEO管理画面から再実行してください。",
-                googleSubmission: {
-                  submitted: false,
-                  skipped: true,
-                  reason: "sitemap-update-failed",
-                },
-              };
-            }
-          } catch (sitemapError) {
-            sitemap = {
-              sitemapUpdated: false,
-              sitemapError:
-                sitemapError instanceof Error
-                  ? sitemapError.message
-                  : "サイトマップ更新に失敗しました。",
-              googleSubmission: {
-                submitted: false,
-                skipped: true,
-                reason: "sitemap-update-failed",
-              },
-            };
-          }
-        } else if (addedCount > 0 && failedBatchIndex != null) {
-          // 一部成功時も成功分だけ sitemap を1回更新
-          try {
-            const sitemapResponse = await fetch(
-              "/api/admin/import/post-add-sitemap",
-              { method: "POST" },
-            );
-            const sitemapBody = await sitemapResponse.json();
-            if (sitemapResponse.ok && sitemapBody.sitemap) {
-              sitemap = sitemapBody.sitemap as SitemapPostImportResult;
-            }
-          } catch {
-            // keep null; partial message below explains resume
-          }
-        }
+        // サイトマップ更新は本番反映時に1回のみ。追加時点では実行しない。
+        const sitemap: SitemapPostImportResult | null = null;
+        void sitemap;
 
         const duplicateCount =
           catalogDuplicateCount + selectionDuplicateCount;
@@ -618,11 +576,16 @@ export function ImportManagementClient({
           setAddError(
             [
               `${totalSelected}件の一括追加に失敗しました。`,
-              `${addedCount.toLocaleString()}件は追加済みです。`,
+              `${addedCount.toLocaleString()}件は作業用データへ追加済みです。`,
               `残り${remainingCandidates.length.toLocaleString()}件から再開できます。`,
             ].join("\n"),
           );
-          setAddMessage("一部追加に成功しました。");
+          setAddMessage(
+            [
+              "一部を作業用ブランチへ保存しました。",
+              "本番サイトにはまだ反映されていません。",
+            ].join("\n"),
+          );
           setAddSummary({
             addedCount,
             duplicateCount,
@@ -632,7 +595,7 @@ export function ImportManagementClient({
             newShardFiles: [...newShardFiles],
             batchCount,
             commitCount,
-            sitemap,
+            sitemap: null,
           });
           setAddProgress((current) =>
             current && current.processId === processId
@@ -654,8 +617,10 @@ export function ImportManagementClient({
 
         const messageLines = [
           options?.resume
-            ? "残り作品の追加が完了しました。"
-            : `${addedCount.toLocaleString()}件を追加しました。`,
+            ? "残り作品を作業用データへ追加しました。"
+            : `${addedCount.toLocaleString()}件を作業用データへ追加しました。`,
+          "本番サイトにはまだ反映されていません。",
+          "続けて作品を追加するか、最後に『本番反映・デプロイ』を実行してください。",
           `選択：${totalSelected.toLocaleString()}件`,
           `追加成功：${addedCount.toLocaleString()}件`,
           `掲載済み：${catalogDuplicateCount.toLocaleString()}件`,
@@ -680,7 +645,7 @@ export function ImportManagementClient({
           newShardFiles: [...newShardFiles],
           batchCount,
           commitCount,
-          sitemap,
+          sitemap: null,
         });
       } catch (error) {
         console.error("[add-selected] failed", {
@@ -837,21 +802,32 @@ export function ImportManagementClient({
       setStartOffsetInput(String(summary.nextOffset));
       return;
     }
-    const stored = readStoredOffset("popular");
+    const stored = readStoredOffset(fetchSort);
     if (stored != null) {
       setStartOffsetInput(String(stored));
     }
-  }, [summary]);
+  }, [summary, fetchSort]);
 
   const resetOffsetToZero = useCallback(() => {
     setStartOffsetInput("0");
-  }, []);
+    writeStoredOffset(fetchSort, 0);
+  }, [fetchSort]);
 
   const restorePreviousOffset = useCallback(() => {
     if (previousOffset != null) {
       setStartOffsetInput(String(previousOffset));
     }
   }, [previousOffset]);
+
+  const handleFetchSortChange = useCallback(
+    (next: ImportFetchSort) => {
+      setFetchSort(next);
+      const stored = readStoredOffset(next);
+      setStartOffsetInput(stored != null && stored > 0 ? String(stored) : "");
+      setPreviousOffset(null);
+    },
+    [],
+  );
 
   const toggleFilter = useCallback((key: ImportFilterKey) => {
     setActiveFilters((current) => {
@@ -869,7 +845,8 @@ export function ImportManagementClient({
   if (!configured) {
     return (
       <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-        GitHub 連携の設定が未完了です。カタログの追加はできません。
+        GitHub 連携または作業用ブランチ（ADULT_CATALOG_WORKING_BRANCH）の設定が未完了です。
+        カタログの追加はできません。
       </div>
     );
   }
@@ -882,6 +859,14 @@ export function ImportManagementClient({
     );
   }
 
+  const fetchSortLabel = IMPORT_SORT_MODE_LABELS[fetchSort];
+  const fetchDescription =
+    fetchSort === "new"
+      ? "FANZA新着順から、アダルト図鑑に未掲載の新しい作品を優先して取得します。"
+      : "FANZA人気順から、アダルト図鑑に未掲載の作品を優先して取得します。";
+  const fetchButtonLabel =
+    fetchSort === "new" ? "未掲載の新着作品を取得" : "未掲載の人気作品を取得";
+
   return (
     <div className="space-y-6">
       <section className="rounded-xl border border-border bg-white p-4 shadow-sm">
@@ -889,35 +874,42 @@ export function ImportManagementClient({
           A. 未掲載作品を取得・追加
         </h2>
         <p className="mt-2 text-sm text-muted">
-          FANZA人気順から未掲載作品だけを候補取得し、選択した作品のみカタログへ追加します。
+          FANZA人気順または新着順から未掲載作品だけを候補取得し、選択した作品を作業用ブランチへ追加します。
+          {githubConfigured
+            ? " 本番反映は上部の『本番反映・デプロイ』から行います。"
+            : " （ローカル書き込みモード）"}
         </p>
       </section>
 
       <section className="rounded-xl border border-border bg-white p-4 shadow-sm">
         <h2 className="text-sm font-bold text-foreground">① 候補取得</h2>
-        <p className="mt-2 text-sm text-muted">
-          FANZA人気順から、アダルト図鑑に未掲載の作品を優先して取得します。
-        </p>
+        <p className="mt-2 text-sm text-muted">{fetchDescription}</p>
         <div className="mt-4 grid gap-4 md:grid-cols-3">
           <label className="block text-sm">
             <span className="text-muted">並び順</span>
             <select
               className="mt-1 w-full rounded-lg border border-border px-3 py-2"
-              value="popular"
-              disabled
+              value={fetchSort}
+              onChange={(event) =>
+                handleFetchSortChange(event.target.value as ImportFetchSort)
+              }
+              disabled={isAddingWorks || isFetchingCandidates}
             >
-              <option value="popular">FANZA人気順</option>
+              <option value="popular">{IMPORT_SORT_MODE_LABELS.popular}</option>
+              <option value="new">{IMPORT_SORT_MODE_LABELS.new}</option>
             </select>
           </label>
           <label className="block text-sm">
-            <span className="text-muted">開始offset</span>
+            <span className="text-muted">
+              開始offset（{fetchSortLabel}）
+            </span>
             <input
               type="number"
               min={0}
               className="mt-1 w-full rounded-lg border border-border px-3 py-2"
               value={startOffsetInput}
               onChange={(event) => setStartOffsetInput(event.target.value)}
-              placeholder={String(readStoredOffset("popular") ?? 0)}
+              placeholder={String(readStoredOffset(fetchSort) ?? 0)}
               disabled={isAddingWorks}
             />
           </label>
@@ -972,8 +964,8 @@ export function ImportManagementClient({
           className="mt-4 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
         >
           {isFetchingCandidates
-            ? `FANZA人気順を確認中…（目標: ${requestedCount}件）`
-            : "未掲載の人気作品を取得"}
+            ? `${fetchSortLabel}を確認中…（目標: ${requestedCount}件）`
+            : fetchButtonLabel}
         </button>
         {isFetchingCandidates ? (
           <p className="mt-2 text-sm text-muted">
@@ -1037,7 +1029,9 @@ export function ImportManagementClient({
             {summary.popularityRangeMin != null &&
             summary.popularityRangeMax != null ? (
               <div className="sm:col-span-2">
-                <dt className="text-muted">人気順位範囲</dt>
+                <dt className="text-muted">
+                  {fetchSort === "new" ? "新着走査範囲" : "人気順位範囲"}
+                </dt>
                 <dd>
                   {summary.popularityRangeMin.toLocaleString()}位〜
                   {summary.popularityRangeMax.toLocaleString()}位
@@ -1057,7 +1051,7 @@ export function ImportManagementClient({
         </p>
         {selectedCount > 0 ? (
           <p className="mt-2 text-sm text-foreground">
-            {ADD_BATCH_SIZE}件ずつ安全に追加します / 予定バッチ数：
+            {ADD_BATCH_SIZE}件ずつ作業用ブランチへ追加します（1操作あたり最大1コミットを目標） / 予定バッチ数：
             {plannedBatchCount(selectedCount)}回
           </p>
         ) : null}

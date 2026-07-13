@@ -1,7 +1,7 @@
 {
   "version": 3,
-  "updatedAt": "2026-07-12T23:42:12.659Z",
-  "lastSuccessfulAt": "2026-07-12T23:42:12.659Z",
+  "updatedAt": "2026-07-13T02:02:34.547Z",
+  "lastSuccessfulAt": "2026-07-13T02:02:34.547Z",
   "configured": true,
   "propertyId": "544245702",
   "connectionStatus": "connected",
@@ -20,6 +20,16 @@
   "periods": {
     "1": {
       "current": {
+        "users": 59,
+        "newUsers": 57,
+        "sessions": 62,
+        "pageViews": 95,
+        "avgEngagementSeconds": 8.338983050847459,
+        "eventCount": 261,
+        "bounceRate": 0.9838709677419355,
+        "pagesPerSession": 1.532258064516129
+      },
+      "previous": {
         "users": 124,
         "newUsers": 110,
         "sessions": 138,
@@ -28,50 +38,40 @@
         "eventCount": 624,
         "bounceRate": 0.9710144927536232,
         "pagesPerSession": 1.9565217391304348
-      },
-      "previous": {
-        "users": 118,
-        "newUsers": 116,
-        "sessions": 130,
-        "pageViews": 234,
-        "avgEngagementSeconds": 13.161016949152541,
-        "eventCount": 586,
-        "bounceRate": 0.6692307692307692,
-        "pagesPerSession": 1.8
       }
     },
     "7": {
       "current": {
-        "users": 751,
-        "newUsers": 744,
-        "sessions": 835,
-        "pageViews": 1503,
-        "avgEngagementSeconds": 18.18375499334221,
-        "eventCount": 3865,
-        "bounceRate": 0.7520958083832335,
-        "pagesPerSession": 1.8
+        "users": 805,
+        "newUsers": 795,
+        "sessions": 886,
+        "pageViews": 1551,
+        "avgEngagementSeconds": 16.722981366459628,
+        "eventCount": 4027,
+        "bounceRate": 0.7720090293453724,
+        "pagesPerSession": 1.7505643340857788
       },
       "previous": {
-        "users": 0,
-        "newUsers": 0,
-        "sessions": 0,
-        "pageViews": 0,
-        "avgEngagementSeconds": 0,
-        "eventCount": 0,
-        "bounceRate": 0,
-        "pagesPerSession": 0
+        "users": 6,
+        "newUsers": 6,
+        "sessions": 12,
+        "pageViews": 47,
+        "avgEngagementSeconds": 114.33333333333333,
+        "eventCount": 99,
+        "bounceRate": 0.4166666666666667,
+        "pagesPerSession": 3.9166666666666665
       }
     },
     "28": {
       "current": {
-        "users": 751,
-        "newUsers": 744,
-        "sessions": 835,
-        "pageViews": 1503,
-        "avgEngagementSeconds": 18.18375499334221,
-        "eventCount": 3865,
-        "bounceRate": 0.7520958083832335,
-        "pagesPerSession": 1.8
+        "users": 809,
+        "newUsers": 801,
+        "sessions": 897,
+        "pageViews": 1598,
+        "avgEngagementSeconds": 17.48825710754017,
+        "eventCount": 4126,
+        "bounceRate": 0.7681159420289855,
+        "pagesPerSession": 1.7814938684503903
       },
       "previous": {
         "users": 0,
@@ -86,14 +86,14 @@
     },
     "90": {
       "current": {
-        "users": 751,
-        "newUsers": 744,
-        "sessions": 835,
-        "pageViews": 1503,
-        "avgEngagementSeconds": 18.18375499334221,
-        "eventCount": 3865,
-        "bounceRate": 0.7520958083832335,
-        "pagesPerSession": 1.8
+        "users": 809,
+        "newUsers": 801,
+        "sessions": 897,
+        "pageViews": 1598,
+        "avgEngagementSeconds": 17.48825710754017,
+        "eventCount": 4126,
+        "bounceRate": 0.7681159420289855,
+        "pagesPerSession": 1.7814938684503903
       },
       "previous": {
         "users": 0,
@@ -156,20 +156,27 @@
       "newUsers": 110,
       "pageViews": 270,
       "sessions": 138
+    },
+    {
+      "date": "2026-07-13",
+      "users": 59,
+      "newUsers": 57,
+      "pageViews": 95,
+      "sessions": 62
     }
   ],
   "topPages": [
     {
       "path": "/works",
-      "pageViews": 223,
+      "pageViews": 239,
       "users": 6,
-      "avgEngagementSeconds": 310.8333333333333
+      "avgEngagementSeconds": 343.5
     },
     {
       "path": "/",
-      "pageViews": 176,
-      "users": 69,
-      "avgEngagementSeconds": 15.144927536231885
+      "pageViews": 192,
+      "users": 74,
+      "avgEngagementSeconds": 14.81081081081081
     },
     {
       "path": "/actresses",
@@ -179,27 +186,27 @@
     },
     {
       "path": "/works/cawb00018",
-      "pageViews": 45,
-      "users": 37,
-      "avgEngagementSeconds": 7.1891891891891895
+      "pageViews": 46,
+      "users": 38,
+      "avgEngagementSeconds": 7.026315789473684
     },
     {
       "path": "/works/ofje00615",
-      "pageViews": 30,
-      "users": 28,
-      "avgEngagementSeconds": 3.642857142857143
+      "pageViews": 35,
+      "users": 32,
+      "avgEngagementSeconds": 3.5
     },
     {
       "path": "/actresses/花咲ゆら",
-      "pageViews": 28,
-      "users": 25,
-      "avgEngagementSeconds": 5.28
+      "pageViews": 29,
+      "users": 26,
+      "avgEngagementSeconds": 5.076923076923077
     },
     {
       "path": "/works/snos00320",
-      "pageViews": 28,
-      "users": 24,
-      "avgEngagementSeconds": 4.208333333333333
+      "pageViews": 29,
+      "users": 25,
+      "avgEngagementSeconds": 4.04
     },
     {
       "path": "/search",
@@ -215,9 +222,9 @@
     },
     {
       "path": "/actresses/白石るな",
-      "pageViews": 20,
-      "users": 16,
-      "avgEngagementSeconds": 5.0625
+      "pageViews": 21,
+      "users": 17,
+      "avgEngagementSeconds": 4.823529411764706
     },
     {
       "path": "/works/1jera00041",
@@ -227,9 +234,9 @@
     },
     {
       "path": "/works/1namh00069",
-      "pageViews": 18,
-      "users": 18,
-      "avgEngagementSeconds": 2.1666666666666665
+      "pageViews": 19,
+      "users": 19,
+      "avgEngagementSeconds": 2.0526315789473686
     },
     {
       "path": "/works/h_1732orecs00337",
@@ -263,9 +270,9 @@
     },
     {
       "path": "/series/ロスでナンパした-を勝手にavデビュー",
-      "pageViews": 13,
-      "users": 8,
-      "avgEngagementSeconds": 7.875
+      "pageViews": 14,
+      "users": 9,
+      "avgEngagementSeconds": 7
     },
     {
       "path": "/ranking",
@@ -283,33 +290,33 @@
   "sources": [
     {
       "source": "Organic Search",
-      "sessions": 619,
-      "users": 602
+      "sessions": 663,
+      "users": 645
     },
     {
       "source": "Direct",
-      "sessions": 143,
-      "users": 119
+      "sessions": 152,
+      "users": 128
     },
     {
       "source": "Unassigned",
-      "sessions": 55,
-      "users": 50
+      "sessions": 73,
+      "users": 65
     },
     {
       "source": "AI Assistant",
-      "sessions": 28,
+      "sessions": 31,
       "users": 1
     },
     {
       "source": "Referral",
-      "sessions": 17,
-      "users": 9
+      "sessions": 21,
+      "users": 13
     },
     {
       "source": "Cross-network",
-      "sessions": 10,
-      "users": 10
+      "sessions": 11,
+      "users": 11
     },
     {
       "source": "Organic Social",

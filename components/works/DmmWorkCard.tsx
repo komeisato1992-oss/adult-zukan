@@ -47,9 +47,18 @@ export function DmmWorkCard({
   const actressNames = getDmmItemActressNameList(item);
   const { current, original, isOnSale } = getDmmCardPrice(item);
 
-  const paddingX = size === "large" ? "px-4" : "px-3";
-  const titleSize = size === "large" ? "text-base" : "text-sm";
-  const priceSize = size === "large" ? "text-base" : "text-sm";
+  const paddingX =
+    size === "large"
+      ? "px-4 max-[768px]:px-2.5"
+      : "px-3 max-[768px]:px-2";
+  const titleSize =
+    size === "large"
+      ? "text-base max-[768px]:text-[15px]"
+      : "text-sm max-[768px]:text-[15px]";
+  const priceSize =
+    size === "large"
+      ? "text-base max-[768px]:text-[15px]"
+      : "text-sm max-[768px]:text-[15px]";
 
   if (!hasValidImage(item) || !imageUrl) return null;
 
@@ -67,9 +76,9 @@ export function DmmWorkCard({
               </span>
             )}
           </div>
-          <div className={`${paddingX} pt-3 pb-0`}>
+          <div className={`${paddingX} pt-3 pb-0 max-[768px]:pt-2`}>
             <h3
-              className={`line-clamp-2 font-semibold leading-snug text-foreground transition-colors group-hover:text-accent ${titleSize}`}
+              className={`line-clamp-2 font-semibold leading-snug text-foreground transition-colors group-hover:text-accent max-[768px]:line-clamp-3 ${titleSize}`}
             >
               {item.title}
             </h3>
@@ -80,19 +89,22 @@ export function DmmWorkCard({
         </Link>
         <FavoriteCardButton contentId={item.content_id} title={item.title} />
       </div>
-      <div className={`${paddingX} pt-1.5`}>
-        <CompactNameList names={actressNames} />
+      <div className={`${paddingX} pt-1.5 max-[768px]:pt-1`}>
+        <CompactNameList
+          names={actressNames}
+          className="max-[768px]:text-[13px]"
+        />
         {current && (
-          <div className="mt-2.5 flex items-baseline gap-2">
+          <div className="mt-2.5 flex items-baseline gap-2 max-[768px]:mt-1.5">
             <span className={`font-bold text-price ${priceSize}`}>{current}</span>
             {original && (
               <span className="text-xs text-muted line-through">{original}</span>
             )}
           </div>
         )}
-        <p className="mt-1 text-[11px] text-muted/90">{item.content_id}</p>
+        <p className="mt-1 truncate text-[11px] text-muted/90">{item.content_id}</p>
       </div>
-      <div className={`${paddingX} pb-3`}>
+      <div className={`${paddingX} pb-3 max-[768px]:pb-2`}>
         <WorkCardCtaRow
           contentId={item.content_id}
           title={item.title}

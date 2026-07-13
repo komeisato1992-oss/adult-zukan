@@ -24,7 +24,7 @@ type CompareToggleButtonProps = {
   contentId: string;
   title?: string;
   className?: string;
-  variant?: "default" | "card";
+  variant?: "default" | "card" | "outline";
   disableAutoNavigate?: boolean;
 };
 
@@ -98,6 +98,13 @@ function CompareToggleButtonInner({
         } ${className}`
       : "";
 
+  const outlineClassName =
+    variant === "outline"
+      ? `inline-flex w-full items-center justify-center rounded-md border border-accent bg-white px-4 py-2.5 text-sm font-semibold text-accent transition-colors hover:bg-accent-light max-[768px]:h-11 max-[768px]:min-h-[44px] max-[768px]:rounded-lg ${
+          isCompared ? "bg-accent-light" : ""
+        } ${className}`
+      : "";
+
   const defaultClassName =
     variant === "default"
       ? `inline-flex items-center rounded border px-2.5 py-1.5 text-xs transition-colors ${
@@ -107,19 +114,26 @@ function CompareToggleButtonInner({
         } ${className}`
       : "";
 
+  const buttonClassName =
+    variant === "card"
+      ? cardClassName
+      : variant === "outline"
+        ? outlineClassName
+        : defaultClassName;
+
   return (
-    <div className={variant === "card" ? "relative w-full" : "relative"}>
+    <div className={variant === "card" || variant === "outline" ? "relative w-full" : "relative"}>
       <button
         type="button"
         onClick={handleClick}
-        className={variant === "card" ? cardClassName : defaultClassName}
+        className={buttonClassName}
       >
         {isCompared ? (
           WORK_CARD_COMPARE_ACTIVE_LABEL
         ) : variant === "card" ? (
           <>
-            <span className="md:hidden">{WORK_CARD_COMPARE_LABEL_MOBILE}</span>
-            <span className="hidden md:inline">{WORK_CARD_COMPARE_LABEL}</span>
+            <span className="min-[769px]:hidden">{WORK_CARD_COMPARE_LABEL_MOBILE}</span>
+            <span className="hidden min-[769px]:inline">{WORK_CARD_COMPARE_LABEL}</span>
           </>
         ) : (
           WORK_CARD_COMPARE_LABEL

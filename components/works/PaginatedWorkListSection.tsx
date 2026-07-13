@@ -46,7 +46,7 @@ export function PaginatedWorkListSection({
   showRank = false,
   rankOffset = 0,
   emptyMessage = "該当する作品はありません。",
-  className = "grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4",
+  className = "grid grid-cols-2 gap-2.5 min-[769px]:gap-4 sm:grid-cols-3 lg:grid-cols-4",
 }: PaginatedWorkListSectionProps) {
   if (pageItems.length === 0) {
     return (

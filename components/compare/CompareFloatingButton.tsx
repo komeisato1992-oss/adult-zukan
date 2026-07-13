@@ -151,31 +151,30 @@ export function CompareFloatingButton() {
         </p>
       ) : null}
 
-      {/* スマートフォン (≤768px): コンパクトバー */}
+      {/* スマートフォン (≤768px): ステータスバー型（通常CTAと差別化） */}
       <div className="pointer-events-auto min-[769px]:hidden">
         {count === 0 ? (
-          <div className="overflow-hidden rounded-xl border border-border bg-white shadow-md">
+          <div className="flex min-h-[56px] max-h-16 items-stretch overflow-hidden rounded-2xl border border-border bg-white shadow-[0_-2px_16px_rgba(0,0,0,0.1)]">
+            <div className="flex flex-1 items-center justify-center border-r border-border/80 bg-gray-50 px-3 text-xs font-bold text-gray-900">
+              作品比較
+            </div>
             <button
               type="button"
               onClick={() => void handleSeeFeature()}
               disabled={loadState === "loading"}
-              className="flex min-h-[56px] w-full items-center justify-center gap-1 bg-accent px-4 py-3 text-sm font-bold text-white hover:bg-accent-hover disabled:cursor-wait disabled:opacity-80"
+              className="flex min-w-[52%] items-center justify-center gap-1 bg-accent px-3 text-sm font-bold text-white hover:bg-accent-hover disabled:cursor-wait disabled:opacity-80"
             >
               {loadState === "loading"
-                ? "似ている作品を選んでいます…"
+                ? "選んでいます…"
                 : loadState === "error"
-                  ? "再試行する →"
-                  : "比較機能を見る →"}
+                  ? "再試行する"
+                  : "比較機能を見る"}
+              <span aria-hidden>→</span>
             </button>
-            {loadState === "error" ? (
-              <p className="px-3 py-2 text-center text-[11px] text-muted">
-                比較作品を取得できませんでした
-              </p>
-            ) : null}
           </div>
         ) : (
-          <div className="flex min-h-[56px] max-h-16 items-stretch overflow-hidden rounded-xl border border-border bg-white shadow-md">
-            <div className="flex flex-1 items-center justify-center bg-gray-50 px-3 text-xs font-bold text-gray-900">
+          <div className="flex min-h-[56px] max-h-16 items-stretch overflow-hidden rounded-2xl border border-border bg-white shadow-[0_-2px_16px_rgba(0,0,0,0.1)]">
+            <div className="flex flex-1 items-center justify-center border-r border-border/80 bg-gray-50 px-3 text-xs font-bold text-gray-900">
               比較中 {count} / {COMPARE_MAX_ITEMS}
             </div>
             {showGoCompare ? (
@@ -188,21 +187,27 @@ export function CompareFloatingButton() {
                     device_type: "mobile",
                   })
                 }
-                className="flex min-w-[44%] items-center justify-center bg-accent px-3 text-sm font-bold text-white hover:bg-accent-hover"
+                className="flex min-w-[52%] items-center justify-center gap-1 bg-accent px-3 text-sm font-bold text-white hover:bg-accent-hover"
               >
                 比較ページへ
+                <span aria-hidden>→</span>
               </Link>
             ) : (
               <button
                 type="button"
                 onClick={handleClear}
-                className="flex min-w-[44%] items-center justify-center px-3 text-sm font-bold text-accent hover:bg-accent-light"
+                className="flex min-w-[52%] items-center justify-center gap-1 bg-white px-3 text-sm font-bold text-accent hover:bg-accent-light"
               >
                 比較をクリア
               </button>
             )}
           </div>
         )}
+        {count === 0 && loadState === "error" ? (
+          <p className="mt-1.5 text-center text-[11px] text-muted">
+            比較作品を取得できませんでした
+          </p>
+        ) : null}
       </div>
 
       {/* PC (≥769px): 右下パネル（既存維持） */}

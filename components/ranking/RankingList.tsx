@@ -19,7 +19,7 @@ type RankedWorkListProps = {
 
 export function RankedWorkList({ works, showRank = true }: RankedWorkListProps) {
   return (
-    <ol className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+    <ol className="grid grid-cols-2 gap-2.5 min-[769px]:gap-4 sm:grid-cols-3 lg:grid-cols-4">
       {works.map((work, index) => (
         <li key={work.slug} className="relative">
           {showRank && (
@@ -48,7 +48,7 @@ export function DmmRankedWorkList({
   }
 
   return (
-    <ol className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+    <ol className="grid grid-cols-2 gap-2.5 min-[769px]:gap-4 sm:grid-cols-3 lg:grid-cols-4">
       {items.map((item, index) => (
         <li key={item.contentId} className="relative">
           {showRank && (
@@ -91,7 +91,7 @@ export function RankedActressList({
   }
 
   return (
-    <ol className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
+    <ol className="grid grid-cols-2 gap-2.5 min-[769px]:gap-4 sm:grid-cols-3 lg:grid-cols-5">
       {actresses.map((actress, index) => (
         <li key={actress.slug} className="relative">
           <Link

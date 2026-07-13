@@ -59,7 +59,7 @@ export default async function MakersPage() {
           <PageIntro text={pageIntros.makers} />
         </header>
 
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 max-[768px]:gap-2.5 sm:grid-cols-2">
           {makers.map((maker) => (
             <article
               key={maker.slug}

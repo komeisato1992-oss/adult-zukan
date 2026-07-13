@@ -14,9 +14,12 @@ export function FanzaLinkButton({ href, className = "" }: FanzaLinkButtonProps) 
       href={href}
       target="_blank"
       rel={AFFILIATE_LINK_REL}
-      className={`inline-flex w-full max-w-[300px] items-center justify-center rounded-md bg-accent px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-accent-hover sm:w-[300px] ${className}`}
+      className={`inline-flex w-full max-w-[300px] items-center justify-center gap-1.5 rounded-md bg-accent px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-accent-hover sm:w-[300px] max-[768px]:mx-auto max-[768px]:w-[min(85%,280px)] max-[768px]:rounded-lg max-[768px]:py-3.5 max-[768px]:shadow-sm ${className}`}
     >
       {WORK_CARD_VIEW_LABEL}
+      <span className="hidden max-[768px]:inline" aria-hidden>
+        ↗
+      </span>
     </a>
   );
 }

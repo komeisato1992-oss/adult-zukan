@@ -1,5 +1,6 @@
-export const WORK_CARD_CTA_HEIGHT = "h-10";
-export const WORK_CARD_CTA_TEXT = "text-[13px] font-semibold sm:text-sm";
+export const WORK_CARD_CTA_HEIGHT = "h-10 max-[768px]:h-11 max-[768px]:min-h-[44px]";
+export const WORK_CARD_CTA_TEXT =
+  "text-[13px] font-semibold sm:text-sm max-[768px]:text-[13px]";
 export const WORK_CARD_CTA_ROUNDED = "rounded-lg";
 export const WORK_CARD_CTA_NOWRAP = "whitespace-nowrap";
 

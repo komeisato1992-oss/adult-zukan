@@ -28,20 +28,29 @@ function isNavItemActive(
   return pathname === baseHref || pathname.startsWith(`${baseHref}/`);
 }
 
-export function MobileNav() {
+type MobileNavProps = {
+  onOpenChange?: (open: boolean) => void;
+};
+
+export function MobileNav({ onOpenChange }: MobileNavProps) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
+  function setMenuOpen(next: boolean) {
+    setOpen(next);
+    onOpenChange?.(next);
+  }
+
   return (
-    <div className="relative md:hidden">
+    <div className="relative min-[769px]:hidden">
       <button
         type="button"
-        onClick={() => setOpen(!open)}
+        onClick={() => setMenuOpen(!open)}
         aria-expanded={open}
         aria-controls="mobile-nav-menu"
         aria-label="メニューを開く"
-        className="inline-flex h-9 w-9 items-center justify-center rounded border border-border text-foreground"
+        className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-border text-foreground"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -73,7 +82,7 @@ export function MobileNav() {
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={() => setOpen(false)}
+                onClick={() => setMenuOpen(false)}
                 aria-current={active ? "page" : undefined}
                 className={
                   active

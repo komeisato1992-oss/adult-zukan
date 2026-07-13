@@ -32,11 +32,13 @@ export function ActressGridCard({ actress }: ActressGridCardProps) {
           画像なし
         </div>
       )}
-      <div className="p-3">
-        <p className="text-sm font-semibold text-foreground group-hover:text-accent">
+      <div className="p-3 max-[768px]:p-2">
+        <p className="text-sm font-semibold text-foreground group-hover:text-accent max-[768px]:text-[15px]">
           {actress.name}
         </p>
-        <p className="mt-1 text-xs text-muted">{actress.workCount}作品</p>
+        <p className="mt-1 text-xs text-muted max-[768px]:text-[12px]">
+          {actress.workCount}作品
+        </p>
       </div>
     </Link>
   );

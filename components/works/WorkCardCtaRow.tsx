@@ -22,8 +22,8 @@ function WorkCardCtaRowInner({
   className = "",
 }: WorkCardCtaRowProps) {
   return (
-    <div className={`flex flex-nowrap items-stretch gap-1.5 sm:gap-2 ${className}`}>
-      <div className="min-w-0 basis-[40%] md:flex-1 md:basis-0">
+    <div className={`flex flex-nowrap items-stretch gap-1.5 max-[768px]:gap-1.5 sm:gap-2 ${className}`}>
+      <div className="min-w-0 basis-[40%] md:flex-1 md:basis-0 max-[768px]:basis-1/2">
         <CompareToggleButton
           contentId={contentId}
           title={title}
@@ -36,7 +36,7 @@ function WorkCardCtaRowInner({
           href={fanzaUrl}
           target="_blank"
           rel={AFFILIATE_LINK_REL}
-          className={`${workCardCtaBaseClassName} min-w-0 basis-[60%] bg-[#E60012] text-white transition-colors hover:bg-[#c4000f] md:flex-1 md:basis-0`}
+          className={`${workCardCtaBaseClassName} min-w-0 basis-[60%] bg-[#E60012] text-white transition-colors hover:bg-[#c4000f] md:flex-1 md:basis-0 max-[768px]:basis-1/2`}
         >
           {WORK_CARD_VIEW_LABEL}
         </a>

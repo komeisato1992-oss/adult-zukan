@@ -49,8 +49,8 @@ export function DmmWorkHero({
         aria-label="作品概要"
         className="rounded-none border-0 bg-transparent p-0 shadow-none"
       >
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,280px)_1fr] lg:items-start lg:gap-10">
-          <div className="mx-auto w-full max-w-[280px] lg:mx-0">
+        <div className="grid gap-8 max-[768px]:gap-5 lg:grid-cols-[minmax(0,280px)_1fr] lg:items-start lg:gap-10">
+          <div className="mx-auto w-full max-w-[280px] max-[768px]:max-w-[min(78vw,240px)] lg:mx-0">
             {imageUrl ? (
               <button
                 type="button"
@@ -64,7 +64,7 @@ export function DmmWorkHero({
                   width={320}
                   height={454}
                   className="mx-auto h-auto w-full object-contain"
-                  sizes="(max-width: 1024px) 280px, 280px"
+                  sizes="(max-width: 768px) 78vw, 280px"
                   priority
                   unoptimized
                 />
@@ -86,19 +86,19 @@ export function DmmWorkHero({
 
           <div className="min-w-0">
             <div className="flex flex-wrap items-start justify-between gap-3">
-              <h1 className="min-w-0 flex-1 text-xl font-bold leading-tight text-foreground sm:text-2xl lg:text-3xl">
+              <h1 className="min-w-0 flex-1 text-xl font-bold leading-tight text-foreground max-[768px]:line-clamp-4 max-[768px]:text-[20px] max-[768px]:leading-snug sm:text-2xl lg:text-3xl">
                 {title}
               </h1>
               <FavoriteButton contentId={contentId} title={title} />
             </div>
 
             {descriptionTeaser && (
-              <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-muted">
+              <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-muted max-[768px]:text-[14px]">
                 {descriptionTeaser}
               </p>
             )}
 
-            <dl className="mt-6 space-y-3 text-sm">
+            <dl className="mt-6 space-y-3 text-sm max-[768px]:mt-4 max-[768px]:space-y-2.5">
               <div>
                 <dt className="text-muted">品番</dt>
                 <dd className="mt-0.5 font-medium text-foreground">
@@ -134,17 +134,21 @@ export function DmmWorkHero({
               {price && (
                 <div>
                   <dt className="text-muted">価格</dt>
-                  <dd className="mt-0.5 text-xl font-bold text-price">
+                  <dd className="mt-0.5 text-xl font-bold text-price max-[768px]:text-lg">
                     {price}
                   </dd>
                 </div>
               )}
             </dl>
 
-            <div className="mt-6">
+            <div className="mt-6 max-[768px]:mt-5 max-[768px]:flex max-[768px]:flex-col max-[768px]:items-center">
               <FanzaLinkButton href={fanzaUrl} />
-              <div className="mt-3">
-                <CompareToggleButton contentId={contentId} title={title} />
+              <div className="mt-3 w-full max-w-[300px] max-[768px]:mx-auto max-[768px]:w-[min(85%,280px)]">
+                <CompareToggleButton
+                  contentId={contentId}
+                  title={title}
+                  variant="outline"
+                />
               </div>
             </div>
           </div>

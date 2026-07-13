@@ -48,7 +48,7 @@ export function MainNav() {
   return (
     <nav
       aria-label="グローバルナビゲーション"
-      className="mt-3 hidden items-center gap-1 overflow-x-auto md:flex"
+      className="mt-3 hidden items-center gap-1 overflow-x-auto min-[769px]:flex"
     >
       {navItems.map((item) => {
         const active = isNavItemActive(item.href, pathname, searchParams);

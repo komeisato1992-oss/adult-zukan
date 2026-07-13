@@ -23,24 +23,31 @@ export function WorkListCard({
       <div className="relative">
         <Link href={`/works/${item.contentId}`} className="block max-w-full">
           <CatalogWorkImage src={item.imageUrl} alt={item.title} variant="landscape" />
-          <div className="px-3 pt-3 pb-0">
-            <h2 className="line-clamp-2 text-sm font-semibold leading-snug text-foreground group-hover:text-accent">
+          <div className="px-3 pt-3 pb-0 max-[768px]:px-2 max-[768px]:pt-2">
+            <h2 className="line-clamp-2 text-sm font-semibold leading-snug text-foreground group-hover:text-accent max-[768px]:line-clamp-3 max-[768px]:text-[15px] max-[768px]:leading-snug">
               {item.title}
             </h2>
           </div>
         </Link>
         <FavoriteCardButton contentId={item.contentId} title={item.title} />
       </div>
-      <div className="px-3 pt-1">
-        <CompactNameList names={item.actressNames} />
+      <div className="px-3 pt-1 max-[768px]:px-2 max-[768px]:pt-0.5">
+        <CompactNameList
+          names={item.actressNames}
+          className="max-[768px]:text-[13px]"
+        />
         {priceDisplayMode === "sale" && item.saleInfo ? (
           <WorkListSalePrice item={item} />
         ) : item.displayPrice ? (
-          <p className="mt-1.5 text-sm font-bold text-price">{item.displayPrice}</p>
+          <p className="mt-1.5 text-sm font-bold text-price max-[768px]:mt-1 max-[768px]:text-[15px]">
+            {item.displayPrice}
+          </p>
         ) : null}
-        <p className="mt-1 text-[11px] text-muted/90">{item.contentId}</p>
+        <p className="mt-1 truncate text-[11px] text-muted/90 max-[768px]:text-[11px]">
+          {item.contentId}
+        </p>
       </div>
-      <div className="px-3 pb-3">
+      <div className="px-3 pb-3 max-[768px]:px-2 max-[768px]:pb-2">
         <WorkCardCtaRow
           contentId={item.contentId}
           title={item.title}

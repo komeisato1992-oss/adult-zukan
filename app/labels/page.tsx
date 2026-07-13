@@ -62,7 +62,7 @@ export default async function LabelsPage() {
           <PageIntro text={pageIntros.labels} />
         </header>
 
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 max-[768px]:gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
           {labels.map((label) => (
             <article
               key={label.slug}

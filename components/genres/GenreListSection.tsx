@@ -19,7 +19,7 @@ const GENRE_GRID_CLASS =
   "grid grid-cols-2 gap-2.5 sm:gap-3 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6";
 
 const GENRE_CARD_CLASS =
-  "group flex min-h-[60px] items-center rounded-lg border border-border bg-white px-3 py-2.5 shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:border-accent/30 hover:shadow-md sm:min-h-[64px] sm:px-3.5";
+  "group flex min-h-[60px] items-center rounded-lg border border-border bg-white px-3 py-2.5 shadow-sm transition-all duration-150 hover:-translate-y-0.5 hover:border-accent/30 hover:shadow-md sm:min-h-[64px] sm:px-3.5 max-[768px]:min-h-[52px] max-[768px]:px-2.5 max-[768px]:py-2";
 
 type GenreListSectionProps = {
   genres: GenreListItem[];

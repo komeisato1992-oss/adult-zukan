@@ -10,12 +10,14 @@ const WORK_VIEW_LABEL = "作品を見る";
 
 type DoujinWorkCardCtaRowProps = {
   workId: string;
+  title?: string;
   affiliateUrl?: string;
   className?: string;
 };
 
 function DoujinWorkCardCtaRowInner({
   workId,
+  title,
   affiliateUrl,
   className = "",
 }: DoujinWorkCardCtaRowProps) {
@@ -24,7 +26,11 @@ function DoujinWorkCardCtaRowInner({
   return (
     <div className={`flex flex-nowrap items-stretch gap-1.5 sm:gap-2 ${className}`}>
       <div className="min-w-0 basis-[40%]">
-        <DoujinCompareToggleButton workId={workId} variant="card" />
+        <DoujinCompareToggleButton
+          workId={workId}
+          title={title}
+          variant="card"
+        />
       </div>
       {validUrl ? (
         <a
@@ -51,6 +57,7 @@ export const DoujinWorkCardCtaRow = memo(
   DoujinWorkCardCtaRowInner,
   (prev, next) =>
     prev.workId === next.workId &&
+    prev.title === next.title &&
     prev.affiliateUrl === next.affiliateUrl &&
     prev.className === next.className,
 );

@@ -1,27 +1,41 @@
 "use client";
 
 import { memo, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { openDoujinCompareCandidateGuide } from "@/components/doujin/DoujinCompareCandidateGuide";
+import {
+  WORK_CARD_COMPARE_ACTIVE_LABEL,
+  WORK_CARD_COMPARE_LABEL,
+  WORK_CARD_COMPARE_LABEL_MOBILE,
+  doujinWorkCardCtaBaseClassName,
+} from "@/components/works/work-card-cta-styles";
+import {
+  DOUJIN_COMPARE_GA_EVENTS,
+  trackDoujinCompareEvent,
+} from "@/lib/doujin/compare/analytics";
+import { buildDoujinComparePageHref } from "@/lib/doujin/compare/urls";
 import {
   isDoujinCompareId,
   subscribeDoujinCompareStore,
   toggleDoujinCompareId,
 } from "@/lib/doujin/compare-store";
-import {
-  WORK_CARD_COMPARE_ACTIVE_LABEL,
-  doujinWorkCardCtaBaseClassName,
-} from "@/components/works/work-card-cta-styles";
 
 type DoujinCompareToggleButtonProps = {
   workId: string;
+  title?: string;
   className?: string;
   variant?: "default" | "card";
+  disableAutoNavigate?: boolean;
 };
 
 function DoujinCompareToggleButtonInner({
   workId,
+  title,
   className = "",
   variant = "default",
+  disableAutoNavigate = false,
 }: DoujinCompareToggleButtonProps) {
+  const router = useRouter();
   const [isCompared, setIsCompared] = useState(() => isDoujinCompareId(workId));
   const [message, setMessage] = useState<string | null>(null);
 
@@ -35,16 +49,44 @@ function DoujinCompareToggleButtonInner({
   }, [workId]);
 
   function handleClick() {
+    const wasCompared = isDoujinCompareId(workId);
     const result = toggleDoujinCompareId(workId);
+
+    trackDoujinCompareEvent(DOUJIN_COMPARE_GA_EVENTS.compareButtonClick, {
+      content_id: workId,
+      action: wasCompared ? "remove" : "add",
+      count: result.ids.length,
+    });
+
     if (result.error) {
-      if (result.error !== "比較は3作品までです") {
+      if (result.error !== "比較できるのは最大4作品です") {
         setMessage(result.error);
         window.setTimeout(() => setMessage(null), 2000);
       }
       return;
     }
+
     const next = result.ids.includes(workId);
     setIsCompared((current) => (current === next ? current : next));
+
+    if (!result.added) return;
+
+    if (result.ids.length === 1) {
+      openDoujinCompareCandidateGuide({
+        contentId: workId,
+        title: title?.trim() || workId,
+      });
+      return;
+    }
+
+    if (result.ids.length >= 2 && !disableAutoNavigate) {
+      trackDoujinCompareEvent(DOUJIN_COMPARE_GA_EVENTS.comparePageReach, {
+        content_id: workId,
+        count: result.ids.length,
+        source: "toggle",
+      });
+      router.push(buildDoujinComparePageHref(result.ids));
+    }
   }
 
   const cardClassName =
@@ -76,11 +118,11 @@ function DoujinCompareToggleButtonInner({
           WORK_CARD_COMPARE_ACTIVE_LABEL
         ) : variant === "card" ? (
           <>
-            <span className="md:hidden">比較</span>
-            <span className="hidden md:inline">比較に追加</span>
+            <span className="md:hidden">{WORK_CARD_COMPARE_LABEL_MOBILE}</span>
+            <span className="hidden md:inline">{WORK_CARD_COMPARE_LABEL}</span>
           </>
         ) : (
-          "比較に追加"
+          WORK_CARD_COMPARE_LABEL
         )}
       </button>
       {message ? (
@@ -96,6 +138,8 @@ export const DoujinCompareToggleButton = memo(
   DoujinCompareToggleButtonInner,
   (prev, next) =>
     prev.workId === next.workId &&
+    prev.title === next.title &&
     prev.className === next.className &&
-    prev.variant === next.variant,
+    prev.variant === next.variant &&
+    prev.disableAutoNavigate === next.disableAutoNavigate,
 );

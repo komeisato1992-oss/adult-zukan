@@ -1,4 +1,5 @@
 import { DoujinBottomNav } from "@/components/doujin/DoujinBottomNav";
+import { DoujinCompareCandidateGuide } from "@/components/doujin/DoujinCompareCandidateGuide";
 import { DoujinCompareFloatingButton } from "@/components/doujin/DoujinCompareFloatingButton";
 import { DoujinFooter } from "@/components/doujin/DoujinFooter";
 import { DoujinHeader } from "@/components/doujin/DoujinHeader";
@@ -13,6 +14,7 @@ export function DoujinSiteShell({ children }: DoujinSiteShellProps) {
       <DoujinHeader />
       <main className="flex-1 pb-16 md:pb-0">{children}</main>
       <DoujinCompareFloatingButton />
+      <DoujinCompareCandidateGuide />
       <DoujinFooter />
       <DoujinBottomNav />
     </div>

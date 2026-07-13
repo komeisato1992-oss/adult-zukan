@@ -140,7 +140,11 @@ export function DoujinWorkCard({
         ) : null}
 
         <div className="doujin-work-card__actions mt-auto pt-3">
-          <DoujinWorkCardCtaRow workId={work.id} affiliateUrl={affiliateUrl} />
+          <DoujinWorkCardCtaRow
+            workId={work.id}
+            title={work.title}
+            affiliateUrl={affiliateUrl}
+          />
         </div>
       </div>
     </article>

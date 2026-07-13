@@ -16,8 +16,13 @@ export async function GET(request: Request) {
     .split(",")
     .map((id) => id.trim())
     .filter(Boolean)
-    .slice(0, 100);
+    .slice(0, 4);
 
-  const works = getDoujinPublicWorks().filter((work) => ids.includes(work.id));
+  const worksById = new Map(
+    getDoujinPublicWorks().map((work) => [work.id, work]),
+  );
+  const works = ids
+    .map((id) => worksById.get(id))
+    .filter((work): work is NonNullable<typeof work> => Boolean(work));
   return NextResponse.json({ items: works });
 }

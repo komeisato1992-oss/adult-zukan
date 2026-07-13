@@ -1,7 +1,9 @@
 "use client";
 
-export const DOUJIN_COMPARE_STORAGE_KEY = "doujin_compare_items";
-export const DOUJIN_COMPARE_MAX_ITEMS = 3;
+export const DOUJIN_COMPARE_STORAGE_KEY = "doujin_compare_ids_v1";
+/** 旧キー（移行用） */
+const LEGACY_STORAGE_KEY = "doujin_compare_items";
+export const DOUJIN_COMPARE_MAX_ITEMS = 4;
 const COMPARE_EVENT = "doujin:compare-updated";
 export const DOUJIN_COMPARE_LIMIT_EVENT = "doujin:compare-limit-reached";
 
@@ -20,9 +22,21 @@ export function readDoujinCompareIds(): string[] {
   if (compareIdsCache) return compareIdsCache;
   if (typeof window === "undefined") return [];
   try {
-    compareIdsCache = normalizeIds(
-      JSON.parse(window.localStorage.getItem(DOUJIN_COMPARE_STORAGE_KEY) ?? "[]"),
-    );
+    const raw =
+      window.localStorage.getItem(DOUJIN_COMPARE_STORAGE_KEY) ??
+      window.localStorage.getItem(LEGACY_STORAGE_KEY) ??
+      "[]";
+    compareIdsCache = normalizeIds(JSON.parse(raw));
+    // 新キーへ移行
+    if (
+      !window.localStorage.getItem(DOUJIN_COMPARE_STORAGE_KEY) &&
+      compareIdsCache.length > 0
+    ) {
+      window.localStorage.setItem(
+        DOUJIN_COMPARE_STORAGE_KEY,
+        JSON.stringify(compareIdsCache),
+      );
+    }
   } catch {
     compareIdsCache = [];
   }
@@ -53,14 +67,64 @@ export function setDoujinCompareIds(ids: string[]) {
   writeCompareIds(ids);
 }
 
-export function toggleDoujinCompareId(workId: string): {
+export function removeDoujinCompareId(workId: string): string[] {
+  const trimmed = workId.trim();
+  const next = readDoujinCompareIds().filter((id) => id !== trimmed);
+  writeCompareIds(next);
+  return next;
+}
+
+export function addDoujinCompareId(workId: string): {
   ids: string[];
   added: boolean;
+  alreadyPresent: boolean;
   error?: string;
 } {
   const trimmed = workId.trim();
   if (!trimmed) {
-    return { ids: readDoujinCompareIds(), added: false, error: "比較対象が不正です" };
+    return {
+      ids: readDoujinCompareIds(),
+      added: false,
+      alreadyPresent: false,
+      error: "比較対象が不正です",
+    };
+  }
+
+  const current = readDoujinCompareIds();
+  if (current.includes(trimmed)) {
+    return { ids: current, added: false, alreadyPresent: true };
+  }
+
+  if (current.length >= DOUJIN_COMPARE_MAX_ITEMS) {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event(DOUJIN_COMPARE_LIMIT_EVENT));
+    }
+    return {
+      ids: current,
+      added: false,
+      alreadyPresent: false,
+      error: "比較できるのは最大4作品です",
+    };
+  }
+
+  const next = [...current, trimmed];
+  writeCompareIds(next);
+  return { ids: next, added: true, alreadyPresent: false };
+}
+
+export function toggleDoujinCompareId(workId: string): {
+  ids: string[];
+  added: boolean;
+  alreadyPresent?: boolean;
+  error?: string;
+} {
+  const trimmed = workId.trim();
+  if (!trimmed) {
+    return {
+      ids: readDoujinCompareIds(),
+      added: false,
+      error: "比較対象が不正です",
+    };
   }
 
   const current = readDoujinCompareIds();
@@ -70,22 +134,16 @@ export function toggleDoujinCompareId(workId: string): {
     return { ids: next, added: false };
   }
 
-  if (current.length >= DOUJIN_COMPARE_MAX_ITEMS) {
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new Event(DOUJIN_COMPARE_LIMIT_EVENT));
-    }
-    return { ids: current, added: false, error: "比較は3作品までです" };
-  }
-
-  const next = [...current, trimmed];
-  writeCompareIds(next);
-  return { ids: next, added: true };
+  return addDoujinCompareId(trimmed);
 }
 
 export function subscribeDoujinCompareStore(callback: () => void): () => void {
   if (typeof window === "undefined") return () => {};
   const onStorage = (event: StorageEvent) => {
-    if (event.key === DOUJIN_COMPARE_STORAGE_KEY) {
+    if (
+      event.key === DOUJIN_COMPARE_STORAGE_KEY ||
+      event.key === LEGACY_STORAGE_KEY
+    ) {
       compareIdsCache = null;
       callback();
     }

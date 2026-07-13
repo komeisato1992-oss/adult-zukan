@@ -232,7 +232,11 @@ export function DoujinWorkHero({
           <div className="mt-6 w-full max-w-[300px]">
             <div className="flex flex-nowrap items-stretch gap-1.5 sm:gap-2">
               <div className="min-w-0 basis-[40%]">
-                <DoujinCompareToggleButton workId={work.id} variant="card" />
+                <DoujinCompareToggleButton
+                  workId={work.id}
+                  title={work.title}
+                  variant="card"
+                />
               </div>
               {validAffiliate ? (
                 <a

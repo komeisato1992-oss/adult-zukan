@@ -15,6 +15,7 @@ import {
   getDoujinSaleWorks,
   hasDoujinCatalogData,
 } from "@/lib/doujin/catalog";
+import { SITE_URL } from "@/lib/constants";
 import { doujinPageIntros, doujinSiteConfig } from "@/lib/doujin/site-config";
 
 export const metadata: Metadata = {
@@ -22,10 +23,12 @@ export const metadata: Metadata = {
     absolute: `${doujinSiteConfig.name} | ${doujinSiteConfig.tagline}`,
   },
   description: doujinPageIntros.home,
+  alternates: {
+    canonical: `${SITE_URL}/doujin`,
+  },
   robots: {
-    index: false,
-    follow: false,
-    nocache: true,
+    index: true,
+    follow: true,
   },
 };
 

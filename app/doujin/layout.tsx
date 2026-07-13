@@ -20,18 +20,8 @@ export const metadata: Metadata = {
     apple: doujinSiteConfig.appleTouchIcon,
   },
   robots: {
-    index: false,
-    follow: false,
-    nocache: true,
-    noarchive: true,
-    googleBot: {
-      index: false,
-      follow: false,
-      noimageindex: true,
-      "max-snippet": -1,
-      "max-image-preview": "none",
-      "max-video-preview": -1,
-    },
+    index: true,
+    follow: true,
   },
 };
 

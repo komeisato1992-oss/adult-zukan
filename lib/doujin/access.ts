@@ -1,11 +1,19 @@
 /**
  * 同人図鑑の公開制御。
  *
- * 本番で誤公開しないため、DOUJIN_SITE_ENABLED が厳密に "true" のときだけ一般公開する。
- * 未設定・空・false は非公開。開発確認用に development / preview / 管理者を許可する。
+ * 同人図鑑は公開済み。未設定時は公開扱いとする。
+ * 明示的に無効化したときだけ非公開（404）にする。
+ *
+ * DOUJIN_SITE_ENABLED=
+ *   "false" | "0" | "off" → 非公開
+ *   未設定 / "true" / その他 → 公開
  */
 export function isDoujinPubliclyEnabled(): boolean {
-  return process.env.DOUJIN_SITE_ENABLED === "true";
+  const raw = process.env.DOUJIN_SITE_ENABLED?.trim().toLowerCase();
+  if (raw === "false" || raw === "0" || raw === "off" || raw === "no") {
+    return false;
+  }
+  return true;
 }
 
 export function isDoujinPreviewEnabled(): boolean {
@@ -20,7 +28,7 @@ type DoujinAccessOptions = {
   isAdmin?: boolean;
 };
 
-/** /doujin 配下へのアクセス可否（非公開時は 404 にする） */
+/** /doujin 配下へのアクセス可否（明示的に無効化したときだけ 404） */
 export function canAccessDoujinSite(options: DoujinAccessOptions = {}): boolean {
   if (isDoujinPubliclyEnabled()) return true;
   if (isDoujinDevAccessAllowed()) return true;

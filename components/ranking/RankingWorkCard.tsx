@@ -68,7 +68,11 @@ export function RankingWorkCard({
         <p className="mt-1 text-[11px] text-muted/90">{item.contentId}</p>
       </div>
       <div className={`${paddingX} pb-3`}>
-        <WorkCardCtaRow contentId={item.contentId} fanzaUrl={item.fanzaUrl} />
+        <WorkCardCtaRow
+          contentId={item.contentId}
+          title={item.title}
+          fanzaUrl={item.fanzaUrl}
+        />
       </div>
     </article>
   );

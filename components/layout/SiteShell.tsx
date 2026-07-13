@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
+import { CompareCandidateGuide } from "@/components/compare/CompareCandidateGuide";
 import { CompareFloatingButton } from "@/components/compare/CompareFloatingButton";
 import { Header } from "@/components/layout/Header";
 import { Footer } from "@/components/layout/Footer";
@@ -30,6 +31,7 @@ export function SiteShell({ children }: SiteShellProps) {
       <Header />
       <main className="flex-1">{children}</main>
       <CompareFloatingButton />
+      <CompareCandidateGuide />
       <Footer />
     </>
   );

@@ -1,0 +1,22 @@
+export type CompareItem = {
+  contentId: string;
+  title: string;
+  imageUrl?: string;
+  actressNames: string[];
+  makerName?: string;
+  labelName?: string;
+  price?: string;
+  currentPrice?: number | null;
+  regularPrice?: number | null;
+  discountRate?: number | null;
+  onSale?: boolean;
+  releaseDate?: string;
+  duration?: string;
+  genres: string[];
+  series?: string;
+  rating?: string;
+  reviewCount?: number;
+  description: string;
+  sampleImages: string[];
+  fanzaUrl: string;
+};

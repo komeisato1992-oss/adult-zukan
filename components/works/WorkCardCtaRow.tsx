@@ -11,18 +11,25 @@ import { AFFILIATE_LINK_REL } from "@/lib/utils";
 type WorkCardCtaRowProps = {
   contentId: string;
   fanzaUrl: string;
+  title?: string;
   className?: string;
 };
 
 function WorkCardCtaRowInner({
   contentId,
   fanzaUrl,
+  title,
   className = "",
 }: WorkCardCtaRowProps) {
   return (
     <div className={`flex flex-nowrap items-stretch gap-1.5 sm:gap-2 ${className}`}>
       <div className="min-w-0 basis-[40%] md:flex-1 md:basis-0">
-        <CompareToggleButton contentId={contentId} variant="card" />
+        <CompareToggleButton
+          contentId={contentId}
+          title={title}
+          variant="card"
+          disableAutoNavigate
+        />
       </div>
       {fanzaUrl ? (
         <a
@@ -43,5 +50,6 @@ export const WorkCardCtaRow = memo(
   (prev, next) =>
     prev.contentId === next.contentId &&
     prev.fanzaUrl === next.fanzaUrl &&
+    prev.title === next.title &&
     prev.className === next.className,
 );

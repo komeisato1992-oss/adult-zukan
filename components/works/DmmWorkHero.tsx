@@ -144,7 +144,7 @@ export function DmmWorkHero({
             <div className="mt-6">
               <FanzaLinkButton href={fanzaUrl} />
               <div className="mt-3">
-                <CompareToggleButton contentId={contentId} />
+                <CompareToggleButton contentId={contentId} title={title} />
               </div>
             </div>
           </div>

@@ -44,7 +44,11 @@ function DmmWorkListCardInner({ item }: DmmWorkListCardProps) {
         <p className="mt-1 text-[11px] text-muted/90">{item.content_id}</p>
       </div>
       <div className="px-3 pb-3">
-        <WorkCardCtaRow contentId={item.content_id} fanzaUrl={fanzaUrl ?? ""} />
+        <WorkCardCtaRow
+          contentId={item.content_id}
+          title={item.title}
+          fanzaUrl={fanzaUrl ?? ""}
+        />
       </div>
     </article>
   );

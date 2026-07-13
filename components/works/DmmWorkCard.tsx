@@ -95,6 +95,7 @@ export function DmmWorkCard({
       <div className={`${paddingX} pb-3`}>
         <WorkCardCtaRow
           contentId={item.content_id}
+          title={item.title}
           fanzaUrl={getDmmFanzaUrl(item)}
         />
       </div>

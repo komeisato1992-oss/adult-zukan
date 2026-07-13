@@ -95,6 +95,7 @@ export function WorkCard({
         <div className={`${paddingX} pb-3`}>
           <WorkCardCtaRow
             contentId={work.contentId}
+            title={work.title}
             fanzaUrl={work.affiliateUrl}
           />
         </div>

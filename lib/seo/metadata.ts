@@ -9,6 +9,8 @@ type PageMetadataOptions = {
   canonicalPath?: string;
   ogType?: "website" | "article";
   noIndex?: boolean;
+  /** noIndex 時の follow（省略時は false）。機能ページは noindex,follow を推奨 */
+  follow?: boolean;
   /** true の場合 title をそのまま使用（サイト名を付与しない） */
   absoluteTitle?: boolean;
   /** OG/Twitter 用画像（相対パスまたは絶対URL） */
@@ -32,6 +34,7 @@ export function createPageMetadata({
   canonicalPath,
   ogType = "website",
   noIndex = false,
+  follow,
   absoluteTitle = false,
   ogImage,
 }: PageMetadataOptions): Metadata {
@@ -40,6 +43,7 @@ export function createPageMetadata({
   const resolvedTitle =
     absoluteTitle || path === "" ? title : `${title} | ${siteConfig.name}`;
   const imageUrl = resolveOgImageUrl(ogImage);
+  const shouldFollow = follow ?? !noIndex;
 
   return {
     title: absoluteTitle ? { absolute: resolvedTitle } : resolvedTitle,
@@ -74,8 +78,8 @@ export function createPageMetadata({
         : {}),
     },
     robots: noIndex
-      ? { index: false, follow: false }
-      : { index: true, follow: true },
+      ? { index: false, follow: shouldFollow }
+      : { index: true, follow: shouldFollow },
   };
 }
 

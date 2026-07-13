@@ -53,6 +53,7 @@ export function DmmRelatedWorkCard({ item }: DmmRelatedWorkCardProps) {
       <div className="px-3 pb-3">
         <WorkCardCtaRow
           contentId={item.content_id}
+          title={item.title}
           fanzaUrl={getDmmFanzaUrl(item)}
         />
       </div>

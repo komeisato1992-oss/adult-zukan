@@ -1,7 +1,7 @@
 "use client";
 
 export const COMPARE_STORAGE_KEY = "az_compare_ids_v1";
-export const COMPARE_MAX_ITEMS = 3;
+export const COMPARE_MAX_ITEMS = 4;
 const COMPARE_EVENT = "az:compare-updated";
 export const COMPARE_LIMIT_EVENT = "az:compare-limit-reached";
 
@@ -56,9 +56,55 @@ export function setCompareIds(ids: string[]) {
   writeCompareIds(ids);
 }
 
+export function removeCompareId(contentId: string): string[] {
+  const trimmed = contentId.trim();
+  const next = readCompareIds().filter((id) => id !== trimmed);
+  writeCompareIds(next);
+  return next;
+}
+
+export function addCompareId(contentId: string): {
+  ids: string[];
+  added: boolean;
+  alreadyPresent: boolean;
+  error?: string;
+} {
+  const trimmed = contentId.trim();
+  if (!trimmed) {
+    return {
+      ids: readCompareIds(),
+      added: false,
+      alreadyPresent: false,
+      error: "比較対象が不正です",
+    };
+  }
+
+  const current = readCompareIds();
+  if (current.includes(trimmed)) {
+    return { ids: current, added: false, alreadyPresent: true };
+  }
+
+  if (current.length >= COMPARE_MAX_ITEMS) {
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event(COMPARE_LIMIT_EVENT));
+    }
+    return {
+      ids: current,
+      added: false,
+      alreadyPresent: false,
+      error: "比較できるのは最大4作品です",
+    };
+  }
+
+  const next = [...current, trimmed];
+  writeCompareIds(next);
+  return { ids: next, added: true, alreadyPresent: false };
+}
+
 export function toggleCompareId(contentId: string): {
   ids: string[];
   added: boolean;
+  alreadyPresent?: boolean;
   error?: string;
 } {
   const trimmed = contentId.trim();
@@ -74,16 +120,7 @@ export function toggleCompareId(contentId: string): {
     return { ids: next, added: false };
   }
 
-  if (current.length >= COMPARE_MAX_ITEMS) {
-    if (typeof window !== "undefined") {
-      window.dispatchEvent(new Event(COMPARE_LIMIT_EVENT));
-    }
-    return { ids: current, added: false, error: "比較は3作品までです" };
-  }
-
-  const next = [...current, trimmed];
-  writeCompareIds(next);
-  return { ids: next, added: true };
+  return addCompareId(trimmed);
 }
 
 export function subscribeCompareStore(callback: () => void): () => void {

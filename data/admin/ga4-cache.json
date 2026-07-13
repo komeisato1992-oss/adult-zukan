@@ -1,7 +1,7 @@
 {
   "version": 3,
-  "updatedAt": "2026-07-13T02:02:34.547Z",
-  "lastSuccessfulAt": "2026-07-13T02:02:34.547Z",
+  "updatedAt": "2026-07-13T07:36:29.741Z",
+  "lastSuccessfulAt": "2026-07-13T07:36:29.741Z",
   "configured": true,
   "propertyId": "544245702",
   "connectionStatus": "connected",
@@ -20,36 +20,36 @@
   "periods": {
     "1": {
       "current": {
-        "users": 59,
-        "newUsers": 57,
-        "sessions": 62,
-        "pageViews": 95,
-        "avgEngagementSeconds": 8.338983050847459,
-        "eventCount": 261,
-        "bounceRate": 0.9838709677419355,
-        "pagesPerSession": 1.532258064516129
+        "users": 99,
+        "newUsers": 93,
+        "sessions": 102,
+        "pageViews": 159,
+        "avgEngagementSeconds": 10.04040404040404,
+        "eventCount": 441,
+        "bounceRate": 0.9803921568627451,
+        "pagesPerSession": 1.5588235294117647
       },
       "previous": {
-        "users": 124,
-        "newUsers": 110,
-        "sessions": 138,
-        "pageViews": 270,
-        "avgEngagementSeconds": 17.080645161290324,
-        "eventCount": 624,
-        "bounceRate": 0.9710144927536232,
-        "pagesPerSession": 1.9565217391304348
+        "users": 130,
+        "newUsers": 124,
+        "sessions": 145,
+        "pageViews": 291,
+        "avgEngagementSeconds": 17.276923076923076,
+        "eventCount": 690,
+        "bounceRate": 0.6896551724137931,
+        "pagesPerSession": 2.0068965517241377
       }
     },
     "7": {
       "current": {
-        "users": 805,
-        "newUsers": 795,
-        "sessions": 886,
-        "pageViews": 1551,
-        "avgEngagementSeconds": 16.722981366459628,
-        "eventCount": 4027,
-        "bounceRate": 0.7720090293453724,
-        "pagesPerSession": 1.7505643340857788
+        "users": 849,
+        "newUsers": 845,
+        "sessions": 932,
+        "pageViews": 1636,
+        "avgEngagementSeconds": 16.598351001177857,
+        "eventCount": 4273,
+        "bounceRate": 0.7381974248927039,
+        "pagesPerSession": 1.7553648068669527
       },
       "previous": {
         "users": 6,
@@ -64,14 +64,14 @@
     },
     "28": {
       "current": {
-        "users": 809,
-        "newUsers": 801,
-        "sessions": 897,
-        "pageViews": 1598,
-        "avgEngagementSeconds": 17.48825710754017,
-        "eventCount": 4126,
-        "bounceRate": 0.7681159420289855,
-        "pagesPerSession": 1.7814938684503903
+        "users": 853,
+        "newUsers": 851,
+        "sessions": 943,
+        "pageViews": 1683,
+        "avgEngagementSeconds": 17.324736225087925,
+        "eventCount": 4372,
+        "bounceRate": 0.7348886532343585,
+        "pagesPerSession": 1.784729586426299
       },
       "previous": {
         "users": 0,
@@ -86,14 +86,14 @@
     },
     "90": {
       "current": {
-        "users": 809,
-        "newUsers": 801,
-        "sessions": 897,
-        "pageViews": 1598,
-        "avgEngagementSeconds": 17.48825710754017,
-        "eventCount": 4126,
-        "bounceRate": 0.7681159420289855,
-        "pagesPerSession": 1.7814938684503903
+        "users": 853,
+        "newUsers": 851,
+        "sessions": 943,
+        "pageViews": 1683,
+        "avgEngagementSeconds": 17.324736225087925,
+        "eventCount": 4372,
+        "bounceRate": 0.7348886532343585,
+        "pagesPerSession": 1.784729586426299
       },
       "previous": {
         "users": 0,
@@ -152,37 +152,37 @@
     },
     {
       "date": "2026-07-12",
-      "users": 124,
-      "newUsers": 110,
-      "pageViews": 270,
-      "sessions": 138
+      "users": 130,
+      "newUsers": 124,
+      "pageViews": 291,
+      "sessions": 145
     },
     {
       "date": "2026-07-13",
-      "users": 59,
-      "newUsers": 57,
-      "pageViews": 95,
-      "sessions": 62
+      "users": 99,
+      "newUsers": 93,
+      "pageViews": 159,
+      "sessions": 102
     }
   ],
   "topPages": [
     {
       "path": "/works",
-      "pageViews": 239,
+      "pageViews": 246,
       "users": 6,
-      "avgEngagementSeconds": 343.5
+      "avgEngagementSeconds": 351.6666666666667
     },
     {
       "path": "/",
-      "pageViews": 192,
-      "users": 74,
-      "avgEngagementSeconds": 14.81081081081081
+      "pageViews": 199,
+      "users": 81,
+      "avgEngagementSeconds": 13.839506172839506
     },
     {
       "path": "/actresses",
-      "pageViews": 56,
+      "pageViews": 57,
       "users": 5,
-      "avgEngagementSeconds": 92
+      "avgEngagementSeconds": 93.4
     },
     {
       "path": "/works/cawb00018",
@@ -192,21 +192,21 @@
     },
     {
       "path": "/works/ofje00615",
-      "pageViews": 35,
-      "users": 32,
-      "avgEngagementSeconds": 3.5
-    },
-    {
-      "path": "/actresses/花咲ゆら",
-      "pageViews": 29,
-      "users": 26,
-      "avgEngagementSeconds": 5.076923076923077
+      "pageViews": 38,
+      "users": 33,
+      "avgEngagementSeconds": 3.515151515151515
     },
     {
       "path": "/works/snos00320",
-      "pageViews": 29,
-      "users": 25,
-      "avgEngagementSeconds": 4.04
+      "pageViews": 31,
+      "users": 27,
+      "avgEngagementSeconds": 3.8518518518518516
+    },
+    {
+      "path": "/actresses/花咲ゆら",
+      "pageViews": 30,
+      "users": 26,
+      "avgEngagementSeconds": 5.076923076923077
     },
     {
       "path": "/search",
@@ -221,6 +221,12 @@
       "avgEngagementSeconds": 2997
     },
     {
+      "path": "/works/1namh00069",
+      "pageViews": 22,
+      "users": 20,
+      "avgEngagementSeconds": 2.2
+    },
+    {
       "path": "/actresses/白石るな",
       "pageViews": 21,
       "users": 17,
@@ -233,22 +239,28 @@
       "avgEngagementSeconds": 3.1578947368421053
     },
     {
-      "path": "/works/1namh00069",
+      "path": "/doujin",
       "pageViews": 19,
-      "users": 19,
-      "avgEngagementSeconds": 2.0526315789473686
+      "users": 3,
+      "avgEngagementSeconds": 69
+    },
+    {
+      "path": "/works/h_1745hrsm00061",
+      "pageViews": 18,
+      "users": 17,
+      "avgEngagementSeconds": 3.4705882352941178
     },
     {
       "path": "/works/h_1732orecs00337",
       "pageViews": 16,
       "users": 13,
-      "avgEngagementSeconds": 9.692307692307692
+      "avgEngagementSeconds": 9.846153846153847
     },
     {
       "path": "/works/mizd00544",
       "pageViews": 16,
       "users": 15,
-      "avgEngagementSeconds": 0.7333333333333333
+      "avgEngagementSeconds": 1.1333333333333333
     },
     {
       "path": "/works/npjs00264",
@@ -263,12 +275,6 @@
       "avgEngagementSeconds": 10.923076923076923
     },
     {
-      "path": "/works/h_1745hrsm00061",
-      "pageViews": 15,
-      "users": 16,
-      "avgEngagementSeconds": 3.3125
-    },
-    {
       "path": "/series/ロスでナンパした-を勝手にavデビュー",
       "pageViews": 14,
       "users": 9,
@@ -279,49 +285,43 @@
       "pageViews": 12,
       "users": 3,
       "avgEngagementSeconds": 18
-    },
-    {
-      "path": "/works/1sdmm00201",
-      "pageViews": 12,
-      "users": 11,
-      "avgEngagementSeconds": 2.4545454545454546
     }
   ],
   "sources": [
     {
       "source": "Organic Search",
-      "sessions": 663,
-      "users": 645
+      "sessions": 711,
+      "users": 690
     },
     {
       "source": "Direct",
-      "sessions": 152,
-      "users": 128
-    },
-    {
-      "source": "Unassigned",
-      "sessions": 73,
-      "users": 65
+      "sessions": 167,
+      "users": 141
     },
     {
       "source": "AI Assistant",
-      "sessions": 31,
+      "sessions": 33,
       "users": 1
     },
     {
-      "source": "Referral",
-      "sessions": 21,
-      "users": 13
+      "source": "Unassigned",
+      "sessions": 31,
+      "users": 28
     },
     {
-      "source": "Cross-network",
-      "sessions": 11,
-      "users": 11
+      "source": "Referral",
+      "sessions": 22,
+      "users": 14
     },
     {
       "source": "Organic Social",
       "sessions": 4,
       "users": 4
+    },
+    {
+      "source": "Cross-network",
+      "sessions": 1,
+      "users": 1
     }
   ]
 }

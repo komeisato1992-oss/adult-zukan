@@ -18,6 +18,11 @@ import type {
   ImportFetchSort,
 } from "@/lib/admin/import-simple-types";
 import {
+  ADULT_IMPORT_API_SORT,
+  getAdultImportSortLabel,
+  isAdultImportSortMode,
+} from "@/lib/admin/import-simple-types";
+import {
   DMM_ITEMLIST_MAX_HITS,
   IMPORT_FETCH_MAX_SCAN_MULTIPLIER,
   IMPORT_FETCH_REQUEST_DEFAULT,
@@ -61,7 +66,7 @@ type CatalogKeyLoadResult = {
 };
 
 function getSortForFetch(sort: ImportFetchSort): DmmFetchOptions["sort"] {
-  return sort === "popular" ? "rank" : "date";
+  return ADULT_IMPORT_API_SORT[sort];
 }
 
 function parseRequestedCount(value: unknown): number {
@@ -108,7 +113,7 @@ function parseFetchSort(value: unknown): ImportFetchSort {
     return "popular";
   }
 
-  if (value === "popular" || value === "new") {
+  if (isAdultImportSortMode(value)) {
     return value;
   }
 
@@ -244,6 +249,7 @@ async function fetchDmmPage(
 
 function buildFetchSummaryMessage(summary: FetchImportCandidatesSummary): string {
   const {
+    sort,
     requestedCount,
     maxScanCount,
     apiFetchedCount,
@@ -253,15 +259,15 @@ function buildFetchSummaryMessage(summary: FetchImportCandidatesSummary): string
     popularityRangeMax,
   } = summary;
 
+  const sortLabel = getAdultImportSortLabel(sort);
   const rangeText =
     popularityRangeMin != null && popularityRangeMax != null
       ? `順位範囲：${popularityRangeMin.toLocaleString()}〜${popularityRangeMax.toLocaleString()}`
       : null;
 
-  // message は呼び出し側で sort を知る必要があるため、汎用文言にする
   if (targetReached) {
     return [
-      `FANZA APIから${apiFetchedCount.toLocaleString()}件を確認し、未掲載作品${candidateCount.toLocaleString()}件を候補として取得しました。`,
+      `${sortLabel}から${apiFetchedCount.toLocaleString()}件を確認し、未掲載作品${candidateCount.toLocaleString()}件を候補として取得しました。`,
       `API取得：${apiFetchedCount.toLocaleString()}件 / 既掲載除外：${summary.publishedExcludedCount.toLocaleString()}件 / 同一取得内重複：${summary.duplicateExcludedCount.toLocaleString()}件 / 未掲載候補：${candidateCount.toLocaleString()}件`,
       rangeText,
     ]
@@ -270,7 +276,7 @@ function buildFetchSummaryMessage(summary: FetchImportCandidatesSummary): string
   }
 
   return [
-    `FANZA APIを最大${maxScanCount.toLocaleString()}件確認し、未掲載候補を${candidateCount.toLocaleString()}件取得しました。指定数${requestedCount.toLocaleString()}件には届きませんでした。`,
+    `${sortLabel}を最大${maxScanCount.toLocaleString()}件確認し、未掲載候補を${candidateCount.toLocaleString()}件取得しました。指定数${requestedCount.toLocaleString()}件には届きませんでした。`,
     `API取得：${apiFetchedCount.toLocaleString()}件 / 既掲載除外：${summary.publishedExcludedCount.toLocaleString()}件 / 同一取得内重複：${summary.duplicateExcludedCount.toLocaleString()}件 / 未掲載候補：${candidateCount.toLocaleString()}件`,
     rangeText,
   ]
@@ -323,6 +329,12 @@ export async function fetchImportCandidates(input: {
   const { sort, requestedCount } = input;
   const startOffset = normalizeDmmOffset(input.offset);
   const dmmSort = getSortForFetch(sort);
+  console.log("[fetch-candidates] sort mode", {
+    sort,
+    apiSort: dmmSort,
+    offset: startOffset,
+    requestedCount,
+  });
   const pageSize = DMM_ITEMLIST_MAX_HITS;
   const maxScanCount = requestedCount * IMPORT_FETCH_MAX_SCAN_MULTIPLIER;
   const { keys: catalogKeys, catalogCount } = await loadCatalogKeysForFetch();
@@ -333,6 +345,7 @@ export async function fetchImportCandidates(input: {
   const candidates: FetchedImportCandidate[] = [];
 
   const summary: FetchImportCandidatesSummary = {
+    sort,
     requestedCount,
     maxScanCount,
     apiFetchedCount: 0,

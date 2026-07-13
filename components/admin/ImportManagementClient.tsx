@@ -23,15 +23,22 @@ import {
   getCandidateSelectionId,
   readCandidatesSession,
   readStoredOffset,
+  readStoredPreviousOffset,
+  readStoredSortMode,
   writeCandidatesSession,
   writeStoredOffset,
+  writeStoredSortMode,
 } from "@/lib/admin/import-session-storage";
 import type {
+  AdultImportSortMode,
   FetchedImportCandidate,
   FetchImportCandidatesSummary,
-  ImportFetchSort,
 } from "@/lib/admin/import-simple-types";
-import { IMPORT_SORT_MODE_LABELS } from "@/lib/admin/import-simple-types";
+import {
+  ADULT_IMPORT_SORT_OPTIONS,
+  getAdultImportSortLabel,
+  isAdultImportSortMode,
+} from "@/lib/admin/import-simple-types";
 import { formatImportSourceLabel } from "@/lib/admin/import-source-labels";
 import {
   matchesImportFilters,
@@ -42,6 +49,32 @@ import { parseJsonResponseBody } from "@/lib/admin/bulk-add-safe";
 import type { SitemapPostImportResult } from "@/lib/admin/seo-types";
 import type { DmmItem } from "@/lib/dmm/types";
 
+const SELECT_CONTROL_CLASS =
+  "mt-1 min-h-[44px] w-full rounded-lg border border-border bg-white px-3 py-2 text-sm text-foreground";
+
+function resolveInitialFetchSort(
+  sessionSort: AdultImportSortMode | undefined,
+): AdultImportSortMode {
+  if (typeof window !== "undefined") {
+    const fromQuery = new URLSearchParams(window.location.search).get("sort");
+    if (isAdultImportSortMode(fromQuery)) return fromQuery;
+  }
+  if (isAdultImportSortMode(sessionSort)) return sessionSort;
+  const stored = readStoredSortMode();
+  if (stored) return stored;
+  return "popular";
+}
+
+function syncSortQueryParam(sort: AdultImportSortMode): void {
+  if (typeof window === "undefined") return;
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.set("sort", sort);
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  } catch {
+    // ignore
+  }
+}
 type ImportManagementClientProps = {
   configured: boolean;
   dmmConfigured: boolean;
@@ -149,8 +182,8 @@ export function ImportManagementClient({
 }: ImportManagementClientProps) {
   const restoredSession = useMemo(() => readCandidatesSession(), []);
 
-  const [fetchSort, setFetchSort] = useState<ImportFetchSort>(
-    restoredSession?.sort === "new" ? "new" : "popular",
+  const [fetchSort, setFetchSort] = useState<AdultImportSortMode>(() =>
+    resolveInitialFetchSort(restoredSession?.sort),
   );
   const [candidates, setCandidates] = useState<FetchedImportCandidate[]>(
     restoredSession?.candidates ?? [],
@@ -168,7 +201,11 @@ export function ImportManagementClient({
     IMPORT_FETCH_REQUEST_DEFAULT,
   );
   const [startOffsetInput, setStartOffsetInput] = useState("");
-  const [previousOffset, setPreviousOffset] = useState<number | null>(null);
+  const [previousOffset, setPreviousOffset] = useState<number | null>(() =>
+    readStoredPreviousOffset(
+      resolveInitialFetchSort(restoredSession?.sort),
+    ),
+  );
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [addMessage, setAddMessage] = useState<string | null>(null);
   const [addSummary, setAddSummary] = useState<{
@@ -238,6 +275,11 @@ export function ImportManagementClient({
   }, []);
 
   useEffect(() => {
+    writeStoredSortMode(fetchSort);
+    syncSortQueryParam(fetchSort);
+  }, [fetchSort]);
+
+  useEffect(() => {
     if (candidates.length === 0) return;
     writeCandidatesSession({
       sort: fetchSort,
@@ -245,6 +287,15 @@ export function ImportManagementClient({
       summary,
     });
   }, [candidates, summary, fetchSort]);
+
+  useEffect(() => {
+    const stored = readStoredOffset(fetchSort);
+    if (startOffsetInput === "" && stored != null && stored > 0) {
+      setStartOffsetInput(String(stored));
+    }
+    // 初回のみモード用 offset を入力へ反映
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const filteredCandidates = useMemo(() => {
     const filtered = candidates.filter((candidate) =>
@@ -283,6 +334,7 @@ export function ImportManagementClient({
 
     const startOffset = resolveStartOffset();
     setPreviousOffset(startOffset);
+    writeStoredOffset(fetchSort, startOffset, { previousOffset: startOffset });
 
     try {
       const response = await fetch("/api/admin/import/fetch-candidates", {
@@ -323,7 +375,9 @@ export function ImportManagementClient({
       setSort(fetchSort === "new" ? "releaseDate-desc" : "popular-desc");
 
       if (nextSummary) {
-        writeStoredOffset(fetchSort, nextSummary.nextOffset);
+        writeStoredOffset(fetchSort, nextSummary.nextOffset, {
+          previousOffset: startOffset,
+        });
       }
 
       window.requestAnimationFrame(() => {
@@ -798,7 +852,7 @@ export function ImportManagementClient({
   );
 
   const applyNextOffsetToInput = useCallback(() => {
-    if (summary) {
+    if (summary?.sort === fetchSort) {
       setStartOffsetInput(String(summary.nextOffset));
       return;
     }
@@ -809,25 +863,34 @@ export function ImportManagementClient({
   }, [summary, fetchSort]);
 
   const resetOffsetToZero = useCallback(() => {
+    const previous = resolveStartOffset();
     setStartOffsetInput("0");
-    writeStoredOffset(fetchSort, 0);
-  }, [fetchSort]);
+    setPreviousOffset(previous);
+    writeStoredOffset(fetchSort, 0, { previousOffset: previous });
+  }, [fetchSort, resolveStartOffset]);
 
   const restorePreviousOffset = useCallback(() => {
-    if (previousOffset != null) {
-      setStartOffsetInput(String(previousOffset));
+    const storedPrevious = readStoredPreviousOffset(fetchSort);
+    const target =
+      previousOffset != null
+        ? previousOffset
+        : storedPrevious != null
+          ? storedPrevious
+          : null;
+    if (target != null) {
+      setStartOffsetInput(String(target));
     }
-  }, [previousOffset]);
+  }, [previousOffset, fetchSort]);
 
-  const handleFetchSortChange = useCallback(
-    (next: ImportFetchSort) => {
-      setFetchSort(next);
-      const stored = readStoredOffset(next);
-      setStartOffsetInput(stored != null && stored > 0 ? String(stored) : "");
-      setPreviousOffset(null);
-    },
-    [],
-  );
+  const handleFetchSortChange = useCallback((next: AdultImportSortMode) => {
+    setFetchSort(next);
+    writeStoredSortMode(next);
+    syncSortQueryParam(next);
+    const stored = readStoredOffset(next);
+    const storedPrevious = readStoredPreviousOffset(next);
+    setStartOffsetInput(stored != null && stored > 0 ? String(stored) : "");
+    setPreviousOffset(storedPrevious);
+  }, []);
 
   const toggleFilter = useCallback((key: ImportFilterKey) => {
     setActiveFilters((current) => {
@@ -859,13 +922,20 @@ export function ImportManagementClient({
     );
   }
 
-  const fetchSortLabel = IMPORT_SORT_MODE_LABELS[fetchSort];
+  const fetchSortLabel = getAdultImportSortLabel(fetchSort);
+  const resultSortLabel = summary?.sort
+    ? getAdultImportSortLabel(summary.sort)
+    : fetchSortLabel;
   const fetchDescription =
     fetchSort === "new"
       ? "FANZA新着順から、アダルト図鑑に未掲載の新しい作品を優先して取得します。"
       : "FANZA人気順から、アダルト図鑑に未掲載の作品を優先して取得します。";
   const fetchButtonLabel =
     fetchSort === "new" ? "未掲載の新着作品を取得" : "未掲載の人気作品を取得";
+  const fetchingHint =
+    fetchSort === "new"
+      ? `掲載済み作品を除外しながら、未掲載の新着作品候補を探しています…`
+      : `掲載済み作品を除外しながら、未掲載の人気作品候補を探しています…`;
 
   return (
     <div className="space-y-6">
@@ -888,15 +958,18 @@ export function ImportManagementClient({
           <label className="block text-sm">
             <span className="text-muted">並び順</span>
             <select
-              className="mt-1 w-full rounded-lg border border-border px-3 py-2"
+              className={SELECT_CONTROL_CLASS}
               value={fetchSort}
               onChange={(event) =>
-                handleFetchSortChange(event.target.value as ImportFetchSort)
+                handleFetchSortChange(event.target.value as AdultImportSortMode)
               }
               disabled={isAddingWorks || isFetchingCandidates}
             >
-              <option value="popular">{IMPORT_SORT_MODE_LABELS.popular}</option>
-              <option value="new">{IMPORT_SORT_MODE_LABELS.new}</option>
+              {ADULT_IMPORT_SORT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
             </select>
           </label>
           <label className="block text-sm">
@@ -906,7 +979,7 @@ export function ImportManagementClient({
             <input
               type="number"
               min={0}
-              className="mt-1 w-full rounded-lg border border-border px-3 py-2"
+              className={SELECT_CONTROL_CLASS}
               value={startOffsetInput}
               onChange={(event) => setStartOffsetInput(event.target.value)}
               placeholder={String(readStoredOffset(fetchSort) ?? 0)}
@@ -916,7 +989,7 @@ export function ImportManagementClient({
           <label className="block text-sm">
             <span className="text-muted">未掲載候補の目標件数</span>
             <select
-              className="mt-1 w-full rounded-lg border border-border px-3 py-2"
+              className={SELECT_CONTROL_CLASS}
               value={requestedCount}
               onChange={(event) =>
                 setRequestedCount(Number(event.target.value))
@@ -951,7 +1024,11 @@ export function ImportManagementClient({
           <button
             type="button"
             onClick={restorePreviousOffset}
-            disabled={isAddingWorks || previousOffset == null}
+            disabled={
+              isAddingWorks ||
+              (previousOffset == null &&
+                readStoredPreviousOffset(fetchSort) == null)
+            }
             className="rounded-lg border border-border px-3 py-1.5 text-xs disabled:opacity-50"
           >
             前回offsetに戻す
@@ -961,16 +1038,14 @@ export function ImportManagementClient({
           type="button"
           onClick={handleFetchCandidates}
           disabled={isFetchingCandidates || isAddingWorks}
-          className="mt-4 rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
+          className="mt-4 min-h-[44px] w-full rounded-lg bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-50 sm:w-auto"
         >
           {isFetchingCandidates
             ? `${fetchSortLabel}を確認中…（目標: ${requestedCount}件）`
             : fetchButtonLabel}
         </button>
         {isFetchingCandidates ? (
-          <p className="mt-2 text-sm text-muted">
-            掲載済み作品を除外しながら、未掲載候補 {requestedCount} 件を探しています…
-          </p>
+          <p className="mt-2 text-sm text-muted">{fetchingHint}</p>
         ) : null}
         {fetchError ? (
           <p className="mt-3 text-sm text-red-600">{fetchError}</p>
@@ -980,6 +1055,9 @@ export function ImportManagementClient({
       {summary ? (
         <section className="rounded-xl border border-border bg-white p-4 shadow-sm">
           <h2 className="text-sm font-bold text-foreground">② 取得結果サマリー</h2>
+          <p className="mt-2 text-sm font-medium text-foreground">
+            取得元：{resultSortLabel}
+          </p>
           {summary.message ? (
             <p className="mt-2 whitespace-pre-line text-sm text-foreground">
               {summary.message}
@@ -987,36 +1065,20 @@ export function ImportManagementClient({
           ) : null}
           <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
             <div>
-              <dt className="text-muted">取得要求候補</dt>
-              <dd>{summary.requestedCount.toLocaleString()}件</dd>
-            </div>
-            <div>
-              <dt className="text-muted">API走査件数</dt>
+              <dt className="text-muted">API取得件数</dt>
               <dd>{summary.apiFetchedCount.toLocaleString()}件</dd>
             </div>
             <div>
-              <dt className="text-muted">掲載済み除外</dt>
+              <dt className="text-muted">既掲載除外件数</dt>
               <dd>{summary.publishedExcludedCount.toLocaleString()}件</dd>
             </div>
             <div>
-              <dt className="text-muted">取得内重複</dt>
+              <dt className="text-muted">重複除外件数</dt>
               <dd>{summary.duplicateExcludedCount.toLocaleString()}件</dd>
             </div>
             <div>
-              <dt className="text-muted">画像なし</dt>
-              <dd>{summary.imageMissingExcludedCount.toLocaleString()}件</dd>
-            </div>
-            <div>
-              <dt className="text-muted">無効</dt>
-              <dd>{summary.invalidExcludedCount.toLocaleString()}件</dd>
-            </div>
-            <div>
-              <dt className="text-muted">最終候補</dt>
+              <dt className="text-muted">未掲載候補件数</dt>
               <dd>{summary.candidateCount.toLocaleString()}件</dd>
-            </div>
-            <div>
-              <dt className="text-muted">catalog掲載数</dt>
-              <dd>{summary.catalogCount.toLocaleString()}件</dd>
             </div>
             <div>
               <dt className="text-muted">開始offset</dt>
@@ -1026,11 +1088,19 @@ export function ImportManagementClient({
               <dt className="text-muted">次回offset</dt>
               <dd>{summary.nextOffset.toLocaleString()}</dd>
             </div>
+            <div>
+              <dt className="text-muted">取得要求候補</dt>
+              <dd>{summary.requestedCount.toLocaleString()}件</dd>
+            </div>
+            <div>
+              <dt className="text-muted">catalog掲載数</dt>
+              <dd>{summary.catalogCount.toLocaleString()}件</dd>
+            </div>
             {summary.popularityRangeMin != null &&
             summary.popularityRangeMax != null ? (
               <div className="sm:col-span-2">
                 <dt className="text-muted">
-                  {fetchSort === "new" ? "新着走査範囲" : "人気順位範囲"}
+                  {summary.sort === "new" ? "新着走査範囲" : "人気順位範囲"}
                 </dt>
                 <dd>
                   {summary.popularityRangeMin.toLocaleString()}位〜

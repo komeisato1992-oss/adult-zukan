@@ -1,17 +1,48 @@
 import type { DmmItem } from "@/lib/dmm/types";
 
-export type ImportFetchSort = "popular" | "new";
+/** 候補取得の並び順（FANZA API sort 切替用） */
+export type AdultImportSortMode = "popular" | "new";
 
-/** @deprecated ImportFetchSort を使用 */
-export type ImportSortMode = ImportFetchSort;
+/** @deprecated AdultImportSortMode を使用 */
+export type ImportFetchSort = AdultImportSortMode;
 
-export const IMPORT_SORT_MODE_LABELS: Record<ImportFetchSort, string> = {
+/** @deprecated AdultImportSortMode を使用 */
+export type ImportSortMode = AdultImportSortMode;
+
+export const ADULT_IMPORT_SORT_OPTIONS = [
+  { value: "popular", label: "FANZA人気順" },
+  { value: "new", label: "FANZA新着順" },
+] as const satisfies ReadonlyArray<{
+  value: AdultImportSortMode;
+  label: string;
+}>;
+
+export const IMPORT_SORT_MODE_LABELS: Record<AdultImportSortMode, string> = {
   popular: "FANZA人気順",
   new: "FANZA新着順",
 };
 
+/** FANZA/DMM ItemList API の sort クエリ値 */
+export const ADULT_IMPORT_API_SORT: Record<
+  AdultImportSortMode,
+  "rank" | "date"
+> = {
+  popular: "rank",
+  new: "date",
+};
+
+export function isAdultImportSortMode(
+  value: unknown,
+): value is AdultImportSortMode {
+  return value === "popular" || value === "new";
+}
+
+export function getAdultImportSortLabel(mode: AdultImportSortMode): string {
+  return IMPORT_SORT_MODE_LABELS[mode];
+}
+
 export type ImportCandidateMeta = {
-  sourceSort: ImportFetchSort;
+  sourceSort: AdultImportSortMode;
   sourceOffset: number;
   sourceIndex: number;
   absolutePopularityPosition: number;
@@ -27,6 +58,7 @@ export type FetchedImportCandidate = {
 };
 
 export type FetchImportCandidatesSummary = {
+  sort: AdultImportSortMode;
   requestedCount: number;
   maxScanCount: number;
   apiFetchedCount: number;

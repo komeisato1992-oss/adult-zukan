@@ -23,6 +23,13 @@ import {
 
 export const revalidate = 86400;
 
+/**
+ * searchParams（page/sort）を使うエンティティ詳細は ISR だと
+ * production で DYNAMIC_SERVER_USAGE → 500 になるため動的描画を強制する。
+ * （90cfb7c の修正。コスト削減で外したところ再発した）
+ */
+export const dynamic = "force-dynamic";
+
 export const dynamicParams = true;
 
 type LabelDetailPageProps = {
@@ -142,9 +149,28 @@ export default async function LabelDetailPage({
               currentSort={currentSort}
             />
           ) : (
-            <p className="rounded border border-border bg-surface p-8 text-center text-sm text-muted">
-              現在掲載中の作品はありません。
-            </p>
+            <div className="rounded border border-border bg-surface p-8 text-center">
+              <p className="text-sm text-muted">
+                現在表示できる作品がありません
+              </p>
+              <nav
+                aria-label="関連ページ"
+                className="mt-4 flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm"
+              >
+                <Link href="/works" className="text-accent hover:underline">
+                  作品一覧
+                </Link>
+                <Link href="/ranking" className="text-accent hover:underline">
+                  人気作品
+                </Link>
+                <Link href="/genres" className="text-accent hover:underline">
+                  ジャンル一覧
+                </Link>
+                <Link href="/search" className="text-accent hover:underline">
+                  検索
+                </Link>
+              </nav>
+            </div>
           )}
         </section>
       </PageLayout>

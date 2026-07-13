@@ -27,6 +27,12 @@ import {
 
 export const revalidate = 86400;
 
+/**
+ * searchParams（page/sort）を使うエンティティ詳細は ISR だと
+ * production で DYNAMIC_SERVER_USAGE → 500 になるため動的描画を強制する。
+ */
+export const dynamic = "force-dynamic";
+
 export const dynamicParams = true;
 
 type SeriesDetailPageProps = {
@@ -137,13 +143,19 @@ export default async function SeriesDetailPage({
 
         <section aria-labelledby="series-all" className="mb-10">
           <SectionHeader title="全作品" id="series-all" />
-          <PaginatedWorkListSection
-            pageItems={list.pageItems}
-            currentPage={list.currentPage}
-            totalPages={list.totalPages}
-            basePath={getSeriesDetailPath(slug)}
-            currentSort={currentSort}
-          />
+          {list.totalItems > 0 ? (
+            <PaginatedWorkListSection
+              pageItems={list.pageItems}
+              currentPage={list.currentPage}
+              totalPages={list.totalPages}
+              basePath={getSeriesDetailPath(slug)}
+              currentSort={currentSort}
+            />
+          ) : (
+            <p className="rounded border border-border bg-surface p-8 text-center text-sm text-muted">
+              現在表示できる作品がありません
+            </p>
+          )}
         </section>
 
         {series.makerName && series.makerSlug && (

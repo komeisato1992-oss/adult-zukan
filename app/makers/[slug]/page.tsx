@@ -34,6 +34,12 @@ import {
 
 export const revalidate = 86400;
 
+/**
+ * searchParams（page/sort）を使うエンティティ詳細は ISR だと
+ * production で DYNAMIC_SERVER_USAGE → 500 になるため動的描画を強制する。
+ */
+export const dynamic = "force-dynamic";
+
 export const dynamicParams = true;
 
 type MakerDetailPageProps = {
@@ -193,7 +199,7 @@ export default async function MakerDetailPage({
             />
           ) : (
             <p className="rounded border border-border bg-surface p-8 text-center text-sm text-muted">
-              現在、このメーカーの作品はありません。
+              現在表示できる作品がありません
               <Link href="/works" className="mt-2 block text-accent hover:underline">
                 作品一覧を見る
               </Link>

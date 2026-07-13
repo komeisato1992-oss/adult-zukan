@@ -68,7 +68,8 @@ export function getPaginatedDisplayableWorkCardList(
   items: DmmItem[],
   options: PaginatedWorkListOptions = {},
 ): PaginatedWorkCardList {
-  return getPaginatedWorkCardList(filterDisplayableItems(items), options);
+  const safeItems = Array.isArray(items) ? items : [];
+  return getPaginatedWorkCardList(filterDisplayableItems(safeItems), options);
 }
 
 export function getPaginatedWorksListPageCards(

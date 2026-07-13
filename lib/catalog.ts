@@ -98,26 +98,31 @@ export async function getUnavailableCatalogWorkByContentId(
 
 export const getActressWorksBySlug = cache(async (slug: string) => {
   const items = await getCatalogWorks();
+  if (!Array.isArray(items)) return [];
   return getCatalogWorksByActressSlug(items, slug);
 });
 
 export const getMakerWorksBySlug = cache(async (slug: string) => {
   const items = await getCatalogWorks();
+  if (!Array.isArray(items)) return [];
   return getCatalogWorksByMakerSlug(items, slug);
 });
 
 export const getLabelWorksBySlug = cache(async (slug: string) => {
   const items = await getCatalogWorks();
+  if (!Array.isArray(items)) return [];
   return getCatalogWorksByLabelSlug(items, slug);
 });
 
 export const getSeriesWorksBySlug = cache(async (slug: string) => {
   const items = await getCatalogWorks();
+  if (!Array.isArray(items)) return [];
   return getCatalogWorksBySeriesSlug(items, slug);
 });
 
 export const getGenreWorksBySlug = cache(async (slug: string) => {
   const items = await getCatalogWorks();
+  if (!Array.isArray(items)) return [];
   return getCatalogWorksByGenreSlug(items, slug);
 });
 
@@ -131,21 +136,69 @@ export const getActressSummaryBySlug = cache(async (slug: string) => {
 });
 
 export const getMakerSummaryBySlug = cache(async (slug: string) => {
+  const {
+    findCommittedMakerBySlug,
+  } = await import("@/lib/dmm/catalog-index-read");
+  const fromIndex = findCommittedMakerBySlug(slug);
+  if (fromIndex?.name && fromIndex.slug) {
+    return {
+      name: fromIndex.name,
+      slug: fromIndex.slug,
+      workCount: fromIndex.workCount ?? 0,
+    };
+  }
   const makers = await getMakerSummaries();
   return makers.find((maker) => maker.slug === slug);
 });
 
 export const getGenreSummaryBySlug = cache(async (slug: string) => {
+  const {
+    findCommittedGenreBySlug,
+  } = await import("@/lib/dmm/catalog-index-read");
+  const fromIndex = findCommittedGenreBySlug(slug);
+  if (fromIndex?.name && fromIndex.slug) {
+    return {
+      name: fromIndex.name,
+      slug: fromIndex.slug,
+      workCount: fromIndex.workCount ?? 0,
+    };
+  }
   const genres = await getGenreSummaries();
   return genres.find((genre) => genre.slug === slug);
 });
 
 export const getSeriesSummaryBySlug = cache(async (slug: string) => {
+  const {
+    findCommittedSeriesBySlug,
+  } = await import("@/lib/dmm/catalog-index-read");
+  const fromIndex = findCommittedSeriesBySlug(slug);
+  if (fromIndex?.name && fromIndex.slug) {
+    return {
+      name: fromIndex.name,
+      slug: fromIndex.slug,
+      workCount: fromIndex.workCount ?? 0,
+      makerName: fromIndex.makerName,
+      makerSlug: fromIndex.makerSlug,
+    };
+  }
   const series = await getSeriesSummaries();
   return series.find((entry) => entry.slug === slug);
 });
 
 export const getLabelSummaryBySlug = cache(async (slug: string) => {
+  const {
+    findCommittedLabelBySlug,
+  } = await import("@/lib/dmm/catalog-index-read");
+  const fromIndex = findCommittedLabelBySlug(slug);
+  if (fromIndex?.name && fromIndex.slug) {
+    return {
+      name: fromIndex.name,
+      slug: fromIndex.slug,
+      workCount: fromIndex.workCount ?? 0,
+      makerName: fromIndex.makerName,
+      makerSlug: fromIndex.makerSlug,
+    };
+  }
   const labels = await getLabelSummaries();
   return labels.find((label) => label.slug === slug);
 });

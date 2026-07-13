@@ -30,8 +30,20 @@ export type CatalogIndexNameEntry = {
   workCount?: number;
 };
 
+export type CatalogIndexLabelEntry = CatalogIndexNameEntry & {
+  makerName?: string;
+  makerSlug?: string;
+};
+
+export type CatalogIndexSeriesEntry = CatalogIndexNameEntry & {
+  makerName?: string;
+  makerSlug?: string;
+};
+
 export type CatalogIndexActressEntry = CatalogIndexNameEntry & {
   slug: string;
+  imageUrl?: string;
+  reading?: string;
 };
 
 export function readCommittedActressIndex(): CatalogIndexActressEntry[] {
@@ -46,14 +58,14 @@ export function readCommittedMakerIndex(): CatalogIndexNameEntry[] {
   );
 }
 
-export function readCommittedLabelIndex(): CatalogIndexNameEntry[] {
-  return readCatalogIndexItems<CatalogIndexNameEntry>(
+export function readCommittedLabelIndex(): CatalogIndexLabelEntry[] {
+  return readCatalogIndexItems<CatalogIndexLabelEntry>(
     CATALOG_INDEX_PATHS.labels,
   );
 }
 
-export function readCommittedSeriesIndex(): CatalogIndexNameEntry[] {
-  return readCatalogIndexItems<CatalogIndexNameEntry>(
+export function readCommittedSeriesIndex(): CatalogIndexSeriesEntry[] {
+  return readCatalogIndexItems<CatalogIndexSeriesEntry>(
     CATALOG_INDEX_PATHS.series,
   );
 }
@@ -62,6 +74,38 @@ export function readCommittedGenreIndex(): CatalogIndexNameEntry[] {
   return readCatalogIndexItems<CatalogIndexNameEntry>(
     CATALOG_INDEX_PATHS.genres,
   );
+}
+
+function findIndexEntryBySlug<T extends { slug?: string }>(
+  entries: T[],
+  slug: string,
+): T | undefined {
+  if (!slug || !Array.isArray(entries)) return undefined;
+  return entries.find((entry) => entry?.slug === slug);
+}
+
+export function findCommittedMakerBySlug(
+  slug: string,
+): CatalogIndexNameEntry | undefined {
+  return findIndexEntryBySlug(readCommittedMakerIndex(), slug);
+}
+
+export function findCommittedLabelBySlug(
+  slug: string,
+): CatalogIndexLabelEntry | undefined {
+  return findIndexEntryBySlug(readCommittedLabelIndex(), slug);
+}
+
+export function findCommittedSeriesBySlug(
+  slug: string,
+): CatalogIndexSeriesEntry | undefined {
+  return findIndexEntryBySlug(readCommittedSeriesIndex(), slug);
+}
+
+export function findCommittedGenreBySlug(
+  slug: string,
+): CatalogIndexNameEntry | undefined {
+  return findIndexEntryBySlug(readCommittedGenreIndex(), slug);
 }
 
 export function readCommittedSearchIndexContentIds(): string[] {

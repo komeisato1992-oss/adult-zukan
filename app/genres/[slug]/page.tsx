@@ -23,6 +23,12 @@ import {
 
 export const revalidate = 86400;
 
+/**
+ * searchParams（page/sort）を使うエンティティ詳細は ISR だと
+ * production で DYNAMIC_SERVER_USAGE → 500 になるため動的描画を強制する。
+ */
+export const dynamic = "force-dynamic";
+
 export const dynamicParams = true;
 
 type GenreDetailPageProps = {
@@ -135,7 +141,7 @@ export default async function GenreDetailPage({
             />
           ) : (
             <p className="rounded border border-border bg-surface p-8 text-center text-sm text-muted">
-              現在掲載中の作品はありません。
+              現在表示できる作品がありません
             </p>
           )}
         </section>

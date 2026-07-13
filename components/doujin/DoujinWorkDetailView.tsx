@@ -9,6 +9,7 @@ import { DoujinWorkHero } from "@/components/doujin/DoujinWorkHero";
 import { DoujinWorkInfoTable } from "@/components/doujin/DoujinWorkInfoTable";
 import { buildDoujinAffiliateUrl } from "@/lib/doujin/affiliate";
 import { getDoujinCardImage } from "@/lib/doujin/card-image";
+import { isDoujinFirstTimeGuideEnabled } from "@/lib/doujin/first-time-guide";
 import { sanitizeDoujinSampleImageUrls } from "@/lib/doujin/sample-images";
 import type { DoujinWork } from "@/lib/doujin/types";
 import {
@@ -38,6 +39,7 @@ export function DoujinWorkDetailView({ work }: DoujinWorkDetailViewProps) {
     work.circleIds?.[0] ?? work.circleId ?? undefined;
   const primaryCircleName =
     work.circleNames?.[0] ?? work.circleName ?? undefined;
+  const showFirstTimeGuide = isDoujinFirstTimeGuideEnabled();
 
   return (
     <>
@@ -65,6 +67,7 @@ export function DoujinWorkDetailView({ work }: DoujinWorkDetailViewProps) {
               affiliateUrl={affiliateUrl}
               hasSampleImages={sampleImages.length > 0}
               authorComment={authorComment}
+              showFirstTimeGuide={showFirstTimeGuide}
             />
 
             <DoujinSampleGallery title={work.title} images={sampleImages} />

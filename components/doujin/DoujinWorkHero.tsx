@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { DoujinAuthorComment } from "@/components/doujin/DoujinAuthorComment";
 import { DoujinAuthorLinks } from "@/components/doujin/DoujinAuthorLinks";
 import { DoujinCircleLinks } from "@/components/doujin/DoujinCircleLinks";
@@ -10,13 +11,17 @@ import { DoujinGenreLinks } from "@/components/doujin/DoujinGenreLinks";
 import { DoujinProductFormatBadge } from "@/components/doujin/DoujinProductFormatBadge";
 import { DoujinSeriesLink } from "@/components/doujin/DoujinSeriesLink";
 import { isValidDoujinAffiliateUrl } from "@/lib/doujin/affiliate";
+import { buildDoujinFirstTimeGuideHref } from "@/lib/doujin/first-time-guide";
 import {
   formatDoujinPrice,
   getDoujinDiscountPercent,
 } from "@/lib/doujin/format";
 import type { DoujinWork } from "@/lib/doujin/types";
 import { AFFILIATE_LINK_REL } from "@/lib/utils";
-import { WORK_CARD_VIEW_LABEL } from "@/components/works/work-card-cta-styles";
+import {
+  doujinWorkCardCtaBaseClassName,
+  WORK_CARD_VIEW_LABEL,
+} from "@/components/works/work-card-cta-styles";
 
 type DoujinWorkHeroProps = {
   work: DoujinWork;
@@ -25,6 +30,7 @@ type DoujinWorkHeroProps = {
   affiliateUrl: string;
   hasSampleImages: boolean;
   authorComment?: string;
+  showFirstTimeGuide?: boolean;
 };
 
 export function DoujinWorkHero({
@@ -34,6 +40,7 @@ export function DoujinWorkHero({
   affiliateUrl,
   hasSampleImages,
   authorComment,
+  showFirstTimeGuide = false,
 }: DoujinWorkHeroProps) {
   const current = formatDoujinPrice(work.price);
   const original =
@@ -57,6 +64,7 @@ export function DoujinWorkHero({
           work.reviewCount != null ? `（${work.reviewCount}件）` : ""
         }`
       : null;
+  const guideHref = buildDoujinFirstTimeGuideHref(work.id);
 
   return (
     <section
@@ -221,24 +229,39 @@ export function DoujinWorkHero({
             ) : null}
           </dl>
 
-          <div className="mt-6">
-            {validAffiliate ? (
-              <a
-                href={affiliateUrl}
-                target="_blank"
-                rel={AFFILIATE_LINK_REL}
-                className="inline-flex w-full max-w-[300px] items-center justify-center rounded-md bg-accent px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-accent-hover sm:w-[300px]"
-              >
-                {WORK_CARD_VIEW_LABEL}
-              </a>
-            ) : (
-              <span className="inline-flex w-full max-w-[300px] cursor-not-allowed items-center justify-center rounded-md border border-border bg-surface px-4 py-3 text-sm font-bold text-muted sm:w-[300px]">
-                リンク準備中
-              </span>
-            )}
-            <div className="mt-3">
-              <DoujinCompareToggleButton workId={work.id} />
+          <div className="mt-6 w-full max-w-[300px]">
+            <div className="flex flex-nowrap items-stretch gap-1.5 sm:gap-2">
+              <div className="min-w-0 basis-[40%]">
+                <DoujinCompareToggleButton workId={work.id} variant="card" />
+              </div>
+              {validAffiliate ? (
+                <a
+                  href={affiliateUrl}
+                  target="_blank"
+                  rel={AFFILIATE_LINK_REL}
+                  className={`${doujinWorkCardCtaBaseClassName} min-w-0 basis-[60%] bg-accent text-white transition-colors hover:bg-accent-hover`}
+                >
+                  {WORK_CARD_VIEW_LABEL}
+                </a>
+              ) : (
+                <span
+                  className={`${doujinWorkCardCtaBaseClassName} min-w-0 basis-[60%] cursor-not-allowed border border-border bg-surface text-muted`}
+                >
+                  リンク準備中
+                </span>
+              )}
             </div>
+
+            {showFirstTimeGuide ? (
+              <div className="mt-3 flex justify-center">
+                <Link
+                  href={guideHref}
+                  className="inline-flex items-center justify-center rounded-md border border-[#E8C98A] bg-[#FFF6E4] px-3 py-2 text-center text-[12px] font-medium leading-none text-[#8A6A2E] transition-colors hover:border-[#D4B46E] hover:bg-[#FFEFC8] hover:text-[#6F5420] sm:text-[13px]"
+                >
+                  初めて利用する方はこちら ＞
+                </Link>
+              </div>
+            ) : null}
           </div>
         </div>
       </div>

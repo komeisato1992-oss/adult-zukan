@@ -44,3 +44,21 @@ export function sendGaPageView(pagePath: string): void {
     page_path: pagePath,
   });
 }
+
+export function sendGaEvent(
+  eventName: string,
+  params?: Record<string, string | number | boolean | undefined | null>,
+): void {
+  if (typeof window === "undefined") return;
+  if (!window.gtag) return;
+
+  const cleaned: Record<string, string | number | boolean> = {};
+  if (params) {
+    for (const [key, value] of Object.entries(params)) {
+      if (value === undefined || value === null || value === "") continue;
+      cleaned[key] = value;
+    }
+  }
+
+  window.gtag("event", eventName, cleaned);
+}

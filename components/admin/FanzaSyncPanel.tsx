@@ -117,7 +117,7 @@ export function FanzaSyncPanel({
     [job],
   );
 
-  const handleStart = async () => {
+  const handleStart = async (mode: "light" | "full" = "light") => {
     setModalOpen(false);
     setError(null);
     setMessage(null);
@@ -127,7 +127,7 @@ export function FanzaSyncPanel({
       const response = await fetch("/api/admin/fanza-sync/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ mode }),
       });
       const data = (await response.json()) as StatusResponse;
 
@@ -142,7 +142,11 @@ export function FanzaSyncPanel({
         throw new Error(data.message ?? "同期ジョブの開始に失敗しました。");
       }
 
-      setMessage("同期ジョブを開始しました。バックグラウンドで処理します。");
+      setMessage(
+        mode === "light"
+          ? "軽量同期を開始しました（価格・セール・評価・順位）。"
+          : "完全同期を開始しました（高負荷）。",
+      );
       setJob(data.currentJob);
       setProgressPercent(data.progressPercent ?? 0);
       void runUntilComplete();
@@ -316,10 +320,14 @@ export function FanzaSyncPanel({
               掲載作品の同期
             </h3>
             <p className="mt-3 text-sm text-muted">
-              掲載中の全作品について、FANZAの販売情報・価格・セール情報を更新します。
-              処理はバックグラウンドで実行されます。開始しますか？
+              軽量同期は価格・セール・評価・順位のみを更新します（日常向け）。
+              完全同期は画像・女優・ジャンル等も含め高負荷です。
             </p>
-            <div className="mt-6 flex justify-end gap-3">
+            <p className="mt-2 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+              完全同期は処理負荷が高いため、通常は軽量同期を使用してください。
+              GitHub経由で永続保存されます（Vercelローカル書き込みではありません）。
+            </p>
+            <div className="mt-6 flex flex-wrap justify-end gap-3">
               <button
                 type="button"
                 onClick={() => setModalOpen(false)}
@@ -329,10 +337,17 @@ export function FanzaSyncPanel({
               </button>
               <button
                 type="button"
-                onClick={() => void handleStart()}
+                onClick={() => void handleStart("light")}
                 className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white"
               >
-                更新を開始
+                軽量同期を開始
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleStart("full")}
+                className="rounded-lg border border-amber-400 bg-amber-50 px-4 py-2 text-sm font-medium text-amber-950"
+              >
+                完全同期を開始
               </button>
             </div>
           </div>

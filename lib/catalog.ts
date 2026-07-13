@@ -66,7 +66,10 @@ export const getLabelSummaries = createSummariesLoader(getCatalogLabels);
 export const getCatalogWorkByContentId = cache(
   async (contentId: string): Promise<DmmItem | null> => {
     const works = await getCatalogWorks();
-    return works.find((entry) => entry.content_id === contentId) ?? null;
+    const found = works.find((entry) => entry.content_id === contentId) ?? null;
+    if (!found) return null;
+    const { hydrateAdultWorkMedia } = await import("@/lib/dmm/catalog-media");
+    return hydrateAdultWorkMedia(found);
   },
 );
 
@@ -78,7 +81,8 @@ export const getCatalogWorkRawByContentId = cache(
     if (!item || !filterValidCatalogItems([item]).length) {
       return null;
     }
-    return item;
+    const { hydrateAdultWorkMedia } = await import("@/lib/dmm/catalog-media");
+    return hydrateAdultWorkMedia(item);
   },
 );
 

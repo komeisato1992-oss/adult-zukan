@@ -11,6 +11,8 @@ export type FanzaSyncJob = {
   jobId: string;
   trigger: FanzaSyncTrigger;
   status: FanzaSyncJobStatus;
+  /** light | full。未設定は full（後方互換） */
+  mode?: "light" | "full";
   targetCount: number;
   processedCount: number;
   successCount: number;

@@ -19,6 +19,7 @@ export function createFanzaSyncJob(input: {
   trigger: FanzaSyncTrigger;
   targetCount: number;
   batchSize?: number;
+  mode?: "light" | "full";
 }): FanzaSyncJob {
   const now = new Date().toISOString();
   const jobId = createFanzaSyncJobId();
@@ -27,6 +28,7 @@ export function createFanzaSyncJob(input: {
     jobId,
     trigger: input.trigger,
     status: "running",
+    mode: input.mode ?? "full",
     targetCount: input.targetCount,
     processedCount: 0,
     successCount: 0,

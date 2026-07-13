@@ -11,6 +11,15 @@ import {
   FanzaProductNotFoundError,
   fetchFanzaProductItem,
 } from "@/lib/dmm/fanza-sync-client";
+import {
+  hasAdultLightFieldDiff,
+  pickAdultLightFields,
+} from "@/lib/dmm/sync-diff";
+import {
+  ADULT_SYNC_MODE_FULL,
+  ADULT_SYNC_MODE_LIGHT,
+  type AdultSyncMode,
+} from "@/lib/dmm/sync-mode";
 import type { DmmItem } from "@/lib/dmm/types";
 import { getWorkSaleInfo } from "@/lib/dmm/work-sale-info";
 
@@ -82,7 +91,7 @@ function markTransportError(existing: DmmItem, message: string): DmmItem {
     ...existing,
     lastSyncAttemptAt: now,
     syncErrorMessage: message.slice(0, 500),
-    updatedAt: now,
+    // 揮発エラー記録はカタログ全体の差分にしないため updatedAt は据え置き
   };
 }
 
@@ -111,7 +120,7 @@ function markNotFound(existing: DmmItem): {
     hiddenReason: shouldHide ? "fanza_unavailable" : existing.hiddenReason,
     lastSyncAttemptAt: now,
     syncErrorMessage: null,
-    updatedAt: now,
+    updatedAt: shouldHide ? now : existing.updatedAt,
     ...(shouldHide
       ? {
           saleStatus: "normal" as const,
@@ -127,7 +136,62 @@ function markNotFound(existing: DmmItem): {
   };
 }
 
-function markSuccess(existing: DmmItem, apiItem: DmmItem): FanzaSyncProductResult {
+function markSuccessLight(
+  existing: DmmItem,
+  apiItem: DmmItem,
+): FanzaSyncProductResult {
+  const now = new Date().toISOString();
+  const beforeSale = getWorkSaleInfo(existing);
+  const withSale = applySaleFields({
+    ...existing,
+    prices: apiItem.prices ?? existing.prices,
+    campaign: apiItem.campaign ?? existing.campaign,
+    review: apiItem.review ?? existing.review,
+  });
+  const light = pickAdultLightFields(withSale);
+  const afterSale = getWorkSaleInfo(withSale);
+  const priceChanged =
+    JSON.stringify(existing.prices) !== JSON.stringify(withSale.prices);
+  const saleStarted = !beforeSale.isSale && afterSale.isSale;
+  const saleEnded = beforeSale.isSale && !afterSale.isSale;
+  const lightChanged = hasAdultLightFieldDiff(existing, light);
+
+  if (!lightChanged && !saleStarted && !saleEnded) {
+    return {
+      work: existing,
+      outcome: "unchanged",
+      priceChanged: false,
+      saleStarted: false,
+      saleEnded: false,
+      hidden: false,
+      republished: false,
+    };
+  }
+
+  const work: DmmItem = {
+    ...existing,
+    ...light,
+    priceUpdatedAt: priceChanged ? now : existing.priceUpdatedAt,
+    saleUpdatedAt: saleStarted || saleEnded ? now : existing.saleUpdatedAt,
+    lastSyncedAt: now,
+    updatedAt: now,
+  };
+
+  return {
+    work,
+    outcome: "updated",
+    priceChanged,
+    saleStarted,
+    saleEnded,
+    hidden: false,
+    republished: false,
+  };
+}
+
+function markSuccessFull(
+  existing: DmmItem,
+  apiItem: DmmItem,
+): FanzaSyncProductResult {
   const now = new Date().toISOString();
   const beforeSale = getWorkSaleInfo(existing);
   const mergedBase = mergeNonEmptyFields(existing, apiItem);
@@ -141,16 +205,21 @@ function markSuccess(existing: DmmItem, apiItem: DmmItem): FanzaSyncProductResul
     existing.isActive === false || existing.hiddenReason === "fanza_unavailable";
   const republished = wasHidden;
 
-  const work: DmmItem = {
+  const candidate: DmmItem = {
     ...withSale,
     content_id: existing.content_id,
     product_id: existing.product_id,
-    description: existing.description,
+    description: existing.description ?? withSale.description,
     comment: existing.comment,
     addedAt: existing.addedAt,
     importedAt: existing.importedAt,
-    sourcePopularityRank: existing.sourcePopularityRank,
-    popularityUpdatedAt: existing.popularityUpdatedAt,
+    sourcePopularityRank:
+      apiItem.sourcePopularityRank ?? existing.sourcePopularityRank,
+    popularityUpdatedAt:
+      apiItem.sourcePopularityRank != null &&
+      apiItem.sourcePopularityRank !== existing.sourcePopularityRank
+        ? now
+        : existing.popularityUpdatedAt,
     isActive: true,
     availabilityStatus: "available",
     availability: "available",
@@ -161,24 +230,54 @@ function markSuccess(existing: DmmItem, apiItem: DmmItem): FanzaSyncProductResul
     hiddenReason:
       existing.hiddenReason === "fanza_unavailable" ? null : existing.hiddenReason,
     syncErrorMessage: null,
-    lastSyncedAt: now,
-    lastSyncAttemptAt: now,
-    lastRefreshedAt: now,
-    updatedAt: now,
     priceUpdatedAt: priceChanged ? now : existing.priceUpdatedAt,
     saleUpdatedAt: saleStarted || saleEnded ? now : existing.saleUpdatedAt,
   };
 
-  const changed =
+  // タイムスタンプを除いて実データ差分を判定
+  const existingComparable = {
+    ...existing,
+    lastSyncedAt: undefined,
+    lastSyncAttemptAt: undefined,
+    lastRefreshedAt: undefined,
+    updatedAt: undefined,
+  };
+  const candidateComparable = {
+    ...candidate,
+    lastSyncedAt: undefined,
+    lastSyncAttemptAt: undefined,
+    lastRefreshedAt: undefined,
+    updatedAt: undefined,
+  };
+  const dataChanged =
     priceChanged ||
     saleStarted ||
     saleEnded ||
     republished ||
-    JSON.stringify(existing) !== JSON.stringify(work);
+    JSON.stringify(existingComparable) !== JSON.stringify(candidateComparable);
+
+  if (!dataChanged) {
+    return {
+      work: existing,
+      outcome: "unchanged",
+      priceChanged: false,
+      saleStarted: false,
+      saleEnded: false,
+      hidden: false,
+      republished: false,
+    };
+  }
+
+  const work: DmmItem = {
+    ...candidate,
+    lastSyncedAt: now,
+    lastRefreshedAt: now,
+    updatedAt: now,
+  };
 
   return {
     work,
-    outcome: republished ? "republished" : changed ? "updated" : "unchanged",
+    outcome: republished ? "republished" : "updated",
     priceChanged,
     saleStarted,
     saleEnded,
@@ -187,10 +286,22 @@ function markSuccess(existing: DmmItem, apiItem: DmmItem): FanzaSyncProductResul
   };
 }
 
+function markSuccess(
+  existing: DmmItem,
+  apiItem: DmmItem,
+  mode: AdultSyncMode,
+): FanzaSyncProductResult {
+  return mode === ADULT_SYNC_MODE_LIGHT
+    ? markSuccessLight(existing, apiItem)
+    : markSuccessFull(existing, apiItem);
+}
+
 /** 掲載済み作品1件を FANZA API と同期 */
 export async function syncFanzaProduct(
   existing: DmmItem,
+  options?: { mode?: AdultSyncMode },
 ): Promise<FanzaSyncProductResult> {
+  const mode = options?.mode ?? ADULT_SYNC_MODE_FULL;
   const contentId = existing.content_id?.trim();
   if (!contentId) {
     return {
@@ -206,7 +317,7 @@ export async function syncFanzaProduct(
 
   try {
     const apiItem = await fetchFanzaProductItem(contentId);
-    return markSuccess(existing, apiItem);
+    return markSuccess(existing, apiItem, mode);
   } catch (error) {
     if (error instanceof FanzaProductNotFoundError) {
       const { work, hidden } = markNotFound(existing);

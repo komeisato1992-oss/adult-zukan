@@ -14,6 +14,7 @@ import {
   CATALOG_SHARD_DIR_RELATIVE,
   CATALOG_SHARD_VERSION,
   DEFAULT_CATALOG_SHARD_SIZE,
+  diffCatalogShardsByItems,
   formatShardFileName,
   serializeCatalogShardJson,
   shardRelativePath,
@@ -439,4 +440,79 @@ export async function commitFullCatalogAsShardsToGitHub(
 
   await commitGitDataBundle(files, commitLabel);
   return manifest;
+}
+
+/**
+ * 差分のあるシャードだけを commit。件数構成が変わった場合はフル再分割へフォールバック。
+ */
+export async function commitChangedCatalogShardsToGitHub(input: {
+  previousItems: DmmItem[];
+  nextItems: DmmItem[];
+  previousManifest: CatalogManifest;
+  commitLabel: string;
+  indexFiles?: GitHubFileCommit[];
+}): Promise<{
+  filesCommitted: string[];
+  changedShardCount: number;
+  fullRewrite: boolean;
+}> {
+  const prev = dedupeCatalogWorks(input.previousItems).items;
+  const next = dedupeCatalogWorks(input.nextItems).items;
+
+  if (prev.length !== next.length) {
+    const manifest = await commitFullCatalogAsShardsToGitHub(
+      next,
+      input.commitLabel,
+      input.indexFiles ?? [],
+      input.previousManifest.shardSize || DEFAULT_CATALOG_SHARD_SIZE,
+    );
+    return {
+      filesCommitted: [
+        CATALOG_MANIFEST_RELATIVE,
+        ...manifest.shards.map(
+          (s) => `${CATALOG_SHARD_DIR_RELATIVE}/${s.file}`,
+        ),
+        ...(input.indexFiles ?? []).map((f) => f.path),
+      ],
+      changedShardCount: manifest.shards.length,
+      fullRewrite: true,
+    };
+  }
+
+  const changed = diffCatalogShardsByItems(input.previousManifest, prev, next);
+  if (changed.length === 0 && (input.indexFiles?.length ?? 0) === 0) {
+    return { filesCommitted: [], changedShardCount: 0, fullRewrite: false };
+  }
+
+  const nextManifest: CatalogManifest = {
+    ...input.previousManifest,
+    updatedAt: new Date().toISOString(),
+    totalCount: next.length,
+  };
+
+  const files: GitHubFileCommit[] = [
+    {
+      path: CATALOG_MANIFEST_RELATIVE,
+      content: serializeCatalogShardJson(nextManifest),
+    },
+    ...changed.map((shard) => ({
+      path: shardRelativePath(shard.file),
+      content: serializeCatalogShardJson(shard.works),
+    })),
+    ...(input.indexFiles ?? []),
+  ];
+
+  console.log("[github-commit] changed shards only", {
+    changedShardCount: changed.length,
+    files: files.map((f) => f.path),
+    api: "git-data",
+  });
+
+  await commitGitDataBundle(files, input.commitLabel);
+
+  return {
+    filesCommitted: files.map((f) => f.path),
+    changedShardCount: changed.length,
+    fullRewrite: false,
+  };
 }

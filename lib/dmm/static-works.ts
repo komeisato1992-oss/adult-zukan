@@ -1,6 +1,8 @@
 import "server-only";
 
 import { cache } from "react";
+import { existsSync, statSync } from "fs";
+import path from "path";
 import { analyzeCatalogItems } from "@/lib/dmm/catalog-filter-stats";
 import { logCatalogBuildStats } from "@/lib/dmm/catalog-build-log";
 import {
@@ -15,8 +17,15 @@ import {
   readCatalogSnapshot,
   writeCatalogSnapshot,
 } from "@/lib/dmm/catalog-snapshot";
+import { CATALOG_MANIFEST_RELATIVE } from "@/lib/dmm/catalog-shards";
+import {
+  getAdultPublicCatalogTtlSec,
+  isAdultCatalogCacheEnabled,
+} from "@/lib/dmm/cost-flags";
+import { getAdultPublicCatalogMemoryHolder } from "@/lib/dmm/public-catalog-cache";
 import { isDmmConfigured } from "@/lib/dmm/client";
 import type { DmmItem } from "@/lib/dmm/types";
+import { incrPerfCounter } from "@/lib/perf/measure";
 
 /** DMM作品ページのISR再検証間隔（24時間） */
 export const DMM_WORKS_REVALIDATE = 86400;
@@ -35,11 +44,49 @@ function logBuildStatsOnce(
   loggedCatalogBuildStats = true;
 }
 
+function getManifestMtimeMs(): number {
+  const manifestPath = path.join(process.cwd(), CATALOG_MANIFEST_RELATIVE);
+  if (!existsSync(manifestPath)) return 0;
+  try {
+    return statSync(manifestPath).mtimeMs;
+  } catch {
+    return 0;
+  }
+}
+
+function readFromProcessCache(): DmmItem[] | null {
+  if (!isAdultCatalogCacheEnabled()) return null;
+  const holder = getAdultPublicCatalogMemoryHolder();
+  if (!holder.cache) return null;
+  const ttlMs = getAdultPublicCatalogTtlSec() * 1000;
+  const mtimeMs = getManifestMtimeMs();
+  if (mtimeMs !== holder.mtimeMs) return null;
+  if (Date.now() - holder.loadedAt > ttlMs) return null;
+  incrPerfCounter("adult.public.catalog.hit");
+  return holder.cache as DmmItem[];
+}
+
+function writeProcessCache(items: DmmItem[]): void {
+  if (!isAdultCatalogCacheEnabled()) return;
+  const holder = getAdultPublicCatalogMemoryHolder();
+  holder.cache = items;
+  holder.mtimeMs = getManifestMtimeMs();
+  holder.loadedAt = Date.now();
+  incrPerfCounter("adult.public.catalog.store");
+}
+
 async function fetchDmmStaticWorksUncached(): Promise<DmmItem[]> {
+  const fromMem = readFromProcessCache();
+  if (fromMem) {
+    return fromMem;
+  }
+
   if (cachedValidWorks) {
+    writeProcessCache(cachedValidWorks);
     return cachedValidWorks;
   }
 
+  incrPerfCounter("adult.public.catalog.miss");
   const snapshot = readCatalogSnapshot();
 
   if (snapshot.length >= CATALOG_MIN_VALID) {
@@ -50,6 +97,7 @@ async function fetchDmmStaticWorksUncached(): Promise<DmmItem[]> {
     stats.validCount = items.length;
     logBuildStatsOnce(stats, { worksListCount: items.length });
     cachedValidWorks = items;
+    writeProcessCache(items);
     return items;
   }
 
@@ -66,6 +114,7 @@ async function fetchDmmStaticWorksUncached(): Promise<DmmItem[]> {
         worksListCount: validItems.length,
       });
       cachedValidWorks = validItems;
+      writeProcessCache(validItems);
       return validItems;
     }
   }
@@ -78,6 +127,7 @@ async function fetchDmmStaticWorksUncached(): Promise<DmmItem[]> {
     stats.validCount = items.length;
     logBuildStatsOnce(stats, { worksListCount: items.length });
     cachedValidWorks = items;
+    writeProcessCache(items);
     return items;
   }
 
@@ -93,10 +143,11 @@ async function fetchDmmStaticWorksUncached(): Promise<DmmItem[]> {
   });
 
   cachedValidWorks = [];
+  writeProcessCache([]);
   return [];
 }
 
-/** 834件超の配列は unstable_cache 2MB 制限を超えるため React cache のみ使用 */
+/** 834件超の配列は unstable_cache 2MB 制限を超えるため React cache + プロセスTTL */
 export const getDmmStaticWorks = cache(fetchDmmStaticWorksUncached);
 
 export async function getDmmStaticWorkContentIds(): Promise<string[]> {

@@ -1,13 +1,18 @@
 import "server-only";
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "fs";
 import path from "path";
 import {
   buildCatalogIdSet,
   dedupeCatalogWorks,
 } from "@/lib/dmm/catalog-dedupe";
 import { normalizeCatalogSnapshot } from "@/lib/dmm/catalog-snapshot-json";
+import { isAdultCompactCatalogEnabled } from "@/lib/dmm/cost-flags";
+import { assertAdultLocalWriteAllowed } from "@/lib/dmm/write-guard";
+import { clearAdultCatalogMediaCache } from "@/lib/dmm/catalog-media";
+import { invalidateAdultPublicCatalogMemory } from "@/lib/dmm/public-catalog-cache";
 import type { DmmItem } from "@/lib/dmm/types";
+import { incrPerfCounter, measureSync } from "@/lib/perf/measure";
 
 export const CATALOG_SHARD_DIR_RELATIVE = "data/dmm/catalog";
 export const CATALOG_MANIFEST_RELATIVE = "data/dmm/catalog/manifest.json";
@@ -55,10 +60,43 @@ export function clearCatalogShardCache(): void {
   cachedManifest = null;
   cachedWorks = null;
   cachedShards.clear();
+  clearAdultCatalogMediaCache();
+  invalidateAdultPublicCatalogMemory();
 }
 
 function serializeJsonPretty(data: unknown): string {
   return `${JSON.stringify(data, null, 2)}\n`;
+}
+
+function serializeJsonCompact(data: unknown): string {
+  return `${JSON.stringify(data)}\n`;
+}
+
+export function serializeCatalogShardJson(data: unknown): string {
+  return isAdultCompactCatalogEnabled()
+    ? serializeJsonCompact(data)
+    : serializeJsonPretty(data);
+}
+
+function writeJsonAtomic(filePath: string, data: unknown): void {
+  assertAdultLocalWriteAllowed("adult-catalog-shards");
+  mkdirSync(path.dirname(filePath), { recursive: true });
+  const text = measureSync(`adult.stringify:${path.basename(filePath)}`, () =>
+    serializeCatalogShardJson(data),
+  );
+  const tmp = `${filePath}.${process.pid}.tmp`;
+  writeFileSync(tmp, text, "utf-8");
+  try {
+    renameSync(tmp, filePath);
+  } catch {
+    writeFileSync(filePath, text, "utf-8");
+    try {
+      unlinkSync(tmp);
+    } catch {
+      // ignore
+    }
+  }
+  incrPerfCounter("adult.catalog.shard.write");
 }
 
 export function shardRelativePath(file: string): string {
@@ -249,14 +287,9 @@ export function writeCatalogShardsLocally(
   manifest: CatalogManifest,
   shards: Array<{ file: string; works: DmmItem[] }>,
 ): void {
-  mkdirSync(SHARD_DIR, { recursive: true });
-  writeFileSync(MANIFEST_PATH, serializeJsonPretty(manifest), "utf-8");
+  writeJsonAtomic(MANIFEST_PATH, manifest);
   for (const shard of shards) {
-    writeFileSync(
-      path.join(SHARD_DIR, shard.file),
-      serializeJsonPretty(shard.works),
-      "utf-8",
-    );
+    writeJsonAtomic(path.join(SHARD_DIR, shard.file), shard.works);
   }
   clearCatalogShardCache();
 }
@@ -306,4 +339,30 @@ export function buildCatalogIdSetFromLocalShards(): Set<string> {
   return buildCatalogIdSet(getAllCatalogWorks());
 }
 
-export { serializeJsonPretty as serializeCatalogShardJson };
+/**
+ * manifest の並びで old/new を比較し、差分のあるシャードだけ返す。
+ */
+export function diffCatalogShardsByItems(
+  manifest: CatalogManifest,
+  previousItems: DmmItem[],
+  nextItems: DmmItem[],
+): Array<{ file: string; works: DmmItem[] }> {
+  const changed: Array<{ file: string; works: DmmItem[] }> = [];
+  let offset = 0;
+  for (const entry of manifest.shards) {
+    const count = entry.count;
+    const prevChunk = previousItems.slice(offset, offset + count);
+    const nextChunk = nextItems.slice(offset, offset + count);
+    offset += count;
+    if (JSON.stringify(prevChunk) !== JSON.stringify(nextChunk)) {
+      changed.push({ file: entry.file, works: nextChunk });
+    }
+  }
+  // 件数が増えた場合（末尾追記）は呼び出し側で append を使う想定
+  if (nextItems.length > previousItems.length) {
+    // no-op: length mismatch handled by full rewrite callers
+  }
+  return changed;
+}
+
+export { serializeJsonPretty as serializeCatalogShardJsonPretty };

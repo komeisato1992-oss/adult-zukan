@@ -16,12 +16,14 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json().catch(() => ({}))) as {
       batchSize?: number;
+      mode?: "light" | "full";
     };
 
     const { job, alreadyRunning } = await startFanzaSyncJob({
       trigger: "manual",
       batchSize:
         body.batchSize == null ? undefined : Number(body.batchSize),
+      mode: body.mode === "full" ? "full" : "light",
     });
 
     if (alreadyRunning) {

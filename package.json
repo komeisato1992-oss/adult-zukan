@@ -36,6 +36,12 @@
     "doujin:sync:full:dry-run": "node scripts/doujin-sync.mjs full --dry-run",
     "doujin:verify": "node scripts/doujin-verify.mjs",
     "test:doujin-sync-guard": "node scripts/test-doujin-sync-guard.mjs",
+    "adult:raw:dry-run": "node scripts/split-adult-catalog-media.mjs dry-run",
+    "adult:raw:split": "node scripts/split-adult-catalog-media.mjs split",
+    "adult:raw:verify": "node scripts/split-adult-catalog-media.mjs verify",
+    "adult:catalog:format": "node scripts/split-adult-catalog-media.mjs format",
+    "adult:catalog:verify": "node scripts/split-adult-catalog-media.mjs verify",
+    "test:adult-sync-guard": "node scripts/test-adult-sync-guard.mjs",
     "measure:vercel-cost-baseline": "node scripts/measure-vercel-cost-baseline.mjs",
     "measure:doujin-io": "node scripts/measure-doujin-io.mjs"
   },

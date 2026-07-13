@@ -29,9 +29,11 @@ import {
   GitHubCatalogError,
   type CatalogSnapshotHandle,
 } from "@/lib/admin/github-catalog";
+import { commitChangedCatalogShardsToGitHub } from "@/lib/admin/github-catalog-shards";
 import { isGitHubCatalogConfigured } from "@/lib/admin/github-config";
 import { isDmmConfigured } from "@/lib/dmm/client";
 import { filterPublicCatalogWorks } from "@/lib/dmm/catalog-visibility";
+import { getCatalogManifest } from "@/lib/dmm/catalog-shards";
 import { normalizeCatalogContentId, readCatalogSnapshot } from "@/lib/dmm/catalog-snapshot";
 import { syncFanzaProduct } from "@/lib/dmm/fanza-sync-product";
 import {
@@ -39,6 +41,13 @@ import {
   rebuildAllIndexes,
   serializeCatalogIndexes,
 } from "@/lib/dmm/index-builders";
+import {
+  ADULT_SYNC_MODE_FULL,
+  ADULT_SYNC_MODE_LIGHT,
+  isAdultFullSyncEnabled,
+  isAdultLightSyncEnabled,
+  type AdultSyncMode,
+} from "@/lib/dmm/sync-mode";
 import type { FanzaSyncJob, FanzaSyncJobSnapshot, FanzaSyncTrigger } from "@/lib/admin/fanza-sync-types";
 import type { DmmItem } from "@/lib/dmm/types";
 
@@ -223,9 +232,35 @@ async function persistJobSnapshotToGitHub(
 export async function startFanzaSyncJob(input: {
   trigger: FanzaSyncTrigger;
   batchSize?: number;
+  mode?: AdultSyncMode;
 }): Promise<{ job: FanzaSyncJob; alreadyRunning: boolean }> {
   if (!isDmmConfigured()) {
     throw new FanzaSyncError("FANZA API の設定が未完了です。", 503);
+  }
+
+  const mode: AdultSyncMode =
+    input.mode ??
+    (input.trigger === "auto" ? ADULT_SYNC_MODE_LIGHT : ADULT_SYNC_MODE_LIGHT);
+
+  // 手動実行は明示フラグ必須。自動cronは軽量同期を許可（GitHub正規保存）
+  if (input.trigger !== "auto") {
+    if (mode === ADULT_SYNC_MODE_LIGHT && !isAdultLightSyncEnabled()) {
+      throw new FanzaSyncError(
+        "軽量同期は ADULT_LIGHT_SYNC_ENABLED=true のときだけ実行できます",
+        403,
+      );
+    }
+    if (mode === ADULT_SYNC_MODE_FULL && !isAdultFullSyncEnabled()) {
+      throw new FanzaSyncError(
+        "完全同期は ADULT_FULL_SYNC_ENABLED=true のときだけ実行できます",
+        403,
+      );
+    }
+  } else if (mode === ADULT_SYNC_MODE_FULL && !isAdultFullSyncEnabled()) {
+    throw new FanzaSyncError(
+      "自動cronでの完全同期は ADULT_FULL_SYNC_ENABLED=true が必要です",
+      403,
+    );
   }
 
   const snapshot = await loadFanzaSyncSnapshot();
@@ -244,6 +279,7 @@ export async function startFanzaSyncJob(input: {
     trigger: input.trigger,
     targetCount: items.length,
     batchSize: input.batchSize,
+    mode,
   });
 
   const nextSnapshot: FanzaSyncJobSnapshot = {
@@ -332,11 +368,20 @@ export async function processFanzaSyncBatch(options?: {
   const results = await mapWithConcurrency(
     batch,
     FANZA_SYNC_DEFAULT_CONCURRENCY,
-    syncFanzaProduct,
+    (item) =>
+      syncFanzaProduct(item, {
+        mode: (job.mode as AdultSyncMode) ?? ADULT_SYNC_MODE_FULL,
+      }),
   );
 
   const updatedJob = updateJobFromBatch(job, batch, results);
   const nextSnapshot = buildSnapshotAfterBatch(updatedJob, snapshot.history);
+  const batchUpdatedCount = results.filter(
+    (result) =>
+      result.outcome === "updated" ||
+      result.outcome === "republished" ||
+      result.outcome === "hidden",
+  ).length;
 
   if (options?.dryRun) {
     persistFanzaSyncSnapshotLocally(nextSnapshot);
@@ -356,22 +401,59 @@ export async function processFanzaSyncBatch(options?: {
 
   while (retryCount <= FANZA_SYNC_COMMIT_MAX_RETRIES) {
     try {
-      const { items, envelope, raw } = await loadCatalogForSync();
-      const mergedItems = applySyncResults(items, batch, results);
-      const publicItems = filterPublicCatalogWorks(mergedItems);
-      const indexes = rebuildAllIndexes(publicItems);
-      const indexFiles = [
-        ...serializeCatalogIndexes(indexes),
-        serializeFanzaSyncJobFile(nextSnapshot),
-      ];
-
-      await commitCatalogBundleToGitHub(
-        envelope,
-        mergedItems,
-        `FANZA sync batch ${updatedJob.processedCount}/${updatedJob.targetCount}`,
-        indexFiles,
-        raw,
+      // ジョブ状態は常に保存
+      await persistJobSnapshotToGitHub(
+        nextSnapshot,
+        `FANZA sync job progress ${updatedJob.processedCount}/${updatedJob.targetCount}`,
       );
+
+      if (batchUpdatedCount === 0) {
+        // カタログ実データ変更なし → カタログ/インデックスは触らない
+        committedToGitHub = true;
+        persistFanzaSyncSnapshotLocally(nextSnapshot);
+        break;
+      }
+
+      const catalog = await loadCatalogForSync();
+      const previousItems = catalog.items;
+      const mergedItems = applySyncResults(previousItems, batch, results);
+      const mode = (job.mode as AdultSyncMode) ?? ADULT_SYNC_MODE_FULL;
+      const shouldRebuildIndexes = mode === ADULT_SYNC_MODE_FULL;
+      const indexFiles = shouldRebuildIndexes
+        ? [
+            ...serializeCatalogIndexes(
+              rebuildAllIndexes(filterPublicCatalogWorks(mergedItems)),
+            ),
+          ]
+        : [];
+
+      const manifest =
+        getCatalogManifest() ??
+        ({
+          version: 1,
+          totalCount: previousItems.length,
+          shardSize: 500,
+          updatedAt: new Date().toISOString(),
+          shards: [],
+        } as const);
+
+      if (!manifest.shards.length) {
+        await commitCatalogBundleToGitHub(
+          catalog.envelope,
+          mergedItems,
+          `FANZA sync batch ${updatedJob.processedCount}/${updatedJob.targetCount}`,
+          indexFiles,
+          catalog.raw,
+        );
+      } else {
+        await commitChangedCatalogShardsToGitHub({
+          previousItems,
+          nextItems: mergedItems,
+          previousManifest: manifest,
+          commitLabel: `FANZA sync batch ${updatedJob.processedCount}/${updatedJob.targetCount}`,
+          indexFiles,
+        });
+      }
 
       committedToGitHub = true;
       persistFanzaSyncSnapshotLocally(nextSnapshot);

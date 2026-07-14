@@ -50,7 +50,7 @@ export function MobileNav({ onOpenChange }: MobileNavProps) {
         aria-expanded={open}
         aria-controls="mobile-nav-menu"
         aria-label="メニューを開く"
-        className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-border text-foreground"
+        className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border text-foreground"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -58,7 +58,7 @@ export function MobileNav({ onOpenChange }: MobileNavProps) {
           viewBox="0 0 24 24"
           strokeWidth={2}
           stroke="currentColor"
-          className="h-5 w-5"
+          className="h-[22px] w-[22px]"
           aria-hidden="true"
         >
           {open ? (

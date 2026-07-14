@@ -241,7 +241,7 @@ body {
 /* スマートフォンのみ: カード画像・余白・アンカー（PC ≥769px は変更しない） */
 @media (max-width: 768px) {
   .work-image-frame--landscape {
-    aspect-ratio: 2 / 1;
+    aspect-ratio: 4 / 3;
   }
 
   .work-image-frame--portrait {
@@ -256,7 +256,7 @@ body {
   h2,
   h3,
   [id] {
-    scroll-margin-top: calc(64px + env(safe-area-inset-top, 0px));
+    scroll-margin-top: calc(56px + env(safe-area-inset-top, 0px));
   }
 
   .page-h1-mobile {

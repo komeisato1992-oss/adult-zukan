@@ -116,7 +116,7 @@ export function ActressWorksSection({
 
       {pagination.items.length > 0 ? (
         <>
-          <div className="grid grid-cols-2 gap-2.5 min-[769px]:gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-1.5 min-[390px]:grid-cols-3 min-[390px]:gap-1.5 min-[769px]:grid-cols-3 min-[769px]:gap-4 lg:grid-cols-4">
             {pagination.items.map((item) => (
               <DmmWorkListCard key={item.content_id} item={item} />
             ))}

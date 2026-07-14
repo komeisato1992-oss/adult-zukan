@@ -14,6 +14,8 @@ export const siteConfig = {
   accentColor: brand.primary,
   logo: "/logo.png",
   logoIcon: "/logo-icon.png",
+  /** スマートフォンコンパクトヘッダー専用（PCは logo を維持） */
+  logoCompact: "/images/adult-zukan-logo-horizontal.webp",
 } as const;
 
 export const pageIntros = {

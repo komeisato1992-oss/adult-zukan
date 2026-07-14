@@ -8,6 +8,7 @@ import {
   type WorkSortOption,
 } from "@/lib/works/sort";
 import type { WorkListCardItem } from "@/lib/works/work-list-card-item.types";
+import { WORK_LIST_GRID_CLASSNAME } from "@/components/works/work-list-grid";
 
 type PaginatedWorkListSectionProps = {
   pageItems: WorkListCardItem[];
@@ -46,7 +47,7 @@ export function PaginatedWorkListSection({
   showRank = false,
   rankOffset = 0,
   emptyMessage = "該当する作品はありません。",
-  className = "grid grid-cols-2 gap-2.5 min-[769px]:gap-4 sm:grid-cols-3 lg:grid-cols-4",
+  className = WORK_LIST_GRID_CLASSNAME,
 }: PaginatedWorkListSectionProps) {
   if (pageItems.length === 0) {
     return (

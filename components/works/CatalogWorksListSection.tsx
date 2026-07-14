@@ -17,6 +17,7 @@ import {
   parseWorkSortParam,
   sortWorks,
 } from "@/lib/works/sort";
+import { WORK_LIST_GRID_CLASSNAME } from "@/components/works/work-list-grid";
 
 type CatalogWorksListSectionProps = {
   items: DmmItem[];
@@ -44,7 +45,7 @@ function CatalogWorksListSectionInner({
   paginationBasePath,
   initialPage = 1,
   query = {},
-  className = "grid grid-cols-2 gap-2.5 min-[769px]:gap-4 sm:grid-cols-3 lg:grid-cols-4",
+  className = WORK_LIST_GRID_CLASSNAME,
   totalItems: serverTotalItems,
   totalPages: serverTotalPages,
 }: CatalogWorksListSectionProps) {

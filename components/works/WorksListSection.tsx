@@ -19,6 +19,7 @@ import {
   SALE_DEFAULT_WORK_SORT,
 } from "@/lib/works/sort";
 import type { WorkListCardItem } from "@/lib/works/work-list-card-item.types";
+import { WORK_LIST_GRID_CLASSNAME } from "@/components/works/work-list-grid";
 
 type WorksListSectionProps = {
   pageItems: WorkListCardItem[];
@@ -42,7 +43,7 @@ const WorksListGrid = memo(function WorksListGrid({
   priceDisplayMode = "default",
 }: WorksListGridProps) {
   return (
-    <div className="grid grid-cols-2 gap-2.5 min-[769px]:gap-4 sm:grid-cols-3 lg:grid-cols-4">
+    <div className={WORK_LIST_GRID_CLASSNAME}>
       {items.map((item) => (
         <WorkListCard
           key={item.contentId}

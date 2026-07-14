@@ -7,6 +7,7 @@ import {
   parsePageParam,
 } from "@/lib/pagination";
 import { filterDisplayableItems } from "@/lib/dmm/filter";
+import { WORK_LIST_GRID_CLASSNAME } from "@/components/works/work-list-grid";
 
 type DmmCatalogWorksGridProps = {
   items: DmmItem[];
@@ -19,7 +20,7 @@ type DmmCatalogWorksGridProps = {
 
 export function DmmCatalogWorksGrid({
   items,
-  className = "grid grid-cols-2 gap-2.5 min-[769px]:gap-4 sm:grid-cols-3 lg:grid-cols-4",
+  className = WORK_LIST_GRID_CLASSNAME,
   currentPage,
   pageSize = CATALOG_DETAIL_PAGE_SIZE,
   paginationBasePath,

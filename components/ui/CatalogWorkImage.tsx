@@ -3,11 +3,11 @@ import Image from "next/image";
 const VARIANTS = {
   landscape: {
     frameClass: "work-image-frame work-image-frame--landscape aspect-[3/2]",
-    defaultSizes: "(max-width: 640px) 50vw, 25vw",
+    defaultSizes: "(max-width: 389px) 50vw, (max-width: 768px) 33vw, 25vw",
   },
   portrait: {
     frameClass: "work-image-frame work-image-frame--portrait aspect-[2/3]",
-    defaultSizes: "(max-width: 640px) 50vw, 25vw",
+    defaultSizes: "(max-width: 389px) 50vw, (max-width: 768px) 33vw, 25vw",
   },
 } as const;
 

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { CompareRelatedWorkCard } from "@/components/compare/CompareRelatedWorkCard";
 import { getSimilarWorks } from "@/lib/compare/get-similar-works";
 import type { BothSimilarWorkCard } from "@/lib/compare/types";
+import { COMPARE_RELATED_GRID_CLASSNAME } from "@/components/works/work-list-grid";
 
 type CompareSingleWorkSuggestionsProps = {
   contentId: string;
@@ -58,7 +59,7 @@ export async function CompareSingleWorkSuggestions({
       <p className="mt-2 text-sm text-muted">
         「比較＋」で2作品目以降を追加できます（最大4作品）
       </p>
-      <div className="mt-4 grid grid-cols-1 gap-3 min-[769px]:grid-cols-3 min-[1100px]:grid-cols-4 min-[1400px]:grid-cols-5">
+      <div className={`mt-4 ${COMPARE_RELATED_GRID_CLASSNAME}`}>
         {works.map((work) => (
           <CompareRelatedWorkCard
             key={work.contentId}

@@ -1,6 +1,7 @@
 import { DmmRelatedWorkCard } from "@/components/works/DmmRelatedWorkCard";
 import type { DmmItem } from "@/lib/dmm/types";
 import { filterItemsWithValidImage } from "@/lib/works";
+import { WORK_RELATED_GRID_CLASSNAME } from "@/components/works/work-list-grid";
 
 type DmmRelatedWorksProps = {
   items: DmmItem[];
@@ -29,7 +30,7 @@ export function DmmRelatedWorks({
       >
         {title}
       </h2>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className={WORK_RELATED_GRID_CLASSNAME}>
         {visibleItems.map((item) => (
           <DmmRelatedWorkCard key={item.content_id} item={item} />
         ))}

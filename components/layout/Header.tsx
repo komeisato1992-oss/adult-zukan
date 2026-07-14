@@ -13,7 +13,7 @@ import { MainNav } from "@/components/layout/MainNav";
 const SCROLL_ENTER_COMPACT = 56;
 const SCROLL_EXIT_COMPACT = 20;
 
-function SearchIcon({ className = "h-5 w-5" }: { className?: string }) {
+function SearchIcon({ className = "h-[22px] w-[22px]" }: { className?: string }) {
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -126,61 +126,69 @@ export function Header() {
 
       {/* スマートフォン (≤768px) */}
       <div className="min-[769px]:hidden">
-        <div
-          className={`mx-auto max-w-7xl px-3 transition-[padding] duration-200 ease-out ${
-            showExpandedMobile ? "py-3" : "py-0"
-          }`}
-        >
-          <div
-            className={`flex items-center gap-2 ${
-              showExpandedMobile ? "min-h-10" : "h-14"
-            }`}
-          >
+        {showExpandedMobile ? (
+          <div className="mx-auto max-w-7xl px-3 py-3">
+            <div className="flex min-h-10 items-center gap-2">
+              <Link
+                href="/"
+                className="shrink-0"
+                aria-label={`${siteConfig.name} トップページ`}
+              >
+                <Image
+                  src={siteConfig.logo}
+                  alt={siteConfig.name}
+                  width={240}
+                  height={64}
+                  className="h-8 w-auto max-w-[160px]"
+                  priority
+                  sizes="160px"
+                />
+              </Link>
+              <div className="ml-auto flex shrink-0 items-center">
+                <Suspense fallback={null}>
+                  <MobileNav onOpenChange={setMenuOpen} />
+                </Suspense>
+              </div>
+            </div>
+            <div className="mt-3">
+              <SearchBar compact inputId="site-search-mobile-expanded" />
+            </div>
+          </div>
+        ) : (
+          <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 overflow-hidden px-3">
             <Link
               href="/"
-              className="shrink-0"
+              className="flex h-10 max-w-[min(58vw,200px)] shrink items-center overflow-hidden"
               aria-label={`${siteConfig.name} トップページ`}
             >
               <Image
-                src={siteConfig.logo}
+                src={siteConfig.logoCompact}
                 alt={siteConfig.name}
-                width={240}
-                height={64}
-                className={
-                  showExpandedMobile
-                    ? "h-8 w-auto max-w-[160px] transition-[height,max-width] duration-200"
-                    : "h-7 w-auto max-w-[128px] transition-[height,max-width] duration-200"
-                }
+                width={621}
+                height={221}
+                className="h-9 max-h-9 w-auto max-w-full object-contain object-left"
                 priority
-                sizes="160px"
+                sizes="(max-width: 390px) 140px, 200px"
               />
             </Link>
 
-            <div className="ml-auto flex shrink-0 items-center gap-1.5">
-              {!showExpandedMobile ? (
-                <button
-                  type="button"
-                  onClick={() => setSearchOpen((open) => !open)}
-                  aria-expanded={searchOpen}
-                  aria-controls="mobile-header-search"
-                  aria-label={searchOpen ? "検索を閉じる" : "検索を開く"}
-                  className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-border text-foreground"
-                >
-                  <SearchIcon />
-                </button>
-              ) : null}
+            <div className="ml-auto flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                onClick={() => setSearchOpen((open) => !open)}
+                aria-expanded={searchOpen}
+                aria-controls="mobile-header-search"
+                aria-label={searchOpen ? "検索を閉じる" : "検索を開く"}
+                className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border text-foreground"
+              >
+                <SearchIcon />
+              </button>
               <Suspense fallback={null}>
                 <MobileNav onOpenChange={setMenuOpen} />
               </Suspense>
             </div>
           </div>
-
-          {showExpandedMobile ? (
-            <div className="mt-3 transition-opacity duration-200">
-              <SearchBar compact inputId="site-search-mobile-expanded" />
-            </div>
-          ) : null}
-        </div>
+        )}
 
         {!showExpandedMobile && searchOpen ? (
           <div

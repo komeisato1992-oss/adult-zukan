@@ -11,6 +11,7 @@ import type {
   RankedSeriesEntity,
 } from "@/lib/ranking/entity-ranking";
 import { isValidImageUrl } from "@/lib/works";
+import { WORK_LIST_GRID_CLASSNAME } from "@/components/works/work-list-grid";
 
 type RankedWorkListProps = {
   works: Work[];
@@ -19,7 +20,7 @@ type RankedWorkListProps = {
 
 export function RankedWorkList({ works, showRank = true }: RankedWorkListProps) {
   return (
-    <ol className="grid grid-cols-2 gap-2.5 min-[769px]:gap-4 sm:grid-cols-3 lg:grid-cols-4">
+    <ol className={WORK_LIST_GRID_CLASSNAME}>
       {works.map((work, index) => (
         <li key={work.slug} className="relative">
           {showRank && (
@@ -48,7 +49,7 @@ export function DmmRankedWorkList({
   }
 
   return (
-    <ol className="grid grid-cols-2 gap-2.5 min-[769px]:gap-4 sm:grid-cols-3 lg:grid-cols-4">
+    <ol className={WORK_LIST_GRID_CLASSNAME}>
       {items.map((item, index) => (
         <li key={item.contentId} className="relative">
           {showRank && (

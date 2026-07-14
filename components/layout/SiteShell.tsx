@@ -29,7 +29,7 @@ export function SiteShell({ children }: SiteShellProps) {
   return (
     <>
       <Header />
-      <main className="flex-1 max-[768px]:pb-[calc(88px+env(safe-area-inset-bottom,0px))]">
+      <main className="flex-1 max-[768px]:pb-[calc(96px+env(safe-area-inset-bottom,0px))]">
         {children}
       </main>
       <CompareFloatingButton />

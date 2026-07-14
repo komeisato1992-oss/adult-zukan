@@ -51,6 +51,24 @@ export function getDmmItemPrice(item: DmmItem): string | undefined {
   return formatDmmItemPrice(item);
 }
 
+/** 再生時間（DMM volume）。数値のみの場合は「○分」を付与 */
+export function getDmmItemVolumeLabel(item: DmmItem): string | undefined {
+  const raw = item.volume?.trim();
+  if (!raw) return undefined;
+  if (/分|時間|:/.test(raw)) return raw;
+  if (/^\d+$/.test(raw)) return `${raw}分`;
+  return raw;
+}
+
+/** 評価表示（例: ★4.82）。average が無い場合は非表示 */
+export function getDmmItemReviewLabel(item: DmmItem): string | undefined {
+  const averageRaw = item.review?.average?.trim();
+  if (!averageRaw) return undefined;
+  const average = Number.parseFloat(averageRaw);
+  if (!Number.isFinite(average) || average <= 0) return undefined;
+  return `★${average.toFixed(2)}`;
+}
+
 export function getDmmSampleImages(item: DmmItem): string[] {
   const sample = item.sampleImageURL;
   if (!sample) return [];

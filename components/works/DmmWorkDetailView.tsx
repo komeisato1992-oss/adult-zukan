@@ -11,6 +11,8 @@ import {
   getDmmItemLabelName,
   getDmmItemMakerName,
   getDmmItemPrice,
+  getDmmItemReviewLabel,
+  getDmmItemVolumeLabel,
   getDmmSampleImages,
   getDmmSampleMovieUrl,
 } from "@/lib/dmm/display";
@@ -70,6 +72,7 @@ export async function DmmWorkDetailView({ item }: DmmWorkDetailViewProps) {
           <DmmWorkDetailBody
             item={item}
             fanzaUrl={fanzaUrl}
+            description={description}
             descriptionTeaser={descriptionTeaser}
             imageUrl={imageUrl}
             sampleImages={sampleImages}
@@ -80,6 +83,8 @@ export async function DmmWorkDetailView({ item }: DmmWorkDetailViewProps) {
             labelName={getDmmItemLabelName(item)}
             actressNameList={getDmmItemActressNameList(item)}
             price={getDmmItemPrice(item)}
+            volumeLabel={getDmmItemVolumeLabel(item)}
+            reviewLabel={getDmmItemReviewLabel(item)}
             releaseDate={getDmmReleaseDateInfo(item)}
           />
           <DmmWorkInternalLinks sections={internalLinkSections} />

@@ -30,7 +30,7 @@ export function DmmSampleMovieThumbnail({
           alt={`${title} サンプル動画`}
           fill
           className="object-cover"
-          sizes="280px"
+          sizes="(max-width: 768px) 92vw, 280px"
           unoptimized
         />
         <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/40 transition-colors hover:bg-black/50">

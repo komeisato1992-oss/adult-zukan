@@ -1,0 +1,18 @@
+{
+  "status": "IDLE",
+  "lastWorkAt": null,
+  "lastPromoteAt": null,
+  "lastPromoteSha": null,
+  "deployState": "none",
+  "deployStartedAt": null,
+  "productionUrl": null,
+  "errorSummary": null,
+  "errorCode": null,
+  "failedStage": null,
+  "httpStatus": null,
+  "retryable": null,
+  "lockToken": null,
+  "lockExpiresAt": null,
+  "cumulativeAdded": 0,
+  "cumulativeUpdated": 0
+}

@@ -40,7 +40,7 @@ export async function DmmWorkDetailView({ item }: DmmWorkDetailViewProps) {
     ? (sampleImages[0] ?? imageUrl)
     : undefined;
   const fanzaUrl = getDmmFanzaUrl(item);
-  const fanzaTvUrl = getFanzaTvAffiliateUrl(item.content_id);
+  const fanzaTvUrl = getFanzaTvAffiliateUrl();
   const description = await resolveDmmItemDescription(item);
   const descriptionTeaser = description
     ? getDmmDescriptionTeaser(description)

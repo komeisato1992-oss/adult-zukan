@@ -47,28 +47,54 @@ export function AdminShell({ children }: AdminShellProps) {
         ) : null}
 
         <div className="flex min-w-0 max-w-full flex-1 flex-col overflow-x-hidden">
-          <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-white px-4 py-3">
-            <div className="flex min-w-0 flex-1 items-center gap-3">
+          <header className="border-b border-border bg-white px-4 py-2.5 md:px-4 md:py-3">
+            {/* スマホ: 1段目 メニュー / ログアウト */}
+            <div className="flex items-center justify-between gap-2 md:hidden">
               <button
                 type="button"
-                className="inline-flex h-11 min-h-[44px] items-center rounded-lg border border-border px-3 text-sm lg:hidden"
+                className="inline-flex h-11 min-h-[44px] items-center rounded-lg border border-border px-3 text-sm"
                 onClick={() => setMobileOpen(true)}
               >
                 メニュー
               </button>
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={loggingOut}
+                className="inline-flex h-11 min-h-[44px] items-center rounded-lg border border-border px-3 text-sm text-foreground disabled:opacity-60"
+              >
+                {loggingOut ? "ログアウト中..." : "ログアウト"}
+              </button>
+            </div>
+            {/* スマホ: 2段目 サイト切替 100% */}
+            <div className="mt-2 md:hidden">
               <AdminSiteSwitcher />
             </div>
-            <button
-              type="button"
-              onClick={handleLogout}
-              disabled={loggingOut}
-              className="inline-flex h-11 min-h-[44px] items-center rounded-lg border border-border px-3 text-sm text-foreground transition-colors hover:border-accent hover:text-accent disabled:opacity-60"
-            >
-              {loggingOut ? "ログアウト中..." : "ログアウト"}
-            </button>
+
+            {/* PC: 既存横並び */}
+            <div className="hidden items-center justify-between gap-3 md:flex">
+              <div className="flex min-w-0 flex-1 items-center gap-3">
+                <button
+                  type="button"
+                  className="inline-flex h-11 min-h-[44px] items-center rounded-lg border border-border px-3 text-sm lg:hidden"
+                  onClick={() => setMobileOpen(true)}
+                >
+                  メニュー
+                </button>
+                <AdminSiteSwitcher />
+              </div>
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={loggingOut}
+                className="inline-flex h-11 min-h-[44px] items-center rounded-lg border border-border px-3 text-sm text-foreground transition-colors hover:border-accent hover:text-accent disabled:opacity-60"
+              >
+                {loggingOut ? "ログアウト中..." : "ログアウト"}
+              </button>
+            </div>
           </header>
 
-          <main className="min-w-0 max-w-full flex-1 overflow-x-hidden p-4 sm:p-6">
+          <main className="min-w-0 max-w-full flex-1 overflow-x-hidden p-4 md:p-6">
             <div className="mx-auto w-full max-w-full overflow-x-hidden">
               {children}
             </div>

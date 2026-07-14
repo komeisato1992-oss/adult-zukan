@@ -44,19 +44,19 @@ export default async function DoujinWorksAdminPage({ searchParams }: PageProps) 
   });
 
   return (
-    <div className="space-y-4" data-site-type="doujin">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+    <div className="space-y-3 md:space-y-4" data-site-type="doujin">
+      <div className="flex flex-wrap items-end justify-between gap-2 md:gap-3">
         <div>
-          <h1 className="border-l-4 border-[#F78FA7] pl-3 text-2xl font-bold">
+          <h1 className="border-l-4 border-[#F78FA7] pl-3 text-2xl font-bold leading-tight">
             同人作品管理
           </h1>
-          <p className="mt-2 text-sm text-muted">
+          <p className="mt-1.5 hidden text-sm text-muted md:mt-2 md:block">
             同人カタログの一覧・検索・絞り込み（site_type=doujin）
           </p>
         </div>
         <Link
           href="/admin/doujin"
-          className="inline-flex h-10 items-center rounded-lg border border-border px-3 text-sm"
+          className="inline-flex h-11 min-h-[44px] items-center rounded-lg border border-border px-3 text-sm md:h-10"
         >
           ダッシュボードへ
         </Link>
@@ -73,6 +73,10 @@ export default async function DoujinWorksAdminPage({ searchParams }: PageProps) 
           sort={sort}
           published={published}
           sale={sale}
+          circleId={pick(params.circleId)}
+          authorId={pick(params.authorId)}
+          seriesId={pick(params.seriesId)}
+          genreId={pick(params.genreId)}
           filters={result.filters}
         />
       </Suspense>

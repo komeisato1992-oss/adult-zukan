@@ -29,20 +29,28 @@ export function AdminSiteSwitcher() {
 
   return (
     <div
-      className="flex max-w-full items-center gap-1 overflow-x-auto"
+      className="grid w-full grid-cols-2 gap-0 overflow-hidden rounded-lg border border-border md:flex md:max-w-full md:w-auto md:items-center md:gap-1 md:overflow-visible md:rounded-none md:border-0"
       role="tablist"
       aria-label="管理対象サイト"
     >
       {TABS.map((tab) => {
         const selected = tab.site === active;
-        const accent =
+        const mobileAccent =
           tab.site === "doujin"
             ? selected
-              ? "border-[#F78FA7] bg-[#fff0f4] text-[#e56b8a]"
-              : "border-border bg-white text-muted hover:border-[#F78FA7] hover:text-[#e56b8a]"
+              ? "bg-[#fff0f4] text-[#e56b8a]"
+              : "bg-white text-muted"
             : selected
-              ? "border-accent bg-accent-light text-accent"
-              : "border-border bg-white text-muted hover:border-accent hover:text-accent";
+              ? "bg-accent-light text-accent"
+              : "bg-white text-muted";
+        const desktopAccent =
+          tab.site === "doujin"
+            ? selected
+              ? "md:border-[#F78FA7] md:bg-[#fff0f4] md:text-[#e56b8a]"
+              : "md:border-border md:bg-white md:text-muted md:hover:border-[#F78FA7] md:hover:text-[#e56b8a]"
+            : selected
+              ? "md:border-accent md:bg-accent-light md:text-accent"
+              : "md:border-border md:bg-white md:text-muted md:hover:border-accent md:hover:text-accent";
 
         return (
           <Link
@@ -50,7 +58,9 @@ export function AdminSiteSwitcher() {
             href={adminSiteHomeHref(tab.site)}
             role="tab"
             aria-selected={selected}
-            className={`inline-flex h-9 shrink-0 items-center rounded-full border px-3 text-xs font-semibold transition-colors sm:h-10 sm:px-4 sm:text-sm ${accent}`}
+            className={`inline-flex h-11 min-h-[44px] items-center justify-center px-2 text-center text-sm font-semibold transition-colors md:h-10 md:shrink-0 md:rounded-full md:border md:px-4 ${mobileAccent} ${desktopAccent} ${
+              selected ? "relative z-[1]" : ""
+            } ${tab.site === "adult" ? "border-r border-border md:border-r" : ""}`}
           >
             {tab.label}
           </Link>

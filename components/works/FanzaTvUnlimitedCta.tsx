@@ -51,7 +51,7 @@ export function FanzaTvUnlimitedCta({
         <span aria-hidden>↗</span>
       </a>
       <p className="mt-1.5 text-center text-[11px] leading-snug text-muted min-[769px]:text-[12px]">
-        14日無料でトライアル！登録はこちらから
+        14日無料でトライアル！
       </p>
     </div>
   );

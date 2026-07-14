@@ -1,7 +1,7 @@
 {
   "version": 3,
-  "updatedAt": "2026-07-14T09:31:36.454Z",
-  "lastSuccessfulAt": "2026-07-14T09:31:36.454Z",
+  "updatedAt": "2026-07-14T11:55:08.616Z",
+  "lastSuccessfulAt": "2026-07-14T11:55:08.616Z",
   "configured": true,
   "propertyId": "544245702",
   "connectionStatus": "connected",
@@ -20,14 +20,14 @@
   "periods": {
     "1": {
       "current": {
-        "users": 116,
-        "newUsers": 103,
-        "sessions": 121,
-        "pageViews": 169,
-        "avgEngagementSeconds": 8.422413793103448,
-        "eventCount": 490,
-        "bounceRate": 0.9834710743801653,
-        "pagesPerSession": 1.396694214876033
+        "users": 134,
+        "newUsers": 116,
+        "sessions": 139,
+        "pageViews": 183,
+        "avgEngagementSeconds": 8.380597014925373,
+        "eventCount": 540,
+        "bounceRate": 0.9856115107913669,
+        "pagesPerSession": 1.316546762589928
       },
       "previous": {
         "users": 155,
@@ -42,14 +42,14 @@
     },
     "7": {
       "current": {
-        "users": 922,
-        "newUsers": 910,
-        "sessions": 999,
-        "pageViews": 1562,
-        "avgEngagementSeconds": 13.898047722342733,
-        "eventCount": 4373,
-        "bounceRate": 0.7317317317317318,
-        "pagesPerSession": 1.5635635635635636
+        "users": 940,
+        "newUsers": 923,
+        "sessions": 1017,
+        "pageViews": 1576,
+        "avgEngagementSeconds": 13.787234042553191,
+        "eventCount": 4423,
+        "bounceRate": 0.7364798426745329,
+        "pagesPerSession": 1.5496558505408062
       },
       "previous": {
         "users": 103,
@@ -64,14 +64,14 @@
     },
     "28": {
       "current": {
-        "users": 1022,
-        "newUsers": 1013,
-        "sessions": 1125,
-        "pageViews": 1942,
-        "avgEngagementSeconds": 16.03620352250489,
-        "eventCount": 5147,
-        "bounceRate": 0.7315555555555555,
-        "pagesPerSession": 1.7262222222222223
+        "users": 1040,
+        "newUsers": 1026,
+        "sessions": 1143,
+        "pageViews": 1956,
+        "avgEngagementSeconds": 15.899038461538462,
+        "eventCount": 5197,
+        "bounceRate": 0.7357830271216098,
+        "pagesPerSession": 1.711286089238845
       },
       "previous": {
         "users": 0,
@@ -86,14 +86,14 @@
     },
     "90": {
       "current": {
-        "users": 1022,
-        "newUsers": 1013,
-        "sessions": 1125,
-        "pageViews": 1942,
-        "avgEngagementSeconds": 16.03620352250489,
-        "eventCount": 5147,
-        "bounceRate": 0.7315555555555555,
-        "pagesPerSession": 1.7262222222222223
+        "users": 1040,
+        "newUsers": 1026,
+        "sessions": 1143,
+        "pageViews": 1956,
+        "avgEngagementSeconds": 15.899038461538462,
+        "eventCount": 5197,
+        "bounceRate": 0.7357830271216098,
+        "pagesPerSession": 1.711286089238845
       },
       "previous": {
         "users": 0,
@@ -166,10 +166,10 @@
     },
     {
       "date": "2026-07-14",
-      "users": 116,
-      "newUsers": 103,
-      "pageViews": 169,
-      "sessions": 121
+      "users": 134,
+      "newUsers": 116,
+      "pageViews": 183,
+      "sessions": 139
     }
   ],
   "topPages": [
@@ -199,9 +199,9 @@
     },
     {
       "path": "/works/ofje00615",
-      "pageViews": 44,
-      "users": 39,
-      "avgEngagementSeconds": 4.282051282051282
+      "pageViews": 45,
+      "users": 40,
+      "avgEngagementSeconds": 4.275
     },
     {
       "path": "/doujin",
@@ -297,23 +297,23 @@
   "sources": [
     {
       "source": "Organic Search",
-      "sessions": 820,
-      "users": 798
+      "sessions": 826,
+      "users": 804
     },
     {
       "source": "Direct",
-      "sessions": 187,
-      "users": 156
+      "sessions": 189,
+      "users": 158
     },
     {
       "source": "Unassigned",
-      "sessions": 50,
-      "users": 44
+      "sessions": 60,
+      "users": 54
     },
     {
       "source": "Cross-network",
-      "sessions": 39,
-      "users": 39
+      "sessions": 43,
+      "users": 43
     },
     {
       "source": "AI Assistant",

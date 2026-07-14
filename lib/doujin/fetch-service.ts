@@ -29,10 +29,14 @@ export type DoujinFetchRequest = {
   hits: number;
   offset?: number;
   keyword?: string;
+  /** 作品ID指定（keywordより優先） */
+  contentId?: string;
   sort?: string;
   site?: string;
   service?: string;
   floor?: string;
+  /** true のとき永続化せずプレビューのみ */
+  dryRun?: boolean;
 };
 
 export type DoujinFetchSummary = {
@@ -46,6 +50,7 @@ export type DoujinFetchSummary = {
   errorCount: number;
   nextOffset: number;
   durationMs: number;
+  dryRun?: boolean;
   normalizedPreview?: NormalizedDoujinApiItem[];
 };
 
@@ -145,7 +150,10 @@ function validateFetchRequest(input: DoujinFetchRequest): {
 export async function runDoujinFetch(
   input: DoujinFetchRequest,
 ): Promise<DoujinFetchSummary> {
-  assertDoujinLocalWriteAllowed("doujin-fetch");
+  const dryRun = Boolean(input.dryRun);
+  if (!dryRun) {
+    assertDoujinLocalWriteAllowed("doujin-fetch");
+  }
   if (!isDmmConfigured()) {
     throw new Error("DMM API credentials are not configured");
   }
@@ -159,9 +167,17 @@ export async function runDoujinFetch(
     throw new Error(floorResolved.error);
   }
 
-  const { hits, offset, keyword, sort } = validateFetchRequest(input);
+  const contentId = input.contentId?.trim() || undefined;
+  const validated = validateFetchRequest({
+    ...input,
+    // 作品ID指定時は keyword に載せ、件数1件・offset1で取得
+    keyword: contentId || input.keyword,
+    hits: contentId ? 1 : input.hits,
+    offset: contentId ? 1 : input.offset,
+  });
+  const { hits, offset, keyword, sort } = validated;
   resetPerfCounters();
-  const jobId = `job-${Date.now()}`;
+  const jobId = `job-${Date.now()}${dryRun ? "-preview" : ""}`;
   const startedAt = new Date().toISOString();
   const startedMs = Date.now();
 
@@ -184,16 +200,20 @@ export async function runDoujinFetch(
     startedAt,
     stopRequested: false,
   };
-  saveDoujinFetchJob(job);
+  if (!dryRun) {
+    saveDoujinFetchJob(job);
+  }
   appendDoujinFetchLog({
     level: "info",
-    message: "fetch started",
+    message: dryRun ? "fetch preview started" : "fetch started",
     jobId,
     detail: {
       hits,
       offset,
       keyword,
+      contentId,
       sort,
+      dryRun,
       site: job.site,
       service: job.service,
       floor: job.floor,
@@ -215,7 +235,7 @@ export async function runDoujinFetch(
   try {
     while (remaining > 0) {
       const latest = loadDoujinFetchJob();
-      if (latest?.id === jobId && latest.stopRequested) {
+      if (!dryRun && latest?.id === jobId && latest.stopRequested) {
         persistDoujinCatalogMutableState(state, {
           revalidatePublicCatalog: true,
         });
@@ -250,6 +270,7 @@ export async function runDoujinFetch(
           errorCount,
           nextOffset: currentOffset,
           durationMs: job.durationMs ?? 0,
+          dryRun,
         };
       }
 
@@ -282,11 +303,12 @@ export async function runDoujinFetch(
           continue;
         }
         normalized.push(result.item);
-        if (preview.length < 3) preview.push(result.item);
+        if (preview.length < 20) preview.push(result.item);
       }
 
       const upsert = applyNormalizedDoujinItems(state, normalized, {
         jobId,
+        dryRun,
         popularityBaseOffset:
           sort === "rank" || !sort ? currentOffset : undefined,
       });
@@ -309,15 +331,19 @@ export async function runDoujinFetch(
         errorCount,
         nextOffset: currentOffset,
       };
-      saveDoujinFetchJob(job);
+      if (!dryRun) {
+        saveDoujinFetchJob(job);
+      }
 
       if (page.items.length === 0) break;
       await sleep(200);
     }
 
-    const persist = persistDoujinCatalogMutableState(state, {
-      revalidatePublicCatalog: true,
-    });
+    const persist = dryRun
+      ? { wroteAny: false }
+      : persistDoujinCatalogMutableState(state, {
+          revalidatePublicCatalog: true,
+        });
 
     const durationMs = Date.now() - startedMs;
     job = {
@@ -334,10 +360,12 @@ export async function runDoujinFetch(
       errorCount,
       nextOffset: currentOffset,
     };
-    saveDoujinFetchJob(job);
+    if (!dryRun) {
+      saveDoujinFetchJob(job);
+    }
     appendDoujinFetchLog({
       level: "info",
-      message: "fetch completed",
+      message: dryRun ? "fetch preview completed" : "fetch completed",
       jobId,
       detail: {
         searchTotalCount,
@@ -346,6 +374,7 @@ export async function runDoujinFetch(
         updatedCount,
         skippedCount,
         errorCount,
+        dryRun,
         persisted: persist.wroteAny,
         perf: getPerfSnapshot().counters,
       },
@@ -362,6 +391,7 @@ export async function runDoujinFetch(
       errorCount,
       nextOffset: currentOffset,
       durationMs,
+      dryRun,
       normalizedPreview: preview,
     };
   } catch (error) {
@@ -382,7 +412,9 @@ export async function runDoujinFetch(
       errorCount: errorCount + 1,
       nextOffset: currentOffset,
     };
-    saveDoujinFetchJob(job);
+    if (!dryRun) {
+      saveDoujinFetchJob(job);
+    }
     appendDoujinFetchLog({
       level: "error",
       message,

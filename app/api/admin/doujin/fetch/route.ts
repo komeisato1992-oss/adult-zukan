@@ -37,10 +37,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  if (!isDoujinLocalWriteAllowed()) {
-    return NextResponse.json(doujinWriteDisabledJsonBody(), { status: 403 });
-  }
-
   const rate = consumeAdminRateLimit("admin-doujin-fetch", 10);
   if (!rate.ok) {
     return NextResponse.json(
@@ -55,31 +51,44 @@ export async function POST(request: Request) {
       hits?: number;
       offset?: number;
       keyword?: string;
+      contentId?: string;
       sort?: string;
       site?: string;
       service?: string;
       floor?: string;
+      dryRun?: boolean;
     };
 
     if (body.action === "stop") {
+      if (!isDoujinLocalWriteAllowed()) {
+        return NextResponse.json(doujinWriteDisabledJsonBody(), { status: 403 });
+      }
       const job = requestStopDoujinFetch();
       return NextResponse.json({ ok: true, job });
+    }
+
+    const dryRun = Boolean(body.dryRun);
+    if (!dryRun && !isDoujinLocalWriteAllowed()) {
+      return NextResponse.json(doujinWriteDisabledJsonBody(), { status: 403 });
     }
 
     const summary = await runDoujinFetch({
       hits: body.hits ?? 20,
       offset: body.offset,
       keyword: body.keyword,
+      contentId: body.contentId,
       sort: body.sort,
       site: body.site,
       service: body.service,
       floor: body.floor,
+      dryRun,
     });
 
     // 公開APIでは raw を返さない
     const { normalizedPreview, ...rest } = summary;
     return NextResponse.json({
       ...rest,
+      dryRun,
       previewTitles: (normalizedPreview ?? []).map((item) => ({
         contentId: item.contentId,
         title: item.title,

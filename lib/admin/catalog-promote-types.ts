@@ -68,8 +68,35 @@ export type CatalogPromoteStatusPayload = {
   deployStartedAt: string | null;
   productionUrl: string | null;
   errorSummary: string | null;
+  errorCode: string | null;
+  failedStage: CatalogPromoteStatus | null;
+  httpStatus: number | null;
+  retryable: boolean | null;
   message: string | null;
   deployMode: "github-auto" | "deploy-hook" | "none";
+};
+
+export type CatalogPromoteApiResult = {
+  ok: boolean;
+  status: CatalogPromoteStatus;
+  workingBranch: string | null;
+  productionBranch: string;
+  workingSha: string | null;
+  previousMainSha: string | null;
+  mergedMainSha: string | null;
+  deploymentTriggered: boolean;
+  message: string;
+  errorCode: string | null;
+  /** @deprecated use ok */
+  success: boolean;
+  httpStatus: number;
+  retryable: boolean;
+  failedStage: CatalogPromoteStatus | null;
+  lastPromoteAt: string | null;
+  productionUrl: string | null;
+  deployState: CatalogPromoteDeployState | null;
+  deployMode: "github-auto" | "deploy-hook" | "none" | null;
+  statusPayload: CatalogPromoteStatusPayload | null;
 };
 
 export type CatalogPromoteAuditEntry = {
@@ -100,6 +127,12 @@ export const CATALOG_PROMOTE_STATE_PATH =
 export const CATALOG_PROMOTE_AUDIT_PATH =
   "data/dmm/catalog-promote-audit.json";
 
+export function isCatalogPromoteMetaPath(path: string): boolean {
+  return (
+    path === CATALOG_PROMOTE_STATE_PATH || path === CATALOG_PROMOTE_AUDIT_PATH
+  );
+}
+
 export type CatalogPromotePersistedState = {
   status: CatalogPromoteStatus;
   lastWorkAt: string | null;
@@ -109,6 +142,10 @@ export type CatalogPromotePersistedState = {
   deployStartedAt: string | null;
   productionUrl: string | null;
   errorSummary: string | null;
+  errorCode: string | null;
+  failedStage: CatalogPromoteStatus | null;
+  httpStatus: number | null;
+  retryable: boolean | null;
   lockToken: string | null;
   lockExpiresAt: string | null;
   cumulativeAdded: number;

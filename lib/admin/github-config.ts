@@ -34,8 +34,14 @@ export function getGitHubCredentials(): GitHubCredentials | null {
   logGitHubEnvDiagnostics();
 
   const token = process.env.GITHUB_TOKEN?.trim();
-  const owner = process.env.GITHUB_OWNER?.trim();
-  const repo = process.env.GITHUB_REPO?.trim() || "adult-zukan";
+  const owner =
+    process.env.GITHUB_OWNER?.trim() ||
+    process.env.VERCEL_GIT_REPO_OWNER?.trim() ||
+    "";
+  const repo =
+    process.env.GITHUB_REPO?.trim() ||
+    process.env.VERCEL_GIT_REPO_SLUG?.trim() ||
+    "adult-zukan";
 
   if (!token || !owner) {
     return null;

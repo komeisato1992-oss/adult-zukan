@@ -1,13 +1,23 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type {
+  CatalogPromoteApiResult,
   CatalogPromoteDiff,
+  CatalogPromoteStatus,
   CatalogPromoteStatusPayload,
 } from "@/lib/admin/catalog-promote-types";
 
 type CatalogPromotePanelProps = {
   configured: boolean;
+};
+
+type PromoteFailureView = {
+  failedStage: CatalogPromoteStatus | null;
+  httpStatus: number | null;
+  errorCode: string | null;
+  message: string;
+  retryable: boolean;
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -28,10 +38,19 @@ const DEPLOY_LABEL: Record<string, string> = {
   unknown: "不明（ダッシュボードで確認）",
 };
 
+const STAGE_LABEL: Record<string, string> = {
+  IDLE: "開始前",
+  VALIDATING: "検証",
+  MERGING: "main反映",
+  DEPLOYING: "デプロイ",
+  READY: "完了",
+  FAILED: "失敗",
+};
+
 export function CatalogPromotePanel({ configured }: CatalogPromotePanelProps) {
   const [status, setStatus] = useState<CatalogPromoteStatusPayload | null>(null);
   const [diff, setDiff] = useState<CatalogPromoteDiff | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<PromoteFailureView | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [promoting, setPromoting] = useState(false);
@@ -39,10 +58,13 @@ export function CatalogPromotePanel({ configured }: CatalogPromotePanelProps) {
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false);
   const [discardConfirmText, setDiscardConfirmText] = useState("");
   const [showDiff, setShowDiff] = useState(false);
+  const promoteInFlight = useRef(false);
 
-  const refreshStatus = useCallback(async () => {
+  const refreshStatus = useCallback(async (options?: { keepError?: boolean }) => {
     setLoading(true);
-    setError(null);
+    if (!options?.keepError) {
+      setError(null);
+    }
     try {
       const response = await fetch("/api/admin/import/promote/status");
       const body = await response.json();
@@ -51,7 +73,16 @@ export function CatalogPromotePanel({ configured }: CatalogPromotePanelProps) {
       }
       setStatus(body.status as CatalogPromoteStatusPayload);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "状態の取得に失敗しました。");
+      if (!options?.keepError) {
+        setError({
+          failedStage: null,
+          httpStatus: null,
+          errorCode: "STATUS_FETCH_FAILED",
+          message:
+            err instanceof Error ? err.message : "状態の取得に失敗しました。",
+          retryable: true,
+        });
+      }
     } finally {
       setLoading(false);
     }
@@ -60,6 +91,19 @@ export function CatalogPromotePanel({ configured }: CatalogPromotePanelProps) {
   useEffect(() => {
     void refreshStatus();
   }, [refreshStatus]);
+
+  const applyProgress = useCallback((next: CatalogPromoteStatus) => {
+    setStatus((prev) =>
+      prev
+        ? {
+            ...prev,
+            status: next,
+            deployState:
+              next === "DEPLOYING" || next === "READY" ? "pending" : prev.deployState,
+          }
+        : prev,
+    );
+  }, []);
 
   const handleLoadDiff = useCallback(async () => {
     setError(null);
@@ -72,39 +116,175 @@ export function CatalogPromotePanel({ configured }: CatalogPromotePanelProps) {
       }
       setDiff(body.diff as CatalogPromoteDiff);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "変更内容の取得に失敗しました。",
-      );
+      setError({
+        failedStage: null,
+        httpStatus: null,
+        errorCode: "DIFF_FAILED",
+        message:
+          err instanceof Error ? err.message : "変更内容の取得に失敗しました。",
+        retryable: true,
+      });
     }
   }, []);
 
   const handlePromote = useCallback(async () => {
+    if (promoteInFlight.current) return;
+    promoteInFlight.current = true;
     setPromoting(true);
     setError(null);
     setMessage(null);
+    applyProgress("VALIDATING");
+
     try {
       const response = await fetch("/api/admin/import/promote", {
         method: "POST",
+        headers: {
+          Accept: "application/x-ndjson, application/json",
+        },
       });
-      const body = await response.json();
-      if (!response.ok || !body.success) {
-        throw new Error(body.error ?? body.message ?? "本番反映に失敗しました。");
-      }
-      setMessage(body.message ?? "本番反映が完了しました。");
-      if (body.status) {
-        setStatus(body.status as CatalogPromoteStatusPayload);
+
+      const contentType = response.headers.get("content-type") ?? "";
+      let result: CatalogPromoteApiResult | null = null;
+
+      if (contentType.includes("application/x-ndjson")) {
+        const reader = response.body?.getReader();
+        if (!reader) {
+          throw new Error("本番反映レスポンスの読み取りに失敗しました。");
+        }
+        const decoder = new TextDecoder();
+        let buffer = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop() ?? "";
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            const event = JSON.parse(trimmed) as {
+              type?: string;
+              status?: CatalogPromoteStatus;
+            } & Partial<CatalogPromoteApiResult>;
+            if (event.type === "progress" && event.status) {
+              applyProgress(event.status);
+            } else if (event.type === "result") {
+              result = event as CatalogPromoteApiResult;
+            }
+          }
+        }
+        if (buffer.trim()) {
+          const event = JSON.parse(buffer.trim()) as {
+            type?: string;
+          } & Partial<CatalogPromoteApiResult>;
+          if (event.type === "result") {
+            result = event as CatalogPromoteApiResult;
+          }
+        }
       } else {
-        await refreshStatus();
+        const body = (await response.json()) as CatalogPromoteApiResult & {
+          error?: string;
+        };
+        result = {
+          ...body,
+          ok: body.ok ?? body.success ?? response.ok,
+          httpStatus: body.httpStatus ?? response.status,
+        };
+      }
+
+      if (!result) {
+        throw new Error("本番反映APIから結果を取得できませんでした。");
+      }
+
+      if (!result.ok) {
+        setError({
+          failedStage: result.failedStage ?? "FAILED",
+          httpStatus: result.httpStatus ?? response.status,
+          errorCode: result.errorCode ?? "PROMOTE_FAILED",
+          message: result.message || "本番反映に失敗しました。",
+          retryable: Boolean(result.retryable),
+        });
+        setStatus((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: "FAILED",
+                errorSummary: result.message,
+                errorCode: result.errorCode,
+                failedStage: result.failedStage,
+                httpStatus: result.httpStatus,
+                retryable: result.retryable,
+                deployState: "failed",
+              }
+            : prev,
+        );
+        // 失敗詳細を消さないよう keepError
+        await refreshStatus({ keepError: true });
+        return;
+      }
+
+      setMessage(result.message ?? "本番反映が完了しました。");
+      if (result.statusPayload) {
+        setStatus({
+          ...result.statusPayload,
+          status: "READY",
+          lastPromoteSha:
+            result.mergedMainSha ?? result.statusPayload.lastPromoteSha,
+          lastPromoteAt:
+            result.lastPromoteAt ?? result.statusPayload.lastPromoteAt,
+          productionUrl:
+            result.productionUrl ?? result.statusPayload.productionUrl,
+          deployState:
+            result.deployState ?? result.statusPayload.deployState ?? "pending",
+          hasPendingChanges: false,
+        });
+      } else {
+        setStatus((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: "READY",
+                lastPromoteSha: result.mergedMainSha,
+                lastPromoteAt: result.lastPromoteAt,
+                productionUrl: result.productionUrl,
+                deployState: result.deployState ?? "pending",
+                hasPendingChanges: false,
+                errorSummary: null,
+                errorCode: null,
+                failedStage: null,
+              }
+            : prev,
+        );
+        await refreshStatus({ keepError: true });
       }
       setShowPromoteConfirm(false);
       setDiff(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "本番反映に失敗しました。");
-      await refreshStatus();
+      setError({
+        failedStage: status?.status ?? "VALIDATING",
+        httpStatus: null,
+        errorCode: "CLIENT_ERROR",
+        message:
+          err instanceof Error ? err.message : "本番反映に失敗しました。",
+        retryable: true,
+      });
+      setStatus((prev) =>
+        prev
+          ? {
+              ...prev,
+              status: "FAILED",
+              deployState: "failed",
+              errorSummary:
+                err instanceof Error ? err.message : "本番反映に失敗しました。",
+            }
+          : prev,
+      );
+      await refreshStatus({ keepError: true });
     } finally {
+      promoteInFlight.current = false;
       setPromoting(false);
     }
-  }, [refreshStatus]);
+  }, [applyProgress, refreshStatus, status?.status]);
 
   const handleDiscard = useCallback(async () => {
     setPromoting(true);
@@ -130,7 +310,13 @@ export function CatalogPromotePanel({ configured }: CatalogPromotePanelProps) {
       setDiscardConfirmText("");
       setDiff(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "破棄に失敗しました。");
+      setError({
+        failedStage: null,
+        httpStatus: null,
+        errorCode: "DISCARD_FAILED",
+        message: err instanceof Error ? err.message : "破棄に失敗しました。",
+        retryable: true,
+      });
     } finally {
       setPromoting(false);
     }
@@ -180,9 +366,14 @@ export function CatalogPromotePanel({ configured }: CatalogPromotePanelProps) {
       ) : null}
 
       {error ? (
-        <p className="mt-3 rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-700">
-          {error}
-        </p>
+        <div className="mt-3 space-y-1 rounded-md bg-red-500/10 px-3 py-2 text-sm text-red-700">
+          <p className="font-medium">本番反映に失敗しました</p>
+          <p>失敗した段階: {STAGE_LABEL[error.failedStage ?? "FAILED"] ?? error.failedStage ?? "—"}</p>
+          <p>HTTPステータス: {error.httpStatus ?? "—"}</p>
+          <p>エラーコード: {error.errorCode ?? "—"}</p>
+          <p>メッセージ: {error.message}</p>
+          <p>再試行: {error.retryable ? "可能" : "不可（内容を確認してください）"}</p>
+        </div>
       ) : null}
       {message ? (
         <p className="mt-3 rounded-md bg-emerald-500/10 px-3 py-2 text-sm text-foreground">
@@ -265,13 +456,31 @@ export function CatalogPromotePanel({ configured }: CatalogPromotePanelProps) {
         <div>
           <dt className="text-muted">Production URL</dt>
           <dd className="font-medium text-foreground">
-            {status?.productionUrl ?? "—"}
+            {status?.productionUrl ? (
+              <a
+                href={status.productionUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="underline"
+              >
+                {status.productionUrl}
+              </a>
+            ) : (
+              "—"
+            )}
           </dd>
         </div>
       </dl>
 
-      {status?.errorSummary ? (
-        <p className="mt-3 text-sm text-red-700">失敗概要: {status.errorSummary}</p>
+      {status?.errorSummary && !error ? (
+        <p className="mt-3 text-sm text-red-700">
+          失敗概要: {status.errorSummary}
+          {status.errorCode ? ` (${status.errorCode})` : ""}
+          {status.failedStage
+            ? ` / 段階: ${STAGE_LABEL[status.failedStage] ?? status.failedStage}`
+            : ""}
+          {status.httpStatus ? ` / HTTP ${status.httpStatus}` : ""}
+        </p>
       ) : null}
 
       {!status?.configured ? (
@@ -287,6 +496,13 @@ export function CatalogPromotePanel({ configured }: CatalogPromotePanelProps) {
           disabled={!canPromote}
           onClick={() => setShowPromoteConfirm(true)}
           className="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+          title={
+            !status?.hasPendingChanges
+              ? "未反映の変更がないため実行できません"
+              : busy
+                ? "処理中です"
+                : undefined
+          }
         >
           本番反映・デプロイ
         </button>
@@ -320,6 +536,11 @@ export function CatalogPromotePanel({ configured }: CatalogPromotePanelProps) {
           <p className="mt-2 text-muted">
             この操作により、mainへ変更が反映され、Vercel Productionデプロイが1回実行されます。
           </p>
+          {promoting ? (
+            <p className="mt-2 font-medium text-foreground">
+              進行状況: {STATUS_LABEL[status?.status ?? "VALIDATING"] ?? status?.status}
+            </p>
+          ) : null}
           <div className="mt-3 flex gap-2">
             <button
               type="button"
@@ -335,7 +556,9 @@ export function CatalogPromotePanel({ configured }: CatalogPromotePanelProps) {
               onClick={() => void handlePromote()}
               className="rounded-md bg-accent px-3 py-1.5 font-medium text-white disabled:opacity-50"
             >
-              {promoting ? "反映中…" : "検証して本番反映"}
+              {promoting
+                ? `${STATUS_LABEL[status?.status ?? "VALIDATING"] ?? "反映中"}…`
+                : "検証して本番反映"}
             </button>
           </div>
         </div>

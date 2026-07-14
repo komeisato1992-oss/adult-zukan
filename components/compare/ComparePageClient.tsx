@@ -180,14 +180,18 @@ export function ComparePageClient() {
             ) : null}
           </div>
 
-          <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <div
+            className={`-mx-4 px-4 sm:mx-0 sm:px-0 ${
+              items.length >= 3 ? "overflow-x-auto" : "overflow-x-hidden"
+            }`}
+          >
             <div
-              className={`grid min-w-[860px] gap-4 ${
+              className={`grid gap-4 ${
                 items.length >= 4
-                  ? "md:grid-cols-4"
+                  ? "min-w-[860px] md:grid-cols-4"
                   : items.length === 3
-                    ? "md:grid-cols-3"
-                    : "md:grid-cols-2"
+                    ? "min-w-[660px] md:grid-cols-3"
+                    : "grid-cols-1 sm:grid-cols-2"
               }`}
             >
               {items.map((item) => (

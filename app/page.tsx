@@ -9,6 +9,7 @@ import { SiteIntroSection } from "@/components/home/SiteIntroSection";
 import { WorksDiscoverSection } from "@/components/home/WorksDiscoverSection";
 import { LazySection } from "@/components/ui/LazySection";
 import { UpdatedDate } from "@/components/ui/UpdatedDate";
+import { getQuickCompareItems } from "@/lib/compare/quick-compare";
 import { pickRandomComparePair } from "@/lib/home/random-compare-pair";
 import { seoTitles } from "@/lib/seo/titles";
 import { truncateDescription } from "@/lib/seo/descriptions";
@@ -49,11 +50,16 @@ export default async function HomePage() {
   const rankedGenres = getRankedGenres(catalog);
 
   const updatedDate = new Date().toISOString().split("T")[0];
+  const quickCompare = getQuickCompareItems({
+    siteType: "adult",
+    count: 2,
+    adultCatalog: displayableItems,
+  });
   const randomComparePair = pickRandomComparePair(displayableItems);
 
   return (
     <>
-      <SiteIntroSection />
+      <SiteIntroSection quickCompare={quickCompare} />
 
       {randomComparePair ? (
         <RandomCompareSection items={randomComparePair} />

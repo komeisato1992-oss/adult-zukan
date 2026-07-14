@@ -197,8 +197,10 @@ function MobileCompareTable({ items }: { items: CompareItem[] }) {
   );
 
   const labelCol = "100px";
-  const workCol = "195px";
+  // 2作品時は意図しないページ横スクロールを避け、画面内で比較できるようにする
+  const workCol = items.length <= 2 ? "minmax(140px, 1fr)" : "195px";
   const gridTemplate = `${labelCol} repeat(${items.length}, ${workCol})`;
+  const enableHorizontalScroll = items.length > 2;
 
   function handleRemove(contentId: string) {
     const next = removeCompareId(contentId);
@@ -315,14 +317,22 @@ function MobileCompareTable({ items }: { items: CompareItem[] }) {
 
   return (
     <div className="w-full max-w-full">
-      <p className="mb-2 flex items-center gap-1 text-xs text-muted">
-        <span aria-hidden>←</span>
-        横にスワイプして比較できます
-        <span aria-hidden>→</span>
-      </p>
-      <div className="w-full max-w-full overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]">
+      {enableHorizontalScroll ? (
+        <p className="mb-2 flex items-center gap-1 text-xs text-muted">
+          <span aria-hidden>←</span>
+          横にスワイプして比較できます
+          <span aria-hidden>→</span>
+        </p>
+      ) : null}
+      <div
+        className={`w-full max-w-full ${
+          enableHorizontalScroll
+            ? "overflow-x-auto overscroll-x-contain [-webkit-overflow-scrolling:touch]"
+            : "overflow-x-hidden"
+        }`}
+      >
         <div
-          className="min-w-max"
+          className={enableHorizontalScroll ? "min-w-max" : "w-full"}
           style={{
             display: "grid",
             gridTemplateColumns: gridTemplate,
@@ -334,8 +344,12 @@ function MobileCompareTable({ items }: { items: CompareItem[] }) {
           {items.map((item) => (
             <div
               key={`head-${item.contentId}`}
-              className="border-b border-border bg-white px-2 py-3"
-              style={{ width: workCol, minWidth: workCol }}
+              className="min-w-0 border-b border-border bg-white px-2 py-3"
+              style={
+                enableHorizontalScroll
+                  ? { width: workCol, minWidth: workCol }
+                  : undefined
+              }
             >
               <div className="flex flex-col items-center">
                 <Link href={`/works/${item.contentId}`}>
@@ -376,7 +390,7 @@ function MobileCompareTable({ items }: { items: CompareItem[] }) {
                       source: "compare_mobile_table",
                     })
                   }
-                  className={`${workCardCtaBaseClassName} mt-2 min-h-11 bg-accent text-white hover:bg-accent-hover`}
+                  className={`${workCardCtaBaseClassName} mt-2 min-h-11 shrink-0 bg-accent px-1 text-white hover:bg-accent-hover`}
                 >
                   {WORK_CARD_VIEW_LABEL}
                 </a>
@@ -384,7 +398,7 @@ function MobileCompareTable({ items }: { items: CompareItem[] }) {
               <button
                 type="button"
                 onClick={() => handleRemove(item.contentId)}
-                className="mt-2 min-h-11 w-full py-2 text-center text-xs text-muted underline-offset-2 hover:text-accent hover:underline"
+                className="mt-2 min-h-11 w-full shrink-0 py-2 text-center text-xs text-muted underline-offset-2 hover:text-accent hover:underline"
               >
                 比較から削除
               </button>
@@ -403,10 +417,14 @@ function MobileCompareTable({ items }: { items: CompareItem[] }) {
               {items.map((item) => (
                 <div
                   key={`${row.key}-${item.contentId}`}
-                  className={`border-b border-border px-2 py-2 text-xs break-words text-foreground ${
+                  className={`min-w-0 border-b border-border px-2 py-2 text-xs break-words text-foreground ${
                     rowIndex % 2 === 0 ? "bg-white" : "bg-[#FAFAFA]"
                   }`}
-                  style={{ width: workCol, minWidth: workCol }}
+                  style={
+                    enableHorizontalScroll
+                      ? { width: workCol, minWidth: workCol }
+                      : undefined
+                  }
                 >
                   {row.clamp ? (
                     <MobileClampCell>{row.render(item)}</MobileClampCell>
@@ -424,8 +442,12 @@ function MobileCompareTable({ items }: { items: CompareItem[] }) {
           {items.map((item) => (
             <div
               key={`sample-${item.contentId}`}
-              className="border-b border-border px-2 py-2"
-              style={{ width: workCol, minWidth: workCol }}
+              className="min-w-0 border-b border-border px-2 py-2"
+              style={
+                enableHorizontalScroll
+                  ? { width: workCol, minWidth: workCol }
+                  : undefined
+              }
             >
               {item.sampleImages.length > 0 ? (
                 <div className="grid grid-cols-3 gap-1">

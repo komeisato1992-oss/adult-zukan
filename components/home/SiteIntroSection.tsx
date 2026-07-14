@@ -1,7 +1,18 @@
 import Link from "next/link";
+import { QuickCompareHeroLink } from "@/components/home/QuickCompareHeroLink";
 import { ZukanCrossLinkCard } from "@/components/home/ZukanCrossLinkCard";
+import type { QuickCompareResult } from "@/lib/compare/quick-compare-types";
 
-export function SiteIntroSection() {
+type SiteIntroSectionProps = {
+  quickCompare?: QuickCompareResult;
+};
+
+export function SiteIntroSection({ quickCompare }: SiteIntroSectionProps) {
+  const compareHref = quickCompare?.href ?? "/compare";
+  const selectionType = quickCompare?.selectionType ?? "fallback";
+  const workId1 = quickCompare?.workIds[0];
+  const workId2 = quickCompare?.workIds[1];
+
   return (
     <section
       aria-labelledby="site-intro-heading"
@@ -47,13 +58,15 @@ export function SiteIntroSection() {
               >
                 作品を探す
               </Link>
-              <Link
-                href="/compare"
-                prefetch
+              <QuickCompareHeroLink
+                href={compareHref}
+                selectionType={selectionType}
+                workId1={workId1}
+                workId2={workId2}
                 className="inline-flex h-11 min-w-[160px] flex-1 items-center justify-center rounded-lg border border-accent bg-white px-6 text-sm font-semibold text-accent transition-colors hover:bg-[#FFF2F2] sm:flex-none"
               >
                 比較機能を見る
-              </Link>
+              </QuickCompareHeroLink>
             </div>
 
             <ZukanCrossLinkCard

@@ -139,7 +139,7 @@ export function CompareFloatingButton() {
 
   return (
     <div
-      className="pointer-events-none fixed z-40 max-[768px]:bottom-[calc(env(safe-area-inset-bottom)+10px)] max-[768px]:left-1/2 max-[768px]:w-[min(96vw,420px)] max-[768px]:-translate-x-1/2 min-[769px]:bottom-[max(1.25rem,env(safe-area-inset-bottom))] min-[769px]:right-4 min-[769px]:w-[min(calc(100vw-2rem),360px)] sm:min-[769px]:right-6"
+      className="pointer-events-none fixed z-40 max-[768px]:bottom-[calc(env(safe-area-inset-bottom)+10px)] max-[768px]:left-2 max-[768px]:right-2 max-[768px]:w-auto max-[768px]:max-w-[calc(100vw-1rem)] min-[769px]:bottom-[max(1.25rem,env(safe-area-inset-bottom))] min-[769px]:right-4 min-[769px]:w-[min(calc(100vw-2rem),360px)] sm:min-[769px]:right-6"
       data-compare-floating-panel
     >
       {notice ? (

@@ -1,5 +1,8 @@
 import { sendGaEvent } from "@/lib/gtag";
 
+/** TOP クイック比較からの到達を compare_view に載せるための sessionStorage キー */
+export const COMPARE_ENTRY_SOURCE_KEY = "az_compare_entry_source";
+
 export const COMPARE_GA_EVENTS = {
   compareButtonClick: "compare_button_click",
   candidatePopupShow: "compare_candidate_popup_show",
@@ -10,6 +13,8 @@ export const COMPARE_GA_EVENTS = {
   pageChange: "compare_select_page_change",
   candidateSelect: "compare_candidate_select",
   comparePageReach: "compare_page_reach",
+  compareView: "compare_view",
+  quickCompareClick: "quick_compare_click",
   relatedClick: "compare_related_click",
   fanzaClick: "compare_fanza_click",
   floatingPanelShow: "compare_floating_panel_show",

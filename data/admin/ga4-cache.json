@@ -1,7 +1,7 @@
 {
   "version": 3,
-  "updatedAt": "2026-07-14T01:22:55.333Z",
-  "lastSuccessfulAt": "2026-07-14T01:22:55.333Z",
+  "updatedAt": "2026-07-14T02:28:15.690Z",
+  "lastSuccessfulAt": "2026-07-14T02:28:15.690Z",
   "configured": true,
   "propertyId": "544245702",
   "connectionStatus": "connected",
@@ -20,14 +20,14 @@
   "periods": {
     "1": {
       "current": {
-        "users": 60,
-        "newUsers": 49,
-        "sessions": 62,
-        "pageViews": 102,
-        "avgEngagementSeconds": 11.233333333333333,
-        "eventCount": 261,
-        "bounceRate": 0.9838709677419355,
-        "pagesPerSession": 1.6451612903225807
+        "users": 69,
+        "newUsers": 56,
+        "sessions": 72,
+        "pageViews": 109,
+        "avgEngagementSeconds": 10.173913043478262,
+        "eventCount": 292,
+        "bounceRate": 0.9861111111111112,
+        "pagesPerSession": 1.5138888888888888
       },
       "previous": {
         "users": 153,
@@ -42,14 +42,14 @@
     },
     "7": {
       "current": {
-        "users": 864,
-        "newUsers": 850,
-        "sessions": 940,
-        "pageViews": 1483,
-        "avgEngagementSeconds": 14.262731481481481,
-        "eventCount": 4101,
-        "bounceRate": 0.7680851063829788,
-        "pagesPerSession": 1.577659574468085
+        "users": 873,
+        "newUsers": 857,
+        "sessions": 950,
+        "pageViews": 1490,
+        "avgEngagementSeconds": 14.147766323024054,
+        "eventCount": 4132,
+        "bounceRate": 0.7705263157894737,
+        "pagesPerSession": 1.568421052631579
       },
       "previous": {
         "users": 103,
@@ -64,14 +64,14 @@
     },
     "28": {
       "current": {
-        "users": 964,
-        "newUsers": 953,
-        "sessions": 1065,
-        "pageViews": 1863,
-        "avgEngagementSeconds": 16.491701244813278,
-        "eventCount": 4875,
-        "bounceRate": 0.7633802816901408,
-        "pagesPerSession": 1.7492957746478872
+        "users": 973,
+        "newUsers": 960,
+        "sessions": 1075,
+        "pageViews": 1870,
+        "avgEngagementSeconds": 16.367934224049332,
+        "eventCount": 4906,
+        "bounceRate": 0.7655813953488372,
+        "pagesPerSession": 1.7395348837209301
       },
       "previous": {
         "users": 0,
@@ -86,14 +86,14 @@
     },
     "90": {
       "current": {
-        "users": 964,
-        "newUsers": 953,
-        "sessions": 1065,
-        "pageViews": 1863,
-        "avgEngagementSeconds": 16.491701244813278,
-        "eventCount": 4875,
-        "bounceRate": 0.7633802816901408,
-        "pagesPerSession": 1.7492957746478872
+        "users": 973,
+        "newUsers": 960,
+        "sessions": 1075,
+        "pageViews": 1870,
+        "avgEngagementSeconds": 16.367934224049332,
+        "eventCount": 4906,
+        "bounceRate": 0.7655813953488372,
+        "pagesPerSession": 1.7395348837209301
       },
       "previous": {
         "users": 0,
@@ -166,10 +166,10 @@
     },
     {
       "date": "2026-07-14",
-      "users": 60,
-      "newUsers": 49,
-      "pageViews": 102,
-      "sessions": 62
+      "users": 69,
+      "newUsers": 56,
+      "pageViews": 109,
+      "sessions": 72
     }
   ],
   "topPages": [
@@ -297,18 +297,18 @@
   "sources": [
     {
       "source": "Organic Search",
-      "sessions": 772,
-      "users": 750
+      "sessions": 778,
+      "users": 756
     },
     {
       "source": "Direct",
-      "sessions": 183,
-      "users": 152
+      "sessions": 184,
+      "users": 153
     },
     {
       "source": "Unassigned",
-      "sessions": 75,
-      "users": 65
+      "sessions": 82,
+      "users": 71
     },
     {
       "source": "AI Assistant",

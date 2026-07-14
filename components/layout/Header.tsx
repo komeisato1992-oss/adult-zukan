@@ -55,8 +55,8 @@ export function Header() {
       className="sticky top-0 z-50 border-b border-border bg-white shadow-sm"
       style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
     >
-      {/* PC (≥769px): 既存レイアウトを維持 */}
-      <div className="mx-auto hidden max-w-7xl px-4 py-3 sm:px-6 min-[769px]:block">
+      {/* PC (≥769px): 全ページ共通でコンパクトヘッダー */}
+      <div className="mx-auto hidden max-w-7xl px-4 py-1.5 sm:px-6 min-[769px]:block">
         <div className="flex items-center gap-4">
           <Link
             href="/"
@@ -64,12 +64,13 @@ export function Header() {
             aria-label={`${siteConfig.name} トップページ`}
           >
             <Image
-              src={siteConfig.logo}
+              src={siteConfig.logoCompact}
               alt={siteConfig.name}
-              width={240}
-              height={64}
-              className="h-8 w-auto max-w-[160px] sm:h-10 sm:max-w-[220px]"
+              width={1024}
+              height={396}
+              className="h-8 w-auto max-w-[200px] object-contain object-left sm:h-9 sm:max-w-[240px]"
               priority
+              sizes="240px"
             />
           </Link>
 
@@ -79,7 +80,7 @@ export function Header() {
         </div>
 
         <Suspense fallback={null}>
-          <MainNav />
+          <MainNav compact />
         </Suspense>
       </div>
 
@@ -123,8 +124,8 @@ export function Header() {
               <Image
                 src={siteConfig.logoCompact}
                 alt={siteConfig.name}
-                width={621}
-                height={221}
+                width={1024}
+                height={396}
                 className="h-9 max-h-9 w-auto max-w-full object-contain object-left"
                 priority
                 sizes="(max-width: 390px) 140px, 200px"

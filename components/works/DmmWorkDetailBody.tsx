@@ -4,7 +4,10 @@ import { DmmSampleGallery } from "@/components/works/DmmSampleGallery";
 import { DmmWorkHero } from "@/components/works/DmmWorkHero";
 import { DmmWorkInfoTable } from "@/components/works/DmmWorkInfoTable";
 import { FanzaLinkButton } from "@/components/works/FanzaLinkButton";
-import { WorkDescriptionReadMore } from "@/components/works/WorkDescriptionReadMore";
+import {
+  FanzaTvUnlimitedCta,
+  type FanzaTvUnlimitedStatus,
+} from "@/components/works/FanzaTvUnlimitedCta";
 import type { DmmInfoRow } from "@/lib/dmm/display";
 import type { DmmItem } from "@/lib/dmm/types";
 import type { DmmReleaseDateInfo } from "@/lib/dmm/release-date";
@@ -12,6 +15,8 @@ import type { DmmReleaseDateInfo } from "@/lib/dmm/release-date";
 type DmmWorkDetailBodyProps = {
   item: DmmItem;
   fanzaUrl: string;
+  fanzaTvUrl?: string;
+  unlimitedStatus?: FanzaTvUnlimitedStatus;
   description?: string;
   descriptionTeaser?: string;
   imageUrl?: string;
@@ -31,6 +36,8 @@ type DmmWorkDetailBodyProps = {
 export function DmmWorkDetailBody({
   item,
   fanzaUrl,
+  fanzaTvUrl,
+  unlimitedStatus = "unknown",
   description,
   descriptionTeaser,
   imageUrl,
@@ -47,10 +54,11 @@ export function DmmWorkDetailBody({
   releaseDate,
 }: DmmWorkDetailBodyProps) {
   return (
-    <article>
+    <article className="pb-[calc(48px+env(safe-area-inset-bottom,0px))] max-[768px]:pb-[calc(48px+env(safe-area-inset-bottom,0px))]">
       <DmmWorkHero
         title={item.title}
         contentId={item.content_id}
+        description={description}
         descriptionTeaser={descriptionTeaser}
         actressNameList={actressNameList}
         makerName={makerName}
@@ -63,29 +71,23 @@ export function DmmWorkDetailBody({
         sampleMovie={sampleMovie}
         sampleMoviePoster={sampleMoviePoster}
         fanzaUrl={fanzaUrl}
+        fanzaTvUrl={fanzaTvUrl}
+        unlimitedStatus={unlimitedStatus}
       />
-
-      {/* スマートフォン: 作品内容（折りたたみ）。PCは情報テーブル内の作品説明を維持 */}
-      {description ? (
-        <WorkDescriptionReadMore
-          heading="作品内容"
-          headingId="work-content-mobile"
-          className="mt-7 min-[769px]:hidden"
-        >
-          {description}
-        </WorkDescriptionReadMore>
-      ) : null}
 
       <DmmSampleGallery images={sampleImages} title={item.title} />
 
       <DmmWorkInfoTable rows={infoRows} />
 
-      {/* 下部CTAはPCのみ（モバイルは上部主CTAに集約） */}
-      <div className="mt-8 hidden flex-col items-center min-[769px]:flex">
+      {/* 作品情報直後の再CTA（購入導線） */}
+      <div className="mt-8 flex flex-col items-center gap-2.5">
         <FanzaLinkButton href={fanzaUrl} />
+        {fanzaTvUrl ? (
+          <FanzaTvUnlimitedCta href={fanzaTvUrl} status={unlimitedStatus} />
+        ) : null}
       </div>
 
-      <p className="mt-4 text-center text-xs leading-relaxed text-muted max-[768px]:mt-6">
+      <p className="mt-6 text-center text-xs leading-relaxed text-muted">
         ※ 18歳未満の方の閲覧は固くお断りします。外部サイト（FANZA）へ移動します。
       </p>
     </article>

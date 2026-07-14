@@ -41,14 +41,16 @@ function renderNavLabel(href: string, label: string): ReactNode {
   return label;
 }
 
-export function MainNav() {
+export function MainNav({ compact = false }: { compact?: boolean }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   return (
     <nav
       aria-label="グローバルナビゲーション"
-      className="mt-3 hidden items-center gap-1 overflow-x-auto min-[769px]:flex"
+      className={`hidden items-center gap-1 overflow-x-auto min-[769px]:flex ${
+        compact ? "mt-1.5" : "mt-3"
+      }`}
     >
       {navItems.map((item) => {
         const active = isNavItemActive(item.href, pathname, searchParams);
@@ -58,7 +60,13 @@ export function MainNav() {
             key={item.href}
             href={item.href}
             aria-current={active ? "page" : undefined}
-            className={navLinkClassName(active)}
+            className={
+              compact
+                ? active
+                  ? "whitespace-nowrap rounded bg-accent-light px-2.5 py-1.5 text-[13px] font-medium text-accent"
+                  : "whitespace-nowrap rounded px-2.5 py-1.5 text-[13px] font-medium text-foreground transition-colors hover:bg-accent-light hover:text-accent"
+                : navLinkClassName(active)
+            }
           >
             {renderNavLabel(item.href, item.label)}
           </Link>

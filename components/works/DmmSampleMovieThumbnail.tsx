@@ -21,7 +21,7 @@ export function DmmSampleMovieThumbnail({
       href={fanzaUrl}
       target="_blank"
       rel={AFFILIATE_LINK_REL}
-      className="relative mt-3 block w-full overflow-hidden rounded-lg border border-border"
+      className="relative mt-3 block w-full overflow-hidden rounded-lg border border-border min-[769px]:mt-2.5"
       aria-label={`${title} のサンプル動画をFANZAで見る`}
     >
       <div className="relative aspect-video w-full">
@@ -30,7 +30,7 @@ export function DmmSampleMovieThumbnail({
           alt={`${title} サンプル動画`}
           fill
           className="object-cover"
-          sizes="(max-width: 768px) 92vw, 280px"
+          sizes="(max-width: 768px) 92vw, 320px"
           unoptimized
         />
         <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-black/40 transition-colors hover:bg-black/50">

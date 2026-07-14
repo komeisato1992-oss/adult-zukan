@@ -177,14 +177,12 @@ export function getDmmInfoRows(
   const actressNames = getDmmItemActressNameList(item);
   const genreNames = getDmmItemGenreNameList(item);
 
+  const volumeLabel = getDmmItemVolumeLabel(item);
+  const reviewLabel = getDmmItemReviewLabel(item);
+  const priceLabel = getDmmItemPrice(item);
+
   const rows: Array<DmmInfoRow | null> = [
     { label: "品番", value: item.content_id },
-    makerName ? createEntityRow("メーカー", makerName, getMakerDetailPath) : null,
-    labelName ? createEntityRow("レーベル", labelName, getLabelDetailPath) : null,
-    seriesName
-      ? createEntityRow("シリーズ", seriesName, getSeriesDetailPath)
-      : null,
-    createEntityListRow("ジャンル", genreNames, getGenreDetailPath),
     actressNames.length > 0
       ? {
           label: "女優",
@@ -194,17 +192,23 @@ export function getDmmInfoRows(
           })),
         }
       : null,
-    description
-      ? { label: "作品説明", value: description, multiline: true }
-      : null,
-    getDmmItemPrice(item)
-      ? { label: "価格", value: getDmmItemPrice(item)! }
-      : null,
-    getDmmDeliveryFormats(item)
-      ? { label: "配信形式", value: getDmmDeliveryFormats(item)! }
+    makerName ? createEntityRow("メーカー", makerName, getMakerDetailPath) : null,
+    labelName ? createEntityRow("レーベル", labelName, getLabelDetailPath) : null,
+    seriesName
+      ? createEntityRow("シリーズ", seriesName, getSeriesDetailPath)
       : null,
     releaseDate
       ? { label: releaseDate.label, value: releaseDate.value }
+      : null,
+    volumeLabel ? { label: "収録時間", value: volumeLabel } : null,
+    priceLabel ? { label: "価格", value: priceLabel } : null,
+    reviewLabel ? { label: "評価", value: reviewLabel } : null,
+    createEntityListRow("ジャンル", genreNames, getGenreDetailPath),
+    description
+      ? { label: "作品説明", value: description, multiline: true }
+      : null,
+    getDmmDeliveryFormats(item)
+      ? { label: "配信形式", value: getDmmDeliveryFormats(item)! }
       : null,
   ];
 

@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { FavoriteCardButton } from "@/components/user/FavoriteCardButton";
-import { WorkCardCtaRow } from "@/components/works/WorkCardCtaRow";
 import { CatalogWorkImage } from "@/components/ui/CatalogWorkImage";
 import { CompactNameList } from "@/components/ui/CompactNameList";
 import {
@@ -8,7 +7,6 @@ import {
   getDmmItemImageUrl,
   getDmmItemPrice,
 } from "@/lib/dmm/display";
-import { getDmmFanzaUrl } from "@/lib/dmm/fanza-url";
 import type { DmmItem } from "@/lib/dmm/types";
 import { hasValidImage } from "@/lib/works";
 
@@ -16,6 +14,7 @@ type DmmRelatedWorkCardProps = {
   item: DmmItem;
 };
 
+/** 関連作品カード（PC/スマホ共通のコンパクト表示） */
 export function DmmRelatedWorkCard({ item }: DmmRelatedWorkCardProps) {
   const imageUrl = getDmmItemImageUrl(item);
   const actressNames = getDmmItemActressNameList(item);
@@ -24,47 +23,33 @@ export function DmmRelatedWorkCard({ item }: DmmRelatedWorkCardProps) {
   if (!hasValidImage(item) || !imageUrl) return null;
 
   return (
-    <article className="group flex h-full max-w-full flex-col overflow-hidden rounded-lg border border-border/80 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/20 hover:shadow-md">
+    <article className="group flex h-full max-w-full flex-col overflow-hidden rounded-lg border border-border/80 bg-white shadow-sm transition-shadow hover:shadow-md">
       <div className="relative">
-        <Link
-          href={`/works/${item.content_id}`}
-          prefetch
-          className="block"
-        >
+        <Link href={`/works/${item.content_id}`} prefetch className="block">
           <CatalogWorkImage
             src={imageUrl}
             alt={item.title}
             variant="landscape"
-            sizes="(max-width: 389px) 50vw, (max-width: 768px) 33vw, 25vw"
+            sizes="(max-width: 768px) 42vw, 180px"
           />
-          <div className="px-3 pt-3 pb-0 max-[768px]:px-1.5 max-[768px]:pt-1.5">
-            <p className="line-clamp-2 text-sm font-semibold leading-snug text-foreground group-hover:text-accent max-[768px]:line-clamp-3 max-[768px]:text-[13px] max-[768px]:leading-[1.4]">
+          <div className="px-1.5 pt-1.5 pb-0 min-[769px]:px-2 min-[769px]:pt-2">
+            <p className="line-clamp-3 text-[12px] font-semibold leading-[1.35] text-foreground group-hover:text-accent min-[769px]:text-[13px]">
               {item.title}
             </p>
           </div>
         </Link>
         <FavoriteCardButton contentId={item.content_id} title={item.title} />
       </div>
-      <div className="flex flex-1 flex-col px-3 pt-1 max-[768px]:px-1.5 max-[768px]:pt-0.5">
+      <div className="flex flex-1 flex-col px-1.5 pt-0.5 pb-1.5 min-[769px]:px-2 min-[769px]:pb-2">
         <CompactNameList
           names={actressNames}
-          className="max-[768px]:text-[11px]"
+          className="text-[10px] leading-snug min-[769px]:text-[11px]"
         />
-        {price && (
-          <p className="mt-1 text-sm font-bold text-price max-[768px]:text-[13px]">
+        {price ? (
+          <p className="mt-0.5 text-[12px] font-bold text-price min-[769px]:text-[13px]">
             {price}
           </p>
-        )}
-        <p className="mt-1 truncate text-[11px] text-muted/90 max-[768px]:hidden">
-          {item.content_id}
-        </p>
-        <div className="mt-auto px-0 pb-3 pt-2 max-[768px]:pb-1.5 max-[768px]:pt-1.5">
-          <WorkCardCtaRow
-            contentId={item.content_id}
-            title={item.title}
-            fanzaUrl={getDmmFanzaUrl(item)}
-          />
-        </div>
+        ) : null}
       </div>
     </article>
   );

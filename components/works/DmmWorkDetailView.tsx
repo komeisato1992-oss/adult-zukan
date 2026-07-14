@@ -17,7 +17,7 @@ import {
   getDmmSampleMovieUrl,
 } from "@/lib/dmm/display";
 import { getDmmDescriptionTeaser } from "@/lib/dmm/description";
-import { getDmmFanzaUrl } from "@/lib/dmm/fanza-url";
+import { getDmmFanzaUrl, getFanzaTvAffiliateUrl } from "@/lib/dmm/fanza-url";
 import { getDmmWorkInternalLinks } from "@/lib/dmm/internal-links";
 import { resolveDmmItemDescription } from "@/lib/dmm/resolve-description";
 import {
@@ -40,6 +40,7 @@ export async function DmmWorkDetailView({ item }: DmmWorkDetailViewProps) {
     ? (sampleImages[0] ?? imageUrl)
     : undefined;
   const fanzaUrl = getDmmFanzaUrl(item);
+  const fanzaTvUrl = getFanzaTvAffiliateUrl(item.content_id);
   const description = await resolveDmmItemDescription(item);
   const descriptionTeaser = description
     ? getDmmDescriptionTeaser(description)
@@ -68,10 +69,12 @@ export async function DmmWorkDetailView({ item }: DmmWorkDetailViewProps) {
           ]}
         />
 
-        <div className="mt-6">
+        <div className="mt-6 max-[768px]:mt-4">
           <DmmWorkDetailBody
             item={item}
             fanzaUrl={fanzaUrl}
+            fanzaTvUrl={fanzaTvUrl}
+            unlimitedStatus="unknown"
             description={description}
             descriptionTeaser={descriptionTeaser}
             imageUrl={imageUrl}

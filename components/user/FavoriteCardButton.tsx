@@ -41,11 +41,20 @@ function FavoriteCardButtonInner({ contentId, title }: FavoriteCardButtonProps) 
       onClick={handleClick}
       aria-label={active ? `${title}をお気に入りから削除` : `${title}をお気に入りに追加`}
       aria-pressed={active}
-      className={`absolute top-2 left-2 z-20 p-1 touch-manipulation text-3xl leading-none transition-transform duration-200 hover:scale-110 active:scale-95 drop-shadow-[0_2px_6px_rgba(0,0,0,0.7)] max-[768px]:top-1 max-[768px]:left-1 max-[768px]:text-xl ${
+      className={`absolute top-2 left-2 z-20 flex h-11 w-11 items-center justify-center touch-manipulation text-3xl leading-none transition-transform duration-200 hover:scale-110 active:scale-95 drop-shadow-[0_2px_6px_rgba(0,0,0,0.7)] max-[768px]:top-1.5 max-[768px]:left-1.5 max-[768px]:h-10 max-[768px]:w-10 max-[768px]:text-[22px] ${
         active ? "text-red-500" : "text-white"
       } ${popping ? "scale-[1.15]" : ""}`}
     >
-      <span aria-hidden="true">{active ? "♥" : "♡"}</span>
+      <span
+        aria-hidden="true"
+        className={
+          active
+            ? undefined
+            : "rounded-full bg-black/25 px-1 text-white [text-shadow:0_0_1px_rgba(0,0,0,0.8)]"
+        }
+      >
+        {active ? "♥" : "♡"}
+      </span>
     </button>
   );
 }

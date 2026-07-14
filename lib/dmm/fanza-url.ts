@@ -24,20 +24,16 @@ export function getDmmFanzaUrl(item: DmmItem): string {
 }
 
 /**
- * 公開CTA用: FANZA TV サービス登録アフィリエイトURL（全作品共通・CIDなし）。
- * DMMアフィリエイト管理画面で発行した正式URLを
- * NEXT_PUBLIC_FANZA_TV_AFFILIATE_URL に設定すること。
- * 未設定・不正時は空文字（ボタン非表示）。推測生成しない。
+ * 公開CTA用: FANZA TV 登録アフィリエイトURL（全作品共通・CIDなし）。
+ * NEXT_PUBLIC_FANZA_TV_AFFILIATE_URL のみ使用。未設定・不正時は空文字（ボタン非表示）。
+ * Playwright 判定用の content= URL とは分離する。
  */
 export function getFanzaTvAffiliateUrl(): string {
   const fromEnv = process.env.NEXT_PUBLIC_FANZA_TV_AFFILIATE_URL?.trim();
-  if (!fromEnv) {
-    return "";
-  }
+  if (!fromEnv) return "";
   return isValidPublicFanzaTvAffiliateUrl(fromEnv) ? fromEnv : "";
 }
 
-/** 公開ボタン向け。作品判定用 content= URL・通常直リンク・推測生成を拒否する */
 function isValidPublicFanzaTvAffiliateUrl(url: string): boolean {
   if (!url) return false;
 
@@ -52,12 +48,14 @@ function isValidPublicFanzaTvAffiliateUrl(url: string): boolean {
     return false;
   }
 
-  // 最終遷移先の直リンク禁止（計測URL経由必須）
   const host = parsed.hostname.toLowerCase();
+
+  // 直リンク禁止（計測URL経由必須）
   if (
     host === "tv.dmm.co.jp" ||
     host === "premium.fanza.jp" ||
-    host.endsWith(".premium.fanza.jp")
+    host.endsWith(".premium.fanza.jp") ||
+    host === "premium.dmm.co.jp"
   ) {
     return false;
   }
@@ -67,8 +65,8 @@ function isValidPublicFanzaTvAffiliateUrl(url: string): boolean {
     return false;
   }
 
-  // DMMアフィリエイト計測ドメイン必須（zukanjp-001）
-  if (host !== "al.dmm.co.jp") {
+  // DMM/FANZA アフィリエイト計測ドメイン必須
+  if (host !== "al.fanza.co.jp" && host !== "al.dmm.co.jp") {
     return false;
   }
 
@@ -87,6 +85,8 @@ function isValidPublicFanzaTvAffiliateUrl(url: string): boolean {
     if (urlContainsContentParam(target)) {
       return false;
     }
+    // lurl が tv.dmm / premium.fanza 直指定でも計測経由ならOK（最終遷移先）
+    // content= 付きのみ拒否
   } catch {
     return false;
   }

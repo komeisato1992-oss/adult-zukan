@@ -74,7 +74,6 @@ export async function DmmWorkDetailView({ item }: DmmWorkDetailViewProps) {
             item={item}
             fanzaUrl={fanzaUrl}
             fanzaTvUrl={fanzaTvUrl}
-            unlimitedStatus="unknown"
             description={description}
             descriptionTeaser={descriptionTeaser}
             imageUrl={imageUrl}

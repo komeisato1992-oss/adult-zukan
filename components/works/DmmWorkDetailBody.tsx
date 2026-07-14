@@ -4,10 +4,7 @@ import { DmmSampleGallery } from "@/components/works/DmmSampleGallery";
 import { DmmWorkHero } from "@/components/works/DmmWorkHero";
 import { DmmWorkInfoTable } from "@/components/works/DmmWorkInfoTable";
 import { FanzaLinkButton } from "@/components/works/FanzaLinkButton";
-import {
-  FanzaTvUnlimitedCta,
-  type FanzaTvUnlimitedStatus,
-} from "@/components/works/FanzaTvUnlimitedCta";
+import { FanzaTvUnlimitedCta } from "@/components/works/FanzaTvUnlimitedCta";
 import type { DmmInfoRow } from "@/lib/dmm/display";
 import type { DmmItem } from "@/lib/dmm/types";
 import type { DmmReleaseDateInfo } from "@/lib/dmm/release-date";
@@ -16,7 +13,6 @@ type DmmWorkDetailBodyProps = {
   item: DmmItem;
   fanzaUrl: string;
   fanzaTvUrl?: string;
-  unlimitedStatus?: FanzaTvUnlimitedStatus;
   description?: string;
   descriptionTeaser?: string;
   imageUrl?: string;
@@ -37,7 +33,6 @@ export function DmmWorkDetailBody({
   item,
   fanzaUrl,
   fanzaTvUrl,
-  unlimitedStatus = "unknown",
   description,
   descriptionTeaser,
   imageUrl,
@@ -72,7 +67,6 @@ export function DmmWorkDetailBody({
         sampleMoviePoster={sampleMoviePoster}
         fanzaUrl={fanzaUrl}
         fanzaTvUrl={fanzaTvUrl}
-        unlimitedStatus={unlimitedStatus}
       />
 
       <DmmSampleGallery images={sampleImages} title={item.title} />
@@ -82,9 +76,7 @@ export function DmmWorkDetailBody({
       {/* 作品情報直後の再CTA（購入導線） */}
       <div className="mt-8 flex flex-col items-center gap-2.5">
         <FanzaLinkButton href={fanzaUrl} />
-        {fanzaTvUrl ? (
-          <FanzaTvUnlimitedCta href={fanzaTvUrl} status={unlimitedStatus} />
-        ) : null}
+        {fanzaTvUrl ? <FanzaTvUnlimitedCta href={fanzaTvUrl} /> : null}
       </div>
 
       <p className="mt-6 text-center text-xs leading-relaxed text-muted">

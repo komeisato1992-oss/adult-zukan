@@ -12,7 +12,6 @@ import { WorkDescriptionReadMore } from "@/components/works/WorkDescriptionReadM
 import { FavoriteButton } from "@/components/user/FavoriteButton";
 import { FavoriteCardButton } from "@/components/user/FavoriteCardButton";
 import type { DmmReleaseDateInfo } from "@/lib/dmm/release-date";
-import type { FanzaTvUnlimitedStatus } from "@/components/works/FanzaTvUnlimitedCta";
 
 type DmmWorkHeroProps = {
   title: string;
@@ -31,7 +30,6 @@ type DmmWorkHeroProps = {
   sampleMoviePoster?: string;
   fanzaUrl: string;
   fanzaTvUrl?: string;
-  unlimitedStatus?: FanzaTvUnlimitedStatus;
 };
 
 type HighlightCard = {
@@ -96,7 +94,6 @@ export function DmmWorkHero({
   sampleMoviePoster,
   fanzaUrl,
   fanzaTvUrl,
-  unlimitedStatus = "unknown",
 }: DmmWorkHeroProps) {
   const [activeImage, setActiveImage] = useState<string | null>(null);
   const samplePoster = sampleMoviePoster ?? imageUrl;
@@ -242,11 +239,7 @@ export function DmmWorkHero({
               </div>
 
               {fanzaTvUrl ? (
-                <FanzaTvUnlimitedCta
-                  href={fanzaTvUrl}
-                  status={unlimitedStatus}
-                  className="mt-2.5"
-                />
+                <FanzaTvUnlimitedCta href={fanzaTvUrl} className="mt-2.5" />
               ) : null}
             </div>
           </div>

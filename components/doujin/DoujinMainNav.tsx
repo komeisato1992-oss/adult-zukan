@@ -32,7 +32,7 @@ export function DoujinMainNav() {
   return (
     <nav
       aria-label="同人図鑑ナビゲーション"
-      className="mt-3 hidden items-center gap-1 overflow-x-auto md:flex"
+      className="mt-3 hidden items-center gap-1 overflow-x-auto min-[769px]:flex"
     >
       {doujinNavItems.map((item) => {
         const active = isDoujinNavActive(item.href, pathname);

@@ -2,16 +2,13 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { siteConfig } from "@/lib/site-config";
 import { SearchBar } from "@/components/ui/SearchBar";
 import { MobileNav } from "@/components/layout/MobileNav";
 import { MainNav } from "@/components/layout/MainNav";
-
-/** トップでコンパクトへ入る / 戻るスクロールしきい値（チャタリング防止） */
-const SCROLL_ENTER_COMPACT = 56;
-const SCROLL_EXIT_COMPACT = 20;
+import { useCompactHeaderOnScroll } from "@/hooks/useCompactHeaderOnScroll";
 
 function SearchIcon({ className = "h-[22px] w-[22px]" }: { className?: string }) {
   return (
@@ -36,58 +33,20 @@ function SearchIcon({ className = "h-[22px] w-[22px]" }: { className?: string })
 export function Header() {
   const pathname = usePathname();
   const isHome = pathname === "/";
-  const [isCompact, setIsCompact] = useState(() => !isHome);
   const [searchOpen, setSearchOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const compactRef = useRef(!isHome);
-  const lockRef = useRef(false);
-
-  useEffect(() => {
-    lockRef.current = searchOpen || menuOpen;
-  }, [searchOpen, menuOpen]);
+  const { isCompact } = useCompactHeaderOnScroll({
+    isHome,
+    lockCompactToggle: searchOpen || menuOpen,
+  });
 
   useEffect(() => {
     setSearchOpen(false);
-    if (!isHome) {
-      compactRef.current = true;
-      setIsCompact(true);
-      return;
-    }
+  }, [pathname]);
 
-    let ticking = false;
-
-    const applyCompact = (next: boolean) => {
-      if (next === compactRef.current) return;
-      compactRef.current = next;
-      setIsCompact(next);
-      if (!next) setSearchOpen(false);
-    };
-
-    const readScroll = () => {
-      ticking = false;
-      if (lockRef.current) return;
-      const y = window.scrollY;
-      if (compactRef.current) {
-        if (y <= SCROLL_EXIT_COMPACT) applyCompact(false);
-      } else if (y >= SCROLL_ENTER_COMPACT) {
-        applyCompact(true);
-      }
-    };
-
-    const onScroll = () => {
-      if (ticking) return;
-      ticking = true;
-      requestAnimationFrame(readScroll);
-    };
-
-    const initialY = window.scrollY;
-    const initialCompact = initialY >= SCROLL_ENTER_COMPACT;
-    compactRef.current = initialCompact;
-    setIsCompact(initialCompact);
-
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
-  }, [isHome, pathname]);
+  useEffect(() => {
+    if (!isCompact) setSearchOpen(false);
+  }, [isCompact]);
 
   const showExpandedMobile = isHome && !isCompact;
 

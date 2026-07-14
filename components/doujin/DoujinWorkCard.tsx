@@ -72,15 +72,19 @@ export function DoujinWorkCard({
           className="absolute inset-0 z-0 block"
           aria-label={`${work.title}の詳細へ`}
         >
-          <DoujinCardImage src={imageUrl} alt={work.title} />
+          <DoujinCardImage
+            src={imageUrl}
+            alt={work.title}
+            sizes="(max-width: 389px) 50vw, (max-width: 768px) 33vw, 25vw"
+          />
         </Link>
 
         <DoujinFavoriteCardButton workId={work.id} title={work.title} />
       </div>
 
-      <div className="doujin-work-card__body relative z-10 flex flex-1 flex-col px-3 pb-3 pt-2.5 sm:px-3.5">
+      <div className="doujin-work-card__body relative z-10 flex flex-1 flex-col px-3 pb-3 pt-2.5 max-[768px]:px-1.5 max-[768px]:pb-2 max-[768px]:pt-1.5 sm:px-3.5">
         {work.productFormatNormalized ? (
-          <div className="mb-1.5">
+          <div className="mb-1.5 max-[768px]:mb-1">
             <DoujinProductFormatBadge
               normalizedFormat={work.productFormatNormalized}
               size="sm"
@@ -88,7 +92,7 @@ export function DoujinWorkCard({
           </div>
         ) : null}
         <Link href={detailHref} prefetch className="block">
-          <h3 className="line-clamp-2 min-h-[2.75em] text-sm font-semibold leading-snug text-foreground transition-colors group-hover:text-accent">
+          <h3 className="line-clamp-2 min-h-[2.75em] text-sm font-semibold leading-snug text-foreground transition-colors group-hover:text-accent max-[768px]:line-clamp-3 max-[768px]:min-h-[4.05em] max-[768px]:text-[13px] max-[768px]:leading-[1.4]">
             {work.title}
           </h3>
         </Link>
@@ -98,7 +102,7 @@ export function DoujinWorkCard({
           circleNames={work.circleNames}
           circleId={work.circleId}
           circleName={work.circleName}
-          className="mt-1.5 truncate text-xs text-muted"
+          className="mt-1.5 truncate text-xs text-muted max-[768px]:mt-1 max-[768px]:line-clamp-2 max-[768px]:whitespace-normal max-[768px]:text-[11px]"
           stopPropagation
         />
 
@@ -106,26 +110,26 @@ export function DoujinWorkCard({
           <DoujinAuthorLinks
             authorIds={linkedAuthorIds}
             authorNames={authorNames}
-            className="mt-0.5 truncate text-xs text-muted"
+            className="mt-0.5 truncate text-xs text-muted max-[768px]:hidden"
             stopPropagation
           />
         ) : null}
 
-        <div className="mt-2">
+        <div className="mt-2 max-[768px]:mt-1.5">
           {current ? (
             <>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-base font-bold leading-none text-price">
+              <div className="flex items-center justify-between gap-1.5">
+                <span className="text-base font-bold leading-none text-price max-[768px]:text-[13px]">
                   {current}
                 </span>
                 {discountPercent != null ? (
-                  <span className="shrink-0 rounded-[4px] bg-[#FFE7A0] px-1.5 py-0.5 text-[11px] font-semibold leading-none text-[#8A6400]">
+                  <span className="shrink-0 rounded-[4px] bg-[#FFE7A0] px-1.5 py-0.5 text-[11px] font-semibold leading-none text-[#8A6400] max-[768px]:px-1 max-[768px]:text-[9px]">
                     {discountPercent}% OFF
                   </span>
                 ) : null}
               </div>
               {original ? (
-                <p className="mt-1 text-[0.85em] leading-none text-[#999] line-through">
+                <p className="mt-1 text-[0.85em] leading-none text-[#999] line-through max-[768px]:mt-0.5 max-[768px]:text-[10px]">
                   {original}
                 </p>
               ) : null}
@@ -136,10 +140,10 @@ export function DoujinWorkCard({
         </div>
 
         {ratingText ? (
-          <p className="mt-1 text-xs text-muted">{ratingText}</p>
+          <p className="mt-1 text-xs text-muted max-[768px]:hidden">{ratingText}</p>
         ) : null}
 
-        <div className="doujin-work-card__actions mt-auto pt-3">
+        <div className="doujin-work-card__actions mt-auto pt-3 max-[768px]:pt-2">
           <DoujinWorkCardCtaRow
             workId={work.id}
             title={work.title}

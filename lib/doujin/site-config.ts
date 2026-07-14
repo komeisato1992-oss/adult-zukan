@@ -17,6 +17,8 @@ export const doujinSiteConfig = {
   logoIcon: "/doujin/logo-icon.png",
   icon: "/doujin/icon.png",
   appleTouchIcon: "/doujin/apple-touch-icon.png",
+  /** スマートフォンコンパクトヘッダー専用（PCは logo を維持） */
+  logoCompact: "/images/doujin-zukan-logo-horizontal.webp",
   logoText: "同人図鑑",
   tagline: "検索・比較・ランキングで作品選びをもっと便利に",
 } as const;

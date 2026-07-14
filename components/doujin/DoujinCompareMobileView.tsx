@@ -182,6 +182,24 @@ function SingleWorkMobileCard({ work }: { work: DoujinWork }) {
             />
             {!work.circleName && !(work.circleNames?.length) ? "-" : null}
           </p>
+          {(work.authorNames?.length ?? 0) > 0 ? (
+            <p className="mt-1 line-clamp-2 text-sm">
+              <span className="text-muted">作者：</span>
+              <DoujinAuthorLinks
+                authorIds={work.authorIds}
+                authorNames={work.authorNames}
+                className="text-sm"
+                variant="link"
+                separator="、"
+              />
+            </p>
+          ) : null}
+          {work.productFormatNormalized || work.productFormat ? (
+            <p className="mt-1 text-sm text-foreground">
+              <span className="text-muted">作品形式：</span>
+              {work.productFormatNormalized ?? work.productFormat}
+            </p>
+          ) : null}
           <div className="mt-2">
             <MobilePrice work={work} />
           </div>

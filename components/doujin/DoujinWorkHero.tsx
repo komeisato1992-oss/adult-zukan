@@ -71,8 +71,8 @@ export function DoujinWorkHero({
       aria-label="作品概要"
       className="rounded-none border-0 bg-transparent p-0 shadow-none"
     >
-      <div className="grid gap-8 lg:grid-cols-[minmax(0,42%)_1fr] lg:items-start lg:gap-10">
-        <div className="order-2 mx-auto w-full max-w-md lg:order-1 lg:mx-0 lg:max-w-none">
+      <div className="grid gap-8 max-[768px]:gap-5 lg:grid-cols-[minmax(0,42%)_1fr] lg:items-start lg:gap-10">
+        <div className="order-2 mx-auto w-full max-w-md max-[768px]:max-w-[min(85%,280px)] lg:order-1 lg:mx-0 lg:max-w-none">
           {imageUrl ? (
             <div className="doujin-work-detail__image-frame">
               <Image
@@ -81,7 +81,7 @@ export function DoujinWorkHero({
                 width={640}
                 height={640}
                 className="doujin-work-detail__image"
-                sizes="(max-width: 1024px) 100vw, 42vw"
+                sizes="(max-width: 768px) 85vw, (max-width: 1024px) 100vw, 42vw"
                 priority
                 unoptimized
               />
@@ -112,7 +112,7 @@ export function DoujinWorkHero({
             </div>
           ) : null}
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <h1 className="min-w-0 flex-1 text-xl font-bold leading-tight text-foreground sm:text-2xl lg:text-3xl">
+            <h1 className="min-w-0 flex-1 text-xl font-bold leading-tight text-foreground max-[768px]:line-clamp-4 max-[768px]:text-[20px] max-[768px]:leading-snug sm:text-2xl lg:text-3xl">
               {work.title}
             </h1>
             <DoujinFavoriteButton workId={work.id} title={work.title} />
@@ -229,7 +229,8 @@ export function DoujinWorkHero({
             ) : null}
           </dl>
 
-          <div className="mt-6 w-full max-w-[300px]">
+          {/* モバイル: 中央寄せ主CTA / PC: 既存の横並び */}
+          <div className="mt-6 hidden w-full max-w-[300px] min-[769px]:block">
             <div className="flex flex-nowrap items-stretch gap-1.5 sm:gap-2">
               <div className="min-w-0 basis-[40%]">
                 <DoujinCompareToggleButton
@@ -261,6 +262,44 @@ export function DoujinWorkHero({
                 <Link
                   href={guideHref}
                   className="inline-flex items-center justify-center rounded-md border border-[#E8C98A] bg-[#FFF6E4] px-3 py-2 text-center text-[12px] font-medium leading-none text-[#8A6A2E] transition-colors hover:border-[#D4B46E] hover:bg-[#FFEFC8] hover:text-[#6F5420] sm:text-[13px]"
+                >
+                  初めて利用する方はこちら ＞
+                </Link>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="mt-5 flex flex-col items-center min-[769px]:hidden">
+            {validAffiliate ? (
+              <a
+                href={affiliateUrl}
+                target="_blank"
+                rel={AFFILIATE_LINK_REL}
+                className="inline-flex w-[min(85%,280px)] items-center justify-center gap-1.5 rounded-lg bg-accent px-4 py-3.5 text-sm font-bold text-white shadow-sm transition-colors hover:bg-accent-hover"
+              >
+                {WORK_CARD_VIEW_LABEL}
+                <span aria-hidden>↗</span>
+              </a>
+            ) : (
+              <span
+                className={`${doujinWorkCardCtaBaseClassName} w-[min(85%,280px)] cursor-not-allowed border border-border bg-surface text-muted`}
+              >
+                リンク準備中
+              </span>
+            )}
+            <div className="mt-3 w-[min(85%,280px)]">
+              <DoujinCompareToggleButton
+                workId={work.id}
+                title={work.title}
+                variant="outline"
+              />
+            </div>
+
+            {showFirstTimeGuide ? (
+              <div className="mt-3 flex w-[min(85%,280px)] justify-center">
+                <Link
+                  href={guideHref}
+                  className="inline-flex w-full items-center justify-center rounded-md border border-[#E8C98A] bg-[#FFF6E4] px-3 py-2 text-center text-[12px] font-medium leading-none text-[#8A6A2E] transition-colors hover:border-[#D4B46E] hover:bg-[#FFEFC8] hover:text-[#6F5420]"
                 >
                   初めて利用する方はこちら ＞
                 </Link>

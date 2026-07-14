@@ -1,4 +1,5 @@
 import { DoujinWorkCard } from "@/components/doujin/DoujinWorkCard";
+import { DOUJIN_WORK_LIST_GRID_CLASSNAME } from "@/components/works/work-list-grid";
 import type { DoujinWork } from "@/lib/doujin/types";
 
 type DoujinWorksGridProps = {
@@ -6,12 +7,10 @@ type DoujinWorksGridProps = {
   className?: string;
 };
 
-/** 同人作品一覧グリッド（スマホ2列〜PC4列） */
+/** 同人作品一覧グリッド（モバイル: 2列→390px〜3列 / PC ≥769px: 既存の2→3→4列） */
 export function DoujinWorksGrid({ works, className = "" }: DoujinWorksGridProps) {
   return (
-    <div
-      className={`grid grid-cols-1 min-[360px]:grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4 ${className}`}
-    >
+    <div className={`${DOUJIN_WORK_LIST_GRID_CLASSNAME} ${className}`.trim()}>
       {works.map((work) => (
         <DoujinWorkCard key={work.id} work={work} />
       ))}

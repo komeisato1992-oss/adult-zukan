@@ -12,7 +12,10 @@ export function DoujinSiteShell({ children }: DoujinSiteShellProps) {
   return (
     <div data-site="doujin" className="flex min-h-screen flex-col">
       <DoujinHeader />
-      <main className="flex-1 pb-16 md:pb-0">{children}</main>
+      {/* モバイル: 比較バー(〜56px) + 下部ナビ(56px) + safe-area。PCは余白なし維持 */}
+      <main className="flex-1 max-[768px]:pb-[calc(144px+env(safe-area-inset-bottom,0px))] min-[769px]:pb-0">
+        {children}
+      </main>
       <DoujinCompareFloatingButton />
       <DoujinCompareCandidateGuide />
       <DoujinFooter />

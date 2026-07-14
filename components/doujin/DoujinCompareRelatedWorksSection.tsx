@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { DoujinCompareRelatedWorkCard } from "@/components/doujin/DoujinCompareRelatedWorkCard";
+import { COMPARE_RELATED_GRID_CLASSNAME } from "@/components/works/work-list-grid";
 import {
   getDoujinCompareRelatedWorks,
   getDoujinMultiCompareSimilarWorks,
@@ -28,7 +29,7 @@ function RelatedSection({
       <h2 className="border-l-4 border-accent pl-3 text-lg font-bold text-foreground">
         {heading}
       </h2>
-      <div className="mt-4 grid grid-cols-1 gap-3 min-[769px]:grid-cols-3 min-[1100px]:grid-cols-4 min-[1400px]:grid-cols-5">
+      <div className={`mt-4 ${COMPARE_RELATED_GRID_CLASSNAME}`}>
         {works.map((work) => (
           <DoujinCompareRelatedWorkCard
             key={`${source}-${work.workId}`}

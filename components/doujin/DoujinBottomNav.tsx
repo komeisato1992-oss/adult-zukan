@@ -15,7 +15,8 @@ export function DoujinBottomNav() {
   return (
     <nav
       aria-label="同人図鑑下部ナビゲーション"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-white/95 backdrop-blur md:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-white/95 backdrop-blur min-[769px]:hidden"
+      style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
     >
       <ul className="mx-auto flex max-w-7xl items-stretch">
         {doujinMobileBottomNavItems.map((item) => {

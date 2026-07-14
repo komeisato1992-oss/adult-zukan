@@ -252,6 +252,20 @@ body {
     aspect-ratio: 4 / 5;
   }
 
+  /* 同人カード: 3列時の画像高さをコンパクトに（横長サムネは contain 維持） */
+  .doujin-work-card__image-wrapper {
+    aspect-ratio: 3 / 2;
+    max-height: 155px;
+  }
+
+  .doujin-work-detail__image-frame {
+    max-height: 320px;
+  }
+
+  .doujin-work-detail__image {
+    max-height: 320px !important;
+  }
+
   h1,
   h2,
   h3,

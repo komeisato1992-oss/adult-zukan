@@ -11,19 +11,28 @@ function isDoujinNavActive(href: string, pathname: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function DoujinMobileNav() {
+type DoujinMobileNavProps = {
+  onOpenChange?: (open: boolean) => void;
+};
+
+export function DoujinMobileNav({ onOpenChange }: DoujinMobileNavProps) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
 
+  function setMenuOpen(next: boolean) {
+    setOpen(next);
+    onOpenChange?.(next);
+  }
+
   return (
-    <div className="relative md:hidden">
+    <div className="relative min-[769px]:hidden">
       <button
         type="button"
-        onClick={() => setOpen(!open)}
+        onClick={() => setMenuOpen(!open)}
         aria-expanded={open}
         aria-controls="doujin-mobile-nav-menu"
         aria-label="メニューを開く"
-        className="inline-flex h-9 w-9 items-center justify-center rounded border border-border text-foreground"
+        className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border text-foreground"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -31,7 +40,7 @@ export function DoujinMobileNav() {
           viewBox="0 0 24 24"
           strokeWidth={2}
           stroke="currentColor"
-          className="h-5 w-5"
+          className="h-[22px] w-[22px]"
           aria-hidden="true"
         >
           {open ? (
@@ -54,7 +63,7 @@ export function DoujinMobileNav() {
               <Link
                 key={item.href}
                 href={item.href}
-                onClick={() => setOpen(false)}
+                onClick={() => setMenuOpen(false)}
                 aria-current={active ? "page" : undefined}
                 className={
                   active

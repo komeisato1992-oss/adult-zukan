@@ -3,6 +3,7 @@ import { DoujinEmptyState } from "@/components/doujin/DoujinEmptyState";
 import { DoujinPageLayout } from "@/components/doujin/DoujinPageLayout";
 import { DoujinSimplePage } from "@/components/doujin/DoujinSimplePage";
 import { DoujinWorkCard } from "@/components/doujin/DoujinWorkCard";
+import { DOUJIN_WORK_LIST_GRID_CLASSNAME } from "@/components/works/work-list-grid";
 import {
   getDoujinPopularWorks,
   hasDoujinCatalogData,
@@ -25,10 +26,12 @@ export default function DoujinRankingPage() {
         {!hasData ? (
           <DoujinEmptyState />
         ) : (
-          <div className="grid grid-cols-1 min-[360px]:grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3 xl:grid-cols-4">
+          <div className={DOUJIN_WORK_LIST_GRID_CLASSNAME}>
             {works.map((work, index) => (
               <div key={work.id} className="flex h-full flex-col">
-                <p className="mb-2 text-sm font-bold text-accent">{index + 1}位</p>
+                <p className="mb-2 text-sm font-bold text-accent max-[768px]:mb-1 max-[768px]:text-xs">
+                  {index + 1}位
+                </p>
                 <div className="min-h-0 flex-1">
                   <DoujinWorkCard work={work} />
                 </div>

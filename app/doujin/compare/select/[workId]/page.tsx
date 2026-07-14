@@ -188,7 +188,7 @@ export default async function DoujinCompareSelectPage({
               )}
               件を表示
             </p>
-            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-4 grid grid-cols-2 gap-2 min-[769px]:grid-cols-2 min-[769px]:gap-4 lg:grid-cols-3">
               {paginated.items.map((work) => (
                 <DoujinSimilarWorkSelectCard
                   key={work.workId}

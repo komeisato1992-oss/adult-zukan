@@ -1,10 +1,10 @@
 {
   "status": "READY",
   "lastWorkAt": null,
-  "lastPromoteAt": "2026-07-14T16:15:21.071Z",
-  "lastPromoteSha": "f20fb12517c9775b3e6bcd153e1858ee54e0f2ba",
+  "lastPromoteAt": "2026-07-14T16:50:47.895Z",
+  "lastPromoteSha": "d7214ac4f40c878ca77e44c8df413fc17a3d7bda",
   "deployState": "pending",
-  "deployStartedAt": "2026-07-14T16:15:21.071Z",
+  "deployStartedAt": "2026-07-14T16:50:47.895Z",
   "productionUrl": "https://adult-zukan.jp",
   "errorSummary": null,
   "errorCode": null,

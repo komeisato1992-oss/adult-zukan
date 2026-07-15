@@ -9,7 +9,7 @@ export type AdminNavItem = {
 export const adminNavItems: AdminNavItem[] = [
   { id: "dashboard", label: "Dashboard", icon: "🏠", href: "/admin" },
   { id: "sns", label: "SNS管理", icon: "📢", href: "/admin/sns" },
-  { id: "import", label: "作品追加", icon: "📥", href: "/admin/import" },
+  { id: "import", label: "作品管理", icon: "📥", href: "/admin/import" },
   {
     id: "actress-images",
     label: "女優代表画像",

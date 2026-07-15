@@ -6,6 +6,8 @@ export const ADULT_SYNC_MODE_LIGHT = "light" as const;
 export const ADULT_SYNC_MODE_PRICE = "price" as const;
 export const ADULT_SYNC_MODE_RANK = "rank" as const;
 export const ADULT_SYNC_MODE_DATE = "date" as const;
+/** 新着（発売日）＋人気順位 */
+export const ADULT_SYNC_MODE_DATE_RANK = "date_rank" as const;
 export const ADULT_SYNC_MODE_FULL = "full" as const;
 
 export type AdultSyncMode =
@@ -13,6 +15,7 @@ export type AdultSyncMode =
   | typeof ADULT_SYNC_MODE_PRICE
   | typeof ADULT_SYNC_MODE_RANK
   | typeof ADULT_SYNC_MODE_DATE
+  | typeof ADULT_SYNC_MODE_DATE_RANK
   | typeof ADULT_SYNC_MODE_FULL;
 
 /** 軽量同期で更新してよいフィールド */
@@ -50,6 +53,7 @@ export function isAdultSyncMode(value: unknown): value is AdultSyncMode {
     value === ADULT_SYNC_MODE_PRICE ||
     value === ADULT_SYNC_MODE_RANK ||
     value === ADULT_SYNC_MODE_DATE ||
+    value === ADULT_SYNC_MODE_DATE_RANK ||
     value === ADULT_SYNC_MODE_FULL
   );
 }
@@ -62,13 +66,15 @@ export function isAdultPartialSyncMode(mode: AdultSyncMode): boolean {
 export function getAdultSyncModeLabel(mode: AdultSyncMode): string {
   switch (mode) {
     case ADULT_SYNC_MODE_LIGHT:
-      return "軽量同期（価格・セール・評価・順位）";
+      return "軽量項目すべて";
     case ADULT_SYNC_MODE_PRICE:
-      return "価格だけ更新";
+      return "価格・セールのみ";
     case ADULT_SYNC_MODE_RANK:
-      return "人気順位だけ更新";
+      return "人気順を更新";
     case ADULT_SYNC_MODE_DATE:
-      return "新着（発売日）だけ更新";
+      return "新着順を更新";
+    case ADULT_SYNC_MODE_DATE_RANK:
+      return "新着＋人気";
     case ADULT_SYNC_MODE_FULL:
       return "完全同期（全データ）";
     default:
@@ -114,6 +120,8 @@ export function getAdultSyncFieldsForMode(
       return ADULT_SYNC_RANK_FIELDS;
     case ADULT_SYNC_MODE_DATE:
       return ADULT_SYNC_DATE_FIELDS;
+    case ADULT_SYNC_MODE_DATE_RANK:
+      return [...ADULT_SYNC_DATE_FIELDS, ...ADULT_SYNC_RANK_FIELDS];
     case ADULT_SYNC_MODE_LIGHT:
       return ADULT_SYNC_LIGHT_FIELDS;
     default:

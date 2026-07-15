@@ -10,7 +10,7 @@ export default function AdminImportPage() {
           作品管理
         </h1>
         <p className="mt-2 text-sm text-muted">
-          上から順に進めるだけで完了します。追加・同期は作業ブランチのみ。本番反映ボタンでのみデプロイします。
+          ①候補取得 → ②選択・追加 → ③更新 → ④本番反映。日常運用は管理画面だけで完結します。本番デプロイは④のみです。
         </p>
       </section>
 

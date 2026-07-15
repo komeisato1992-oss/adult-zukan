@@ -88,12 +88,16 @@ async function fetchDmmStaticWorksUncached(): Promise<DmmItem[]> {
 
   incrPerfCounter("adult.public.catalog.miss");
   const snapshot = readCatalogSnapshot();
+  const { mergeLightOverlayIntoItems } = await import(
+    "@/lib/admin/fanza-light-overlay-store"
+  );
+  const snapshotWithOverlay = await mergeLightOverlayIntoItems(snapshot);
 
-  if (snapshot.length >= CATALOG_MIN_VALID) {
+  if (snapshotWithOverlay.length >= CATALOG_MIN_VALID) {
     const items = dedupeWorksForDisplay(
-      filterPublicCatalogWorks(filterValidCatalogItems(snapshot)),
+      filterPublicCatalogWorks(filterValidCatalogItems(snapshotWithOverlay)),
     );
-    const stats = analyzeCatalogItems(snapshot);
+    const stats = analyzeCatalogItems(snapshotWithOverlay);
     stats.validCount = items.length;
     logBuildStatsOnce(stats, { worksListCount: items.length });
     cachedValidWorks = items;
@@ -119,11 +123,11 @@ async function fetchDmmStaticWorksUncached(): Promise<DmmItem[]> {
     }
   }
 
-  if (snapshot.length > 0) {
+  if (snapshotWithOverlay.length > 0) {
     const items = dedupeWorksForDisplay(
-      filterPublicCatalogWorks(filterValidCatalogItems(snapshot)),
+      filterPublicCatalogWorks(filterValidCatalogItems(snapshotWithOverlay)),
     );
-    const stats = analyzeCatalogItems(snapshot);
+    const stats = analyzeCatalogItems(snapshotWithOverlay);
     stats.validCount = items.length;
     logBuildStatsOnce(stats, { worksListCount: items.length });
     cachedValidWorks = items;
@@ -145,6 +149,15 @@ async function fetchDmmStaticWorksUncached(): Promise<DmmItem[]> {
   cachedValidWorks = [];
   writeProcessCache([]);
   return [];
+}
+
+/** 軽量同期オーバーレイ適用後に呼ぶ（プロセス内キャッシュ破棄） */
+export function invalidateDmmStaticWorksCache(): void {
+  cachedValidWorks = null;
+  const holder = getAdultPublicCatalogMemoryHolder();
+  holder.cache = null;
+  holder.loadedAt = 0;
+  holder.mtimeMs = -1;
 }
 
 /** 834件超の配列は unstable_cache 2MB 制限を超えるため React cache + プロセスTTL */

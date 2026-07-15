@@ -4,6 +4,7 @@ import {
   ADULT_SYNC_DATE_FIELDS,
   ADULT_SYNC_LIGHT_FIELDS,
   ADULT_SYNC_MODE_DATE,
+  ADULT_SYNC_MODE_DATE_RANK,
   ADULT_SYNC_MODE_PRICE,
   ADULT_SYNC_MODE_RANK,
   ADULT_SYNC_PRICE_FIELDS,
@@ -58,6 +59,12 @@ export function pickAdultSyncFields(
   }
   if (mode === ADULT_SYNC_MODE_DATE) {
     return { date: item.date };
+  }
+  if (mode === ADULT_SYNC_MODE_DATE_RANK) {
+    return {
+      date: item.date,
+      sourcePopularityRank: item.sourcePopularityRank,
+    };
   }
   return pickAdultLightFields(item);
 }

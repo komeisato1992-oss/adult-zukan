@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type {
@@ -24,6 +25,12 @@ import { getAdultImportSortLabel } from "@/lib/admin/import-simple-types";
 import { buildAddSelectedWorksPayload } from "@/lib/admin/import-add-payload";
 import type { AdultSyncMode } from "@/lib/dmm/sync-mode";
 import { getAdultSyncModeLabel } from "@/lib/dmm/sync-mode";
+import {
+  getDmmItemActressNameList,
+  getDmmItemImageUrl,
+  getDmmItemMakerName,
+} from "@/lib/dmm/display";
+import { formatDmmItemPrice } from "@/lib/dmm/release-date";
 
 type WorksOpsDashboardProps = {
   configured: boolean;
@@ -38,9 +45,19 @@ type OpsLog = {
   ok: boolean;
   message: string;
   durationMs?: number;
+  detail?: string;
 };
 
+type LightSyncStatus = "enabled" | "disabled" | "unset";
+type StepId = 1 | 2 | 3 | 4;
+
 const FETCH_COUNTS = [20, 50, 100, 200] as const;
+const STEPS: Array<{ id: StepId; short: string; label: string }> = [
+  { id: 1, short: "1. 候補取得", label: "作品を探す" },
+  { id: 2, short: "2. 選択・追加", label: "選択して追加する" },
+  { id: 3, short: "3. 更新", label: "掲載作品を更新する" },
+  { id: 4, short: "4. 本番反映", label: "本番へ反映する" },
+];
 
 function formatDateTime(value: string | null | undefined): string {
   if (!value) return "—";
@@ -55,28 +72,41 @@ function formatDuration(ms: number | undefined): string {
   return `${(ms / 1000).toFixed(1)}秒`;
 }
 
+function statusLabel(status: LightSyncStatus): string {
+  if (status === "enabled") return "有効：実行可能";
+  if (status === "disabled") return "無効：設定が必要";
+  return "未設定：環境変数未設定";
+}
+
 function CardShell({
   step,
   title,
   children,
   tone = "default",
+  id,
 }: {
   step: string;
   title: string;
   children: ReactNode;
-  tone?: "default" | "ok" | "warn" | "error";
+  tone?: "default" | "ok" | "warn" | "error" | "info";
+  id?: string;
 }) {
   const border =
     tone === "ok"
-      ? "border-emerald-400/60 bg-emerald-50/40"
+      ? "border-emerald-400/70 bg-emerald-50/50"
       : tone === "warn"
-        ? "border-amber-400/60 bg-amber-50/40"
+        ? "border-amber-400/70 bg-amber-50/50"
         : tone === "error"
-          ? "border-red-400/60 bg-red-50/40"
-          : "border-border bg-surface";
+          ? "border-red-400/70 bg-red-50/50"
+          : tone === "info"
+            ? "border-sky-400/70 bg-sky-50/40"
+            : "border-border bg-surface";
 
   return (
-    <section className={`rounded-2xl border p-4 shadow-sm sm:p-5 ${border}`}>
+    <section
+      id={id}
+      className={`scroll-mt-24 rounded-2xl border p-4 shadow-sm sm:p-5 ${border}`}
+    >
       <div className="mb-3 flex items-baseline gap-2">
         <span className="rounded-full bg-sky-600 px-2.5 py-0.5 text-xs font-bold text-white">
           {step}
@@ -93,18 +123,23 @@ export function WorksOpsDashboard({
   dmmConfigured,
   githubConfigured,
 }: WorksOpsDashboardProps) {
+  const [activeStep, setActiveStep] = useState<StepId>(1);
   const [promoteStatus, setPromoteStatus] =
     useState<CatalogPromoteStatusPayload | null>(null);
   const [syncJob, setSyncJob] = useState<FanzaSyncJob | null>(null);
   const [syncHistory, setSyncHistory] = useState<FanzaSyncHistoryEntry[]>([]);
   const [syncProgress, setSyncProgress] = useState(0);
   const [lightSyncEnabled, setLightSyncEnabled] = useState(false);
+  const [lightSyncStatus, setLightSyncStatus] =
+    useState<LightSyncStatus>("unset");
   const [fullSyncEnabled, setFullSyncEnabled] = useState(false);
   const [logs, setLogs] = useState<OpsLog[]>([]);
+  const [showAllLogs, setShowAllLogs] = useState(false);
+  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [showTechDetail, setShowTechDetail] = useState(false);
 
-  // Add works
   const [fetchSort, setFetchSort] = useState<AdultImportSortMode>("popular");
   const [fetchCount, setFetchCount] = useState<number>(50);
   const [offsetInput, setOffsetInput] = useState("1");
@@ -119,9 +154,11 @@ export function WorksOpsDashboard({
   );
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [adding, setAdding] = useState(false);
+  const [expandedCandidate, setExpandedCandidate] = useState<string | null>(
+    null,
+  );
 
-  // Sync / promote
-  const [syncMode, setSyncMode] = useState<AdultSyncMode>("light");
+  const [syncMode, setSyncMode] = useState<AdultSyncMode>("price");
   const [syncStarting, setSyncStarting] = useState(false);
   const [syncProcessing, setSyncProcessing] = useState(false);
   const syncProcessingRef = useRef(false);
@@ -139,12 +176,14 @@ export function WorksOpsDashboard({
           ...entry,
         },
         ...prev,
-      ].slice(0, 20),
+      ].slice(0, 40),
     );
   }, []);
 
   const refreshPromote = useCallback(async () => {
-    const response = await fetch("/api/admin/import/promote/status");
+    const response = await fetch("/api/admin/import/promote/status", {
+      cache: "no-store",
+    });
     const body = await response.json();
     if (response.ok && body.success) {
       setPromoteStatus(body.status as CatalogPromoteStatusPayload);
@@ -152,7 +191,9 @@ export function WorksOpsDashboard({
   }, []);
 
   const refreshSync = useCallback(async () => {
-    const response = await fetch("/api/admin/fanza-sync/status");
+    const response = await fetch("/api/admin/fanza-sync/status", {
+      cache: "no-store",
+    });
     if (!response.ok) return null;
     const data = await response.json();
     setSyncJob(data.currentJob);
@@ -166,11 +207,26 @@ export function WorksOpsDashboard({
   }, []);
 
   const refreshSettings = useCallback(async () => {
-    const response = await fetch("/api/admin/ops-settings");
+    const response = await fetch("/api/admin/ops-settings", {
+      cache: "no-store",
+    });
     if (!response.ok) return;
     const data = await response.json();
     setLightSyncEnabled(Boolean(data.lightSyncEnabled));
     setFullSyncEnabled(Boolean(data.fullSyncEnabled));
+    if (
+      data.lightSyncStatus === "enabled" ||
+      data.lightSyncStatus === "disabled" ||
+      data.lightSyncStatus === "unset"
+    ) {
+      setLightSyncStatus(data.lightSyncStatus);
+    } else {
+      setLightSyncStatus(
+        data.lightSyncEnabled ? "enabled" : data.lightSyncEnv === "unset"
+          ? "unset"
+          : "disabled",
+      );
+    }
   }, []);
 
   useEffect(() => {
@@ -184,18 +240,45 @@ export function WorksOpsDashboard({
     setOffsetInput(String(readStoredOffset(fetchSort) || 1));
   }, [fetchSort]);
 
-  const statusTone = useMemo(() => {
+  const syncRunning =
+    syncJob?.status === "running" || syncJob?.status === "pending";
+
+  const health = useMemo(() => {
+    if (syncRunning || promoting || syncingWorking) {
+      return { tone: "info" as const, label: "処理中" };
+    }
     if (promoteStatus?.errorSummary || promoteStatus?.status === "FAILED") {
-      return "error" as const;
+      return { tone: "error" as const, label: "要対応" };
     }
-    if (
-      promoteStatus?.hasPendingChanges ||
-      (promoteStatus?.productionAheadCount ?? 0) > 0
-    ) {
-      return "warn" as const;
+    if ((promoteStatus?.productionAheadCount ?? 0) > 0) {
+      return { tone: "warn" as const, label: "要対応" };
     }
-    return "ok" as const;
-  }, [promoteStatus]);
+    if (promoteStatus?.hasPendingChanges) {
+      return { tone: "warn" as const, label: "未反映あり" };
+    }
+    return { tone: "ok" as const, label: "正常" };
+  }, [promoteStatus, syncRunning, promoting, syncingWorking]);
+
+  const userStatusMessage = useMemo(() => {
+    if (syncRunning) return "掲載作品の更新を実行中です";
+    if (promoting) return "本番反映を実行中です";
+    if (syncingWorking) return "作業内容を最新状態へ合わせています";
+    if ((promoteStatus?.productionAheadCount ?? 0) > 0) {
+      return "本番側に新しい変更があります。作業内容を最新状態へ合わせる必要があります";
+    }
+    if (promoteStatus?.hasPendingChanges) {
+      return "作業ブランチに未反映の変更があります";
+    }
+    if (promoteStatus?.errorSummary) return "要対応のエラーがあります";
+    return "問題なく運用できます";
+  }, [promoteStatus, syncRunning, promoting, syncingWorking]);
+
+  const lastSyncAt =
+    syncJob?.completedAt ||
+    syncJob?.updatedAt ||
+    syncHistory[0]?.completedAt ||
+    syncHistory[0]?.startedAt ||
+    null;
 
   const processSyncBatch = useCallback(async () => {
     if (syncProcessingRef.current) return;
@@ -204,6 +287,7 @@ export function WorksOpsDashboard({
     try {
       const response = await fetch("/api/admin/fanza-sync/process", {
         method: "POST",
+        cache: "no-store",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
@@ -231,16 +315,17 @@ export function WorksOpsDashboard({
     void processSyncBatch();
   }, [syncJob, syncProcessing, processSyncBatch]);
 
+  const currentOffset = Math.max(1, Number.parseInt(offsetInput, 10) || 1);
+
   const handleFetchCandidates = async () => {
     setFetching(true);
     setError(null);
     setMessage(null);
     setFetchProgress({ done: 0, total: fetchCount });
     const started = Date.now();
-    const startOffset = Math.max(1, Number.parseInt(offsetInput, 10) || 1);
+    const startOffset = currentOffset;
 
     try {
-      // 取得中の擬似進捗（APIが単発のため UI 用）
       const tick = window.setInterval(() => {
         setFetchProgress((prev) => {
           if (!prev) return prev;
@@ -251,6 +336,7 @@ export function WorksOpsDashboard({
 
       const response = await fetch("/api/admin/import/fetch-candidates", {
         method: "POST",
+        cache: "no-store",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           sort: fetchSort,
@@ -270,6 +356,7 @@ export function WorksOpsDashboard({
       setSummary(nextSummary);
       setSelected(new Set(nextCandidates.map((c) => c.contentId)));
       setFetchProgress({ done: fetchCount, total: fetchCount });
+      setActiveStep(2);
 
       if (nextSummary?.nextOffset != null) {
         writeStoredOffset(fetchSort, nextSummary.nextOffset);
@@ -277,19 +364,26 @@ export function WorksOpsDashboard({
       }
 
       setMessage(
-        `${getAdultImportSortLabel(fetchSort)}で ${nextCandidates.length} 件の候補を取得しました（作業ブランチのみ）。`,
+        `${getAdultImportSortLabel(fetchSort)}で未掲載候補 ${nextCandidates.length} 件を取得しました。`,
       );
       pushLog({
-        action: "新作品取得",
+        action: "候補取得",
         ok: true,
         message: `${nextCandidates.length}件`,
         durationMs: Date.now() - started,
+        detail: JSON.stringify(nextSummary),
       });
       await refreshPromote();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "候補の取得に失敗しました。";
       setError(msg);
-      pushLog({ action: "新作品取得", ok: false, message: msg, durationMs: Date.now() - started });
+      pushLog({
+        action: "候補取得",
+        ok: false,
+        message: msg,
+        durationMs: Date.now() - started,
+        detail: msg,
+      });
     } finally {
       setFetching(false);
     }
@@ -305,6 +399,7 @@ export function WorksOpsDashboard({
       const payload = buildAddSelectedWorksPayload(items);
       const response = await fetch("/api/admin/import/add-selected-works", {
         method: "POST",
+        cache: "no-store",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
@@ -320,33 +415,43 @@ export function WorksOpsDashboard({
         );
       }
       const added = Number(body.summary?.addedCount ?? selected.size);
-      setMessage(`${added} 件を作業ブランチへ追加しました（本番未反映）。`);
+      setMessage(`${added} 件を作業ブランチへ追加しました（本番未反映・デプロイなし）。`);
       setCandidates((prev) => prev.filter((c) => !selected.has(c.contentId)));
       setSelected(new Set());
+      setActiveStep(4);
       pushLog({
         action: "作品追加",
         ok: true,
-        message: `${added}件追加`,
+        message: `${added}件`,
         durationMs: Date.now() - started,
       });
       await refreshPromote();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "追加に失敗しました。";
       setError(msg);
-      pushLog({ action: "作品追加", ok: false, message: msg, durationMs: Date.now() - started });
+      pushLog({
+        action: "作品追加",
+        ok: false,
+        message: msg,
+        durationMs: Date.now() - started,
+        detail: msg,
+      });
     } finally {
       setAdding(false);
     }
   };
 
   const handleStartSync = async (mode: AdultSyncMode) => {
-    const needsLight = mode !== "full";
-    if (needsLight && !lightSyncEnabled) {
-      setError("軽量同期がOFFです。設定画面でONにしてください。");
+    if (mode !== "full" && !lightSyncEnabled) {
+      setError("軽量同期が無効です。設定画面で有効にするか、環境変数を確認してください。");
       return;
     }
     if (mode === "full" && !fullSyncEnabled) {
-      setError("完全同期がOFFです。設定画面でONにしてください。");
+      setError("完全同期が無効です。設定画面で有効にしてください。");
+      return;
+    }
+    if (syncRunning) {
+      setMessage("現在、更新処理を実行中です");
       return;
     }
 
@@ -357,6 +462,7 @@ export function WorksOpsDashboard({
     try {
       const response = await fetch("/api/admin/fanza-sync/start", {
         method: "POST",
+        cache: "no-store",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ mode }),
       });
@@ -369,7 +475,9 @@ export function WorksOpsDashboard({
       if (!response.ok || !data.success) {
         throw new Error(data.message ?? "同期の開始に失敗しました。");
       }
-      setMessage(`${getAdultSyncModeLabel(mode)}を開始しました（作業ブランチのみ・本番デプロイなし）。`);
+      setMessage(
+        `${getAdultSyncModeLabel(mode)}を開始しました（Gitカタログ変更・デプロイなし）。`,
+      );
       setSyncJob(data.currentJob);
       setSyncProgress(data.progressPercent ?? 0);
       pushLog({
@@ -386,6 +494,7 @@ export function WorksOpsDashboard({
         ok: false,
         message: msg,
         durationMs: Date.now() - started,
+        detail: msg,
       });
     } finally {
       setSyncStarting(false);
@@ -400,16 +509,20 @@ export function WorksOpsDashboard({
     try {
       const response = await fetch("/api/admin/import/promote/sync-working", {
         method: "POST",
+        cache: "no-store",
       });
       const body = await response.json();
       if (body.conflict) {
         setShowConflict(true);
-        setError(body.message ?? "競合が発生しました。");
+        setError(
+          "作業内容を最新状態へ合わせる際に競合が発生しました。詳細を確認してください。",
+        );
         pushLog({
           action: "作業ブランチ最新化",
           ok: false,
           message: "競合",
           durationMs: Date.now() - started,
+          detail: body.message,
         });
         return;
       }
@@ -418,11 +531,11 @@ export function WorksOpsDashboard({
       }
       if (body.status) setPromoteStatus(body.status);
       else await refreshPromote();
-      setMessage(body.message ?? "作業ブランチを最新化しました。");
+      setMessage(body.message ?? "作業内容を最新状態へ合わせました。");
       pushLog({
         action: "作業ブランチ最新化",
         ok: true,
-        message: body.message ?? "完了",
+        message: "完了",
         durationMs: Date.now() - started,
       });
     } catch (err) {
@@ -433,6 +546,7 @@ export function WorksOpsDashboard({
         ok: false,
         message: msg,
         durationMs: Date.now() - started,
+        detail: msg,
       });
     } finally {
       setSyncingWorking(false);
@@ -463,6 +577,7 @@ export function WorksOpsDashboard({
     try {
       const response = await fetch("/api/admin/import/promote", {
         method: "POST",
+        cache: "no-store",
         headers: { Accept: "application/x-ndjson, application/json" },
       });
       const contentType = response.headers.get("content-type") ?? "";
@@ -505,14 +620,14 @@ export function WorksOpsDashboard({
         throw new Error(result?.message || "本番反映に失敗しました。");
       }
 
-      setMessage(result.message ?? "本番反映が完了しました。");
+      setMessage(result.message ?? "本番反映が完了しました（Productionデプロイ1回）。");
       if (result.statusPayload) setPromoteStatus(result.statusPayload);
       else await refreshPromote();
       setPromoteConfirm(false);
       pushLog({
         action: "本番反映",
         ok: true,
-        message: "完了",
+        message: "デプロイ1回",
         durationMs: Date.now() - started,
       });
     } catch (err) {
@@ -523,6 +638,7 @@ export function WorksOpsDashboard({
         ok: false,
         message: msg,
         durationMs: Date.now() - started,
+        detail: msg,
       });
     } finally {
       setPromoting(false);
@@ -536,84 +652,181 @@ export function WorksOpsDashboard({
     promoteStatus?.status !== "MERGING" &&
     promoteStatus?.status !== "DEPLOYING";
 
-  const syncRunning =
-    syncJob?.status === "running" || syncJob?.status === "pending";
+  const visibleLogs = showAllLogs ? logs : logs.slice(0, 5);
+  const toneClass =
+    health.tone === "ok"
+      ? "bg-emerald-500"
+      : health.tone === "warn"
+        ? "bg-amber-500"
+        : health.tone === "info"
+          ? "bg-sky-500"
+          : "bg-red-500";
 
   return (
-    <div className="space-y-5">
-      {message ? (
-        <p className="rounded-xl bg-emerald-500/10 px-4 py-3 text-sm text-foreground">
-          {message}
-        </p>
-      ) : null}
-      {error ? (
-        <p className="rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-700">{error}</p>
-      ) : null}
-
-      {/* ① 現在の状態 */}
-      <CardShell step="①" title="現在の状態" tone={statusTone}>
-        <dl className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
-          <div className="rounded-xl bg-white/70 p-3">
-            <dt className="text-xs text-muted">現在の作品数</dt>
-            <dd className="mt-1 text-2xl font-bold text-foreground">
+    <div className="space-y-4 pb-28 sm:pb-8">
+      {/* 現在の状態 */}
+      <CardShell
+        step="状態"
+        title="現在の状態"
+        tone={
+          health.tone === "info"
+            ? "info"
+            : health.tone === "ok"
+              ? "ok"
+              : health.tone === "warn"
+                ? "warn"
+                : "error"
+        }
+      >
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <span
+            className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-bold text-white ${toneClass}`}
+          >
+            {health.label}
+          </span>
+          <p className="text-sm font-medium text-foreground">{userStatusMessage}</p>
+        </div>
+        <dl className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+          <div className="rounded-xl bg-white/80 p-3">
+            <dt className="text-xs text-muted">公開作品数</dt>
+            <dd className="mt-1 text-xl font-bold">
               {(promoteStatus?.workingWorkCount ?? 0).toLocaleString()}
             </dd>
           </div>
-          <div className="rounded-xl bg-white/70 p-3">
-            <dt className="text-xs text-muted">未反映作品数</dt>
-            <dd className="mt-1 text-2xl font-bold text-foreground">
+          <div className="rounded-xl bg-white/80 p-3">
+            <dt className="text-xs text-muted">作業中の追加</dt>
+            <dd className="mt-1 text-xl font-bold">
               {(promoteStatus?.addedWorkCount ?? 0).toLocaleString()}
             </dd>
           </div>
-          <div className="rounded-xl bg-white/70 p-3">
+          <div className="rounded-xl bg-white/80 p-3">
+            <dt className="text-xs text-muted">未反映コミット</dt>
+            <dd className="mt-1 text-xl font-bold">
+              {(promoteStatus?.pendingCommitCount ?? 0).toLocaleString()}
+            </dd>
+          </div>
+          <div className="rounded-xl bg-white/80 p-3">
+            <dt className="text-xs text-muted">処理状態</dt>
+            <dd className="mt-1 text-sm font-bold">{health.label}</dd>
+          </div>
+          <div className="rounded-xl bg-white/80 p-3">
             <dt className="text-xs text-muted">作業ブランチ</dt>
-            <dd className="mt-1 font-semibold text-foreground">
+            <dd className="mt-1 truncate font-semibold">
               {promoteStatus?.workingBranch ?? "未設定"}
             </dd>
           </div>
-          <div className="rounded-xl bg-white/70 p-3">
-            <dt className="text-xs text-muted">Production</dt>
-            <dd className="mt-1 font-semibold text-foreground">
+          <div className="rounded-xl bg-white/80 p-3">
+            <dt className="text-xs text-muted">本番ブランチ</dt>
+            <dd className="mt-1 truncate font-semibold">
               {promoteStatus?.productionBranch ?? "main"}
             </dd>
           </div>
-          <div className="col-span-2 rounded-xl bg-white/70 p-3 sm:col-span-1">
-            <dt className="text-xs text-muted">最終デプロイ日時</dt>
-            <dd className="mt-1 font-semibold text-foreground">
+          <div className="rounded-xl bg-white/80 p-3">
+            <dt className="text-xs text-muted">最終同期</dt>
+            <dd className="mt-1 text-xs font-semibold">
+              {formatDateTime(lastSyncAt)}
+            </dd>
+          </div>
+          <div className="rounded-xl bg-white/80 p-3">
+            <dt className="text-xs text-muted">最終本番反映</dt>
+            <dd className="mt-1 text-xs font-semibold">
               {formatDateTime(promoteStatus?.lastPromoteAt)}
             </dd>
           </div>
         </dl>
-        <p className="mt-3 text-sm font-medium text-foreground">
-          {statusTone === "ok" && "✅ 正常"}
-          {statusTone === "warn" && "⚠ 未反映または本番側に更新あり"}
-          {statusTone === "error" && "❌ エラーがあります"}
-        </p>
         <button
           type="button"
-          onClick={() => void refreshPromote()}
+          onClick={() => setShowTechDetail((v) => !v)}
+          className="mt-3 text-xs text-sky-700 underline"
+        >
+          {showTechDetail ? "技術詳細を閉じる" : "技術詳細を開く"}
+        </button>
+        {showTechDetail ? (
+          <pre className="mt-2 overflow-auto rounded-xl bg-zinc-900 p-3 text-[11px] text-zinc-100">
+            {JSON.stringify(
+              {
+                errorCode: promoteStatus?.errorCode,
+                httpStatus: promoteStatus?.httpStatus,
+                status: promoteStatus?.status,
+                productionAheadCount: promoteStatus?.productionAheadCount,
+                syncJobId: syncJob?.jobId,
+                syncStatus: syncJob?.status,
+              },
+              null,
+              2,
+            )}
+          </pre>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => {
+            void refreshPromote();
+            void refreshSync();
+            void refreshSettings();
+          }}
           className="mt-3 min-h-[44px] rounded-xl border border-border px-4 text-sm"
         >
           状態を更新
         </button>
       </CardShell>
 
-      {/* ② 新作品追加 */}
-      <CardShell step="②" title="新作品追加">
+      {/* ステップナビ */}
+      <nav
+        aria-label="作品管理の手順"
+        className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1"
+      >
+        {STEPS.map((step) => {
+          const active = activeStep === step.id;
+          return (
+            <button
+              key={step.id}
+              type="button"
+              onClick={() => {
+                setActiveStep(step.id);
+                document
+                  .getElementById(`works-ops-step-${step.id}`)
+                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+              className={`shrink-0 rounded-full px-3 py-2 text-xs font-bold sm:text-sm ${
+                active
+                  ? "bg-sky-600 text-white"
+                  : "border border-border bg-white text-foreground"
+              }`}
+            >
+              {step.short}
+            </button>
+          );
+        })}
+      </nav>
+
+      {message ? (
+        <p className="rounded-xl bg-emerald-500/10 px-4 py-3 text-sm">{message}</p>
+      ) : null}
+      {error ? (
+        <p className="rounded-xl bg-red-500/10 px-4 py-3 text-sm text-red-700">{error}</p>
+      ) : null}
+
+      {/* ① 作品を探す */}
+      <CardShell
+        id="works-ops-step-1"
+        step="①"
+        title="作品を探す"
+        tone={activeStep === 1 ? "info" : "default"}
+      >
         <p className="mb-3 text-sm text-muted">
-          未掲載作品を取得して作業ブランチへ追加します。本番への反映はこの時点では行いません。
+          未掲載作品を取得します。この操作では本番デプロイはしません。
         </p>
 
-        <div className="flex gap-2">
+        <div className="grid grid-cols-2 gap-2">
           {(["popular", "new"] as const).map((mode) => (
             <button
               key={mode}
               type="button"
               onClick={() => setFetchSort(mode)}
-              className={`min-h-[44px] flex-1 rounded-xl px-3 text-sm font-bold ${
+              className={`min-h-[48px] rounded-xl text-sm font-bold ${
                 fetchSort === mode
                   ? "bg-sky-600 text-white"
-                  : "border border-border bg-white text-foreground"
+                  : "border border-border bg-white"
               }`}
             >
               {mode === "popular" ? "人気順" : "新着順"}
@@ -621,213 +834,309 @@ export function WorksOpsDashboard({
           ))}
         </div>
 
-        <div className="mt-4">
-          <p className="text-xs font-medium text-muted">取得件数</p>
-          <div className="mt-2 grid grid-cols-4 gap-2">
-            {FETCH_COUNTS.map((n) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => setFetchCount(n)}
-                className={`min-h-[44px] rounded-xl text-sm font-bold ${
-                  fetchCount === n
-                    ? "bg-sky-600 text-white"
-                    : "border border-border bg-white"
-                }`}
-              >
-                {n}
-              </button>
-            ))}
+        <p className="mt-4 text-xs font-medium text-muted">取得件数</p>
+        <div className="mt-2 grid grid-cols-4 gap-2">
+          {FETCH_COUNTS.map((n) => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => setFetchCount(n)}
+              className={`min-h-[44px] rounded-xl text-sm font-bold ${
+                fetchCount === n
+                  ? "bg-sky-600 text-white"
+                  : "border border-border bg-white"
+              }`}
+            >
+              {n}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-border bg-white p-3">
+          <p className="text-xs text-muted">offset（現在位置）</p>
+          <p className="mt-1 text-3xl font-bold tabular-nums">{currentOffset}</p>
+          <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <button
+              type="button"
+              className="min-h-[44px] rounded-xl border border-border text-sm font-medium"
+              onClick={() =>
+                setOffsetInput(String(Math.max(1, currentOffset - fetchCount)))
+              }
+            >
+              前へ
+            </button>
+            <button
+              type="button"
+              className="min-h-[44px] rounded-xl border border-border text-sm font-medium"
+              onClick={() => setOffsetInput(String(currentOffset + fetchCount))}
+            >
+              次へ
+            </button>
+            <button
+              type="button"
+              className="min-h-[44px] rounded-xl border border-border text-sm font-medium"
+              onClick={() => {
+                setOffsetInput("1");
+                writeStoredOffset(fetchSort, 1);
+              }}
+            >
+              0に戻す
+            </button>
+            <input
+              value={offsetInput}
+              onChange={(e) => setOffsetInput(e.target.value)}
+              inputMode="numeric"
+              aria-label="offsetを直接入力"
+              className="min-h-[44px] rounded-xl border border-border px-3 text-center text-base"
+            />
           </div>
         </div>
 
-        <label className="mt-4 block">
-          <span className="text-xs font-medium text-muted">
-            offset（現在位置）
-          </span>
-          <input
-            value={offsetInput}
-            onChange={(e) => setOffsetInput(e.target.value)}
-            inputMode="numeric"
-            className="mt-1 min-h-[48px] w-full rounded-xl border border-border bg-white px-3 text-base"
-          />
-        </label>
-        <p className="mt-1 text-xs text-muted">
-          現在位置: {offsetInput || "1"}／
-          {fetchSort === "popular" ? "人気" : "新着"}
-        </p>
-
         <button
           type="button"
-          disabled={!configured || !dmmConfigured || fetching}
+          disabled={!configured || !dmmConfigured || fetching || syncRunning || adding || promoting}
           onClick={() => void handleFetchCandidates()}
           className="mt-4 min-h-[56px] w-full rounded-2xl bg-sky-600 text-base font-bold text-white disabled:opacity-50"
         >
           {fetching
-            ? `取得中... ${fetchProgress?.done ?? 0} / ${fetchProgress?.total ?? fetchCount}`
-            : `${getAdultImportSortLabel(fetchSort)}で取得`}
+            ? `取得中 ${fetchProgress?.done ?? 0} / ${fetchProgress?.total ?? fetchCount}`
+            : "未掲載作品を取得"}
         </button>
 
-        {candidates.length > 0 ? (
-          <div className="mt-4 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm font-medium">
-                候補 {candidates.length} 件／選択 {selected.size} 件
-              </p>
-              <button
-                type="button"
-                disabled={adding || selected.size === 0}
-                onClick={() => void handleAddSelected()}
-                className="min-h-[44px] rounded-xl bg-sky-600 px-4 text-sm font-bold text-white disabled:opacity-50"
-              >
-                {adding ? "追加中…" : "選択作品を追加"}
-              </button>
-            </div>
-            <ul className="max-h-72 space-y-2 overflow-auto rounded-xl border border-border bg-white p-2">
-              {candidates.map((c) => {
-                const id = c.contentId;
-                const checked = selected.has(id);
-                return (
-                  <li key={id}>
-                    <label className="flex min-h-[48px] cursor-pointer items-start gap-2 rounded-lg px-2 py-2 hover:bg-sky-50">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => {
-                          setSelected((prev) => {
-                            const next = new Set(prev);
-                            if (next.has(id)) next.delete(id);
-                            else next.add(id);
-                            return next;
-                          });
-                        }}
-                        className="mt-1"
-                      />
-                      <span className="text-sm leading-snug text-foreground">
-                        {c.item.title || id}
-                      </span>
-                    </label>
-                  </li>
-                );
-              })}
-            </ul>
-            {summary ? (
-              <p className="text-xs text-muted">
-                次回offset: {summary.nextOffset ?? "—"}
-              </p>
-            ) : null}
+        {fetching || summary ? (
+          <div className="mt-3 rounded-xl bg-sky-50 px-3 py-2 text-sm text-sky-950">
+            <p>
+              取得中 {fetchProgress?.done ?? summary?.requestedCount ?? 0} /{" "}
+              {fetchProgress?.total ?? summary?.requestedCount ?? fetchCount}
+            </p>
+            <p>重複除外 {summary?.duplicateExcludedCount ?? 0}件</p>
+            <p>
+              未掲載候補{" "}
+              {summary?.candidateCount ?? candidates.length}件
+              {summary
+                ? `（掲載除外 ${summary.publishedExcludedCount}）`
+                : null}
+            </p>
           </div>
         ) : null}
       </CardShell>
 
-      {/* ③ 掲載作品同期 */}
-      <CardShell step="③" title="掲載作品同期">
-        <p className="mb-3 text-sm text-muted">
-          掲載中作品のデータを作業ブランチ上で更新します。Vercelデプロイはしません。
-        </p>
-
-        <div className="mb-4 flex items-center justify-between gap-3 rounded-xl bg-white/80 p-3">
-          <div>
-            <p className="text-sm font-bold">軽量同期トグル</p>
-            <p className="text-xs text-muted">
-              {lightSyncEnabled ? "ON（実行可能）" : "OFF"}
-            </p>
-          </div>
-          {lightSyncEnabled ? (
-            <button
-              type="button"
-              onClick={async () => {
-                await fetch("/api/admin/ops-settings", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ lightSyncEnabled: false }),
-                });
-                await refreshSettings();
-              }}
-              className="min-h-[44px] rounded-xl bg-sky-600 px-4 text-sm font-bold text-white"
-            >
-              OFFにする
-            </button>
-          ) : (
-            <Link
-              href="/admin/settings"
-              className="inline-flex min-h-[44px] items-center rounded-xl border border-amber-500 px-4 text-sm font-bold text-amber-800"
-            >
-              設定画面へ移動
-            </Link>
-          )}
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="rounded-2xl border border-sky-300 bg-white p-4">
-            <h3 className="font-bold text-foreground">軽量同期</h3>
-            <p className="mt-1 text-xs text-muted">価格・セール・評価・順位などを更新</p>
-            <div className="mt-3 space-y-2">
-              {(
-                [
-                  ["light", "価格・セール・評価・順位"],
-                  ["price", "価格だけ更新"],
-                  ["rank", "人気順位だけ更新"],
-                  ["date", "新着（発売日）だけ更新"],
-                ] as const
-              ).map(([mode, label]) => (
-                <label key={mode} className="flex min-h-[40px] items-center gap-2 text-sm">
-                  <input
-                    type="radio"
-                    name="sync-mode"
-                    checked={syncMode === mode}
-                    onChange={() => setSyncMode(mode)}
-                  />
-                  {label}
-                </label>
-              ))}
-            </div>
-            <button
-              type="button"
-              disabled={
-                !configured ||
-                !dmmConfigured ||
-                syncStarting ||
-                syncRunning ||
-                !lightSyncEnabled
-              }
-              onClick={() => void handleStartSync(syncMode === "full" ? "light" : syncMode)}
-              className="mt-4 min-h-[48px] w-full rounded-xl bg-sky-600 font-bold text-white disabled:opacity-50"
-            >
-              {syncRunning && syncJob?.mode !== "full"
-                ? `更新中… ${syncJob?.processedCount ?? 0} / ${syncJob?.targetCount ?? 0}`
-                : "軽量同期を実行"}
-            </button>
-          </div>
-
-          <div className="rounded-2xl border border-border bg-white p-4">
-            <h3 className="font-bold text-foreground">完全同期</h3>
-            <p className="mt-1 text-xs text-muted">
-              タイトル・画像・出演者など全データを再取得（高負荷）
-            </p>
-            {!fullSyncEnabled ? (
-              <Link
-                href="/admin/settings"
-                className="mt-4 inline-flex min-h-[48px] w-full items-center justify-center rounded-xl border border-amber-500 text-sm font-bold text-amber-800"
-              >
-                設定画面へ移動
-              </Link>
-            ) : (
+      {/* ② 選択して追加 */}
+      <CardShell
+        id="works-ops-step-2"
+        step="②"
+        title="選択して追加する"
+        tone={activeStep === 2 ? "info" : "default"}
+      >
+        {candidates.length === 0 ? (
+          <p className="text-sm text-muted">
+            まず「作品を探す」で未掲載作品を取得してください。
+          </p>
+        ) : (
+          <>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2 text-sm">
+              <p className="font-medium">
+                候補 {candidates.length} 件 / 選択 {selected.size} 件
+              </p>
               <button
                 type="button"
-                disabled={
-                  !configured || !dmmConfigured || syncStarting || syncRunning
+                className="text-sky-700 underline"
+                onClick={() =>
+                  setSelected(new Set(candidates.map((c) => c.contentId)))
                 }
-                onClick={() => void handleStartSync("full")}
-                className="mt-4 min-h-[48px] w-full rounded-xl bg-sky-700 font-bold text-white disabled:opacity-50"
               >
-                {syncRunning && syncJob?.mode === "full"
-                  ? `更新中… ${syncJob?.processedCount ?? 0} / ${syncJob?.targetCount ?? 0}`
-                  : "完全同期を実行"}
+                すべて選択
               </button>
-            )}
-          </div>
+            </div>
+            <ul className="space-y-3">
+              {candidates.map((c) => {
+                const id = c.contentId;
+                const checked = selected.has(id);
+                const image = getDmmItemImageUrl(c.item);
+                const actresses = getDmmItemActressNameList(c.item).slice(0, 3).join("、");
+                const maker = getDmmItemMakerName(c.item) ?? "—";
+                const price = formatDmmItemPrice(c.item) || "—";
+                const open = expandedCandidate === id;
+                return (
+                  <li
+                    key={id}
+                    className="rounded-2xl border border-border bg-white p-3"
+                  >
+                    <div className="flex gap-3">
+                      <div className="relative h-24 w-16 shrink-0 overflow-hidden rounded-lg bg-zinc-100">
+                        {image ? (
+                          <Image
+                            src={image}
+                            alt=""
+                            fill
+                            className="object-cover"
+                            sizes="64px"
+                            unoptimized
+                          />
+                        ) : null}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <label className="flex cursor-pointer items-start gap-2">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => {
+                              setSelected((prev) => {
+                                const next = new Set(prev);
+                                if (next.has(id)) next.delete(id);
+                                else next.add(id);
+                                return next;
+                              });
+                            }}
+                            className="mt-1"
+                          />
+                          <span className="text-sm font-semibold leading-snug">
+                            {c.item.title || id}
+                          </span>
+                        </label>
+                        <p className="mt-1 text-xs text-muted">CID: {id}</p>
+                        <p className="mt-1 text-xs text-muted line-clamp-1">
+                          {actresses || "女優情報なし"} / {maker}
+                        </p>
+                        <p className="mt-1 text-xs text-muted">
+                          {c.item.date || "発売日—"} / {price}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        className="min-h-[40px] rounded-lg border border-border px-3 text-xs font-medium"
+                        onClick={() =>
+                          setExpandedCandidate((prev) => (prev === id ? null : id))
+                        }
+                      >
+                        {open ? "詳細を閉じる" : "詳細を見る"}
+                      </button>
+                      <a
+                        href={`/works/${id}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex min-h-[40px] items-center rounded-lg border border-border px-3 text-xs font-medium"
+                      >
+                        作品を見る
+                      </a>
+                      <button
+                        type="button"
+                        className="min-h-[40px] rounded-lg border border-border px-3 text-xs font-medium"
+                        onClick={() => {
+                          void navigator.clipboard?.writeText(
+                            JSON.stringify(c.item, null, 2),
+                          );
+                          setMessage("JSONをクリップボードにコピーしました");
+                        }}
+                      >
+                        JSON確認
+                      </button>
+                      <button
+                        type="button"
+                        className="min-h-[40px] rounded-lg bg-sky-600 px-3 text-xs font-bold text-white"
+                        onClick={() =>
+                          setSelected((prev) => new Set(prev).add(id))
+                        }
+                      >
+                        追加対象に選択
+                      </button>
+                    </div>
+                    {open ? (
+                      <pre className="mt-2 max-h-40 overflow-auto rounded-lg bg-zinc-50 p-2 text-[11px]">
+                        {JSON.stringify(
+                          {
+                            contentId: id,
+                            productId: c.productId,
+                            rankPosition: c.rankPosition,
+                            item: c.item,
+                          },
+                          null,
+                          2,
+                        )}
+                      </pre>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        )}
+      </CardShell>
+
+      {/* ③ 掲載作品を更新 */}
+      <CardShell
+        id="works-ops-step-3"
+        step="③"
+        title="掲載作品を更新する"
+        tone={activeStep === 3 ? "info" : "default"}
+      >
+        <p className="mb-3 text-sm text-muted">
+          FANZAから価格・セールなどの軽量項目を取得し、オーバーレイへ保存します。カタログJSONの書き換え・commit・本番デプロイはしません。
+        </p>
+
+        <div
+          className={`mb-4 rounded-xl border px-3 py-3 text-sm ${
+            lightSyncStatus === "enabled"
+              ? "border-emerald-300 bg-emerald-50 text-emerald-900"
+              : lightSyncStatus === "disabled"
+                ? "border-amber-300 bg-amber-50 text-amber-900"
+                : "border-zinc-300 bg-zinc-50 text-zinc-800"
+          }`}
+        >
+          <p className="font-bold">軽量同期: {statusLabel(lightSyncStatus)}</p>
+          {lightSyncStatus !== "enabled" ? (
+            <Link
+              href="/admin/settings"
+              className="mt-2 inline-flex min-h-[40px] items-center font-bold underline"
+            >
+              設定画面へ
+            </Link>
+          ) : null}
         </div>
+
+        <div className="space-y-2">
+          {(
+            [
+              ["price", "価格・セールのみ"],
+              ["date", "新着順を更新"],
+              ["rank", "人気順を更新"],
+              ["date_rank", "新着＋人気"],
+              ["light", "軽量項目すべて"],
+            ] as const
+          ).map(([mode, label]) => (
+            <label
+              key={mode}
+              className="flex min-h-[44px] items-center gap-2 rounded-xl border border-border bg-white px-3 text-sm"
+            >
+              <input
+                type="radio"
+                name="sync-mode"
+                checked={syncMode === mode}
+                onChange={() => setSyncMode(mode)}
+              />
+              {label}
+            </label>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          disabled={
+            !configured ||
+            !dmmConfigured ||
+            syncStarting ||
+            syncRunning ||
+            !lightSyncEnabled
+          }
+          onClick={() => void handleStartSync(syncMode === "full" ? "light" : syncMode)}
+          className="mt-4 min-h-[52px] w-full rounded-xl bg-sky-600 font-bold text-white disabled:opacity-50"
+        >
+          {syncRunning && syncJob?.mode !== "full"
+            ? `更新中… ${syncJob?.processedCount ?? 0} / ${syncJob?.targetCount ?? 0}`
+            : "掲載作品を最新に更新"}
+        </button>
 
         {syncRunning ? (
           <div className="mt-4">
@@ -837,17 +1146,48 @@ export function WorksOpsDashboard({
                 style={{ width: `${Math.min(100, syncProgress)}%` }}
               />
             </div>
-            <p className="mt-2 text-sm text-muted">
-              取得中... {syncJob?.processedCount ?? 0} / {syncJob?.targetCount ?? 0}
+            <p className="mt-2 text-sm">
+              取得 {syncJob?.processedCount ?? 0} / {syncJob?.targetCount ?? 0}
+              {" / "}更新 {syncJob?.updatedCount ?? 0}
+              {" / "}変更なし {syncJob?.unchangedCount ?? 0}
+              {" / "}未一致 {syncJob?.unconfirmedCount ?? 0}
+              {" / "}エラー {syncJob?.errorCount ?? 0}
             </p>
           </div>
         ) : null}
+
+        {syncHistory[0] ? (
+          <div className="mt-4 rounded-xl bg-white/80 p-3 text-sm">
+            <p className="font-bold">直近の同期結果</p>
+            <p className="mt-1 text-muted">
+              更新 {syncHistory[0].updatedCount} / 未一致{" "}
+              {syncHistory[0].unconfirmedCount} / エラー{" "}
+              {syncHistory[0].errorCount} / 対象{" "}
+              {syncHistory[0].targetCount}
+            </p>
+            <p className="mt-1 text-xs text-muted">
+              最終成功: {formatDateTime(syncHistory[0].completedAt)}
+            </p>
+          </div>
+        ) : null}
+
+        {fullSyncEnabled ? (
+          <button
+            type="button"
+            disabled={!configured || !dmmConfigured || syncStarting || syncRunning}
+            onClick={() => void handleStartSync("full")}
+            className="mt-4 min-h-[44px] w-full rounded-xl border border-border bg-white text-sm font-medium disabled:opacity-50"
+          >
+            完全同期（作業ブランチへ書き込み・デプロイなし）
+          </button>
+        ) : null}
       </CardShell>
 
-      {/* ④ 本番反映 */}
+      {/* ④ 本番へ反映 */}
       <CardShell
+        id="works-ops-step-4"
         step="④"
-        title="本番反映"
+        title="本番へ反映する"
         tone={
           (promoteStatus?.productionAheadCount ?? 0) > 0
             ? "warn"
@@ -856,94 +1196,87 @@ export function WorksOpsDashboard({
               : "default"
         }
       >
-        <p className="text-base font-bold text-foreground">
-          {(promoteStatus?.productionAheadCount ?? 0) > 0
-            ? "⚠ 本番に更新があります"
-            : promoteStatus?.hasPendingChanges
-              ? "✅ 本番反映できます"
-              : "反映できる変更はありません"}
-        </p>
-        <p className="mt-2 text-sm text-muted">
-          ここで初めて本番サイトへ反映し、Vercelデプロイを1回だけ実行します。
+        <p className="text-sm text-muted">
+          ここで初めて main へ反映し、Production デプロイを1回だけ実行します。候補取得・追加・価格同期ではデプロイしません。
         </p>
 
-        {(promoteStatus?.productionAheadCount ?? 0) > 0 || showConflict ? (
-          <div className="mt-3 space-y-2">
-            <button
-              type="button"
-              disabled={!githubConfigured || syncingWorking || promoting}
-              onClick={() => void handleSyncWorking()}
-              className="min-h-[48px] w-full rounded-xl bg-sky-600 font-bold text-white disabled:opacity-50"
-            >
-              {syncingWorking ? "最新化中…" : "作業ブランチを最新化"}
-            </button>
-            {showConflict ? (
-              <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800">
-                <p className="font-bold">競合が発生しました</p>
-                <p className="mt-1">
-                  自動取り込みできない変更があります。「作業内容を破棄」するか、手動で解消してから再度お試しください。
-                </p>
-                <button
-                  type="button"
-                  disabled={promoting}
-                  onClick={async () => {
-                    const confirmText = "未反映の変更を破棄";
-                    const response = await fetch(
-                      "/api/admin/import/promote/discard",
-                      {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({ confirmText }),
-                      },
-                    );
-                    const body = await response.json();
-                    if (!response.ok || !body.success) {
-                      setError(body.error ?? body.message ?? "破棄に失敗しました。");
-                      return;
-                    }
-                    setShowConflict(false);
-                    setMessage("作業内容を破棄し、本番状態に戻しました。");
-                    if (body.status) setPromoteStatus(body.status);
-                    else await refreshPromote();
-                  }}
-                  className="mt-3 min-h-[44px] rounded-xl bg-red-600 px-4 font-bold text-white"
-                >
-                  作業内容を破棄して本番に合わせる
-                </button>
-              </div>
-            ) : null}
-          </div>
+        {(promoteStatus?.productionAheadCount ?? 0) > 0 ? (
+          <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
+            本番側に新しい変更があります。先に「作業ブランチを最新化」してください。
+          </p>
         ) : null}
 
-        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+        <div className="mt-4 flex flex-col gap-2">
+          <button
+            type="button"
+            disabled={!githubConfigured || syncingWorking || promoting}
+            onClick={() => void handleSyncWorking()}
+            className="min-h-[52px] w-full rounded-xl border border-sky-600 bg-white font-bold text-sky-800 disabled:opacity-50"
+          >
+            {syncingWorking ? "最新化中…" : "作業ブランチを最新化"}
+          </button>
           <button
             type="button"
             disabled={!canPromote}
             onClick={() => setPromoteConfirm(true)}
-            className="min-h-[52px] flex-1 rounded-xl bg-sky-600 font-bold text-white disabled:opacity-40"
+            className="min-h-[52px] w-full rounded-xl bg-sky-600 font-bold text-white disabled:opacity-40"
           >
-            {promoting ? "反映中…" : "本番反映する"}
-          </button>
-          <button
-            type="button"
-            disabled={!githubConfigured || syncingWorking}
-            onClick={() => void handleSyncWorking()}
-            className="min-h-[52px] flex-1 rounded-xl border border-border bg-white font-medium disabled:opacity-50"
-          >
-            作業ブランチを最新化
+            {promoting ? "反映中…" : "検証して本番反映"}
           </button>
         </div>
 
+        {showConflict ? (
+          <div className="mt-3 rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800">
+            <p className="font-bold">競合のため停止しました（自動上書きしません）</p>
+            <p className="mt-1">
+              作業内容を最新状態へ合わせる必要があります。内容を確認するか、破棄して本番に合わせてください。
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowTechDetail(true)}
+              className="mt-2 text-xs underline"
+            >
+              技術詳細（HTTP409 等）を表示
+            </button>
+            <button
+              type="button"
+              disabled={promoting}
+              onClick={async () => {
+                const confirmText = "未反映の変更を破棄";
+                const response = await fetch(
+                  "/api/admin/import/promote/discard",
+                  {
+                    method: "POST",
+                    cache: "no-store",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ confirmText }),
+                  },
+                );
+                const body = await response.json();
+                if (!response.ok || !body.success) {
+                  setError(body.error ?? body.message ?? "破棄に失敗しました。");
+                  return;
+                }
+                setShowConflict(false);
+                setMessage("作業内容を破棄し、本番状態に戻しました。");
+                if (body.status) setPromoteStatus(body.status);
+                else await refreshPromote();
+              }}
+              className="mt-3 min-h-[44px] rounded-xl bg-red-600 px-4 font-bold text-white"
+            >
+              作業内容を破棄して本番に合わせる
+            </button>
+          </div>
+        ) : null}
+
         {promoteConfirm ? (
           <div className="mt-4 rounded-xl border border-border bg-white p-4 text-sm">
-            <p className="font-bold">本番サイトへ反映しますか？</p>
+            <p className="font-bold">検証して本番反映しますか？</p>
             <ul className="mt-2 space-y-1 text-muted">
               <li>追加作品：{(promoteStatus?.addedWorkCount ?? 0).toLocaleString()}件</li>
               <li>更新作品：{(promoteStatus?.updatedWorkCount ?? 0).toLocaleString()}件</li>
+              <li>デプロイ：Production 1回のみ</li>
             </ul>
-            <p className="mt-2 text-muted">
-              反映前に自動で最新化 → マージ → デプロイ（1回）を行います。
-            </p>
             <div className="mt-3 flex gap-2">
               <button
                 type="button"
@@ -966,60 +1299,134 @@ export function WorksOpsDashboard({
         ) : null}
       </CardShell>
 
-      {/* ⑤ ログ */}
-      <CardShell step="⑤" title="実行ログ">
+      {/* ログ */}
+      <CardShell step="ログ" title="実行ログ">
         {logs.length === 0 && syncHistory.length === 0 ? (
           <p className="text-sm text-muted">まだ実行履歴はありません。</p>
         ) : (
-          <ul className="space-y-2">
-            {logs.map((log) => (
-              <li
-                key={log.id}
-                className="rounded-xl border border-border bg-white px-3 py-2 text-sm"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium">
-                    {log.ok ? "✅" : "❌"} {log.action}
-                  </span>
-                  <span className="text-xs text-muted">
-                    {formatDuration(log.durationMs)}
-                  </span>
-                </div>
-                <p className="mt-0.5 text-xs text-muted">
-                  {formatDateTime(log.at)} / {log.message}
-                </p>
-              </li>
-            ))}
-            {syncHistory.slice(0, 5).map((entry) => {
-              const duration =
-                entry.completedAt && entry.startedAt
-                  ? Date.parse(entry.completedAt) - Date.parse(entry.startedAt)
-                  : undefined;
-              const ok =
-                entry.status === "completed" || entry.status === "partial_failed";
-              return (
+          <>
+            <ul className="space-y-2">
+              {visibleLogs.map((log) => (
                 <li
-                  key={entry.jobId}
+                  key={log.id}
                   className="rounded-xl border border-border bg-white px-3 py-2 text-sm"
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-medium">
-                      {ok ? "✅" : "❌"} 同期ジョブ
+                      {log.ok ? "成功" : "失敗"} · {log.action}
                     </span>
                     <span className="text-xs text-muted">
-                      {formatDuration(duration)}
+                      {formatDuration(log.durationMs)}
                     </span>
                   </div>
                   <p className="mt-0.5 text-xs text-muted">
-                    {formatDateTime(entry.completedAt ?? entry.startedAt)} /
-                    更新 {entry.updatedCount} / エラー {entry.errorCount}
+                    {log.message} · {formatDateTime(log.at)}
                   </p>
+                  {log.detail ? (
+                    <button
+                      type="button"
+                      className="mt-1 text-xs text-sky-700 underline"
+                      onClick={() =>
+                        setExpandedLogId((prev) =>
+                          prev === log.id ? null : log.id,
+                        )
+                      }
+                    >
+                      詳細ログ
+                    </button>
+                  ) : null}
+                  {expandedLogId === log.id && log.detail ? (
+                    <pre className="mt-1 max-h-32 overflow-auto rounded bg-zinc-50 p-2 text-[11px]">
+                      {log.detail}
+                    </pre>
+                  ) : null}
                 </li>
-              );
-            })}
-          </ul>
+              ))}
+            </ul>
+            {logs.length > 5 ? (
+              <button
+                type="button"
+                onClick={() => setShowAllLogs((v) => !v)}
+                className="mt-3 text-sm font-medium text-sky-700 underline"
+              >
+                {showAllLogs ? "直近だけ表示" : "すべて見る"}
+              </button>
+            ) : null}
+          </>
         )}
       </CardShell>
+
+      {/* スマホ固定バー */}
+      {candidates.length > 0 ? (
+        <div
+          className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-white/95 px-4 pt-3 shadow-[0_-8px_24px_rgba(0,0,0,0.08)] backdrop-blur sm:hidden"
+          style={{
+            paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))",
+          }}
+        >
+          <div className="mx-auto flex max-w-lg items-center gap-2">
+            <p className="min-w-0 flex-1 text-sm font-bold">
+              選択中 {selected.size} 件
+            </p>
+            <button
+              type="button"
+              className="min-h-[44px] rounded-xl border border-border px-3 text-sm"
+              onClick={() => setSelected(new Set())}
+            >
+              解除
+            </button>
+            <button
+              type="button"
+              disabled={adding || selected.size === 0}
+              title={
+                selected.size === 0
+                  ? "作品を1件以上選択してください"
+                  : "選択中の作品を作業ブランチへ追加"
+              }
+              onClick={() => void handleAddSelected()}
+              className="min-h-[44px] rounded-xl bg-sky-600 px-4 text-sm font-bold text-white disabled:opacity-40"
+            >
+              {adding ? "追加中…" : "追加する"}
+            </button>
+          </div>
+          {selected.size === 0 ? (
+            <p className="mt-1 text-center text-[11px] text-muted">
+              追加するには作品を選択してください
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* PC用追加バー */}
+      {candidates.length > 0 ? (
+        <div className="hidden rounded-2xl border border-border bg-white p-3 sm:block">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-sm font-bold">選択中 {selected.size} 件</p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="min-h-[44px] rounded-xl border border-border px-4 text-sm"
+                onClick={() => setSelected(new Set())}
+              >
+                選択を解除
+              </button>
+              <button
+                type="button"
+                disabled={adding || selected.size === 0}
+                title={
+                  selected.size === 0
+                    ? "作品を1件以上選択してください"
+                    : undefined
+                }
+                onClick={() => void handleAddSelected()}
+                className="min-h-[44px] rounded-xl bg-sky-600 px-5 text-sm font-bold text-white disabled:opacity-40"
+              >
+                {adding ? "追加中…" : "追加する"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

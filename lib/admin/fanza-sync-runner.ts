@@ -52,6 +52,10 @@ import {
   resolveFullSyncEnabled,
   resolveLightSyncEnabled,
 } from "@/lib/admin/admin-ops-settings";
+import {
+  mergeLightOverlayIntoItems,
+  upsertLightOverlayFromWorks,
+} from "@/lib/admin/fanza-light-overlay-store";
 import type { FanzaSyncJob, FanzaSyncJobSnapshot, FanzaSyncTrigger } from "@/lib/admin/fanza-sync-types";
 import type { DmmItem } from "@/lib/dmm/types";
 
@@ -88,22 +92,36 @@ async function mapWithConcurrency<T, R>(
 }
 
 async function loadCatalogForSync(): Promise<CatalogSnapshotHandle> {
+  let handle: CatalogSnapshotHandle;
+
   if (isGitHubCatalogConfigured()) {
     try {
-      return await fetchCatalogFromGitHub();
+      handle = await fetchCatalogFromGitHub();
     } catch (error) {
       console.warn("[fanza-sync] GitHub catalog read failed; using local", error);
+      const items = readCatalogSnapshot();
+      handle = {
+        items,
+        sha: null,
+        envelope: { format: "array" },
+        raw: items,
+        rebuilt: false,
+      };
     }
+  } else {
+    const items = readCatalogSnapshot();
+    handle = {
+      items,
+      sha: null,
+      envelope: { format: "array" },
+      raw: items,
+      rebuilt: false,
+    };
   }
 
-  const items = readCatalogSnapshot();
-  return {
-    items,
-    sha: null,
-    envelope: { format: "array" },
-    raw: items,
-    rebuilt: false,
-  };
+  // 軽量同期オーバーレイを反映した状態でバッチ対象を構築
+  const merged = await mergeLightOverlayIntoItems(handle.items);
+  return { ...handle, items: merged };
 }
 
 function applySyncResults(
@@ -387,8 +405,40 @@ export async function processFanzaSyncBatch(options?: {
       result.outcome === "hidden",
   ).length;
 
+  const mode = (job.mode as AdultSyncMode) ?? ADULT_SYNC_MODE_FULL;
+  persistFanzaSyncSnapshotLocally(nextSnapshot);
+
   if (options?.dryRun) {
-    persistFanzaSyncSnapshotLocally(nextSnapshot);
+    return {
+      job: updatedJob,
+      processedInBatch: batch.length,
+      committedToGitHub: false,
+    };
+  }
+
+  // 部分同期: カタログJSON / commit / デプロイなし。オーバーレイ + ジョブ状態のみ。
+  if (isAdultPartialSyncMode(mode)) {
+    if (batchUpdatedCount > 0) {
+      const updatedWorks = results
+        .filter(
+          (result) =>
+            result.outcome === "updated" ||
+            result.outcome === "republished" ||
+            result.outcome === "hidden",
+        )
+        .map((result) => result.work);
+      await upsertLightOverlayFromWorks(updatedWorks, mode);
+    }
+
+    try {
+      await persistJobSnapshotToGitHub(
+        nextSnapshot,
+        `FANZA light sync progress ${updatedJob.processedCount}/${updatedJob.targetCount}`,
+      );
+    } catch (error) {
+      console.warn("[fanza-sync] light sync job persist skipped", error);
+    }
+
     return {
       job: updatedJob,
       processedInBatch: batch.length,
@@ -405,31 +455,35 @@ export async function processFanzaSyncBatch(options?: {
 
   while (retryCount <= FANZA_SYNC_COMMIT_MAX_RETRIES) {
     try {
-      // ジョブ状態は常に保存
       await persistJobSnapshotToGitHub(
         nextSnapshot,
         `FANZA sync job progress ${updatedJob.processedCount}/${updatedJob.targetCount}`,
       );
 
       if (batchUpdatedCount === 0) {
-        // カタログ実データ変更なし → カタログ/インデックスは触らない
         committedToGitHub = true;
         persistFanzaSyncSnapshotLocally(nextSnapshot);
         break;
       }
 
-      const catalog = await loadCatalogForSync();
+      // フル同期のみ: カタログ本体を作業ブランチへ書き込む（デプロイはしない）
+      const catalog = await fetchCatalogFromGitHub().catch(async () => {
+        const items = readCatalogSnapshot();
+        return {
+          items,
+          sha: null,
+          envelope: { format: "array" as const },
+          raw: items,
+          rebuilt: false,
+        };
+      });
       const previousItems = catalog.items;
       const mergedItems = applySyncResults(previousItems, batch, results);
-      const mode = (job.mode as AdultSyncMode) ?? ADULT_SYNC_MODE_FULL;
-      const shouldRebuildIndexes = mode === ADULT_SYNC_MODE_FULL;
-      const indexFiles = shouldRebuildIndexes
-        ? [
-            ...serializeCatalogIndexes(
-              rebuildAllIndexes(filterPublicCatalogWorks(mergedItems)),
-            ),
-          ]
-        : [];
+      const indexFiles = [
+        ...serializeCatalogIndexes(
+          rebuildAllIndexes(filterPublicCatalogWorks(mergedItems)),
+        ),
+      ];
 
       const manifest =
         getCatalogManifest() ??

@@ -266,11 +266,25 @@ export async function upsertLiveStatusFromWorks(
   const changed: WorkLiveStatusUpsertInput[] = [];
   let unchanged = 0;
   for (const row of candidates) {
-    if (liveStatusRowsEqual(row, existing.get(row.cid))) {
+    const prev = existing.get(row.cid);
+    // FANZA APIに見放題APIはない。同期時に既存TV判定を潰さない。
+    const merged: WorkLiveStatusUpsertInput = {
+      ...row,
+      manual_hidden: prev?.manual_hidden ?? row.manual_hidden ?? false,
+      sale_start_at: row.sale_start_at ?? prev?.sale_start_at ?? null,
+      fanza_tv_status: prev?.fanza_tv_status ?? row.fanza_tv_status ?? null,
+      fanza_tv_checked_at:
+        prev?.fanza_tv_checked_at ?? row.fanza_tv_checked_at ?? null,
+      fanza_tv_changed_at:
+        prev?.fanza_tv_changed_at ?? row.fanza_tv_changed_at ?? null,
+      fanza_tv_source: prev?.fanza_tv_source ?? row.fanza_tv_source ?? null,
+      fanza_tv_error: prev?.fanza_tv_error ?? row.fanza_tv_error ?? null,
+    };
+    if (liveStatusRowsEqual(merged, prev)) {
       unchanged += 1;
       continue;
     }
-    changed.push(row);
+    changed.push(merged);
   }
 
   if (changed.length === 0) {

@@ -153,6 +153,8 @@ export type DmmItem = {
   syncErrorMessage?: string | null;
   /** 非表示理由 */
   hiddenReason?: "fanza_unavailable" | "manual" | null;
+  /** FANZA TV 見放題判定（active | not_available | unknown）。APIから取得しない */
+  fanzaTvStatus?: "active" | "not_available" | "unknown" | null;
 };
 
 export type DmmTestApiResponse = {

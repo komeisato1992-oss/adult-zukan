@@ -49,13 +49,19 @@ export function dmmItemToLiveStatusRow(
     list_price: asPriceText(item.prices?.list_price ?? item.regularPrice),
     discount_rate: sale.discountRate ?? asInteger(item.discountRate),
     is_sale: sale.isSale || item.saleStatus === "on_sale",
+    sale_start_at: null,
     sale_end_at: sale.saleEndAt ?? item.saleEndAt ?? null,
     rating,
     review_count: reviewCount,
     popularity_rank: asInteger(item.sourcePopularityRank),
     new_arrival_rank: null,
     is_available: isAvailable,
+    manual_hidden: item.hiddenReason === "manual",
     fanza_tv_status: null,
+    fanza_tv_checked_at: null,
+    fanza_tv_changed_at: null,
+    fanza_tv_source: null,
+    fanza_tv_error: null,
     checked_at: now,
     updated_at: now,
   };
@@ -113,10 +119,13 @@ export function applyLiveStatusToItem(
     next.sourcePopularityRank = row.popularity_rank;
   }
 
-  if (!row.is_available) {
+  if (!row.is_available || row.manual_hidden) {
     next.isActive = false;
     next.availabilityStatus = "unavailable";
     next.availability = "unavailable";
+    if (row.manual_hidden) {
+      next.hiddenReason = "manual";
+    }
   } else if (item.availabilityStatus === "unavailable" || item.isActive === false) {
     // DB が available なら公開側へ戻す
     next.isActive = true;
@@ -126,6 +135,11 @@ export function applyLiveStatusToItem(
 
   if (row.checked_at) {
     next.lastSyncedAt = row.checked_at;
+  }
+
+  const tv = row.fanza_tv_status?.trim().toLowerCase();
+  if (tv === "active" || tv === "not_available" || tv === "unknown") {
+    next.fanzaTvStatus = tv;
   }
 
   return next;
@@ -142,12 +156,14 @@ export function liveStatusRowsEqual(
     a.list_price === b.list_price &&
     a.discount_rate === b.discount_rate &&
     a.is_sale === b.is_sale &&
+    (a.sale_start_at ?? null) === (b.sale_start_at ?? null) &&
     a.sale_end_at === b.sale_end_at &&
     a.rating === b.rating &&
     a.review_count === b.review_count &&
     a.popularity_rank === b.popularity_rank &&
     a.new_arrival_rank === b.new_arrival_rank &&
     a.is_available === b.is_available &&
+    Boolean(a.manual_hidden) === Boolean(b.manual_hidden) &&
     a.fanza_tv_status === b.fanza_tv_status
   );
 }

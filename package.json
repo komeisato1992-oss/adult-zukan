@@ -43,6 +43,10 @@
     "adult:catalog:verify": "node scripts/split-adult-catalog-media.mjs verify",
     "test:adult-sync-guard": "node scripts/test-adult-sync-guard.mjs",
     "migrate:work-live-status": "node scripts/migrate-work-live-status.mjs",
+    "migrate:works-master": "node scripts/migrate-works-master-from-json.mjs",
+    "verify:works-master-migration": "node scripts/verify-works-master-migration.mjs",
+    "fanza-tv:collect": "node scripts/fanza-tv-collect.mjs",
+    "fanza-tv:ingest": "node scripts/ingest-fanza-tv-status.mjs",
     "measure:vercel-cost-baseline": "node scripts/measure-vercel-cost-baseline.mjs",
     "measure:doujin-io": "node scripts/measure-doujin-io.mjs"
   },

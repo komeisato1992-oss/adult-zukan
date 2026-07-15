@@ -73,6 +73,9 @@ export function dmmItemToWorkMasterRow(
     product_code: item.product_id?.trim() || cid,
     affiliate_url: item.affiliateURL?.trim() || item.URL?.trim() || null,
     published: options?.published ?? true,
+    manual_hidden: false,
+    manual_hidden_reason: null,
+    deleted_at: null,
     created_at: item.addedAt ?? item.importedAt ?? now,
     updated_at: now,
   };
@@ -137,8 +140,12 @@ export function workMasterRowToDmmItem(row: WorkMasterRow): DmmItem {
       series,
       genre: genres,
     },
-    isActive: row.published,
-    availabilityStatus: row.published ? "available" : "unavailable",
+    isActive: row.published && !row.manual_hidden && !row.deleted_at,
+    availabilityStatus:
+      row.published && !row.manual_hidden && !row.deleted_at
+        ? "available"
+        : "unavailable",
+    hiddenReason: row.manual_hidden ? "manual" : undefined,
     addedAt: row.created_at,
     importedAt: row.created_at,
     updatedAt: row.updated_at,

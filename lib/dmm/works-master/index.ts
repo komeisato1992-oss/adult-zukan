@@ -219,8 +219,28 @@ export async function upsertWorksMasterFromDmmItems(
   }
 
   const now = new Date().toISOString();
+  const { computeWorksPublished } = await import(
+    "@/lib/admin/works-cms-publish"
+  );
   const rows = works
-    .map((work) => dmmItemToWorkMasterRow(work, { published, now }))
+    .map((work) => {
+      const row = dmmItemToWorkMasterRow(work, {
+        published: options?.published ?? true,
+        now,
+      });
+      if (!row) return null;
+      // 明示 draft 指定時以外は公開ルールを適用
+      if (options?.published !== false) {
+        row.published = computeWorksPublished({
+          packageImage: row.package_image,
+          isAvailable:
+            work.isActive !== false &&
+            work.availabilityStatus !== "unavailable",
+          manualHidden: work.hiddenReason === "manual",
+        });
+      }
+      return row;
+    })
     .filter((row): row is WorkMasterUpsertInput => Boolean(row));
 
   if (rows.length === 0) {

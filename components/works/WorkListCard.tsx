@@ -28,6 +28,11 @@ export function WorkListCard({
             variant="landscape"
             sizes="(max-width: 389px) 50vw, (max-width: 768px) 33vw, 25vw"
           />
+          {item.fanzaTvActive ? (
+            <span className="absolute left-2 top-2 rounded bg-emerald-600/95 px-1.5 py-0.5 text-[10px] font-bold text-white">
+              見放題
+            </span>
+          ) : null}
           <div className="px-3 pt-3 pb-0 max-[768px]:px-1.5 max-[768px]:pt-1.5">
             <h2 className="line-clamp-2 text-sm font-semibold leading-snug text-foreground group-hover:text-accent max-[768px]:line-clamp-3 max-[768px]:text-[13px] max-[768px]:leading-[1.4]">
               {item.title}

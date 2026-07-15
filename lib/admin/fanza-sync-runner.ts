@@ -91,6 +91,55 @@ async function mapWithConcurrency<T, R>(
 }
 
 async function loadCatalogForSync(mode?: AdultSyncMode): Promise<CatalogSnapshotHandle> {
+  // 部分同期は works マスター（Supabase）を優先。Git/JSON書き換えはしない。
+  if (mode && isAdultPartialSyncMode(mode)) {
+    try {
+      const { fetchPublishedWorksMasterAsDmmItems, mergeWorksMasterIntoCatalog } =
+        await import("@/lib/dmm/works-master");
+      const master = await fetchPublishedWorksMasterAsDmmItems();
+      const json = readCatalogSnapshot();
+      // 非公開含めて同期対象にしたいので CID 全集を取得
+      const { getWorksMasterContentIdSet, fetchWorkMasterByCids } = await import(
+        "@/lib/dmm/works-master"
+      );
+      const allCids = [...(await getWorksMasterContentIdSet())];
+      let items =
+        master.length > 0
+          ? mergeWorksMasterIntoCatalog(json, master)
+          : json;
+      if (allCids.length > master.length) {
+        const missing = allCids.filter(
+          (cid) =>
+            !items.some(
+              (it) => normalizeCatalogContentId(it.content_id) === cid,
+            ),
+        );
+        if (missing.length > 0) {
+          const rows = await fetchWorkMasterByCids(missing);
+          const { workMasterRowToDmmItem } = await import(
+            "@/lib/dmm/works-master/map"
+          );
+          const extra = [...rows.values()].map(workMasterRowToDmmItem);
+          items = mergeWorksMasterIntoCatalog(items, extra);
+        }
+      }
+      const limit = getAdultLightSyncTargetLimit();
+      if (limit > 0) items = items.slice(0, limit);
+      return {
+        items,
+        sha: null,
+        envelope: { format: "array" },
+        raw: items,
+        rebuilt: false,
+      };
+    } catch (error) {
+      console.warn(
+        "[fanza-sync] works-master catalog load failed; using JSON",
+        error,
+      );
+    }
+  }
+
   let handle: CatalogSnapshotHandle;
 
   if (isGitHubCatalogConfigured()) {

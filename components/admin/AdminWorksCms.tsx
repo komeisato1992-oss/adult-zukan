@@ -1,0 +1,975 @@
+"use client";
+
+import Link from "next/link";
+import Image from "next/image";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { WorksMasterMigrationPanel } from "@/components/admin/WorksMasterMigrationPanel";
+import { buildAddSelectedWorksPayload } from "@/lib/admin/import-add-payload";
+import type {
+  AdultImportSortMode,
+  FetchedImportCandidate,
+  FetchImportCandidatesSummary,
+} from "@/lib/admin/import-simple-types";
+import { getAdultImportSortLabel } from "@/lib/admin/import-simple-types";
+import type { AdultSyncMode } from "@/lib/dmm/sync-mode";
+import { getAdultSyncModeLabel } from "@/lib/dmm/sync-mode";
+import {
+  getDmmItemActressNameList,
+  getDmmItemImageUrl,
+  getDmmItemMakerName,
+} from "@/lib/dmm/display";
+import { formatDmmItemPrice } from "@/lib/dmm/release-date";
+
+type TabId = "add" | "sync" | "publish" | "history";
+
+type Overview = {
+  publishedCount: number;
+  unpublishedCount: number;
+  noPackageImageCount: number;
+  unavailableCount: number;
+  manualHiddenCount: number;
+  lastWorkAddedAt: string | null;
+  lastLightSyncAt: string | null;
+  runningJobLabel: string | null;
+  errorCount: number;
+  tone: "ok" | "running" | "warn" | "error";
+  fanzaTv: {
+    uncheckedCount: number;
+    activeCount: number;
+    notAvailableCount: number;
+    unknownCount: number;
+    lastCheckedAt: string | null;
+    errorCount: number;
+    resumeCursor: number;
+  };
+      offsets: {
+        bySort: {
+          new: { lastOffset: number };
+          popular: { lastOffset: number };
+        };
+      };
+};
+
+type CmsItem = {
+  cid: string;
+  title: string;
+  package_image: string | null;
+  maker: string | null;
+  actresses: string[];
+  published: boolean;
+  manual_hidden: boolean;
+  is_available: boolean;
+  fanza_tv_status: string | null;
+  price: string | null;
+};
+
+const TABS: Array<{ id: TabId; label: string }> = [
+  { id: "add", label: "1. 作品を追加" },
+  { id: "sync", label: "2. 掲載情報を更新" },
+  { id: "publish", label: "3. 公開状態を管理" },
+  { id: "history", label: "4. 処理履歴" },
+];
+
+const FETCH_COUNTS = [20, 50, 100, 200, 500] as const;
+
+const SYNC_MODES: AdultSyncMode[] = [
+  "price",
+  "review",
+  "rank",
+  "date",
+  "availability",
+  "light",
+];
+
+function toneClass(tone: Overview["tone"]): string {
+  if (tone === "ok") return "border-emerald-400 bg-emerald-50 text-emerald-950";
+  if (tone === "running") return "border-sky-400 bg-sky-50 text-sky-950";
+  if (tone === "warn") return "border-amber-400 bg-amber-50 text-amber-950";
+  return "border-red-400 bg-red-50 text-red-950";
+}
+
+function formatDateTime(value: string | null | undefined): string {
+  if (!value) return "—";
+  const t = Date.parse(value);
+  if (!Number.isFinite(t)) return value;
+  return new Date(t).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
+}
+
+export function AdminWorksCms() {
+  const [tab, setTab] = useState<TabId>("add");
+  const [overview, setOverview] = useState<Overview | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  // add tab
+  const [sort, setSort] = useState<AdultImportSortMode>("new");
+  const [fetchCount, setFetchCount] = useState<(typeof FETCH_COUNTS)[number]>(50);
+  const [offset, setOffset] = useState(0);
+  const [candidates, setCandidates] = useState<FetchedImportCandidate[]>([]);
+  const [summary, setSummary] = useState<FetchImportCandidatesSummary | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [cidInput, setCidInput] = useState("");
+
+  // sync tab
+  const [syncMode, setSyncMode] = useState<AdultSyncMode>("light");
+  const [syncJob, setSyncJob] = useState<{
+    status: string;
+    processedCount: number;
+    targetCount: number;
+    successCount: number;
+    updatedCount: number;
+    errorCount: number;
+    message?: string | null;
+    lastProcessedContentId?: string | null;
+  } | null>(null);
+
+  // publish tab
+  const [items, setItems] = useState<CmsItem[]>([]);
+  const [filterQ, setFilterQ] = useState("");
+  const [filterPublished, setFilterPublished] = useState<"all" | "published" | "unpublished">("all");
+  const [pubSelected, setPubSelected] = useState<Set<string>>(new Set());
+  const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [editCid, setEditCid] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+
+  const refreshOverview = useCallback(async () => {
+    const res = await fetch("/api/admin/works-cms/overview", { cache: "no-store" });
+    const data = await res.json();
+    if (data.success) setOverview(data.overview);
+  }, []);
+
+  const refreshSync = useCallback(async () => {
+    const res = await fetch("/api/admin/fanza-sync/status", { cache: "no-store" });
+    const data = await res.json();
+    if (data.success) setSyncJob(data.currentJob);
+  }, []);
+
+  const refreshList = useCallback(async () => {
+    const params = new URLSearchParams({
+      page: "1",
+      pageSize: "30",
+      published: filterPublished,
+    });
+    if (filterQ.trim()) params.set("q", filterQ.trim());
+    const res = await fetch(`/api/admin/works-cms/list?${params}`, {
+      cache: "no-store",
+    });
+    const data = await res.json();
+    if (data.success) setItems(data.items ?? []);
+  }, [filterPublished, filterQ]);
+
+  useEffect(() => {
+    void refreshOverview();
+    void refreshSync();
+  }, [refreshOverview, refreshSync]);
+
+  useEffect(() => {
+    if (tab === "publish") void refreshList();
+  }, [tab, refreshList]);
+
+  useEffect(() => {
+    if (overview?.offsets?.bySort) {
+      const key = sort === "popular" ? "popular" : "new";
+      setOffset(overview.offsets.bySort[key]?.lastOffset ?? 0);
+    }
+  }, [overview, sort]);
+
+  const selectedCount = selected.size;
+  const pubSelectedCount = pubSelected.size;
+
+  const handleFetch = async () => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/import/fetch-candidates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sort,
+          startOffset: offset,
+          requestedCount: fetchCount,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "候補取得に失敗しました");
+      }
+      setCandidates(data.candidates ?? []);
+      setSummary(data.summary ?? null);
+      setSelected(new Set());
+      if (typeof data.summary?.nextOffset === "number") {
+        setOffset(data.summary.nextOffset);
+      }
+      setMessage(
+        `候補 ${data.summary?.candidateCount ?? 0}件（重複除外 ${data.summary?.duplicateExcludedCount ?? 0}）`,
+      );
+      await refreshOverview();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleAddSelected = async () => {
+    if (selected.size === 0) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const picked = candidates.filter((c) => selected.has(c.contentId));
+      const payload = buildAddSelectedWorksPayload(picked);
+      const res = await fetch("/api/admin/import/add-selected-works", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok || data.error) {
+        throw new Error(data.error || data.message || "追加に失敗");
+      }
+      setMessage(data.message || `${data.summary?.addedCount ?? 0}件追加`);
+      setSelected(new Set());
+      await refreshOverview();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleAddByCid = async () => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/works-cms/add-by-cid", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cids: cidInput }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "CID追加に失敗");
+      }
+      setMessage(
+        `CID追加: ${data.addedCount}件（重複 ${data.duplicateCount}）`,
+      );
+      setCidInput("");
+      await refreshOverview();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runSyncLoop = async () => {
+    for (;;) {
+      const res = await fetch("/api/admin/fanza-sync/process", { method: "POST" });
+      const data = await res.json();
+      if (data.currentJob) setSyncJob(data.currentJob);
+      if (!data.success) throw new Error(data.error || "同期バッチ失敗");
+      if (data.done || data.job?.status === "completed" || data.job?.status === "failed") {
+        break;
+      }
+      if (data.job?.status === "stopped" || data.stopped) break;
+    }
+    await refreshOverview();
+    await refreshSync();
+  };
+
+  const handleStartSync = async () => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/fanza-sync/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: syncMode, trigger: "manual" }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "同期開始に失敗");
+      }
+      setSyncJob(data.job);
+      await runSyncLoop();
+      setMessage("掲載情報の更新が完了しました（デプロイなし）");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleResumeSync = async () => {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/admin/fanza-sync/resume", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "再開に失敗");
+      }
+      await runSyncLoop();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const mutatePublish = async (
+    action: string,
+    cids: string[],
+    extra?: Record<string, unknown>,
+  ) => {
+    if (cids.length === 0) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/works-cms/mutate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "publish", action, cids, ...extra }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "更新に失敗");
+      }
+      setMessage(`${action}: ${data.updated}件（デプロイなし）`);
+      setPubSelected(new Set());
+      await refreshList();
+      await refreshOverview();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editCid) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/admin/works-cms/mutate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "edit",
+          cid: editCid,
+          patch: { title: editTitle },
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) throw new Error(data.error || "編集失敗");
+      setEditCid(null);
+      setMessage("作品を更新しました（Supabaseのみ）");
+      await refreshList();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const historyRows = useMemo(() => {
+    const rows: Array<{
+      name: string;
+      status: string;
+      detail: string;
+    }> = [];
+    if (syncJob) {
+      rows.push({
+        name: "掲載情報同期",
+        status: syncJob.status,
+        detail: `${syncJob.processedCount}/${syncJob.targetCount} 更新${syncJob.updatedCount} 失敗${syncJob.errorCount}`,
+      });
+    }
+    if (overview?.runningJobLabel) {
+      rows.push({
+        name: "実行中",
+        status: "running",
+        detail: overview.runningJobLabel,
+      });
+    }
+    rows.push({
+      name: "FANZA TV判定",
+      status: "local-only",
+      detail: `未確認${overview?.fanzaTv.uncheckedCount ?? 0} / 対象${overview?.fanzaTv.activeCount ?? 0} / 不明${overview?.fanzaTv.unknownCount ?? 0}`,
+    });
+    return rows;
+  }, [syncJob, overview]);
+
+  const visibleHistory = historyExpanded ? historyRows : historyRows.slice(0, 5);
+
+  return (
+    <div className="space-y-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
+      {/* 上部ステータス（固定寄り） */}
+      <section
+        className={`sticky top-0 z-20 rounded-2xl border px-3 py-3 text-sm shadow-sm backdrop-blur ${
+          overview ? toneClass(overview.tone) : "border-border bg-white"
+        }`}
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="font-bold">作品CMS（Supabaseのみ・デプロイ不要）</p>
+          <button
+            type="button"
+            className="underline"
+            onClick={() => void refreshOverview()}
+          >
+            更新
+          </button>
+        </div>
+        {overview ? (
+          <div className="mt-2 grid grid-cols-2 gap-1 text-xs sm:grid-cols-3 lg:grid-cols-4">
+            <p>公開 {overview.publishedCount.toLocaleString()}</p>
+            <p>非公開 {overview.unpublishedCount.toLocaleString()}</p>
+            <p>画像なし {overview.noPackageImageCount.toLocaleString()}</p>
+            <p>販売終了 {overview.unavailableCount.toLocaleString()}</p>
+            <p>手動非公開 {overview.manualHiddenCount.toLocaleString()}</p>
+            <p>最終追加 {formatDateTime(overview.lastWorkAddedAt)}</p>
+            <p>最終同期 {formatDateTime(overview.lastLightSyncAt)}</p>
+            <p>実行中 {overview.runningJobLabel ?? "—"}</p>
+            <p>エラー {overview.errorCount}</p>
+          </div>
+        ) : (
+          <p className="mt-2 text-xs">読込中…</p>
+        )}
+      </section>
+
+      {/* タブ */}
+      <nav
+        className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1"
+        aria-label="作品管理タブ"
+      >
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => setTab(t.id)}
+            className={`min-h-[44px] shrink-0 rounded-full px-4 text-sm font-bold ${
+              tab === t.id
+                ? "bg-sky-600 text-white"
+                : "border border-border bg-white text-foreground"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </nav>
+
+      {message ? (
+        <p className="rounded-xl bg-zinc-100 px-3 py-2 text-sm">{message}</p>
+      ) : null}
+
+      {tab === "add" ? (
+        <section className="space-y-4 rounded-2xl border border-border bg-white p-4">
+          <div className="flex flex-wrap gap-2">
+            {(["new", "popular"] as AdultImportSortMode[]).map((s) => (
+              <button
+                key={s}
+                type="button"
+                onClick={() => setSort(s)}
+                className={`min-h-[40px] rounded-xl px-3 text-sm ${
+                  sort === s ? "bg-sky-600 text-white" : "border border-border"
+                }`}
+              >
+                {getAdultImportSortLabel(s)}
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {FETCH_COUNTS.map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setFetchCount(n)}
+                className={`min-h-[40px] rounded-xl px-3 text-sm ${
+                  fetchCount === n ? "bg-sky-600 text-white" : "border border-border"
+                }`}
+              >
+                {n}件
+              </button>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <span>offset</span>
+            <input
+              type="number"
+              value={offset}
+              onChange={(e) => setOffset(Number(e.target.value) || 0)}
+              className="min-h-[40px] w-24 rounded-lg border border-border px-2"
+            />
+            <button
+              type="button"
+              className="min-h-[40px] rounded-lg border px-3"
+              onClick={() => setOffset((v) => Math.max(0, v - fetchCount))}
+            >
+              前へ
+            </button>
+            <button
+              type="button"
+              className="min-h-[40px] rounded-lg border px-3"
+              onClick={() => setOffset((v) => v + fetchCount)}
+            >
+              次へ
+            </button>
+            <button
+              type="button"
+              className="min-h-[40px] rounded-lg border px-3"
+              onClick={() => setOffset(0)}
+            >
+              0に戻す
+            </button>
+          </div>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void handleFetch()}
+            className="min-h-[48px] w-full rounded-2xl bg-sky-600 font-bold text-white disabled:opacity-50"
+          >
+            候補を取得
+          </button>
+          {summary ? (
+            <div className="rounded-xl bg-sky-50 px-3 py-2 text-xs text-sky-950">
+              <p>API取得 {summary.apiFetchedCount} / 既存除外 {summary.publishedExcludedCount}</p>
+              <p>
+                重複除外 {summary.duplicateExcludedCount} / 新規候補{" "}
+                {summary.candidateCount} / 画像なし除外{" "}
+                {summary.imageMissingExcludedCount} / エラー相当{" "}
+                {summary.invalidExcludedCount}
+              </p>
+            </div>
+          ) : null}
+
+          <div className="space-y-2">
+            <p className="text-sm font-bold">CID直接追加</p>
+            <textarea
+              value={cidInput}
+              onChange={(e) => setCidInput(e.target.value)}
+              rows={3}
+              placeholder="CIDを改行またはカンマ区切り"
+              className="w-full rounded-xl border border-border p-2 text-sm"
+            />
+            <button
+              type="button"
+              disabled={busy || !cidInput.trim()}
+              onClick={() => void handleAddByCid()}
+              className="min-h-[44px] rounded-xl bg-sky-600 px-4 text-sm font-bold text-white disabled:opacity-50"
+            >
+              CIDで追加
+            </button>
+          </div>
+
+          <ul className="space-y-2">
+            {candidates.map((c) => {
+              const id = c.contentId;
+              const checked = selected.has(id);
+              return (
+                <li
+                  key={id}
+                  className="flex gap-3 rounded-xl border border-border p-2"
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => {
+                      setSelected((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(id)) next.delete(id);
+                        else next.add(id);
+                        return next;
+                      });
+                    }}
+                    className="mt-2"
+                  />
+                  <div className="relative h-16 w-12 shrink-0 overflow-hidden rounded bg-zinc-100">
+                    {getDmmItemImageUrl(c.item) ? (
+                      <Image
+                        src={getDmmItemImageUrl(c.item)!}
+                        alt=""
+                        fill
+                        className="object-cover"
+                        unoptimized
+                      />
+                    ) : null}
+                  </div>
+                  <div className="min-w-0 flex-1 text-sm">
+                    <p className="line-clamp-2 font-medium">{c.item.title}</p>
+                    <p className="text-xs text-muted">
+                      {getDmmItemMakerName(c.item) ?? "—"} /{" "}
+                      {getDmmItemActressNameList(c.item).slice(0, 2).join("、") || "—"}
+                    </p>
+                    <p className="text-xs">{formatDmmItemPrice(c.item) || "—"}</p>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
+
+      {tab === "sync" ? (
+        <section className="space-y-4 rounded-2xl border border-border bg-white p-4">
+          <p className="text-sm text-muted">
+            価格・セール・評価・順位・販売状況をDBへ直接更新します。Git差分・デプロイはありません。
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {SYNC_MODES.map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setSyncMode(mode)}
+                className={`min-h-[40px] rounded-xl px-3 text-sm ${
+                  syncMode === mode
+                    ? "bg-sky-600 text-white"
+                    : "border border-border"
+                }`}
+              >
+                {getAdultSyncModeLabel(mode)}
+              </button>
+            ))}
+          </div>
+          {syncJob ? (
+            <div className="rounded-xl bg-sky-50 px-3 py-2 text-sm">
+              <p>
+                状態 {syncJob.status} / {syncJob.processedCount}/
+                {syncJob.targetCount}
+              </p>
+              <p>
+                更新 {syncJob.updatedCount} / 失敗 {syncJob.errorCount} / 最終CID{" "}
+                {syncJob.lastProcessedContentId ?? "—"}
+              </p>
+              <p className="text-xs">{syncJob.message}</p>
+            </div>
+          ) : null}
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void handleStartSync()}
+              className="min-h-[48px] flex-1 rounded-2xl bg-sky-600 font-bold text-white disabled:opacity-50"
+            >
+              同期開始（100件バッチ）
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void handleResumeSync()}
+              className="min-h-[48px] rounded-2xl border border-emerald-500 px-4 font-bold text-emerald-800 disabled:opacity-50"
+            >
+              途中再開
+            </button>
+          </div>
+
+          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
+            <p className="font-bold">FANZA TV判定（ローカル専用）</p>
+            <p className="mt-1 text-xs">
+              未確認 {overview?.fanzaTv.uncheckedCount ?? 0} / 対象{" "}
+              {overview?.fanzaTv.activeCount ?? 0} / 対象外{" "}
+              {overview?.fanzaTv.notAvailableCount ?? 0} / 不明{" "}
+              {overview?.fanzaTv.unknownCount ?? 0}
+            </p>
+            <p className="mt-1 text-xs">
+              最終判定 {formatDateTime(overview?.fanzaTv.lastCheckedAt)} /
+              再開位置 {overview?.fanzaTv.resumeCursor ?? 0}
+            </p>
+            <p className="mt-2 text-xs">
+              VercelではPlaywright判定しません。Macで
+              <code className="mx-1">npm run fanza-tv:collect</code>
+              →
+              <code className="mx-1">npm run fanza-tv:ingest</code>
+              を実行してください。
+            </p>
+          </div>
+        </section>
+      ) : null}
+
+      {tab === "publish" ? (
+        <section className="space-y-3 rounded-2xl border border-border bg-white p-4">
+          <div className="flex flex-wrap gap-2">
+            <input
+              value={filterQ}
+              onChange={(e) => setFilterQ(e.target.value)}
+              placeholder="タイトル検索"
+              className="min-h-[40px] flex-1 rounded-lg border border-border px-2 text-sm"
+            />
+            <select
+              value={filterPublished}
+              onChange={(e) =>
+                setFilterPublished(e.target.value as typeof filterPublished)
+              }
+              className="min-h-[40px] rounded-lg border border-border px-2 text-sm"
+            >
+              <option value="all">すべて</option>
+              <option value="published">公開中</option>
+              <option value="unpublished">非公開</option>
+            </select>
+            <button
+              type="button"
+              className="min-h-[40px] rounded-lg border px-3 text-sm"
+              onClick={() => void refreshList()}
+            >
+              検索
+            </button>
+          </div>
+
+          <ul className="space-y-2">
+            {items.map((item) => {
+              const checked = pubSelected.has(item.cid);
+              return (
+                <li
+                  key={item.cid}
+                  className="rounded-xl border border-border p-2 text-sm"
+                >
+                  <div className="flex gap-2">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        setPubSelected((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(item.cid)) next.delete(item.cid);
+                          else next.add(item.cid);
+                          return next;
+                        });
+                      }}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="line-clamp-2 font-medium">{item.title}</p>
+                      <p className="text-xs text-muted">
+                        {item.cid} / {item.maker ?? "—"} /{" "}
+                        {item.published ? "公開" : "非公開"}
+                        {item.manual_hidden ? " / 手動非公開" : ""}
+                        {!item.is_available ? " / 販売終了" : ""}
+                        {item.fanza_tv_status === "active" ? " / 見放題" : ""}
+                      </p>
+                      <details className="mt-1">
+                        <summary className="cursor-pointer text-xs text-sky-700">
+                          操作
+                        </summary>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            className="rounded-lg bg-sky-600 px-2 py-1 text-xs text-white"
+                            onClick={() =>
+                              void mutatePublish("publish", [item.cid])
+                            }
+                          >
+                            公開
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-lg border px-2 py-1 text-xs"
+                            onClick={() =>
+                              void mutatePublish("unpublish", [item.cid])
+                            }
+                          >
+                            非公開
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-lg border px-2 py-1 text-xs"
+                            onClick={() =>
+                              void mutatePublish("manual_hide", [item.cid], {
+                                reason: "手動非公開",
+                              })
+                            }
+                          >
+                            手動非公開
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-lg border px-2 py-1 text-xs"
+                            onClick={() =>
+                              void mutatePublish("mark_unavailable", [item.cid])
+                            }
+                          >
+                            販売終了
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-lg border px-2 py-1 text-xs"
+                            onClick={() =>
+                              void mutatePublish("restore", [item.cid])
+                            }
+                          >
+                            復活
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-lg border px-2 py-1 text-xs"
+                            onClick={() => {
+                              setEditCid(item.cid);
+                              setEditTitle(item.title);
+                            }}
+                          >
+                            編集
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-lg border px-2 py-1 text-xs"
+                            onClick={() =>
+                              void mutatePublish("reset_fanza_tv", [item.cid])
+                            }
+                          >
+                            見放題再判定
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded-lg border border-red-400 px-2 py-1 text-xs text-red-700"
+                            onClick={() => {
+                              if (
+                                typeof window !== "undefined" &&
+                                window.confirm("論理削除しますか？")
+                              ) {
+                                void mutatePublish("soft_delete", [item.cid]);
+                              }
+                            }}
+                          >
+                            削除
+                          </button>
+                        </div>
+                      </details>
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+
+          {editCid ? (
+            <div className="rounded-xl border border-sky-300 bg-sky-50 p-3">
+              <p className="text-sm font-bold">編集: {editCid}</p>
+              <input
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                className="mt-2 min-h-[40px] w-full rounded-lg border px-2 text-sm"
+              />
+              <div className="mt-2 flex gap-2">
+                <button
+                  type="button"
+                  className="rounded-lg bg-sky-600 px-3 py-2 text-sm text-white"
+                  onClick={() => void handleSaveEdit()}
+                >
+                  保存
+                </button>
+                <button
+                  type="button"
+                  className="rounded-lg border px-3 py-2 text-sm"
+                  onClick={() => setEditCid(null)}
+                >
+                  キャンセル
+                </button>
+              </div>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      {tab === "history" ? (
+        <section className="space-y-3 rounded-2xl border border-border bg-white p-4">
+          <WorksMasterMigrationPanel />
+          <ul className="space-y-2 text-sm">
+            {visibleHistory.map((row, idx) => (
+              <li key={`${row.name}-${idx}`} className="rounded-xl border p-3">
+                <p className="font-bold">{row.name}</p>
+                <p className="text-xs">状態: {row.status}</p>
+                <p className="text-xs text-muted">{row.detail}</p>
+              </li>
+            ))}
+          </ul>
+          {historyRows.length > 5 ? (
+            <button
+              type="button"
+              className="text-sm text-sky-700 underline"
+              onClick={() => setHistoryExpanded((v) => !v)}
+            >
+              {historyExpanded ? "閉じる" : "すべて見る"}
+            </button>
+          ) : null}
+          <a
+            href="/api/admin/works-master-migration/errors"
+            className="inline-flex min-h-[40px] items-center rounded-xl border px-3 text-sm"
+          >
+            エラーCSV出力
+          </a>
+          <p className="text-xs text-muted">
+            コード変更時の本番反映は{" "}
+            <Link href="/admin/deploy" className="underline">
+              デプロイ専用ページ
+            </Link>
+            へ分離済みです。
+          </p>
+        </section>
+      ) : null}
+
+      {/* 下部固定バー */}
+      {(tab === "add" || tab === "publish") && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-white/95 px-3 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
+          <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-bold">
+              選択中 {tab === "add" ? selectedCount : pubSelectedCount} 件
+            </p>
+            {tab === "add" ? (
+              <button
+                type="button"
+                disabled={busy || selectedCount === 0}
+                onClick={() => void handleAddSelected()}
+                className="min-h-[44px] rounded-xl bg-sky-600 px-4 text-sm font-bold text-white disabled:opacity-40"
+              >
+                選択を追加
+              </button>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={busy || pubSelectedCount === 0}
+                  onClick={() =>
+                    void mutatePublish("publish", [...pubSelected])
+                  }
+                  className="min-h-[40px] rounded-xl bg-sky-600 px-3 text-xs font-bold text-white disabled:opacity-40"
+                >
+                  一括公開
+                </button>
+                <button
+                  type="button"
+                  disabled={busy || pubSelectedCount === 0}
+                  onClick={() =>
+                    void mutatePublish("unpublish", [...pubSelected])
+                  }
+                  className="min-h-[40px] rounded-xl border px-3 text-xs font-bold disabled:opacity-40"
+                >
+                  一括非公開
+                </button>
+                <button
+                  type="button"
+                  disabled={busy || pubSelectedCount === 0}
+                  onClick={() =>
+                    void mutatePublish("mark_unavailable", [...pubSelected])
+                  }
+                  className="min-h-[40px] rounded-xl border px-3 text-xs font-bold disabled:opacity-40"
+                >
+                  一括販売終了
+                </button>
+                <button
+                  type="button"
+                  disabled={busy || pubSelectedCount === 0}
+                  onClick={() => {
+                    if (
+                      typeof window !== "undefined" &&
+                      window.confirm("選択作品を論理削除しますか？")
+                    ) {
+                      void mutatePublish("soft_delete", [...pubSelected]);
+                    }
+                  }}
+                  className="min-h-[40px] rounded-xl border border-red-400 px-3 text-xs font-bold text-red-700 disabled:opacity-40"
+                >
+                  一括削除
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

@@ -8,6 +8,8 @@ export const ADULT_SYNC_MODE_RANK = "rank" as const;
 export const ADULT_SYNC_MODE_DATE = "date" as const;
 /** 新着（発売日）＋人気順位 */
 export const ADULT_SYNC_MODE_DATE_RANK = "date_rank" as const;
+export const ADULT_SYNC_MODE_REVIEW = "review" as const;
+export const ADULT_SYNC_MODE_AVAILABILITY = "availability" as const;
 export const ADULT_SYNC_MODE_FULL = "full" as const;
 
 export type AdultSyncMode =
@@ -16,6 +18,8 @@ export type AdultSyncMode =
   | typeof ADULT_SYNC_MODE_RANK
   | typeof ADULT_SYNC_MODE_DATE
   | typeof ADULT_SYNC_MODE_DATE_RANK
+  | typeof ADULT_SYNC_MODE_REVIEW
+  | typeof ADULT_SYNC_MODE_AVAILABILITY
   | typeof ADULT_SYNC_MODE_FULL;
 
 /** 軽量同期で更新してよいフィールド */
@@ -54,6 +58,8 @@ export function isAdultSyncMode(value: unknown): value is AdultSyncMode {
     value === ADULT_SYNC_MODE_RANK ||
     value === ADULT_SYNC_MODE_DATE ||
     value === ADULT_SYNC_MODE_DATE_RANK ||
+    value === ADULT_SYNC_MODE_REVIEW ||
+    value === ADULT_SYNC_MODE_AVAILABILITY ||
     value === ADULT_SYNC_MODE_FULL
   );
 }
@@ -70,15 +76,19 @@ export function getAdultSyncModeLabel(mode: AdultSyncMode): string {
     case ADULT_SYNC_MODE_PRICE:
       return "価格・セールのみ";
     case ADULT_SYNC_MODE_RANK:
-      return "人気順を更新";
+      return "人気順位のみ";
     case ADULT_SYNC_MODE_DATE:
-      return "新着順を更新";
+      return "新着順位のみ";
     case ADULT_SYNC_MODE_DATE_RANK:
       return "新着＋人気";
+    case ADULT_SYNC_MODE_REVIEW:
+      return "評価・レビューのみ";
+    case ADULT_SYNC_MODE_AVAILABILITY:
+      return "販売状況のみ";
     case ADULT_SYNC_MODE_FULL:
       return "完全同期（全データ）";
     default:
-      return mode;
+      return String(mode);
   }
 }
 
@@ -107,8 +117,15 @@ export function getAdultFullSyncBatchSize(): number {
 export function getAdultSyncBatchSizeForMode(mode: AdultSyncMode): number {
   return mode === ADULT_SYNC_MODE_FULL
     ? getAdultFullSyncBatchSize()
-    : getAdultLightSyncBatchSize();
+    : Math.min(100, getAdultLightSyncBatchSize());
 }
+
+export const ADULT_SYNC_REVIEW_FIELDS = ["review"] as const;
+export const ADULT_SYNC_AVAILABILITY_FIELDS = [
+  "isActive",
+  "availabilityStatus",
+  "availability",
+] as const;
 
 export function getAdultSyncFieldsForMode(
   mode: AdultSyncMode,
@@ -122,6 +139,10 @@ export function getAdultSyncFieldsForMode(
       return ADULT_SYNC_DATE_FIELDS;
     case ADULT_SYNC_MODE_DATE_RANK:
       return [...ADULT_SYNC_DATE_FIELDS, ...ADULT_SYNC_RANK_FIELDS];
+    case ADULT_SYNC_MODE_REVIEW:
+      return ADULT_SYNC_REVIEW_FIELDS;
+    case ADULT_SYNC_MODE_AVAILABILITY:
+      return ADULT_SYNC_AVAILABILITY_FIELDS;
     case ADULT_SYNC_MODE_LIGHT:
       return ADULT_SYNC_LIGHT_FIELDS;
     default:

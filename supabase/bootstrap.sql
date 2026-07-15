@@ -83,6 +83,29 @@ comment on table public.works is
   'Adult work master (fixed metadata). Live price/sale/rating lives in work_live_status.';
 
 -- -----------------------------------------------------------------------------
+-- 3/3  Phase6 CMS columns（手動非公開・FANZA TV 詳細）
+-- -----------------------------------------------------------------------------
+alter table public.works
+  add column if not exists manual_hidden boolean not null default false;
+alter table public.works
+  add column if not exists manual_hidden_reason text;
+alter table public.works
+  add column if not exists deleted_at timestamptz;
+
+alter table public.work_live_status
+  add column if not exists manual_hidden boolean not null default false;
+alter table public.work_live_status
+  add column if not exists sale_start_at timestamptz;
+alter table public.work_live_status
+  add column if not exists fanza_tv_checked_at timestamptz;
+alter table public.work_live_status
+  add column if not exists fanza_tv_changed_at timestamptz;
+alter table public.work_live_status
+  add column if not exists fanza_tv_source text;
+alter table public.work_live_status
+  add column if not exists fanza_tv_error text;
+
+-- -----------------------------------------------------------------------------
 -- 確認用（実行結果で 2 行出ればOK）
 -- -----------------------------------------------------------------------------
 select

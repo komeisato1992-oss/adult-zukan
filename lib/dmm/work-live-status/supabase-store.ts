@@ -22,6 +22,8 @@ function normalizeRow(raw: Record<string, unknown>): WorkLiveStatusRow | null {
         ? null
         : Number(raw.discount_rate),
     is_sale: Boolean(raw.is_sale),
+    sale_start_at:
+      raw.sale_start_at == null ? null : String(raw.sale_start_at),
     sale_end_at: raw.sale_end_at == null ? null : String(raw.sale_end_at),
     rating:
       raw.rating == null || raw.rating === "" ? null : Number(raw.rating),
@@ -38,8 +40,21 @@ function normalizeRow(raw: Record<string, unknown>): WorkLiveStatusRow | null {
         ? null
         : Number(raw.new_arrival_rank),
     is_available: raw.is_available === false ? false : true,
+    manual_hidden: raw.manual_hidden === true,
     fanza_tv_status:
       raw.fanza_tv_status == null ? null : String(raw.fanza_tv_status),
+    fanza_tv_checked_at:
+      raw.fanza_tv_checked_at == null
+        ? null
+        : String(raw.fanza_tv_checked_at),
+    fanza_tv_changed_at:
+      raw.fanza_tv_changed_at == null
+        ? null
+        : String(raw.fanza_tv_changed_at),
+    fanza_tv_source:
+      raw.fanza_tv_source == null ? null : String(raw.fanza_tv_source),
+    fanza_tv_error:
+      raw.fanza_tv_error == null ? null : String(raw.fanza_tv_error),
     checked_at: raw.checked_at == null ? null : String(raw.checked_at),
     updated_at:
       raw.updated_at == null
@@ -91,17 +106,29 @@ export async function supabaseUpsertLiveStatusRows(
   if (!client || rows.length === 0) return { upserted: 0 };
 
   const now = new Date().toISOString();
-  const payload: Array<WorkLiveStatusUpsertInput & { cid: string; updated_at: string }> =
-    [];
+  const { detectWorksCmsSchemaV2 } = await import(
+    "@/lib/admin/works-cms-overrides"
+  );
+  const schemaV2 = await detectWorksCmsSchemaV2();
+  const payload: Record<string, unknown>[] = [];
 
   for (const row of rows) {
     const cid = normalizeCatalogContentId(row.cid);
     if (!cid) continue;
-    payload.push({
+    const base: Record<string, unknown> = {
       ...row,
       cid,
       updated_at: row.updated_at ?? now,
-    });
+    };
+    if (!schemaV2) {
+      delete base.manual_hidden;
+      delete base.sale_start_at;
+      delete base.fanza_tv_checked_at;
+      delete base.fanza_tv_changed_at;
+      delete base.fanza_tv_source;
+      delete base.fanza_tv_error;
+    }
+    payload.push(base);
   }
 
   let upserted = 0;

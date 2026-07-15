@@ -52,6 +52,12 @@ function normalizeRow(raw: Record<string, unknown>): WorkMasterRow | null {
     product_code: raw.product_code == null ? null : String(raw.product_code),
     affiliate_url: raw.affiliate_url == null ? null : String(raw.affiliate_url),
     published: raw.published !== false,
+    manual_hidden: raw.manual_hidden === true,
+    manual_hidden_reason:
+      raw.manual_hidden_reason == null
+        ? null
+        : String(raw.manual_hidden_reason),
+    deleted_at: raw.deleted_at == null ? null : String(raw.deleted_at),
     created_at: raw.created_at == null ? now : String(raw.created_at),
     updated_at: raw.updated_at == null ? now : String(raw.updated_at),
   };
@@ -154,19 +160,29 @@ export async function supabaseUpsertWorkMasterRows(
   if (!client || rows.length === 0) return { upserted: 0 };
 
   const now = new Date().toISOString();
-  const payload: WorkMasterUpsertInput[] = [];
+  const { detectWorksCmsSchemaV2 } = await import(
+    "@/lib/admin/works-cms-overrides"
+  );
+  const schemaV2 = await detectWorksCmsSchemaV2();
+  const payload: Record<string, unknown>[] = [];
 
   for (const row of rows) {
     const cid = normalizeCatalogContentId(row.cid);
     if (!cid) continue;
-    payload.push({
+    const base: Record<string, unknown> = {
       ...row,
       cid,
       slug: row.slug?.trim() || cid,
       title: row.title?.trim() || cid,
       updated_at: row.updated_at ?? now,
       created_at: row.created_at ?? now,
-    });
+    };
+    if (!schemaV2) {
+      delete base.manual_hidden;
+      delete base.manual_hidden_reason;
+      delete base.deleted_at;
+    }
+    payload.push(base);
   }
 
   let upserted = 0;

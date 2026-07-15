@@ -47,6 +47,7 @@ export function toWorkListCardItem(
     saleInfo: options.includeSaleInfo && saleInfo ? saleInfo : undefined,
     releaseDate: item.date?.trim() || undefined,
     fanzaUrl: getDmmFanzaUrl(item),
+    fanzaTvActive: item.fanzaTvStatus === "active",
   };
 }
 

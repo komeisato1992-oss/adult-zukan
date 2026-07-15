@@ -56,9 +56,8 @@ export const adminNavItems: AdminNavItem[] = [
   },
   {
     id: "settings",
-    label: "設定（準備中）",
+    label: "設定",
     icon: "⚙",
     href: "/admin/settings",
-    disabled: true,
   },
 ];

@@ -1,3 +1,5 @@
+import type { AdultSyncMode } from "@/lib/dmm/sync-mode";
+
 export type FanzaSyncTrigger = "manual" | "auto";
 
 export type FanzaSyncJobStatus =
@@ -11,8 +13,8 @@ export type FanzaSyncJob = {
   jobId: string;
   trigger: FanzaSyncTrigger;
   status: FanzaSyncJobStatus;
-  /** light | full。未設定は full（後方互換） */
-  mode?: "light" | "full";
+  /** light | price | rank | date | full。未設定は full（後方互換） */
+  mode?: AdultSyncMode;
   targetCount: number;
   processedCount: number;
   successCount: number;

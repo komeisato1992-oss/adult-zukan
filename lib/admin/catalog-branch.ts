@@ -252,3 +252,169 @@ export async function resetWorkingBranchToProduction(): Promise<{
     newSha: productionSha,
   };
 }
+
+type MergeResponse = {
+  sha?: string;
+  message?: string;
+  commit?: { sha?: string };
+};
+
+/**
+ * Production の更新を作業ブランチへ取り込む（fetch + rebase 相当）。
+ * GitHub Merges API で production → working へマージする。
+ * 競合時は conflict: true を返す（作業ブランチは変更しない）。
+ */
+export async function syncWorkingBranchWithProduction(): Promise<{
+  workingBranch: string;
+  productionBranch: string;
+  synced: boolean;
+  alreadyUpToDate: boolean;
+  conflict: boolean;
+  previousWorkingSha: string | null;
+  newWorkingSha: string | null;
+  productionSha: string | null;
+  message: string;
+}> {
+  const workingConfig = getGitHubConfig();
+  const productionConfig = getGitHubProductionConfig();
+  const workingBranch = getCatalogWorkingBranch();
+  const productionBranch = getCatalogProductionBranch();
+  const credentials = getGitHubCredentials();
+
+  if (!workingConfig || !workingBranch || !productionConfig || !credentials) {
+    throw new CatalogBranchError(
+      "作業ブランチの最新化に必要な GitHub 設定が未完了です。",
+      503,
+    );
+  }
+
+  await ensureCatalogWorkingBranch();
+
+  const previousWorkingSha = await fetchBranchSha(workingConfig);
+  const productionSha = await fetchBranchSha(productionConfig);
+
+  if (!previousWorkingSha || !productionSha) {
+    throw new CatalogBranchError("ブランチ SHA の取得に失敗しました。", 502);
+  }
+
+  if (previousWorkingSha === productionSha) {
+    return {
+      workingBranch,
+      productionBranch,
+      synced: false,
+      alreadyUpToDate: true,
+      conflict: false,
+      previousWorkingSha,
+      newWorkingSha: previousWorkingSha,
+      productionSha,
+      message: "作業ブランチはすでに最新です。",
+    };
+  }
+
+  // production のコミットが working に含まれていれば up-to-date
+  const compareResult = await githubRequest<{
+    behind_by?: number;
+    ahead_by?: number;
+    status?: string;
+  }>(
+    credentials,
+    `${repoBase(credentials)}/compare/${encodeURIComponent(workingBranch)}...${encodeURIComponent(productionBranch)}`,
+  );
+
+  if (compareResult.ok && (compareResult.data.ahead_by ?? 0) === 0) {
+    // working...production で ahead=0 → production に working 未到達のコミットなし
+    // つまり working は production を含んでいる（または同等）
+    // ただし behind の向きに注意: compare A...B の ahead_by は B が A より進んでいる数
+    // working...production の ahead_by = production が working より進んでいる数 = working が遅れている数
+  }
+
+  const behindCompare = await githubRequest<{
+    behind_by?: number;
+    ahead_by?: number;
+  }>(
+    credentials,
+    `${repoBase(credentials)}/compare/${encodeURIComponent(productionBranch)}...${encodeURIComponent(workingBranch)}`,
+  );
+
+  const productionAhead =
+    behindCompare.ok ? (behindCompare.data.behind_by ?? 0) : 1;
+
+  if (productionAhead === 0) {
+    return {
+      workingBranch,
+      productionBranch,
+      synced: false,
+      alreadyUpToDate: true,
+      conflict: false,
+      previousWorkingSha,
+      newWorkingSha: previousWorkingSha,
+      productionSha,
+      message: "作業ブランチはすでに最新です。",
+    };
+  }
+
+  const merge = await githubRequest<MergeResponse>(
+    credentials,
+    `${repoBase(credentials)}/merges`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        base: workingBranch,
+        head: productionBranch,
+        commit_message: `chore(catalog): sync ${productionBranch} into ${workingBranch}`,
+      }),
+    },
+  );
+
+  if (!merge.ok) {
+    if (merge.status === 409) {
+      return {
+        workingBranch,
+        productionBranch,
+        synced: false,
+        alreadyUpToDate: false,
+        conflict: true,
+        previousWorkingSha,
+        newWorkingSha: previousWorkingSha,
+        productionSha,
+        message:
+          "本番ブランチとの取り込みで競合が発生しました。確認画面で対応してください。",
+      };
+    }
+    if (merge.status === 204) {
+      // Already up to date
+      return {
+        workingBranch,
+        productionBranch,
+        synced: false,
+        alreadyUpToDate: true,
+        conflict: false,
+        previousWorkingSha,
+        newWorkingSha: previousWorkingSha,
+        productionSha,
+        message: "作業ブランチはすでに最新です。",
+      };
+    }
+    throw new CatalogBranchError(
+      `作業ブランチの最新化に失敗しました (HTTP ${merge.status})。`,
+      merge.status >= 500 ? 502 : merge.status,
+    );
+  }
+
+  const newSha =
+    merge.data.sha ??
+    merge.data.commit?.sha ??
+    (await fetchBranchSha(workingConfig));
+
+  return {
+    workingBranch,
+    productionBranch,
+    synced: true,
+    alreadyUpToDate: false,
+    conflict: false,
+    previousWorkingSha,
+    newWorkingSha: newSha,
+    productionSha,
+    message: "作業ブランチを本番の最新内容で更新しました。",
+  };
+}

@@ -13,11 +13,17 @@ import {
 } from "@/lib/dmm/fanza-sync-client";
 import {
   hasAdultLightFieldDiff,
+  hasAdultSyncFieldDiff,
   pickAdultLightFields,
+  pickAdultSyncFields,
 } from "@/lib/dmm/sync-diff";
 import {
+  ADULT_SYNC_MODE_DATE,
   ADULT_SYNC_MODE_FULL,
   ADULT_SYNC_MODE_LIGHT,
+  ADULT_SYNC_MODE_PRICE,
+  ADULT_SYNC_MODE_RANK,
+  isAdultPartialSyncMode,
   type AdultSyncMode,
 } from "@/lib/dmm/sync-mode";
 import type { DmmItem } from "@/lib/dmm/types";
@@ -139,27 +145,26 @@ function markNotFound(existing: DmmItem): {
 function markSuccessLight(
   existing: DmmItem,
   apiItem: DmmItem,
+  mode: AdultSyncMode = ADULT_SYNC_MODE_LIGHT,
 ): FanzaSyncProductResult {
   const now = new Date().toISOString();
   const beforeSale = getWorkSaleInfo(existing);
-  const withSale = applySaleFields({
-    ...existing,
-    prices: apiItem.prices ?? existing.prices,
-    campaign: apiItem.campaign ?? existing.campaign,
-    review: apiItem.review ?? existing.review,
-  });
-  const light = pickAdultLightFields(withSale);
-  const afterSale = getWorkSaleInfo(withSale);
-  const priceChanged =
-    JSON.stringify(existing.prices) !== JSON.stringify(withSale.prices);
-  const saleStarted = !beforeSale.isSale && afterSale.isSale;
-  const saleEnded = beforeSale.isSale && !afterSale.isSale;
-  const lightChanged = hasAdultLightFieldDiff(existing, light);
 
-  if (!lightChanged && !saleStarted && !saleEnded) {
+  if (mode === ADULT_SYNC_MODE_RANK) {
+    const nextRank =
+      apiItem.sourcePopularityRank ?? existing.sourcePopularityRank;
+    if (stableSame(existing.sourcePopularityRank, nextRank)) {
+      return unchangedResult(existing);
+    }
     return {
-      work: existing,
-      outcome: "unchanged",
+      work: {
+        ...existing,
+        sourcePopularityRank: nextRank,
+        popularityUpdatedAt: now,
+        lastSyncedAt: now,
+        updatedAt: now,
+      },
+      outcome: "updated",
       priceChanged: false,
       saleStarted: false,
       saleEnded: false,
@@ -168,9 +173,58 @@ function markSuccessLight(
     };
   }
 
+  if (mode === ADULT_SYNC_MODE_DATE) {
+    const nextDate = apiItem.date ?? existing.date;
+    if (stableSame(existing.date, nextDate)) {
+      return unchangedResult(existing);
+    }
+    return {
+      work: {
+        ...existing,
+        date: nextDate,
+        lastSyncedAt: now,
+        updatedAt: now,
+      },
+      outcome: "updated",
+      priceChanged: false,
+      saleStarted: false,
+      saleEnded: false,
+      hidden: false,
+      republished: false,
+    };
+  }
+
+  const withSale = applySaleFields({
+    ...existing,
+    prices: apiItem.prices ?? existing.prices,
+    campaign: apiItem.campaign ?? existing.campaign,
+    review:
+      mode === ADULT_SYNC_MODE_PRICE
+        ? existing.review
+        : (apiItem.review ?? existing.review),
+    sourcePopularityRank:
+      mode === ADULT_SYNC_MODE_PRICE
+        ? existing.sourcePopularityRank
+        : (apiItem.sourcePopularityRank ?? existing.sourcePopularityRank),
+  });
+  const picked = pickAdultSyncFields(withSale, mode);
+  const afterSale = getWorkSaleInfo(withSale);
+  const priceChanged =
+    JSON.stringify(existing.prices) !== JSON.stringify(withSale.prices);
+  const saleStarted = !beforeSale.isSale && afterSale.isSale;
+  const saleEnded = beforeSale.isSale && !afterSale.isSale;
+  const changed =
+    mode === ADULT_SYNC_MODE_LIGHT
+      ? hasAdultLightFieldDiff(existing, pickAdultLightFields(withSale))
+      : hasAdultSyncFieldDiff(existing, picked, mode);
+
+  if (!changed && !saleStarted && !saleEnded) {
+    return unchangedResult(existing);
+  }
+
   const work: DmmItem = {
     ...existing,
-    ...light,
+    ...picked,
     priceUpdatedAt: priceChanged ? now : existing.priceUpdatedAt,
     saleUpdatedAt: saleStarted || saleEnded ? now : existing.saleUpdatedAt,
     lastSyncedAt: now,
@@ -183,6 +237,26 @@ function markSuccessLight(
     priceChanged,
     saleStarted,
     saleEnded,
+    hidden: false,
+    republished: false,
+  };
+}
+
+function stableSame(a: unknown, b: unknown): boolean {
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return a === b;
+  }
+}
+
+function unchangedResult(existing: DmmItem): FanzaSyncProductResult {
+  return {
+    work: existing,
+    outcome: "unchanged",
+    priceChanged: false,
+    saleStarted: false,
+    saleEnded: false,
     hidden: false,
     republished: false,
   };
@@ -291,8 +365,8 @@ function markSuccess(
   apiItem: DmmItem,
   mode: AdultSyncMode,
 ): FanzaSyncProductResult {
-  return mode === ADULT_SYNC_MODE_LIGHT
-    ? markSuccessLight(existing, apiItem)
+  return isAdultPartialSyncMode(mode)
+    ? markSuccessLight(existing, apiItem, mode)
     : markSuccessFull(existing, apiItem);
 }
 

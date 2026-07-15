@@ -4,6 +4,7 @@ import {
   ensureCatalogWorkingBranch,
   fetchBranchSha,
   resetWorkingBranchToProduction,
+  syncWorkingBranchWithProduction,
   CatalogBranchError,
 } from "@/lib/admin/catalog-branch";
 import {
@@ -830,12 +831,14 @@ export async function getCatalogPromoteStatus(): Promise<CatalogPromoteStatusPay
     return {
       configured: false,
       hasPendingChanges: false,
+      productionAheadCount: 0,
       workingBranch,
       productionBranch,
       pendingCommitCount: 0,
       changedFileCount: 0,
       addedWorkCount: 0,
       updatedWorkCount: 0,
+      workingWorkCount: null,
       lastWorkAt: null,
       lastPromoteAt: null,
       lastPromoteSha: null,
@@ -863,12 +866,14 @@ export async function getCatalogPromoteStatus(): Promise<CatalogPromoteStatusPay
     return {
       configured: false,
       hasPendingChanges: false,
+      productionAheadCount: 0,
       workingBranch,
       productionBranch,
       pendingCommitCount: 0,
       changedFileCount: 0,
       addedWorkCount: 0,
       updatedWorkCount: 0,
+      workingWorkCount: null,
       lastWorkAt: null,
       lastPromoteAt: null,
       lastPromoteSha: null,
@@ -903,9 +908,11 @@ export async function getCatalogPromoteStatus(): Promise<CatalogPromoteStatusPay
   const hasPendingChanges = changedFileCount > 0;
   // 状態メタファイルのみの差分は「未反映のカタログ変更」に数えない
   const pendingCommitCount = hasPendingChanges ? (compare.ahead_by ?? 0) : 0;
+  const productionAheadCount = compare.behind_by ?? 0;
 
   let addedWorkCount = persisted.cumulativeAdded;
   let updatedWorkCount = persisted.cumulativeUpdated;
+  let workingWorkCount: number | null = null;
 
   try {
     const workingManifestRaw = await readFileOnBranch(
@@ -916,6 +923,9 @@ export async function getCatalogPromoteStatus(): Promise<CatalogPromoteStatusPay
       production,
       CATALOG_MANIFEST_RELATIVE,
     );
+    if (workingManifestRaw) {
+      workingWorkCount = parseManifestJson(workingManifestRaw).totalCount;
+    }
     if (workingManifestRaw && productionManifestRaw) {
       const w = parseManifestJson(workingManifestRaw);
       const p = parseManifestJson(productionManifestRaw);
@@ -943,12 +953,14 @@ export async function getCatalogPromoteStatus(): Promise<CatalogPromoteStatusPay
   return {
     configured: true,
     hasPendingChanges,
+    productionAheadCount,
     workingBranch,
     productionBranch,
     pendingCommitCount,
     changedFileCount,
     addedWorkCount,
     updatedWorkCount,
+    workingWorkCount,
     lastWorkAt,
     lastPromoteAt: persisted.lastPromoteAt,
     lastPromoteSha,
@@ -963,9 +975,11 @@ export async function getCatalogPromoteStatus(): Promise<CatalogPromoteStatusPay
     failedStage: persisted.failedStage,
     httpStatus: persisted.httpStatus,
     retryable: persisted.retryable,
-    message: hasPendingChanges
-      ? "未反映の変更があります。すべての作業完了後に『本番反映・デプロイ』を実行してください。"
-      : "未反映の変更はありません。",
+    message: productionAheadCount > 0
+      ? "本番側に新しい更新があります。「作業ブランチを最新化」を実行してください。"
+      : hasPendingChanges
+        ? "未反映の変更があります。作業が終わったら「本番反映」を押してください。"
+        : "未反映の変更はありません。",
     deployMode: getDeployMode(),
   };
 }
@@ -1115,11 +1129,34 @@ export async function promoteCatalogToProduction(input: {
     startSha = await fetchBranchSha(working);
     previousMainSha = await fetchBranchSha(production);
 
-    const compare = await compareBranches(
+    // 本番が先行している場合は自動で作業ブランチへ取り込む（競合時のみ停止）
+    let compare = await compareBranches(
       credentials,
       production.branch,
       working.branch,
     );
+
+    if ((compare.behind_by ?? 0) > 0) {
+      const synced = await syncWorkingBranchWithProduction();
+      if (synced.conflict) {
+        throw new CatalogPromoteError(
+          "本番ブランチとの取り込みで競合が発生しました。確認画面で対応してください。",
+          409,
+          {
+            errorCode: "SYNC_CONFLICT",
+            stage: "VALIDATING",
+            retryable: false,
+          },
+        );
+      }
+      startSha = (await fetchBranchSha(working)) ?? startSha;
+      compare = await compareBranches(
+        credentials,
+        production.branch,
+        working.branch,
+      );
+    }
+
     const changedFiles = substantiveChangedFiles(compare.files);
 
     if ((compare.ahead_by ?? 0) === 0 && changedFiles.length === 0) {
@@ -1132,10 +1169,10 @@ export async function promoteCatalogToProduction(input: {
 
     if ((compare.behind_by ?? 0) > 0) {
       throw new CatalogPromoteError(
-        "mainに新しい変更があるため、自動反映できません。作業用ブランチを更新してください。",
+        "本番ブランチの取り込み後も差分が解消されませんでした。競合の可能性があります。",
         409,
         {
-          errorCode: "MAIN_AHEAD",
+          errorCode: "SYNC_CONFLICT",
           stage: "VALIDATING",
           retryable: false,
         },
@@ -1208,10 +1245,10 @@ export async function promoteCatalogToProduction(input: {
         if (!merge.ok) {
           if (merge.status === 409) {
             throw new CatalogPromoteError(
-              "mainに新しい変更があるため、自動反映できません。作業用ブランチを更新してください。",
+              "本番ブランチとのマージで競合が発生しました。確認画面で対応してください。",
               409,
               {
-                errorCode: "MAIN_AHEAD",
+                errorCode: "SYNC_CONFLICT",
                 stage: "MERGING",
                 retryable: false,
               },
@@ -1244,12 +1281,12 @@ export async function promoteCatalogToProduction(input: {
       }
     } else {
       throw new CatalogPromoteError(
-        "mainに新しい変更があるため、自動反映できません。作業用ブランチを更新してください。",
+        "本番ブランチの取り込みが必要な状態です。「作業ブランチを最新化」を実行してから再度お試しください。",
         409,
         {
-          errorCode: "MAIN_AHEAD",
+          errorCode: "SYNC_CONFLICT",
           stage: "MERGING",
-          retryable: false,
+          retryable: true,
         },
       );
     }

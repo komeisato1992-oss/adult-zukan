@@ -44,10 +44,14 @@ import {
 import {
   ADULT_SYNC_MODE_FULL,
   ADULT_SYNC_MODE_LIGHT,
-  isAdultFullSyncEnabled,
-  isAdultLightSyncEnabled,
+  isAdultPartialSyncMode,
+  isAdultSyncMode,
   type AdultSyncMode,
 } from "@/lib/dmm/sync-mode";
+import {
+  resolveFullSyncEnabled,
+  resolveLightSyncEnabled,
+} from "@/lib/admin/admin-ops-settings";
 import type { FanzaSyncJob, FanzaSyncJobSnapshot, FanzaSyncTrigger } from "@/lib/admin/fanza-sync-types";
 import type { DmmItem } from "@/lib/dmm/types";
 
@@ -238,25 +242,25 @@ export async function startFanzaSyncJob(input: {
     throw new FanzaSyncError("FANZA API の設定が未完了です。", 503);
   }
 
-  const mode: AdultSyncMode =
-    input.mode ??
-    (input.trigger === "auto" ? ADULT_SYNC_MODE_LIGHT : ADULT_SYNC_MODE_LIGHT);
+  const mode: AdultSyncMode = isAdultSyncMode(input.mode)
+    ? input.mode
+    : ADULT_SYNC_MODE_LIGHT;
 
-  // 手動実行は明示フラグ必須。自動cronは軽量同期を許可（GitHub正規保存）
+  // 手動実行はトグル/環境変数。自動cronは軽量同期を許可
   if (input.trigger !== "auto") {
-    if (mode === ADULT_SYNC_MODE_LIGHT && !isAdultLightSyncEnabled()) {
+    if (isAdultPartialSyncMode(mode) && !resolveLightSyncEnabled()) {
       throw new FanzaSyncError(
-        "軽量同期は ADULT_LIGHT_SYNC_ENABLED=true のときだけ実行できます",
+        "軽量同期は管理画面でONにするか、ADULT_LIGHT_SYNC_ENABLED=true が必要です",
         403,
       );
     }
-    if (mode === ADULT_SYNC_MODE_FULL && !isAdultFullSyncEnabled()) {
+    if (mode === ADULT_SYNC_MODE_FULL && !resolveFullSyncEnabled()) {
       throw new FanzaSyncError(
-        "完全同期は ADULT_FULL_SYNC_ENABLED=true のときだけ実行できます",
+        "完全同期は管理画面でONにするか、ADULT_FULL_SYNC_ENABLED=true が必要です",
         403,
       );
     }
-  } else if (mode === ADULT_SYNC_MODE_FULL && !isAdultFullSyncEnabled()) {
+  } else if (mode === ADULT_SYNC_MODE_FULL && !resolveFullSyncEnabled()) {
     throw new FanzaSyncError(
       "自動cronでの完全同期は ADULT_FULL_SYNC_ENABLED=true が必要です",
       403,

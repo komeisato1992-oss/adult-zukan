@@ -10,6 +10,7 @@ import {
 } from "@/components/admin/ops/OpsShared";
 import { OpsDetailLink, OpsSectionCard } from "@/components/admin/ops/OpsUi";
 import { alertClass } from "@/components/admin/ops/ops-dashboard-utils";
+import { GoogleEnvPresencePanel } from "@/components/admin/GoogleEnvPresencePanel";
 import { formatSeoDateTime } from "@/components/admin/seo/format";
 import { opsTabHref, type OpsTabId } from "@/lib/admin/ops-tabs";
 import type { OpsDashboardPayload, OpsTask, OpsTaskBucket } from "@/lib/admin/ops-types";
@@ -53,6 +54,8 @@ export function OpsOverviewTab({
 
   return (
     <div className="space-y-6">
+      <GoogleEnvPresencePanel />
+
       <OpsSectionCard title="今日のSEO改善提案">
         {data.suggestions.length === 0 ? (
           <p className="text-sm text-muted">今日の改善提案はまだありません。</p>

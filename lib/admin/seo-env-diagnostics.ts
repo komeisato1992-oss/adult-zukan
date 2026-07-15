@@ -43,6 +43,8 @@ const TRACKED_ENV_VARS = [
   "GOOGLE_SERVICE_ACCOUNT_EMAIL",
   "GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY",
   "GSC_SITE_URL",
+  "GA4_PROPERTY_ID",
+  "GOOGLE_ANALYTICS_PROPERTY_ID",
 ] as const;
 
 function detectRuntime(): SeoEnvDiagnostics["runtime"] {

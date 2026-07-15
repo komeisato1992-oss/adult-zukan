@@ -6,6 +6,7 @@ import type {
   FanzaSyncTrigger,
 } from "@/lib/admin/fanza-sync-types";
 import { FANZA_SYNC_DEFAULT_BATCH_SIZE } from "@/lib/admin/fanza-sync-constants";
+import type { AdultSyncMode } from "@/lib/dmm/sync-mode";
 
 export function createFanzaSyncJobId(): string {
   return `fanza-sync-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -19,7 +20,7 @@ export function createFanzaSyncJob(input: {
   trigger: FanzaSyncTrigger;
   targetCount: number;
   batchSize?: number;
-  mode?: "light" | "full";
+  mode?: AdultSyncMode;
 }): FanzaSyncJob {
   const now = new Date().toISOString();
   const jobId = createFanzaSyncJobId();

@@ -52,12 +52,16 @@ export type CatalogPromoteValidationResult = {
 export type CatalogPromoteStatusPayload = {
   configured: boolean;
   hasPendingChanges: boolean;
+  /** Production が作業ブランチより先行しているコミット数 */
+  productionAheadCount: number;
   workingBranch: string | null;
   productionBranch: string;
   pendingCommitCount: number;
   changedFileCount: number;
   addedWorkCount: number;
   updatedWorkCount: number;
+  /** 作業ブランチ上のカタログ作品数（取得できる場合） */
+  workingWorkCount: number | null;
   lastWorkAt: string | null;
   lastPromoteAt: string | null;
   lastPromoteSha: string | null;

@@ -16,14 +16,17 @@ export async function POST(request: Request) {
   try {
     const body = (await request.json().catch(() => ({}))) as {
       batchSize?: number;
-      mode?: "light" | "full";
+      mode?: string;
     };
+
+    const { isAdultSyncMode } = await import("@/lib/dmm/sync-mode");
+    const mode = isAdultSyncMode(body.mode) ? body.mode : "light";
 
     const { job, alreadyRunning } = await startFanzaSyncJob({
       trigger: "manual",
       batchSize:
         body.batchSize == null ? undefined : Number(body.batchSize),
-      mode: body.mode === "full" ? "full" : "light",
+      mode,
     });
 
     if (alreadyRunning) {

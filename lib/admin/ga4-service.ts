@@ -7,6 +7,7 @@ import {
   getServiceAccountJsonSource,
   getServiceAccountPublicInfo,
 } from "@/lib/admin/seo-env";
+import { getGa4PropertyIdFromEnv } from "@/lib/admin/google-env-status";
 import {
   loadGa4CachePersisted,
   saveGa4CachePersisted,
@@ -56,11 +57,7 @@ type Ga4RunReportResponse = {
 };
 
 function getGa4PropertyIdRaw(): string | null {
-  return (
-    process.env.GA4_PROPERTY_ID?.trim() ||
-    process.env.GOOGLE_ANALYTICS_PROPERTY_ID?.trim() ||
-    null
-  );
+  return getGa4PropertyIdFromEnv();
 }
 
 function getGa4PropertyId(): string | null {

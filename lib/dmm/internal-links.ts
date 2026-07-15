@@ -147,7 +147,19 @@ export async function getDmmWorkInternalLinks(
     sections.push({ id: "new", title: "新着作品", items: newest });
   }
 
-  return sections;
+  const { mergeLiveStatusIntoItems } = await import(
+    "@/lib/dmm/work-live-status"
+  );
+  const allItems = sections.flatMap((section) => section.items);
+  const liveItems = await mergeLiveStatusIntoItems(allItems);
+  const liveById = new Map(liveItems.map((item) => [item.content_id, item]));
+
+  return sections.map((section) => ({
+    ...section,
+    items: section.items.map(
+      (item) => liveById.get(item.content_id) ?? item,
+    ),
+  }));
 }
 
 export async function getActressInternalLinks(slug: string): Promise<{
@@ -177,7 +189,15 @@ export async function getActressInternalLinks(slug: string): Promise<{
     ? filterByMaker(catalog, topMaker, "")
     : [];
 
-  return { popularWorks, sameMakerWorks };
+  const { mergeLiveStatusIntoItems } = await import(
+    "@/lib/dmm/work-live-status"
+  );
+  const [popularLive, sameMakerLive] = await Promise.all([
+    mergeLiveStatusIntoItems(popularWorks),
+    mergeLiveStatusIntoItems(sameMakerWorks),
+  ]);
+
+  return { popularWorks: popularLive, sameMakerWorks: sameMakerLive };
 }
 
 export async function getMakerInternalLinks(slug: string): Promise<{
@@ -232,8 +252,15 @@ export async function getMakerInternalLinks(slug: string): Promise<{
     .sort((a, b) => b.workCount - a.workCount)
     .slice(0, 6);
 
+  const { mergeLiveStatusIntoItems } = await import(
+    "@/lib/dmm/work-live-status"
+  );
+  const popularWorks = await mergeLiveStatusIntoItems(
+    getPopularWorks(makerWorks, SECTION_LIMIT),
+  );
+
   return {
-    popularWorks: getPopularWorks(makerWorks, SECTION_LIMIT),
+    popularWorks,
     topSeries,
     topActresses,
   };

@@ -23,7 +23,7 @@ import {
 } from "@/lib/works/sort";
 import { isWorksListSaleQuery } from "@/lib/dmm/sale-price";
 
-export const revalidate = 86400;
+export const revalidate = 600;
 
 type WorksPageProps = {
   searchParams: Promise<{

@@ -94,6 +94,14 @@ export type AddSelectedWorksSummary = {
   updatedShardFiles?: string[];
   newShardFiles?: string[];
   githubCommitSucceeded?: boolean;
+  /** 第4段階: works マスターへ保存した場合 */
+  storageTarget?: "supabase" | "local" | "git";
+  storageLabel?: string;
+  publishedStatus?: "published" | "draft";
+  worksMasterUpserted?: boolean;
+  usedJsonFallback?: boolean;
+  supabaseSavedCount?: number;
+  jsonFallbackCount?: number;
 };
 
 export type AddSelectedWorkInput = {

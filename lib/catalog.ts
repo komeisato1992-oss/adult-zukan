@@ -69,7 +69,11 @@ export const getCatalogWorkByContentId = cache(
     const found = works.find((entry) => entry.content_id === contentId) ?? null;
     if (!found) return null;
     const { hydrateAdultWorkMedia } = await import("@/lib/dmm/catalog-media");
-    return hydrateAdultWorkMedia(found);
+    const hydrated = await hydrateAdultWorkMedia(found);
+    const { mergeLiveStatusIntoItem } = await import(
+      "@/lib/dmm/work-live-status"
+    );
+    return mergeLiveStatusIntoItem(hydrated);
   },
 );
 
@@ -82,7 +86,11 @@ export const getCatalogWorkRawByContentId = cache(
       return null;
     }
     const { hydrateAdultWorkMedia } = await import("@/lib/dmm/catalog-media");
-    return hydrateAdultWorkMedia(item);
+    const hydrated = await hydrateAdultWorkMedia(item);
+    const { mergeLiveStatusIntoItem } = await import(
+      "@/lib/dmm/work-live-status"
+    );
+    return mergeLiveStatusIntoItem(hydrated);
   },
 );
 

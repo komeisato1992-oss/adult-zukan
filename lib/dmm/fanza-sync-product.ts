@@ -44,6 +44,8 @@ export type FanzaSyncProductResult = {
   saleEnded: boolean;
   hidden: boolean;
   republished: boolean;
+  /** transport_error 時の HTTP ステータス（429 停止判定用） */
+  httpStatus?: number;
 };
 
 function hasText(value: unknown): value is string {
@@ -443,6 +445,7 @@ export async function syncFanzaProduct(
         saleEnded: false,
         hidden: false,
         republished: false,
+        httpStatus: error.status,
       };
     }
 

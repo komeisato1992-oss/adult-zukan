@@ -284,7 +284,23 @@ export const getSimilarWorks = cache(
       scored = diversifyBySeries([...scored, ...extra]);
     }
 
-    return scored.slice(0, COMPARE_SELECT_MAX_CANDIDATES).map(toCardData);
+    const top = scored.slice(0, COMPARE_SELECT_MAX_CANDIDATES);
+    const { mergeLiveStatusIntoItems } = await import(
+      "@/lib/dmm/work-live-status"
+    );
+    const liveItems = await mergeLiveStatusIntoItems(
+      top.map((entry) => entry.item),
+    );
+    const liveById = new Map(
+      liveItems.map((item) => [item.content_id, item]),
+    );
+
+    return top.map((entry) =>
+      toCardData({
+        ...entry,
+        item: liveById.get(entry.item.content_id) ?? entry.item,
+      }),
+    );
   },
 );
 
@@ -391,15 +407,48 @@ export async function getCompareRelatedWorks(
   forA.sort((a, b) => b.scoreA - a.scoreA);
   forB.sort((a, b) => b.scoreB - a.scoreB);
 
-  const bothIds = new Set(both.slice(0, limitPerSection).map((w) => w.contentId));
+  const bothTop = both.slice(0, limitPerSection);
+  const bothIds = new Set(bothTop.map((w) => w.contentId));
+  const forATop = forA
+    .filter((w) => !bothIds.has(w.contentId))
+    .slice(0, limitPerSection);
+  const forBTop = forB
+    .filter((w) => !bothIds.has(w.contentId))
+    .slice(0, limitPerSection);
+
+  const displayIds = [
+    ...new Set(
+      [...bothTop, ...forATop, ...forBTop].map((card) => card.contentId),
+    ),
+  ];
+  const { mergeLiveStatusIntoItems } = await import(
+    "@/lib/dmm/work-live-status"
+  );
+  const liveItems = await mergeLiveStatusIntoItems(
+    displayIds
+      .map((id) => catalog.find((item) => item.content_id === id))
+      .filter((item): item is DmmItem => Boolean(item)),
+  );
+  const liveById = new Map(liveItems.map((item) => [item.content_id, item]));
+
+  function withLivePrice<T extends SimilarWorkCardData>(card: T): T {
+    const item = liveById.get(card.contentId);
+    if (!item) return card;
+    const prices = getCurrentAndRegularPrice(item);
+    const reviewAverage = item.review?.average?.trim();
+    return {
+      ...card,
+      price: getDmmItemPrice(item),
+      currentPrice: prices.current,
+      regularPrice: prices.regular,
+      discountRate: prices.discountRate,
+      rating: reviewAverage || card.rating,
+    };
+  }
 
   return {
-    both: both.slice(0, limitPerSection),
-    forA: forA
-      .filter((w) => !bothIds.has(w.contentId))
-      .slice(0, limitPerSection),
-    forB: forB
-      .filter((w) => !bothIds.has(w.contentId))
-      .slice(0, limitPerSection),
+    both: bothTop.map(withLivePrice),
+    forA: forATop.map(withLivePrice),
+    forB: forBTop.map(withLivePrice),
   };
 }

@@ -296,6 +296,39 @@ function buildResultMessage(input: {
       .join("\n");
   }
 
+  if (summary.worksMasterUpserted) {
+    const storageLabel = summary.storageLabel ?? "Supabase";
+    const publishedLabel =
+      summary.publishedStatus === "draft" ? "下書き" : "公開済み";
+    return [
+      "作品追加完了",
+      `保存先：${storageLabel}`,
+      publishedLabel,
+      `${summary.addedCount}件を作品マスターへ保存しました。`,
+      summary.usedJsonFallback
+        ? "※ Supabase障害のためローカルJSONへフォールバックしました。"
+        : "Git更新・カタログJSON更新・commit・push・Vercelデプロイは行っていません。",
+      typeof summary.supabaseSavedCount === "number"
+        ? `Supabase保存：${summary.supabaseSavedCount}件`
+        : null,
+      typeof summary.jsonFallbackCount === "number"
+        ? `JSONフォールバック：${summary.jsonFallbackCount}件`
+        : null,
+      `受信：${summary.selectedCount}件`,
+      `掲載済み除外：${summary.catalogDuplicateCount}件`,
+      summary.selectionDuplicateCount > 0
+        ? `選択内重複：${summary.selectionDuplicateCount}件`
+        : null,
+      `無効：${summary.invalidCount}件`,
+      `追加成功：${summary.addedCount}件`,
+      typeof summary.catalogCountAfter === "number"
+        ? `マスター件数：${summary.catalogCountAfter.toLocaleString()}件`
+        : null,
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+
   const lines = [
     `${summary.addedCount}件を作業用データへ追加しました。`,
     "本番サイトにはまだ反映されていません。",
@@ -325,6 +358,180 @@ function buildResultMessage(input: {
   void sitemap;
 
   return lines.join("\n");
+}
+
+async function loadCatalogKeysIncludingWorksMaster(
+  localMode: boolean,
+): Promise<{ catalogKeys: Set<string>; catalogCount: number }> {
+  const catalogState = await loadCatalogState(localMode);
+  const catalogKeys = new Set(catalogState.catalogKeys);
+  try {
+    const { getWorksMasterContentIdSet } = await import(
+      "@/lib/dmm/works-master"
+    );
+    for (const cid of await getWorksMasterContentIdSet()) {
+      catalogKeys.add(cid);
+    }
+  } catch (error) {
+    console.warn("[add-selected-api] works-master keys skipped", error);
+  }
+  return {
+    catalogKeys,
+    catalogCount: catalogKeys.size,
+  };
+}
+
+async function addSelectedWorksToWorksMaster(
+  works: AddSelectedWorkInput[],
+): Promise<AddSelectedWorksResult> {
+  const startedAt = Date.now();
+  const selectedCount = works.length;
+  const localMode = shouldWriteLocally();
+
+  const {
+    getConfiguredWorksMasterBackend,
+    getWorksMasterStorageInfo,
+    getWorksMasterStorageLabel,
+    upsertWorksMasterFromDmmItems,
+    revalidateWorksMasterAfterAdd,
+  } = await import("@/lib/dmm/works-master");
+
+  const backend = getConfiguredWorksMasterBackend();
+  if (backend === "off") {
+    fail(
+      "validate-request",
+      "作品マスターが無効です。WORKS_MASTER_ENABLED を確認してください。",
+      500,
+    );
+  }
+
+  logPhase("received", {
+    receivedCount: selectedCount,
+    storage: "works-master",
+    backend,
+    apiMax: ADD_API_MAX_WORKS,
+  });
+
+  const { catalogKeys, catalogCount } =
+    await loadCatalogKeysIncludingWorksMaster(localMode);
+
+  logPhase("fetch-catalog", {
+    catalogCount,
+    storage: "works-master",
+    backend,
+  });
+
+  const classified = classifySelectedWorks(works, catalogKeys);
+  const catalogDuplicateCount = classified.catalogDuplicateContentIds.length;
+  const selectionDuplicateCount =
+    classified.selectionDuplicateContentIds.length;
+  const invalidCount = classified.invalidContentIds.length;
+
+  logPhase("deduplicate", {
+    receivedCount: selectedCount,
+    catalogDuplicateCount,
+    selectionDuplicateCount,
+    invalidCount,
+    validAddCount: classified.preparedItems.length,
+  });
+
+  if (classified.preparedItems.length === 0) {
+    const summary: AddSelectedWorksSummary = {
+      selectedCount,
+      addedCount: 0,
+      catalogDuplicateCount,
+      selectionDuplicateCount,
+      invalidCount,
+      retried: false,
+      catalogCountAfter: catalogCount,
+      githubCommitSucceeded: false,
+      storageTarget: backend === "supabase" ? "supabase" : "local",
+      storageLabel: getWorksMasterStorageLabel(backend),
+      publishedStatus: "published",
+      worksMasterUpserted: true,
+      usedJsonFallback: false,
+      supabaseSavedCount: 0,
+      jsonFallbackCount: 0,
+    };
+    return {
+      summary,
+      addedContentIds: [],
+      indexUpdateStats: null,
+      committedToGitHub: false,
+      message: buildResultMessage({
+        summary,
+        committedToGitHub: false,
+      }),
+    };
+  }
+
+  const upsertResult = await upsertWorksMasterFromDmmItems(
+    classified.preparedItems,
+    { published: true },
+  );
+  const {
+    upserted,
+    published,
+    backend: writeBackend,
+    usedJsonFallback,
+    supabaseSavedCount,
+    jsonFallbackCount,
+  } = upsertResult;
+
+  // Git / catalog JSON / commit / push / deploy は行わない。タグのみ再検証。
+  // （JSON フォールバック時のみローカル works-master.json を更新）
+  await revalidateWorksMasterAfterAdd();
+
+  const storageInfo = await getWorksMasterStorageInfo();
+  const summary: AddSelectedWorksSummary = {
+    selectedCount,
+    addedCount: upserted,
+    catalogDuplicateCount,
+    selectionDuplicateCount,
+    invalidCount,
+    retried: false,
+    catalogCountAfter: storageInfo.rowCount,
+    githubCommitSucceeded: false,
+    storageTarget: writeBackend === "supabase" ? "supabase" : "local",
+    storageLabel: getWorksMasterStorageLabel(writeBackend),
+    publishedStatus: published ? "published" : "draft",
+    worksMasterUpserted: true,
+    usedJsonFallback,
+    supabaseSavedCount,
+    jsonFallbackCount,
+  };
+
+  logPhase("complete", {
+    addedCount: upserted,
+    storage: summary.storageLabel,
+    backend: writeBackend,
+    usedJsonFallback,
+    supabaseSavedCount,
+    jsonFallbackCount,
+    elapsedMs: Date.now() - startedAt,
+    gitDiff: false,
+    deploy: false,
+  });
+
+  if (upserted > 0) {
+    const { noteCatalogWorkActivity } = await import(
+      "@/lib/admin/catalog-promote"
+    );
+    noteCatalogWorkActivity({ addedCount: upserted });
+  }
+
+  return {
+    summary,
+    addedContentIds: classified.preparedItems
+      .slice(0, upserted)
+      .map((item) => item.content_id),
+    indexUpdateStats: null,
+    committedToGitHub: false,
+    message: buildResultMessage({
+      summary,
+      committedToGitHub: false,
+    }),
+  };
 }
 
 function shouldWriteLocally(): boolean {
@@ -529,6 +736,23 @@ export async function addSelectedWorksToCatalog(
   works: AddSelectedWorkInput[],
   options: AddSelectedWorksOptions = {},
 ): Promise<AddSelectedWorksResult> {
+  // 第4段階: 作品マスター（Supabase / ローカル）へ直接保存。Git・JSON・デプロイなし。
+  try {
+    const { getConfiguredWorksMasterBackend } = await import(
+      "@/lib/dmm/works-master"
+    );
+    if (getConfiguredWorksMasterBackend() !== "off") {
+      return await addSelectedWorksToWorksMaster(works);
+    }
+  } catch (error) {
+    if (error instanceof AddSelectedWorksFailure) throw error;
+    if (error instanceof AddSelectedWorksError) throw error;
+    console.warn(
+      "[add-selected-api] works-master path unavailable; falling back to Git catalog",
+      error,
+    );
+  }
+
   const startedAt = Date.now();
   const selectedCount = works.length;
   const updateSitemap = options.updateSitemap === true;

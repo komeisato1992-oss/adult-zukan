@@ -45,6 +45,13 @@ yarn-error.log*
 /data/dmm/catalog-snapshot.legacy.json
 /data/dmm/.catalog-test-backup/
 
+# 変動データ（DB化）ローカル保存・同期ジョブ（Git差分を出さない）
+/data/dmm/work-live-status.json
+/data/dmm/works-master.json
+/data/dmm/fanza-sync-job.json
+/data/dmm/fanza-light-overlay.json
+/data/dmm/fanza-sync-history.json
+
 # 同人図鑑: ジョブ/ログはローカルのみ。表示用カタログJSONは本番反映のため追跡する
 /data/doujin/import-jobs.json
 /data/doujin/sync-jobs.json
@@ -52,3 +59,4 @@ yarn-error.log*
 /data/doujin/fetch-logs.json
 /data/doujin/works-raw/
 /data/backups/
+.vercel

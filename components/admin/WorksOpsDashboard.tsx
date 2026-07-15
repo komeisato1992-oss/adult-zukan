@@ -56,7 +56,7 @@ const STEPS: Array<{ id: StepId; short: string; label: string }> = [
   { id: 1, short: "1. 候補取得", label: "作品を探す" },
   { id: 2, short: "2. 選択・追加", label: "選択して追加する" },
   { id: 3, short: "3. 更新", label: "掲載作品を更新する" },
-  { id: 4, short: "4. 本番反映", label: "本番へ反映する" },
+  { id: 4, short: "4. 反映不要", label: "本番反映は不要" },
 ];
 
 function formatDateTime(value: string | null | undefined): string {
@@ -139,6 +139,29 @@ export function WorksOpsDashboard({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showTechDetail, setShowTechDetail] = useState(false);
+  const [liveStorage, setLiveStorage] = useState<{
+    backend: string;
+    label: string;
+    rowCount: number;
+  } | null>(null);
+  const [worksMasterStorage, setWorksMasterStorage] = useState<{
+    backend: string;
+    label: string;
+    rowCount: number;
+  } | null>(null);
+  const [lastAddStatus, setLastAddStatus] = useState<{
+    completed: boolean;
+    publishedStatus: "published" | "draft" | null;
+    storageLabel: string | null;
+  } | null>(null);
+  const [liveMetrics, setLiveMetrics] = useState<{
+    requestedCount: number | null;
+    dbFetchMs: number | null;
+    jsonFallbackCount: number | null;
+    cacheHitRate: number | null;
+    totalMs: number | null;
+  } | null>(null);
+  const [syncTargetLimit, setSyncTargetLimit] = useState<number | null>(null);
 
   const [fetchSort, setFetchSort] = useState<AdultImportSortMode>("popular");
   const [fetchCount, setFetchCount] = useState<number>(50);
@@ -199,6 +222,44 @@ export function WorksOpsDashboard({
     setSyncJob(data.currentJob);
     setSyncHistory(data.history ?? []);
     setSyncProgress(data.progressPercent ?? 0);
+    if (data.storage) {
+      setLiveStorage({
+        backend: String(data.storage.backend ?? ""),
+        label: String(data.storage.label ?? ""),
+        rowCount: Number(data.storage.rowCount ?? 0),
+      });
+    }
+    if (data.worksMaster) {
+      setWorksMasterStorage({
+        backend: String(data.worksMaster.backend ?? ""),
+        label: String(data.worksMaster.label ?? ""),
+        rowCount: Number(data.worksMaster.rowCount ?? 0),
+      });
+    }
+    if (data.metrics) {
+      const last = data.metrics.last as
+        | {
+            requestedCount?: number;
+            dbFetchMs?: number;
+            jsonFallbackCount?: number;
+            totalMs?: number;
+          }
+        | null
+        | undefined;
+      setLiveMetrics({
+        requestedCount: last?.requestedCount ?? null,
+        dbFetchMs: last?.dbFetchMs ?? null,
+        jsonFallbackCount: last?.jsonFallbackCount ?? null,
+        cacheHitRate:
+          typeof data.metrics.cacheHitRate === "number"
+            ? data.metrics.cacheHitRate
+            : null,
+        totalMs: last?.totalMs ?? null,
+      });
+    }
+    setSyncTargetLimit(
+      data.syncTargetLimit == null ? null : Number(data.syncTargetLimit),
+    );
     return data as {
       currentJob: FanzaSyncJob | null;
       history: FanzaSyncHistoryEntry[];
@@ -407,7 +468,12 @@ export function WorksOpsDashboard({
         success?: boolean;
         message?: string;
         error?: string;
-        summary?: { addedCount?: number };
+        summary?: {
+          addedCount?: number;
+          storageLabel?: string;
+          publishedStatus?: "published" | "draft";
+          worksMasterUpserted?: boolean;
+        };
       };
       if (!response.ok || !body.success) {
         throw new Error(
@@ -415,17 +481,46 @@ export function WorksOpsDashboard({
         );
       }
       const added = Number(body.summary?.addedCount ?? selected.size);
-      setMessage(`${added} 件を作業ブランチへ追加しました（本番未反映・デプロイなし）。`);
+      const storageLabel =
+        body.summary?.storageLabel ??
+        worksMasterStorage?.label ??
+        "Supabase";
+      const publishedStatus = body.summary?.publishedStatus ?? "published";
+      setLastAddStatus({
+        completed: true,
+        publishedStatus,
+        storageLabel,
+      });
+      setMessage(
+        body.message ??
+          [
+            "作品追加完了",
+            `保存先：${storageLabel}`,
+            publishedStatus === "draft" ? "下書き" : "公開済み",
+            `${added} 件を作品マスターへ保存しました（デプロイなし）。`,
+          ].join("\n"),
+      );
+      if (typeof body.summary?.addedCount === "number") {
+        setWorksMasterStorage((prev) =>
+          prev
+            ? {
+                ...prev,
+                rowCount: Math.max(prev.rowCount, prev.rowCount + added),
+              }
+            : prev,
+        );
+      }
       setCandidates((prev) => prev.filter((c) => !selected.has(c.contentId)));
       setSelected(new Set());
       setActiveStep(4);
       pushLog({
         action: "作品追加",
         ok: true,
-        message: `${added}件`,
+        message: `${added}件 / ${storageLabel}`,
         durationMs: Date.now() - started,
       });
       await refreshPromote();
+      await refreshSync();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "追加に失敗しました。";
       setError(msg);
@@ -476,7 +571,7 @@ export function WorksOpsDashboard({
         throw new Error(data.message ?? "同期の開始に失敗しました。");
       }
       setMessage(
-        `${getAdultSyncModeLabel(mode)}を開始しました（Gitカタログ変更・デプロイなし）。`,
+        `${getAdultSyncModeLabel(mode)}を開始しました（DB直接更新・デプロイなし）。`,
       );
       setSyncJob(data.currentJob);
       setSyncProgress(data.progressPercent ?? 0);
@@ -491,6 +586,53 @@ export function WorksOpsDashboard({
       setError(msg);
       pushLog({
         action: getAdultSyncModeLabel(mode),
+        ok: false,
+        message: msg,
+        durationMs: Date.now() - started,
+        detail: msg,
+      });
+    } finally {
+      setSyncStarting(false);
+    }
+  };
+
+  const handleResumeSync = async () => {
+    if (syncRunning) {
+      setMessage("現在、更新処理を実行中です");
+      return;
+    }
+    setSyncStarting(true);
+    setError(null);
+    setMessage(null);
+    const started = Date.now();
+    try {
+      const response = await fetch("/api/admin/fanza-sync/resume", {
+        method: "POST",
+        cache: "no-store",
+      });
+      const data = await response.json();
+      if (data.alreadyRunning) {
+        setMessage("現在、更新処理を実行中です");
+        setSyncJob(data.currentJob);
+        return;
+      }
+      if (!response.ok || !data.success) {
+        throw new Error(data.message ?? "途中再開に失敗しました。");
+      }
+      setMessage(data.message ?? "途中から再開しました（デプロイなし）。");
+      setSyncJob(data.currentJob);
+      setSyncProgress(data.progressPercent ?? 0);
+      pushLog({
+        action: "同期再開",
+        ok: true,
+        message: "再開",
+        durationMs: Date.now() - started,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "途中再開に失敗しました。";
+      setError(msg);
+      pushLog({
+        action: "同期再開",
         ok: false,
         message: msg,
         durationMs: Date.now() - started,
@@ -928,6 +1070,40 @@ export function WorksOpsDashboard({
         title="選択して追加する"
         tone={activeStep === 2 ? "info" : "default"}
       >
+        <div className="mb-3 rounded-xl border border-sky-200 bg-sky-50 px-3 py-2 text-sm text-sky-950">
+          <p className="font-bold">
+            保存先：{worksMasterStorage?.label ?? "Supabase"}
+          </p>
+          <p className="mt-1 text-xs">
+            新規作品は作品マスターへ直接保存します。Git・JSON・デプロイは発生しません。
+          </p>
+          {typeof worksMasterStorage?.rowCount === "number" ? (
+            <p className="mt-1 text-xs">
+              マスター件数：{worksMasterStorage.rowCount.toLocaleString()}件
+            </p>
+          ) : null}
+          {lastAddStatus?.completed ? (
+            <div className="mt-2 flex flex-wrap gap-2 text-xs font-bold">
+              <span className="rounded-full bg-emerald-600 px-2 py-1 text-white">
+                作品追加完了
+              </span>
+              <span className="rounded-full bg-white px-2 py-1 text-sky-900">
+                保存先：{lastAddStatus.storageLabel ?? "Supabase"}
+              </span>
+              <span
+                className={`rounded-full px-2 py-1 ${
+                  lastAddStatus.publishedStatus === "draft"
+                    ? "bg-amber-200 text-amber-950"
+                    : "bg-emerald-200 text-emerald-950"
+                }`}
+              >
+                {lastAddStatus.publishedStatus === "draft"
+                  ? "下書き"
+                  : "公開済み"}
+              </span>
+            </div>
+          ) : null}
+        </div>
         {candidates.length === 0 ? (
           <p className="text-sm text-muted">
             まず「作品を探す」で未掲載作品を取得してください。
@@ -1073,8 +1249,41 @@ export function WorksOpsDashboard({
         tone={activeStep === 3 ? "info" : "default"}
       >
         <p className="mb-3 text-sm text-muted">
-          FANZAから価格・セールなどの軽量項目を取得し、オーバーレイへ保存します。カタログJSONの書き換え・commit・本番デプロイはしません。
+          価格・セール・評価・販売状況をDBへ直接更新します。デプロイは発生しません。
         </p>
+
+        <div className="mb-4 rounded-xl border border-sky-200 bg-sky-50 px-3 py-3 text-sm text-sky-950">
+          <p className="font-bold">データ保存先: {liveStorage?.label ?? "読込中…"}</p>
+          <p className="mt-1 text-xs">
+            同期対象{" "}
+            {syncTargetLimit != null
+              ? `${syncTargetLimit.toLocaleString()}件（上限）`
+              : "全掲載作品"}
+            {" / "}
+            DB件数 {(liveStorage?.rowCount ?? 0).toLocaleString()}件
+          </p>
+          <p className="mt-2 text-xs">
+            取得件数 {liveMetrics?.requestedCount ?? "—"}
+            {" / "}
+            DB取得時間{" "}
+            {liveMetrics?.dbFetchMs != null
+              ? `${liveMetrics.dbFetchMs}ms`
+              : "—"}
+            {" / "}
+            JSONフォールバック {liveMetrics?.jsonFallbackCount ?? "—"}
+            {" / "}
+            キャッシュHit率{" "}
+            {liveMetrics?.cacheHitRate != null
+              ? `${Math.round(liveMetrics.cacheHitRate * 100)}%`
+              : "—"}
+            {" / "}
+            応答時間{" "}
+            {liveMetrics?.totalMs != null ? `${liveMetrics.totalMs}ms` : "—"}
+          </p>
+          <p className="mt-1 text-xs font-medium">
+            この操作では Vercel デプロイ・Git commit・カタログJSON書き換えは行いません。
+          </p>
+        </div>
 
         <div
           className={`mb-4 rounded-xl border px-3 py-3 text-sm ${
@@ -1138,6 +1347,19 @@ export function WorksOpsDashboard({
             : "掲載作品を最新に更新"}
         </button>
 
+        {syncJob &&
+        (syncJob.status === "failed" || syncJob.status === "partial_failed") &&
+        syncJob.processedCount < syncJob.targetCount ? (
+          <button
+            type="button"
+            disabled={!configured || !dmmConfigured || syncStarting || syncRunning}
+            onClick={() => void handleResumeSync()}
+            className="mt-3 min-h-[48px] w-full rounded-xl border border-sky-600 bg-white font-bold text-sky-700 disabled:opacity-50"
+          >
+            途中再開
+          </button>
+        ) : null}
+
         {syncRunning ? (
           <div className="mt-4">
             <div className="h-2 overflow-hidden rounded-full bg-sky-100">
@@ -1147,12 +1369,31 @@ export function WorksOpsDashboard({
               />
             </div>
             <p className="mt-2 text-sm">
-              取得 {syncJob?.processedCount ?? 0} / {syncJob?.targetCount ?? 0}
-              {" / "}更新 {syncJob?.updatedCount ?? 0}
+              総対象 {syncJob?.targetCount ?? 0}
+              {" / "}取得済み {syncJob?.processedCount ?? 0}
+              {" / "}DB更新 {syncJob?.updatedCount ?? 0}
               {" / "}変更なし {syncJob?.unchangedCount ?? 0}
               {" / "}未一致 {syncJob?.unconfirmedCount ?? 0}
               {" / "}エラー {syncJob?.errorCount ?? 0}
             </p>
+            {syncJob?.startedAt ? (
+              <p className="mt-1 text-xs text-muted">
+                実行時間:{" "}
+                {formatDuration(
+                  Date.now() - Date.parse(syncJob.startedAt),
+                )}
+              </p>
+            ) : null}
+            {syncJob?.message ? (
+              <p className="mt-1 text-xs text-muted">{syncJob.message}</p>
+            ) : null}
+          </div>
+        ) : null}
+
+        {syncJob?.status === "failed" && syncJob.message ? (
+          <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+            <p className="font-bold">エラー</p>
+            <p className="mt-1">{syncJob.message}</p>
           </div>
         ) : null}
 
@@ -1183,22 +1424,32 @@ export function WorksOpsDashboard({
         ) : null}
       </CardShell>
 
-      {/* ④ 本番へ反映 */}
+      {/* ④ 本番へ反映（作品追加では不要） */}
       <CardShell
         id="works-ops-step-4"
         step="④"
-        title="本番へ反映する"
-        tone={
-          (promoteStatus?.productionAheadCount ?? 0) > 0
-            ? "warn"
-            : promoteStatus?.hasPendingChanges
-              ? "ok"
-              : "default"
-        }
+        title="本番反映について"
+        tone="default"
       >
-        <p className="text-sm text-muted">
-          ここで初めて main へ反映し、Production デプロイを1回だけ実行します。候補取得・追加・価格同期ではデプロイしません。
-        </p>
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-950">
+          <p className="font-bold">作品追加・価格同期は本番反映不要です</p>
+          <p className="mt-1 text-xs">
+            新規作品は Supabase（works）へ直接保存され、公開ページは revalidateTag
+            のみで反映されます。Git差分・commit・push・Vercelデプロイは発生しません。
+          </p>
+          <p className="mt-2 text-xs">
+            価格・セール同期も DB（work_live_status）直接更新です。下の「本番反映」は旧カタログJSON運用の残機能で、通常の作品追加では使いません。
+          </p>
+        </div>
+
+        <details className="mt-4 rounded-xl border border-border bg-white p-3">
+          <summary className="cursor-pointer text-sm font-bold text-muted">
+            旧：Gitカタログの本番反映（通常不要）
+          </summary>
+          <p className="mt-2 text-sm text-muted">
+            作業ブランチのカタログJSONを main へ反映し Production デプロイする旧フローです。Supabase
+            作品マスター運用では原則使いません。
+          </p>
 
         {(promoteStatus?.productionAheadCount ?? 0) > 0 ? (
           <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900">
@@ -1221,9 +1472,10 @@ export function WorksOpsDashboard({
             onClick={() => setPromoteConfirm(true)}
             className="min-h-[52px] w-full rounded-xl bg-sky-600 font-bold text-white disabled:opacity-40"
           >
-            {promoting ? "反映中…" : "検証して本番反映"}
+            {promoting ? "反映中…" : "検証して本番反映（旧フロー）"}
           </button>
         </div>
+
 
         {showConflict ? (
           <div className="mt-3 rounded-xl border border-red-300 bg-red-50 p-3 text-sm text-red-800">
@@ -1297,6 +1549,7 @@ export function WorksOpsDashboard({
             </div>
           </div>
         ) : null}
+        </details>
       </CardShell>
 
       {/* ログ */}
@@ -1381,7 +1634,7 @@ export function WorksOpsDashboard({
               title={
                 selected.size === 0
                   ? "作品を1件以上選択してください"
-                  : "選択中の作品を作業ブランチへ追加"
+                  : "選択中の作品を作品マスター（Supabase）へ追加"
               }
               onClick={() => void handleAddSelected()}
               className="min-h-[44px] rounded-xl bg-sky-600 px-4 text-sm font-bold text-white disabled:opacity-40"

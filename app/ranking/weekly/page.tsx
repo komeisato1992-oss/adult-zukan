@@ -26,7 +26,12 @@ export const metadata = createPageMetadata({
 
 export default async function RankingWeeklyPage() {
   const catalog = await getSharedCatalogWorks();
-  const items = toRankingWorkCardItems(getWeeklyRankingWorks(catalog, 20));
+  const { mergeLiveStatusIntoItems } = await import(
+    "@/lib/dmm/work-live-status"
+  );
+  const items = toRankingWorkCardItems(
+    await mergeLiveStatusIntoItems(getWeeklyRankingWorks(catalog, 20)),
+  );
 
   return (
     <>

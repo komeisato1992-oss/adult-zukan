@@ -1,10 +1,12 @@
 import "server-only";
 
 import {
+  FANZA_SYNC_BATCH_INTERVAL_MS,
   FANZA_SYNC_COMMIT_MAX_RETRIES,
   FANZA_SYNC_DEFAULT_CONCURRENCY,
   FANZA_SYNC_HISTORY_LIMIT,
   FANZA_SYNC_JOB_STALE_MS,
+  getAdultLightSyncTargetLimit,
 } from "@/lib/admin/fanza-sync-constants";
 import {
   createFanzaSyncJob,
@@ -52,10 +54,7 @@ import {
   resolveFullSyncEnabled,
   resolveLightSyncEnabled,
 } from "@/lib/admin/admin-ops-settings";
-import {
-  mergeLightOverlayIntoItems,
-  upsertLightOverlayFromWorks,
-} from "@/lib/admin/fanza-light-overlay-store";
+import { upsertLiveStatusFromWorks } from "@/lib/dmm/work-live-status";
 import type { FanzaSyncJob, FanzaSyncJobSnapshot, FanzaSyncTrigger } from "@/lib/admin/fanza-sync-types";
 import type { DmmItem } from "@/lib/dmm/types";
 
@@ -91,7 +90,7 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
-async function loadCatalogForSync(): Promise<CatalogSnapshotHandle> {
+async function loadCatalogForSync(mode?: AdultSyncMode): Promise<CatalogSnapshotHandle> {
   let handle: CatalogSnapshotHandle;
 
   if (isGitHubCatalogConfigured()) {
@@ -119,9 +118,19 @@ async function loadCatalogForSync(): Promise<CatalogSnapshotHandle> {
     };
   }
 
-  // 軽量同期オーバーレイを反映した状態でバッチ対象を構築
-  const merged = await mergeLightOverlayIntoItems(handle.items);
-  return { ...handle, items: merged };
+  let items = handle.items;
+  if (mode && isAdultPartialSyncMode(mode)) {
+    const limit = getAdultLightSyncTargetLimit();
+    if (limit > 0) {
+      items = items.slice(0, limit);
+    }
+  }
+
+  return { ...handle, items };
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function applySyncResults(
@@ -150,8 +159,22 @@ function buildSnapshotAfterBatch(
   updatedJob: FanzaSyncJob,
   history: FanzaSyncJobSnapshot["history"],
 ): FanzaSyncJobSnapshot {
-  if (updatedJob.status === "running") {
+  if (updatedJob.status === "running" || updatedJob.status === "pending") {
     return { currentJob: updatedJob, history };
+  }
+
+  // failed / partial_failed はカーソル付きで残し、途中再開可能にする
+  if (
+    updatedJob.status === "failed" ||
+    updatedJob.status === "partial_failed"
+  ) {
+    return {
+      currentJob: updatedJob,
+      history: [
+        toHistoryEntry(updatedJob),
+        ...history.filter((entry) => entry.jobId !== updatedJob.jobId),
+      ].slice(0, FANZA_SYNC_HISTORY_LIMIT),
+    };
   }
 
   return finalizeSnapshotWithHistory({
@@ -296,7 +319,7 @@ export async function startFanzaSyncJob(input: {
     return { job: current, alreadyRunning: true };
   }
 
-  const { items } = await loadCatalogForSync();
+  const { items } = await loadCatalogForSync(mode);
   const job = createFanzaSyncJob({
     trigger: input.trigger,
     targetCount: items.length,
@@ -311,13 +334,73 @@ export async function startFanzaSyncJob(input: {
 
   persistFanzaSyncSnapshotLocally(nextSnapshot);
 
-  try {
-    await persistJobSnapshotToGitHub(nextSnapshot, "FANZA sync job started");
-  } catch (error) {
-    console.warn("[fanza-sync] failed to persist job start to GitHub", error);
+  // 軽量同期は Git へジョブ状態を書かない（差分・デプロイ防止）
+  if (!isAdultPartialSyncMode(mode)) {
+    try {
+      await persistJobSnapshotToGitHub(nextSnapshot, "FANZA sync job started");
+    } catch (error) {
+      console.warn("[fanza-sync] failed to persist job start to GitHub", error);
+    }
   }
 
   return { job, alreadyRunning: false };
+}
+
+/** 失敗・中断ジョブをカーソルから再開（二重実行防止付き） */
+export async function resumeFanzaSyncJob(): Promise<{
+  job: FanzaSyncJob;
+  alreadyRunning: boolean;
+  resumed: boolean;
+}> {
+  if (!isDmmConfigured()) {
+    throw new FanzaSyncError("FANZA API の設定が未完了です。", 503);
+  }
+
+  const snapshot = await loadFanzaSyncSnapshot();
+  const current = snapshot.currentJob;
+
+  if (!current) {
+    throw new FanzaSyncError("再開できる同期ジョブがありません。", 404);
+  }
+
+  if (
+    isFanzaSyncJobRunning(current) &&
+    !isFanzaSyncJobStale(current, FANZA_SYNC_JOB_STALE_MS)
+  ) {
+    return { job: current, alreadyRunning: true, resumed: false };
+  }
+
+  if (current.processedCount >= current.targetCount) {
+    throw new FanzaSyncError("このジョブは既に完了しています。", 400);
+  }
+
+  const mode: AdultSyncMode = isAdultSyncMode(current.mode)
+    ? current.mode
+    : ADULT_SYNC_MODE_LIGHT;
+
+  if (isAdultPartialSyncMode(mode) && !resolveLightSyncEnabled()) {
+    throw new FanzaSyncError(
+      "軽量同期は管理画面でONにするか、ADULT_LIGHT_SYNC_ENABLED=true が必要です",
+      403,
+    );
+  }
+
+  const resumedJob: FanzaSyncJob = {
+    ...current,
+    status: "running",
+    message: `途中再開… ${current.processedCount.toLocaleString()} / ${current.targetCount.toLocaleString()} 件から`,
+    updatedAt: new Date().toISOString(),
+    completedAt: null,
+    lockOwner: current.jobId,
+  };
+
+  const nextSnapshot: FanzaSyncJobSnapshot = {
+    currentJob: resumedJob,
+    history: snapshot.history,
+  };
+  persistFanzaSyncSnapshotLocally(nextSnapshot);
+
+  return { job: resumedJob, alreadyRunning: false, resumed: true };
 }
 
 export async function processFanzaSyncBatch(options?: {
@@ -356,7 +439,8 @@ export async function processFanzaSyncBatch(options?: {
     return { job: failedJob, processedInBatch: 0, committedToGitHub: false };
   }
 
-  const sorted = sortWorksForFanzaSync((await loadCatalogForSync()).items);
+  const mode = (job.mode as AdultSyncMode) ?? ADULT_SYNC_MODE_FULL;
+  const sorted = sortWorksForFanzaSync((await loadCatalogForSync(mode)).items);
   const batch = selectFanzaSyncBatch(sorted, job.cursor, job.batchSize);
 
   if (batch.length === 0) {
@@ -373,10 +457,12 @@ export async function processFanzaSyncBatch(options?: {
       history: snapshot.history,
     });
     persistFanzaSyncSnapshotLocally(finalized);
-    try {
-      await persistJobSnapshotToGitHub(finalized, "FANZA sync completed");
-    } catch (error) {
-      console.warn("[fanza-sync] failed to persist completed job", error);
+    if (!isAdultPartialSyncMode(mode)) {
+      try {
+        await persistJobSnapshotToGitHub(finalized, "FANZA sync completed");
+      } catch (error) {
+        console.warn("[fanza-sync] failed to persist completed job", error);
+      }
     }
     return { job: completedJob, processedInBatch: 0, committedToGitHub: false };
   }
@@ -392,20 +478,40 @@ export async function processFanzaSyncBatch(options?: {
     FANZA_SYNC_DEFAULT_CONCURRENCY,
     (item) =>
       syncFanzaProduct(item, {
-        mode: (job.mode as AdultSyncMode) ?? ADULT_SYNC_MODE_FULL,
+        mode,
       }),
   );
 
-  const updatedJob = updateJobFromBatch(job, batch, results);
-  const nextSnapshot = buildSnapshotAfterBatch(updatedJob, snapshot.history);
-  const batchUpdatedCount = results.filter(
+  const hitRateLimit = results.some(
     (result) =>
-      result.outcome === "updated" ||
-      result.outcome === "republished" ||
-      result.outcome === "hidden",
-  ).length;
+      result.outcome === "transport_error" && result.httpStatus === 429,
+  );
 
-  const mode = (job.mode as AdultSyncMode) ?? ADULT_SYNC_MODE_FULL;
+  let updatedJob = updateJobFromBatch(job, batch, results);
+
+  if (hitRateLimit) {
+    updatedJob = {
+      ...updatedJob,
+      status: "failed",
+      completedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      message:
+        "FANZA API が 429（レート制限）を返したため同期を停止しました。途中再開できます。",
+      lockOwner: null,
+    };
+  }
+
+  const nextSnapshot = buildSnapshotAfterBatch(updatedJob, snapshot.history);
+  const batchUpdatedWorks = results
+    .filter(
+      (result) =>
+        result.outcome === "updated" ||
+        result.outcome === "republished" ||
+        result.outcome === "hidden",
+    )
+    .map((result) => result.work);
+  const batchUpdatedCount = batchUpdatedWorks.length;
+
   persistFanzaSyncSnapshotLocally(nextSnapshot);
 
   if (options?.dryRun) {
@@ -416,27 +522,26 @@ export async function processFanzaSyncBatch(options?: {
     };
   }
 
-  // 部分同期: カタログJSON / commit / デプロイなし。オーバーレイ + ジョブ状態のみ。
+  // 部分同期: Git / カタログJSON / デプロイなし。work_live_status のみ更新。
   if (isAdultPartialSyncMode(mode)) {
     if (batchUpdatedCount > 0) {
-      const updatedWorks = results
-        .filter(
-          (result) =>
-            result.outcome === "updated" ||
-            result.outcome === "republished" ||
-            result.outcome === "hidden",
-        )
-        .map((result) => result.work);
-      await upsertLightOverlayFromWorks(updatedWorks, mode);
+      await upsertLiveStatusFromWorks(batchUpdatedWorks);
     }
 
-    try {
-      await persistJobSnapshotToGitHub(
-        nextSnapshot,
-        `FANZA light sync progress ${updatedJob.processedCount}/${updatedJob.targetCount}`,
+    // ジョブ完了・停止時のみ公開キャッシュを無効化（ページ全体 revalidate はしない）
+    if (updatedJob.status !== "running") {
+      const { revalidateWorkLiveStatusAfterSync } = await import(
+        "@/lib/dmm/work-live-status"
       );
-    } catch (error) {
-      console.warn("[fanza-sync] light sync job persist skipped", error);
+      revalidateWorkLiveStatusAfterSync();
+    }
+
+    if (
+      !hitRateLimit &&
+      updatedJob.status === "running" &&
+      FANZA_SYNC_BATCH_INTERVAL_MS > 0
+    ) {
+      await sleep(FANZA_SYNC_BATCH_INTERVAL_MS);
     }
 
     return {

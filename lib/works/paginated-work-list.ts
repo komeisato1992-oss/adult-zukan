@@ -2,6 +2,7 @@ import "server-only";
 
 import { filterDisplayableItems } from "@/lib/dmm/filter";
 import type { DmmItem } from "@/lib/dmm/types";
+import { mergeLiveStatusIntoItems } from "@/lib/dmm/work-live-status";
 import {
   CATALOG_DETAIL_PAGE_SIZE,
   paginateItems,
@@ -36,20 +37,21 @@ export type PaginatedWorkListOptions = {
   catalogOrder?: SortWorksOptions["catalogOrder"];
 };
 
-function paginateToWorkCards(
+async function paginateToWorkCards(
   items: DmmItem[],
   options: PaginatedWorkListOptions,
   defaultPageSize: number,
-): PaginatedWorkCardList {
+): Promise<PaginatedWorkCardList> {
   const pageSize = options.pageSize ?? defaultPageSize;
   const sort = options.sort ?? DEFAULT_WORK_SORT;
   const sorted = sortWorks(items, sort, {
     catalogOrder: options.catalogOrder,
   });
   const pagination = paginateItems(sorted, parsePageParam(options.page), pageSize);
+  const pageWithLive = await mergeLiveStatusIntoItems(pagination.items);
 
   return {
-    pageItems: toWorkListCardItems(pagination.items),
+    pageItems: toWorkListCardItems(pageWithLive),
     totalItems: pagination.totalItems,
     totalPages: pagination.totalPages,
     currentPage: pagination.currentPage,
@@ -57,41 +59,42 @@ function paginateToWorkCards(
   };
 }
 
-export function getPaginatedWorkCardList(
+export async function getPaginatedWorkCardList(
   items: DmmItem[],
   options: PaginatedWorkListOptions = {},
-): PaginatedWorkCardList {
+): Promise<PaginatedWorkCardList> {
   return paginateToWorkCards(items, options, CATALOG_DETAIL_PAGE_SIZE);
 }
 
-export function getPaginatedDisplayableWorkCardList(
+export async function getPaginatedDisplayableWorkCardList(
   items: DmmItem[],
   options: PaginatedWorkListOptions = {},
-): PaginatedWorkCardList {
+): Promise<PaginatedWorkCardList> {
   const safeItems = Array.isArray(items) ? items : [];
   return getPaginatedWorkCardList(filterDisplayableItems(safeItems), options);
 }
 
-export function getPaginatedWorksListPageCards(
+export async function getPaginatedWorksListPageCards(
   items: DmmItem[],
   options: PaginatedWorkListOptions = {},
-): PaginatedWorkCardList {
+): Promise<PaginatedWorkCardList> {
   return paginateToWorkCards(items, options, WORKS_LIST_PAGE_SIZE);
 }
 
-export function getPaginatedWorkCardListFromSorted(
+export async function getPaginatedWorkCardListFromSorted(
   sortedItems: DmmItem[],
   options: PaginatedWorkListOptions = {},
-): PaginatedWorkCardList {
+): Promise<PaginatedWorkCardList> {
   const pageSize = options.pageSize ?? CATALOG_DETAIL_PAGE_SIZE;
   const pagination = paginateItems(
     sortedItems,
     parsePageParam(options.page),
     pageSize,
   );
+  const pageWithLive = await mergeLiveStatusIntoItems(pagination.items);
 
   return {
-    pageItems: toWorkListCardItems(pagination.items),
+    pageItems: toWorkListCardItems(pageWithLive),
     totalItems: pagination.totalItems,
     totalPages: pagination.totalPages,
     currentPage: pagination.currentPage,

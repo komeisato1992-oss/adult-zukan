@@ -122,11 +122,27 @@ function parseFetchSort(value: unknown): ImportFetchSort {
   );
 }
 
+async function mergeWorksMasterKeys(keys: Set<string>): Promise<Set<string>> {
+  try {
+    const { getWorksMasterContentIdSet } = await import(
+      "@/lib/dmm/works-master"
+    );
+    const masterIds = await getWorksMasterContentIdSet();
+    for (const cid of masterIds) {
+      keys.add(cid);
+    }
+  } catch (error) {
+    console.warn("[fetch-candidates] works-master keys skipped", error);
+  }
+  return keys;
+}
+
 async function loadCatalogKeysForFetch(): Promise<CatalogKeyLoadResult> {
   if (isGitHubCatalogConfigured()) {
     try {
       const { items } = await fetchCatalogFromGitHub();
-      return { keys: buildCatalogIdSet(items), catalogCount: items.length };
+      const keys = await mergeWorksMasterKeys(buildCatalogIdSet(items));
+      return { keys, catalogCount: keys.size };
     } catch (error) {
       console.warn(
         "[fetch-candidates] GitHub catalog read failed; falling back to local snapshot",
@@ -136,7 +152,8 @@ async function loadCatalogKeysForFetch(): Promise<CatalogKeyLoadResult> {
   }
 
   const items = readCatalogSnapshot();
-  return { keys: buildCatalogIdSet(items), catalogCount: items.length };
+  const keys = await mergeWorksMasterKeys(buildCatalogIdSet(items));
+  return { keys, catalogCount: keys.size };
 }
 
 function classifyFetchItem(

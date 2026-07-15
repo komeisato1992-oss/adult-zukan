@@ -3,6 +3,9 @@ import "server-only";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
 import {
+  pickFreshestByUpdatedAt,
+} from "@/lib/admin/cache-freshness";
+import {
   createEmptySeoCache,
   parseSeoCacheJson,
   serializeSeoCache,
@@ -100,38 +103,39 @@ async function githubRequest<T>(
 }
 
 /**
- * 表示時は API を呼ばず、メモリ → GitHub → ローカルファイルの順で読む。
- * 空のメモリキャッシュではディスク/GitHubへフォールバックする。
+ * 表示時は API を呼ばずキャッシュを読む。
+ * GitHub 正本がある場合は memory と GitHub の新しい方を採用し、
+ * 他インスタンスが更新した最新値で上書きできるようにする。
  */
 export async function loadSeoCache(): Promise<SeoCachePayload> {
   const store = getMemoryStore();
-  if (hasPersistedSeoData(store.__seoMemoryCache)) {
-    return store.__seoMemoryCache!;
-  }
+  const memory = hasPersistedSeoData(store.__seoMemoryCache)
+    ? store.__seoMemoryCache!
+    : null;
 
+  let remote: SeoCachePayload | null = null;
   if (isGitHubProductionConfigured()) {
     try {
       const config = getGitHubProductionConfig()!;
       const data = await githubRequest<{ content: string; sha: string }>(
         `https://api.github.com/repos/${config.owner}/${config.repo}/contents/${SEO_CACHE_GITHUB_PATH}?ref=${encodeURIComponent(config.branch)}`,
       );
-      const parsed = parseSeoCacheJson(
+      remote = parseSeoCacheJson(
         Buffer.from(data.content, "base64").toString("utf-8"),
       );
-      store.__seoMemoryCache = parsed;
       store.__seoMemoryCacheSha = data.sha;
-      return parsed;
     } catch (error) {
       if (!(error instanceof Error && (error as Error & { status?: number }).status === 404)) {
-        // fall through to local
+        // fall through
       }
     }
   }
 
   const local = readLocal();
-  if (local && hasPersistedSeoData(local)) {
-    store.__seoMemoryCache = local;
-    return local;
+  const best = pickFreshestByUpdatedAt([memory, remote, local]);
+  if (best && hasPersistedSeoData(best)) {
+    store.__seoMemoryCache = best;
+    return best;
   }
 
   const empty = createEmptySeoCache(getSiteUrl());

@@ -13,6 +13,10 @@ import {
   parseOpsTab,
   type OpsTabId,
 } from "@/lib/admin/ops-tabs";
+import {
+  mergeOpsDashboardPayload,
+  isOpsPayloadStaleOverall,
+} from "@/lib/admin/ops-payload-merge";
 import type {
   OpsDashboardPayload,
   OpsDmmPeriod,
@@ -31,6 +35,13 @@ type RefreshStepResult = {
   label: string;
   ok: boolean;
   detail: string;
+};
+
+const OPS_FETCH_INIT: RequestInit = {
+  cache: "no-store",
+  headers: {
+    "Cache-Control": "no-store",
+  },
 };
 
 function summarizeError(detail: string, max = 180): string {
@@ -99,7 +110,11 @@ function evaluateSourceRefresh(
 async function postOpsRefresh(source: OpsRefreshSource): Promise<OpsDashboardPayload> {
   const response = await fetch("/api/admin/ops/refresh", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    ...OPS_FETCH_INIT,
+    headers: {
+      ...OPS_FETCH_INIT.headers,
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({ source }),
   });
   const json = (await response.json()) as {
@@ -111,6 +126,14 @@ async function postOpsRefresh(source: OpsRefreshSource): Promise<OpsDashboardPay
     throw new Error(json.error ?? "更新に失敗しました。");
   }
   return json.data;
+}
+
+async function fetchOpsData(): Promise<OpsDashboardPayload | null> {
+  const response = await fetch("/api/admin/ops/data", OPS_FETCH_INIT);
+  const json = (await response.json()) as {
+    data?: OpsDashboardPayload;
+  };
+  return json.data ?? null;
 }
 
 export function OpsDashboardClient({
@@ -141,8 +164,14 @@ export function OpsDashboardClient({
   }, [tabFromUrl]);
 
   const applyPayload = useCallback((payload: OpsDashboardPayload) => {
-    setData(payload);
-    setTasks(payload.tasks);
+    setData((current) => {
+      if (isOpsPayloadStaleOverall(current, payload)) {
+        return current;
+      }
+      const merged = mergeOpsDashboardPayload(current, payload);
+      setTasks(merged.tasks as OpsTask[]);
+      return merged;
+    });
   }, []);
 
   function changeTab(tab: OpsTabId) {
@@ -185,7 +214,7 @@ export function OpsDashboardClient({
         setMessage(`${label}に失敗しました。${detail}`);
         setRefreshResults([{ label, ok: false, detail }]);
         try {
-          const response = await fetch("/api/admin/ops/data");
+          const response = await fetch("/api/admin/ops/data", OPS_FETCH_INIT);
           const json = (await response.json()) as {
             data?: OpsDashboardPayload;
           };
@@ -235,16 +264,12 @@ export function OpsDashboardClient({
       }
 
       setRefreshingSource(null);
+      // 最終 GET はスコア再計算用だが、古いキャッシュで上書きしないよう merge 適用
       setRefreshProgress("SEOスコア計算中");
       try {
-        const response = await fetch("/api/admin/ops/data");
-        const json = (await response.json()) as {
-          success?: boolean;
-          data?: OpsDashboardPayload;
-          error?: string;
-        };
-        if (json.data) {
-          applyPayload(json.data);
+        const dataPayload = await fetchOpsData();
+        if (dataPayload) {
+          applyPayload(dataPayload);
           results.push({
             label: "SEOスコア・改善提案再生成",
             ok: true,
@@ -254,7 +279,7 @@ export function OpsDashboardClient({
           results.push({
             label: "SEOスコア・改善提案再生成",
             ok: false,
-            detail: json.error ?? "再計算に失敗しました。",
+            detail: "再計算に失敗しました。",
           });
         }
       } catch (error) {
@@ -305,11 +330,8 @@ export function OpsDashboardClient({
         if (json.data) {
           applyPayload(json.data);
         } else {
-          const dataResponse = await fetch("/api/admin/ops/data");
-          const dataJson = (await dataResponse.json()) as {
-            data?: OpsDashboardPayload;
-          };
-          if (dataJson.data) applyPayload(dataJson.data);
+          const dataPayload = await fetchOpsData();
+          if (dataPayload) applyPayload(dataPayload);
         }
         const typeLabel = type === "category" ? "カテゴリ" : "ダイレクト";
         setMessage(

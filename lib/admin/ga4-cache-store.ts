@@ -5,6 +5,7 @@ import path from "path";
 import { isGitHubProductionConfigured, getGitHubProductionConfig } from "@/lib/admin/github-config";
 import type { Ga4CachePayload } from "@/lib/admin/ga4-types";
 import { createEmptyGa4Cache } from "@/lib/admin/ga4-types";
+import { parseCacheTimestamp } from "@/lib/admin/cache-freshness";
 
 const ADMIN_DATA_DIR = path.join(process.cwd(), "data", "admin");
 const GA4_CACHE_FILE = path.join(ADMIN_DATA_DIR, "ga4-cache.json");
@@ -72,11 +73,17 @@ async function githubRequest<T>(
   return (await response.json()) as T;
 }
 
+function ga4Freshness(payload: Ga4CachePayload | null | undefined): number {
+  if (!payload) return -1;
+  return Math.max(
+    parseCacheTimestamp(payload.updatedAt),
+    parseCacheTimestamp(payload.lastSuccessfulAt),
+  );
+}
+
 export async function loadGa4CachePersisted(): Promise<Ga4CachePayload> {
   const store = memory();
-  if (store.__ga4CachePayload?.updatedAt || store.__ga4CachePayload?.lastSuccessfulAt) {
-    return store.__ga4CachePayload;
-  }
+  const memoryPayload = store.__ga4CachePayload ?? null;
 
   const normalize = (parsed: Ga4CachePayload): Ga4CachePayload => ({
     ...createEmptyGa4Cache({
@@ -90,20 +97,19 @@ export async function loadGa4CachePersisted(): Promise<Ga4CachePayload> {
       (parsed.connectionStatus === "connected" ? parsed.updatedAt : null),
   });
 
+  let remote: Ga4CachePayload | null = null;
   if (isGitHubProductionConfigured()) {
     try {
       const config = getGitHubProductionConfig()!;
       const data = await githubRequest<{ content: string; sha: string }>(
         `https://api.github.com/repos/${config.owner}/${config.repo}/contents/${GA4_CACHE_GITHUB_PATH}?ref=${encodeURIComponent(config.branch)}`,
       );
-      const parsed = normalize(
+      remote = normalize(
         JSON.parse(
           Buffer.from(data.content, "base64").toString("utf-8"),
         ) as Ga4CachePayload,
       );
-      store.__ga4CachePayload = parsed;
       store.__ga4CacheSha = data.sha;
-      return parsed;
     } catch (error) {
       if (!(error instanceof Error && (error as Error & { status?: number }).status === 404)) {
         // fall through to local
@@ -111,11 +117,24 @@ export async function loadGa4CachePersisted(): Promise<Ga4CachePayload> {
     }
   }
 
-  const local = readLocal();
-  if (local) {
-    const parsed = normalize(local);
-    store.__ga4CachePayload = parsed;
-    return parsed;
+  const localRaw = readLocal();
+  const local = localRaw ? normalize(localRaw) : null;
+  const mem = memoryPayload ? normalize(memoryPayload) : null;
+
+  const candidates = [mem, remote, local].filter(Boolean) as Ga4CachePayload[];
+  let best: Ga4CachePayload | null = null;
+  let bestTs = -1;
+  for (const candidate of candidates) {
+    const ts = ga4Freshness(candidate);
+    if (ts > bestTs) {
+      best = candidate;
+      bestTs = ts;
+    }
+  }
+
+  if (best) {
+    store.__ga4CachePayload = best;
+    return best;
   }
 
   const empty = createEmptyGa4Cache({ configured: false, propertyId: null });

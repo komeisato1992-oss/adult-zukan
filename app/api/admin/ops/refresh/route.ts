@@ -32,12 +32,27 @@ export async function POST(request: Request) {
     }
 
     const data = await refreshOpsSource(source);
-    return NextResponse.json({ success: true, source, data });
+    return NextResponse.json(
+      { success: true, source, data },
+      {
+        headers: {
+          "Cache-Control": "no-store, max-age=0",
+        },
+      },
+    );
   } catch (error) {
     const message =
       error instanceof Error
         ? error.message
         : "運営ダッシュボードの更新に失敗しました。";
-    return NextResponse.json({ success: false, error: message }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: message },
+      {
+        status: 500,
+        headers: {
+          "Cache-Control": "no-store, max-age=0",
+        },
+      },
+    );
   }
 }

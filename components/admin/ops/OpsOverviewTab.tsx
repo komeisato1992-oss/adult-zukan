@@ -160,7 +160,7 @@ export function OpsOverviewTab({
         <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 xl:grid-cols-3">
           {(
             [
-              ["作品数", data.top.catalog.works],
+              ["掲載中作品数", data.top.catalog.works],
               ["女優数", data.top.catalog.actresses],
               ["メーカー数", data.top.catalog.makers],
               ["レーベル数", data.top.catalog.labels],

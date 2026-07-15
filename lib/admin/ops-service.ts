@@ -84,16 +84,28 @@ async function buildOpsPayload(
   const tasks = buildOpsTasks(seo, suggestions);
   const alerts = buildOpsAlerts(seo, ga4, dmm, sitemapSummary);
 
+  // Google登録ページ数は Search Console 由来（sitemap / search_impressions）のみ。推定は表示しない。
+  const indexedPages =
+    seo.index.indexedSource === "sitemap" ||
+    seo.index.indexedSource === "search_impressions"
+      ? seo.index.indexedPages
+      : null;
+
   const indexRate =
-    seo.index.indexedPages != null && indexableUrlCount != null && indexableUrlCount > 0
-      ? seo.index.indexedPages / indexableUrlCount
-      : seo.index.registrationRate;
+    seo.index.indexedSource === "sitemap" && seo.index.registrationRate != null
+      ? seo.index.registrationRate
+      : indexedPages != null &&
+          indexableUrlCount != null &&
+          indexableUrlCount > 0
+        ? indexedPages / indexableUrlCount
+        : null;
 
   return {
     version: 3,
     generatedAt: new Date().toISOString(),
     top: {
       catalog: {
+        // 掲載中作品数（getPublishedWorkCount → getCatalogWorks）に統一
         works: stats.works,
         actresses: stats.actresses,
         makers: stats.makers,
@@ -101,18 +113,18 @@ async function buildOpsPayload(
         series: stats.series,
         genres: stats.genres,
       },
-      indexedPages: seo.index.indexedPages,
+      indexedPages,
       notIndexedPages:
         seo.index.notIndexedPages != null &&
         seo.index.indexedSource === "sitemap"
           ? seo.index.notIndexedPages
           : null,
       indexRate,
-      indexEstimated:
-        seo.index.indexedSource === "sitemap" ||
-        seo.index.indexedSource === "search_impressions" ||
-        seo.index.indexedSource === "estimated",
-      indexableUrlCount,
+      indexEstimated: seo.index.indexedSource === "search_impressions",
+      indexableUrlCount:
+        seo.index.totalSitePages > 0
+          ? seo.index.totalSitePages
+          : indexableUrlCount,
       updatedAt: latestUpdatedAt([
         seo.updatedAt,
         ga4.updatedAt,
@@ -131,7 +143,14 @@ async function buildOpsPayload(
     sitemapSummary,
     internalLinkAudit: audits.internalLinks,
     structuredDataAudit: audits.structuredData,
-    seo,
+    seo: {
+      ...seo,
+      // UI の作品数と overview を常に掲載中件数へ揃える
+      overview: {
+        ...seo.overview,
+        totalWorks: stats.works,
+      },
+    },
     ga4,
     dmm,
   };

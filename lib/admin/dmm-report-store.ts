@@ -60,22 +60,15 @@ export async function loadDmmReportsDocument(): Promise<{
   sha: string | null;
 }> {
   const memory = getMemoryStore();
-  const hasRows =
-    Boolean(memory.__dmmReportsDocument?.updatedAt) ||
-    (memory.__dmmReportsDocument?.rows.length ?? 0) > 0;
-  if (memory.__dmmReportsDocument && hasRows) {
-    return {
-      document: memory.__dmmReportsDocument,
-      sha: memory.__dmmReportsSha ?? null,
-    };
-  }
+  const memoryDoc = memory.__dmmReportsDocument ?? null;
 
+  let remoteDoc: DmmReportsDocument | null = null;
+  let remoteSha: string | null = null;
   if (isGitHubCatalogConfigured()) {
     try {
       const loaded = await fetchDmmReportsFromGitHub();
-      memory.__dmmReportsDocument = loaded.document;
-      memory.__dmmReportsSha = loaded.sha;
-      return loaded;
+      remoteDoc = loaded.document;
+      remoteSha = loaded.sha;
     } catch (error) {
       if (!(error instanceof GitHubDmmReportsError && error.status === 404)) {
         // fall through
@@ -83,16 +76,39 @@ export async function loadDmmReportsDocument(): Promise<{
     }
   }
 
-  const local = readDmmReportsLocal();
-  if (local.updatedAt || local.rows.length > 0) {
-    memory.__dmmReportsDocument = local;
-    memory.__dmmReportsSha = null;
-    return { document: local, sha: null };
+  const localDoc = readDmmReportsLocal();
+  const candidates: Array<{
+    document: DmmReportsDocument;
+    sha: string | null;
+  }> = [];
+  if (memoryDoc) {
+    candidates.push({
+      document: memoryDoc,
+      sha: memory.__dmmReportsSha ?? null,
+    });
+  }
+  if (remoteDoc) {
+    candidates.push({ document: remoteDoc, sha: remoteSha });
+  }
+  if (localDoc.updatedAt || localDoc.rows.length > 0) {
+    candidates.push({ document: localDoc, sha: null });
+  }
+
+  let best = candidates[0] ?? null;
+  for (const candidate of candidates) {
+    const bestTs = Date.parse(best?.document.updatedAt ?? "") || 0;
+    const nextTs = Date.parse(candidate.document.updatedAt ?? "") || 0;
+    if (nextTs > bestTs) best = candidate;
+  }
+
+  if (best) {
+    memory.__dmmReportsDocument = best.document;
+    memory.__dmmReportsSha = best.sha;
+    return best;
   }
 
   const empty = createEmptyDmmReportsDocument();
   memory.__dmmReportsDocument = empty;
-  memory.__dmmReportsSha = null;
   return { document: empty, sha: null };
 }
 

@@ -4,6 +4,7 @@ import {
   WORK_CARD_VIEW_LABEL,
   workCardCtaBaseClassName,
 } from "@/components/works/work-card-cta-styles";
+import { imageCoverClassName } from "@/components/ui/image-cover";
 import {
   getDmmItemActressNameList,
   getDmmItemGenreNameList,
@@ -35,7 +36,7 @@ function ComparePreviewCard({ item }: { item: DmmItem }) {
             alt={item.title}
             width={320}
             height={180}
-            className="h-auto w-full rounded object-cover"
+            className={`h-auto w-full rounded ${imageCoverClassName}`}
             unoptimized
           />
         ) : (

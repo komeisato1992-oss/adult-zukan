@@ -19,6 +19,7 @@ import {
 } from "@/components/works/work-card-cta-styles";
 import { ActressNameLinks } from "@/components/ui/ActressNameLinks";
 import { GenreNameLinks } from "@/components/ui/GenreNameLinks";
+import { imageCoverClassName } from "@/components/ui/image-cover";
 import { ImageLightboxModal } from "@/components/works/ImageLightboxModal";
 import {
   COMPARE_GA_EVENTS,
@@ -206,7 +207,7 @@ export function ComparePageClient() {
                         alt={item.title}
                         width={320}
                         height={180}
-                        className="h-auto w-full rounded object-cover"
+                        className={`h-auto w-full rounded ${imageCoverClassName}`}
                         loading="lazy"
                         unoptimized
                       />

@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { imageCoverClassName } from "@/components/ui/image-cover";
 import { WORK_CARD_VIEW_LABEL } from "@/components/works/work-card-cta-styles";
 import {
   getDmmItemActressNameList,
@@ -56,7 +57,7 @@ function RandomCompareCard({ item }: { item: DmmItem }) {
             alt={item.title}
             width={120}
             height={170}
-            className="h-auto w-[100px] max-w-[100px] rounded-lg object-cover sm:w-[115px] sm:max-w-[115px] md:ml-2 md:w-[130px] md:max-w-[130px]"
+            className={`h-auto w-[100px] max-w-[100px] rounded-lg sm:w-[115px] sm:max-w-[115px] md:ml-2 md:w-[130px] md:max-w-[130px] ${imageCoverClassName}`}
             unoptimized
           />
         ) : (

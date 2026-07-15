@@ -1,4 +1,8 @@
 import Image from "next/image";
+import {
+  imageCoverClassName,
+  imageCoverStyle,
+} from "@/components/ui/image-cover";
 
 const VARIANTS = {
   landscape: {
@@ -10,12 +14,6 @@ const VARIANTS = {
     defaultSizes: "(max-width: 389px) 50vw, (max-width: 768px) 33vw, 25vw",
   },
 } as const;
-
-const COVER_STYLE = {
-  objectFit: "cover" as const,
-  objectPosition: "right center" as const,
-  maxWidth: "100%",
-};
 
 type CatalogWorkImageProps = {
   src: string;
@@ -46,8 +44,8 @@ export function CatalogWorkImage({
         src={src}
         alt={alt}
         fill
-        className="catalog-work-image object-cover object-[right_center]"
-        style={COVER_STYLE}
+        className={`catalog-work-image ${imageCoverClassName}`}
+        style={imageCoverStyle}
         sizes={sizes ?? config.defaultSizes}
         loading={priority ? undefined : loading}
         priority={priority}

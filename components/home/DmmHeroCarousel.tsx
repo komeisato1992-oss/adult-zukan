@@ -4,6 +4,10 @@ import Image from "next/image";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import {
+  imageCoverClassName,
+  imageCoverStyle,
+} from "@/components/ui/image-cover";
+import {
   getDmmItemMakerName,
   getDmmListItemImageUrl,
 } from "@/lib/dmm/display";
@@ -93,12 +97,8 @@ export function DmmHeroCarousel({ items }: DmmHeroCarouselProps) {
                 src={slideImage}
                 alt={slide.title}
                 fill
-                className="catalog-work-image object-cover object-[right_center]"
-                style={{
-                  objectFit: "cover",
-                  objectPosition: "right center",
-                  maxWidth: "100%",
-                }}
+                className={`catalog-work-image ${imageCoverClassName}`}
+                style={imageCoverStyle}
                 sizes="100vw"
                 priority={index === 0}
                 loading={index === 0 ? undefined : "lazy"}

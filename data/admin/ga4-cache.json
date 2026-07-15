@@ -1,7 +1,7 @@
 {
   "version": 3,
-  "updatedAt": "2026-07-15T00:23:56.631Z",
-  "lastSuccessfulAt": "2026-07-15T00:23:56.631Z",
+  "updatedAt": "2026-07-15T01:14:38.200Z",
+  "lastSuccessfulAt": "2026-07-15T01:14:38.200Z",
   "configured": true,
   "propertyId": "544245702",
   "connectionStatus": "connected",
@@ -20,14 +20,14 @@
   "periods": {
     "1": {
       "current": {
-        "users": 55,
-        "newUsers": 44,
-        "sessions": 58,
-        "pageViews": 104,
-        "avgEngagementSeconds": 11.454545454545455,
-        "eventCount": 250,
-        "bounceRate": 0.9655172413793104,
-        "pagesPerSession": 1.793103448275862
+        "users": 66,
+        "newUsers": 55,
+        "sessions": 69,
+        "pageViews": 120,
+        "avgEngagementSeconds": 10.848484848484848,
+        "eventCount": 297,
+        "bounceRate": 0.9710144927536232,
+        "pagesPerSession": 1.7391304347826086
       },
       "previous": {
         "users": 188,
@@ -42,14 +42,14 @@
     },
     "7": {
       "current": {
-        "users": 918,
-        "newUsers": 886,
-        "sessions": 1000,
-        "pageViews": 1548,
-        "avgEngagementSeconds": 13.753812636165577,
-        "eventCount": 4296,
-        "bounceRate": 0.773,
-        "pagesPerSession": 1.548
+        "users": 928,
+        "newUsers": 897,
+        "sessions": 1011,
+        "pageViews": 1564,
+        "avgEngagementSeconds": 13.698275862068966,
+        "eventCount": 4343,
+        "bounceRate": 0.7754698318496538,
+        "pagesPerSession": 1.5469831849653808
       },
       "previous": {
         "users": 232,
@@ -64,14 +64,14 @@
     },
     "28": {
       "current": {
-        "users": 1145,
-        "newUsers": 1119,
-        "sessions": 1262,
-        "pageViews": 2139,
-        "avgEngagementSeconds": 15.519650655021834,
-        "eventCount": 5688,
-        "bounceRate": 0.7591125198098256,
-        "pagesPerSession": 1.6949286846275753
+        "users": 1155,
+        "newUsers": 1130,
+        "sessions": 1273,
+        "pageViews": 2155,
+        "avgEngagementSeconds": 15.45974025974026,
+        "eventCount": 5735,
+        "bounceRate": 0.7611940298507462,
+        "pagesPerSession": 1.6928515318146111
       },
       "previous": {
         "users": 0,
@@ -86,14 +86,14 @@
     },
     "90": {
       "current": {
-        "users": 1145,
-        "newUsers": 1119,
-        "sessions": 1262,
-        "pageViews": 2139,
-        "avgEngagementSeconds": 15.519650655021834,
-        "eventCount": 5688,
-        "bounceRate": 0.7591125198098256,
-        "pagesPerSession": 1.6949286846275753
+        "users": 1155,
+        "newUsers": 1130,
+        "sessions": 1273,
+        "pageViews": 2155,
+        "avgEngagementSeconds": 15.45974025974026,
+        "eventCount": 5735,
+        "bounceRate": 0.7611940298507462,
+        "pagesPerSession": 1.6928515318146111
       },
       "previous": {
         "users": 0,
@@ -173,18 +173,18 @@
     },
     {
       "date": "2026-07-15",
-      "users": 55,
-      "newUsers": 44,
-      "pageViews": 104,
-      "sessions": 58
+      "users": 66,
+      "newUsers": 55,
+      "pageViews": 120,
+      "sessions": 69
     }
   ],
   "topPages": [
     {
       "path": "/works",
-      "pageViews": 295,
+      "pageViews": 298,
       "users": 6,
-      "avgEngagementSeconds": 448.6666666666667
+      "avgEngagementSeconds": 449
     },
     {
       "path": "/",
@@ -200,9 +200,9 @@
     },
     {
       "path": "/works/cawb00018",
-      "pageViews": 50,
-      "users": 43,
-      "avgEngagementSeconds": 7.27906976744186
+      "pageViews": 51,
+      "users": 44,
+      "avgEngagementSeconds": 7.113636363636363
     },
     {
       "path": "/works/ofje00615",
@@ -304,8 +304,8 @@
   "sources": [
     {
       "source": "Organic Search",
-      "sessions": 875,
-      "users": 848
+      "sessions": 883,
+      "users": 856
     },
     {
       "source": "Direct",
@@ -314,13 +314,13 @@
     },
     {
       "source": "Unassigned",
-      "sessions": 113,
-      "users": 98
+      "sessions": 117,
+      "users": 102
     },
     {
       "source": "Cross-network",
-      "sessions": 84,
-      "users": 84
+      "sessions": 85,
+      "users": 85
     },
     {
       "source": "AI Assistant",
@@ -329,8 +329,8 @@
     },
     {
       "source": "Referral",
-      "sessions": 25,
-      "users": 17
+      "sessions": 26,
+      "users": 18
     },
     {
       "source": "Organic Social",

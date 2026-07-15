@@ -1,7 +1,7 @@
 {
   "version": 3,
-  "updatedAt": "2026-07-15T01:14:38.200Z",
-  "lastSuccessfulAt": "2026-07-15T01:14:38.200Z",
+  "updatedAt": "2026-07-15T02:16:10.113Z",
+  "lastSuccessfulAt": "2026-07-15T02:16:10.113Z",
   "configured": true,
   "propertyId": "544245702",
   "connectionStatus": "connected",
@@ -20,14 +20,14 @@
   "periods": {
     "1": {
       "current": {
-        "users": 66,
-        "newUsers": 55,
-        "sessions": 69,
-        "pageViews": 120,
-        "avgEngagementSeconds": 10.848484848484848,
-        "eventCount": 297,
-        "bounceRate": 0.9710144927536232,
-        "pagesPerSession": 1.7391304347826086
+        "users": 69,
+        "newUsers": 58,
+        "sessions": 73,
+        "pageViews": 132,
+        "avgEngagementSeconds": 11.623188405797102,
+        "eventCount": 320,
+        "bounceRate": 0.958904109589041,
+        "pagesPerSession": 1.8082191780821917
       },
       "previous": {
         "users": 188,
@@ -42,14 +42,14 @@
     },
     "7": {
       "current": {
-        "users": 928,
-        "newUsers": 897,
-        "sessions": 1011,
-        "pageViews": 1564,
-        "avgEngagementSeconds": 13.698275862068966,
-        "eventCount": 4343,
-        "bounceRate": 0.7754698318496538,
-        "pagesPerSession": 1.5469831849653808
+        "users": 931,
+        "newUsers": 900,
+        "sessions": 1015,
+        "pageViews": 1576,
+        "avgEngagementSeconds": 13.746509129967777,
+        "eventCount": 4366,
+        "bounceRate": 0.7753694581280788,
+        "pagesPerSession": 1.5527093596059114
       },
       "previous": {
         "users": 232,
@@ -64,14 +64,14 @@
     },
     "28": {
       "current": {
-        "users": 1155,
-        "newUsers": 1130,
-        "sessions": 1273,
-        "pageViews": 2155,
-        "avgEngagementSeconds": 15.45974025974026,
-        "eventCount": 5735,
-        "bounceRate": 0.7611940298507462,
-        "pagesPerSession": 1.6928515318146111
+        "users": 1158,
+        "newUsers": 1133,
+        "sessions": 1277,
+        "pageViews": 2167,
+        "avgEngagementSeconds": 15.493955094991364,
+        "eventCount": 5758,
+        "bounceRate": 0.7611589663273297,
+        "pagesPerSession": 1.696945967110415
       },
       "previous": {
         "users": 0,
@@ -86,14 +86,14 @@
     },
     "90": {
       "current": {
-        "users": 1155,
-        "newUsers": 1130,
-        "sessions": 1273,
-        "pageViews": 2155,
-        "avgEngagementSeconds": 15.45974025974026,
-        "eventCount": 5735,
-        "bounceRate": 0.7611940298507462,
-        "pagesPerSession": 1.6928515318146111
+        "users": 1158,
+        "newUsers": 1133,
+        "sessions": 1277,
+        "pageViews": 2167,
+        "avgEngagementSeconds": 15.493955094991364,
+        "eventCount": 5758,
+        "bounceRate": 0.7611589663273297,
+        "pagesPerSession": 1.696945967110415
       },
       "previous": {
         "users": 0,
@@ -173,18 +173,18 @@
     },
     {
       "date": "2026-07-15",
-      "users": 66,
-      "newUsers": 55,
-      "pageViews": 120,
-      "sessions": 69
+      "users": 69,
+      "newUsers": 58,
+      "pageViews": 132,
+      "sessions": 73
     }
   ],
   "topPages": [
     {
       "path": "/works",
-      "pageViews": 298,
+      "pageViews": 302,
       "users": 6,
-      "avgEngagementSeconds": 449
+      "avgEngagementSeconds": 451.5
     },
     {
       "path": "/",
@@ -218,15 +218,15 @@
     },
     {
       "path": "/works/snos00320",
-      "pageViews": 35,
-      "users": 31,
-      "avgEngagementSeconds": 3.6774193548387095
+      "pageViews": 36,
+      "users": 32,
+      "avgEngagementSeconds": 3.5625
     },
     {
       "path": "/actresses/花咲ゆら",
-      "pageViews": 32,
+      "pageViews": 33,
       "users": 29,
-      "avgEngagementSeconds": 4.620689655172414
+      "avgEngagementSeconds": 5.482758620689655
     },
     {
       "path": "/search",
@@ -304,8 +304,8 @@
   "sources": [
     {
       "source": "Organic Search",
-      "sessions": 883,
-      "users": 856
+      "sessions": 886,
+      "users": 859
     },
     {
       "source": "Direct",
@@ -314,8 +314,8 @@
     },
     {
       "source": "Unassigned",
-      "sessions": 117,
-      "users": 102
+      "sessions": 119,
+      "users": 103
     },
     {
       "source": "Cross-network",

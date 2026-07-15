@@ -171,7 +171,7 @@ export function FanzaSyncPanel({
             掲載作品を最新に更新
           </h2>
           <p className="mt-2 text-sm text-muted">
-            掲載中の全作品について、FANZAの販売情報・価格・セール情報をバックグラウンドで同期します。
+            価格・セール・評価・販売状況をDBへ直接更新します。デプロイは発生しません。
           </p>
         </div>
         <button

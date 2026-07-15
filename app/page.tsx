@@ -27,7 +27,7 @@ import {
   getSharedCatalogWorks,
 } from "@/lib/works/catalog";
 
-export const revalidate = 86400;
+export const revalidate = 600;
 
 export const metadata = createPageMetadata({
   title: seoTitles.home,
@@ -41,9 +41,19 @@ export default async function HomePage() {
   const catalog = await getSharedCatalogWorks();
   const displayableItems = filterDisplayableItems(catalog);
 
-  const popularWorks = getPopularWorks(catalog, HOME_SECTION_LIMIT);
-  const newWorks = getNewWorks(catalog, HOME_SECTION_LIMIT);
-  const saleWorks = getSaleWorks(catalog, HOME_SECTION_LIMIT);
+  const { mergeLiveStatusIntoItems } = await import(
+    "@/lib/dmm/work-live-status"
+  );
+
+  const popularWorks = await mergeLiveStatusIntoItems(
+    getPopularWorks(catalog, HOME_SECTION_LIMIT),
+  );
+  const newWorks = await mergeLiveStatusIntoItems(
+    getNewWorks(catalog, HOME_SECTION_LIMIT),
+  );
+  const saleWorks = await mergeLiveStatusIntoItems(
+    getSaleWorks(catalog, HOME_SECTION_LIMIT),
+  );
   const rankedActresses = getRankedActresses(catalog, HOME_SECTION_LIMIT);
   const rankedMakers = getRankedMakers(catalog);
   const rankedSeries = getRankedSeries(catalog);
@@ -55,7 +65,17 @@ export default async function HomePage() {
     count: 2,
     adultCatalog: displayableItems,
   });
-  const randomComparePair = pickRandomComparePair(displayableItems);
+  const randomComparePairRaw = pickRandomComparePair(displayableItems);
+  const randomComparePairMerged = randomComparePairRaw
+    ? await mergeLiveStatusIntoItems(randomComparePairRaw)
+    : null;
+  const randomComparePair =
+    randomComparePairMerged && randomComparePairMerged.length >= 2
+      ? ([
+          randomComparePairMerged[0],
+          randomComparePairMerged[1],
+        ] as [typeof randomComparePairMerged[0], typeof randomComparePairMerged[1]])
+      : null;
 
   return (
     <>

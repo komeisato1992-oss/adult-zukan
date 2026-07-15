@@ -54,50 +54,91 @@ function getManifestMtimeMs(): number {
   }
 }
 
-function readFromProcessCache(): DmmItem[] | null {
+async function getCatalogCacheStampMs(): Promise<number> {
+  const manifestMs = getManifestMtimeMs();
+  try {
+    const { getConfiguredWorksMasterBackend } = await import(
+      "@/lib/dmm/works-master/types"
+    );
+    const { getLocalWorksMasterMtimeMs } = await import(
+      "@/lib/dmm/works-master/local-store"
+    );
+    const backend = getConfiguredWorksMasterBackend();
+    if (backend === "local") {
+      return Math.max(manifestMs, getLocalWorksMasterMtimeMs());
+    }
+  } catch {
+    // works-master optional during bootstrap
+  }
+  return manifestMs;
+}
+
+async function readFromProcessCache(): Promise<DmmItem[] | null> {
   if (!isAdultCatalogCacheEnabled()) return null;
   const holder = getAdultPublicCatalogMemoryHolder();
   if (!holder.cache) return null;
   const ttlMs = getAdultPublicCatalogTtlSec() * 1000;
-  const mtimeMs = getManifestMtimeMs();
+  const mtimeMs = await getCatalogCacheStampMs();
   if (mtimeMs !== holder.mtimeMs) return null;
   if (Date.now() - holder.loadedAt > ttlMs) return null;
   incrPerfCounter("adult.public.catalog.hit");
   return holder.cache as DmmItem[];
 }
 
-function writeProcessCache(items: DmmItem[]): void {
+async function writeProcessCache(items: DmmItem[]): Promise<void> {
   if (!isAdultCatalogCacheEnabled()) return;
   const holder = getAdultPublicCatalogMemoryHolder();
   holder.cache = items;
-  holder.mtimeMs = getManifestMtimeMs();
+  holder.mtimeMs = await getCatalogCacheStampMs();
   holder.loadedAt = Date.now();
   incrPerfCounter("adult.public.catalog.store");
 }
 
+/** JSON スナップショットへ works マスター（公開分）をマージ。同一 CID は DB 優先 */
+async function mergeWorksMasterPreferringDb(snapshot: DmmItem[]): Promise<DmmItem[]> {
+  try {
+    const {
+      fetchPublishedWorksMasterAsDmmItems,
+      mergeWorksMasterIntoCatalog,
+      getConfiguredWorksMasterBackend,
+    } = await import("@/lib/dmm/works-master");
+    if (getConfiguredWorksMasterBackend() === "off") return snapshot;
+    const masterItems = await fetchPublishedWorksMasterAsDmmItems();
+    if (masterItems.length === 0) return snapshot;
+    return mergeWorksMasterIntoCatalog(snapshot, masterItems);
+  } catch (error) {
+    console.warn("[static-works] works-master merge skipped", error);
+    return snapshot;
+  }
+}
+
 async function fetchDmmStaticWorksUncached(): Promise<DmmItem[]> {
-  const fromMem = readFromProcessCache();
+  const fromMem = await readFromProcessCache();
   if (fromMem) {
     return fromMem;
   }
 
   if (cachedValidWorks) {
-    writeProcessCache(cachedValidWorks);
+    await writeProcessCache(cachedValidWorks);
     return cachedValidWorks;
   }
 
   incrPerfCounter("adult.public.catalog.miss");
-  const snapshot = readCatalogSnapshot();
+  const snapshot = await mergeWorksMasterPreferringDb(readCatalogSnapshot());
+  const { mergeLightOverlayIntoItems } = await import(
+    "@/lib/admin/fanza-light-overlay-store"
+  );
+  const snapshotWithOverlay = await mergeLightOverlayIntoItems(snapshot);
 
-  if (snapshot.length >= CATALOG_MIN_VALID) {
+  if (snapshotWithOverlay.length >= CATALOG_MIN_VALID) {
     const items = dedupeWorksForDisplay(
-      filterPublicCatalogWorks(filterValidCatalogItems(snapshot)),
+      filterPublicCatalogWorks(filterValidCatalogItems(snapshotWithOverlay)),
     );
-    const stats = analyzeCatalogItems(snapshot);
+    const stats = analyzeCatalogItems(snapshotWithOverlay);
     stats.validCount = items.length;
     logBuildStatsOnce(stats, { worksListCount: items.length });
     cachedValidWorks = items;
-    writeProcessCache(items);
+    await writeProcessCache(items);
     return items;
   }
 
@@ -106,28 +147,29 @@ async function fetchDmmStaticWorksUncached(): Promise<DmmItem[]> {
 
     if (items.length > 0) {
       writeCatalogSnapshot(items);
+      const mergedApi = await mergeWorksMasterPreferringDb(items);
       const validItems = dedupeWorksForDisplay(
-        filterPublicCatalogWorks(filterValidCatalogItems(items)),
+        filterPublicCatalogWorks(filterValidCatalogItems(mergedApi)),
       );
       stats.validCount = validItems.length;
       logBuildStatsOnce(stats, {
         worksListCount: validItems.length,
       });
       cachedValidWorks = validItems;
-      writeProcessCache(validItems);
+      await writeProcessCache(validItems);
       return validItems;
     }
   }
 
-  if (snapshot.length > 0) {
+  if (snapshotWithOverlay.length > 0) {
     const items = dedupeWorksForDisplay(
-      filterPublicCatalogWorks(filterValidCatalogItems(snapshot)),
+      filterPublicCatalogWorks(filterValidCatalogItems(snapshotWithOverlay)),
     );
-    const stats = analyzeCatalogItems(snapshot);
+    const stats = analyzeCatalogItems(snapshotWithOverlay);
     stats.validCount = items.length;
     logBuildStatsOnce(stats, { worksListCount: items.length });
     cachedValidWorks = items;
-    writeProcessCache(items);
+    await writeProcessCache(items);
     return items;
   }
 
@@ -143,8 +185,17 @@ async function fetchDmmStaticWorksUncached(): Promise<DmmItem[]> {
   });
 
   cachedValidWorks = [];
-  writeProcessCache([]);
+  await writeProcessCache([]);
   return [];
+}
+
+/** 軽量同期オーバーレイ適用後に呼ぶ（プロセス内キャッシュ破棄） */
+export function invalidateDmmStaticWorksCache(): void {
+  cachedValidWorks = null;
+  const holder = getAdultPublicCatalogMemoryHolder();
+  holder.cache = null;
+  holder.loadedAt = 0;
+  holder.mtimeMs = -1;
 }
 
 /** 834件超の配列は unstable_cache 2MB 制限を超えるため React cache + プロセスTTL */

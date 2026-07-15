@@ -68,14 +68,33 @@ assert.doesNotMatch(productSource, /markTransportError[\s\S]*consecutiveNotFound
 const runnerSource = read("lib/admin/fanza-sync-runner.ts");
 assert.match(runnerSource, /selectFanzaSyncBatch/);
 assert.match(runnerSource, /FANZA_SYNC_DEFAULT_CONCURRENCY/);
+assert.match(runnerSource, /upsertLiveStatusFromWorks/);
+assert.match(runnerSource, /resumeFanzaSyncJob/);
 assert.doesNotMatch(runnerSource, /processFanzaSyncBatch[\s\S]*items\.length/);
+
+const liveStatusIndex = read("lib/dmm/work-live-status/index.ts");
+assert.match(liveStatusIndex, /mergeLiveStatusIntoItems/);
+assert.match(liveStatusIndex, /work_live_status|WORK_LIVE_STATUS/);
+
+const migrationSql = read("supabase/migrations/20260715_work_live_status.sql");
+assert.match(migrationSql, /create table if not exists public\.work_live_status/);
+assert.match(migrationSql, /popularity_rank/);
+assert.match(migrationSql, /fanza_tv_status/);
+
+const dashboard = read("components/admin/WorksOpsDashboard.tsx");
+assert.match(
+  dashboard,
+  /価格・セール・評価・販売状況をDBへ直接更新します。デプロイは発生しません。/,
+);
+assert.match(dashboard, /途中再開/);
+assert.match(dashboard, /データ保存先/);
 
 const startRoute = read("app/api/admin/fanza-sync/start/route.ts");
 assert.match(startRoute, /startFanzaSyncJob/);
 assert.doesNotMatch(startRoute, /processFanzaSyncBatch/);
 
 const processRoute = read("app/api/admin/fanza-sync/process/route.ts");
-assert.match(processRoute, /maxDuration = 300/);
+assert.match(processRoute, /maxDuration = 60/);
 assert.match(processRoute, /processFanzaSyncBatch/);
 
 const cronRoute = read("app/api/cron/fanza-sync/route.ts");

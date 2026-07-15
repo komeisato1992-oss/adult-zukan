@@ -107,8 +107,13 @@ export async function searchCatalog(
     WORKS_LIST_PAGE_SIZE,
   );
 
+  const { mergeLiveStatusIntoItems } = await import(
+    "@/lib/dmm/work-live-status"
+  );
+  const pageWithLive = await mergeLiveStatusIntoItems(pagination.items);
+
   return {
-    items: mapPageItemsToWorkCards(pagination.items),
+    items: mapPageItemsToWorkCards(pageWithLive),
     query: trimmed,
     total,
     currentPage: pagination.currentPage,

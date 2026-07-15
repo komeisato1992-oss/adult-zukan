@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
-import { getCatalogWorkByContentId } from "@/lib/catalog";
+import { getCatalogWorks } from "@/lib/catalog";
+import { normalizeCatalogContentId } from "@/lib/dmm/catalog-snapshot";
 import { isDisplayableListItem } from "@/lib/dmm/filter";
 import type { DmmItem } from "@/lib/dmm/types";
+import { mergeLiveStatusIntoItems } from "@/lib/dmm/work-live-status";
 
 const MAX_IDS = 200;
 
@@ -13,7 +15,7 @@ function parseIds(body: unknown): string[] {
   const seen = new Set<string>();
   const ids: string[] = [];
   for (const entry of raw) {
-    const id = String(entry).trim();
+    const id = normalizeCatalogContentId(String(entry));
     if (!id || seen.has(id)) continue;
     seen.add(id);
     ids.push(id);
@@ -35,12 +37,17 @@ export async function POST(request: Request) {
     return NextResponse.json({ items: [] as DmmItem[] });
   }
 
-  const resolved = await Promise.all(
-    ids.map((contentId) => getCatalogWorkByContentId(contentId)),
+  const catalog = await getCatalogWorks();
+  const byId = new Map(
+    catalog.map((item) => [normalizeCatalogContentId(item.content_id), item]),
   );
-  const items = resolved.filter(
-    (item): item is DmmItem => Boolean(item && isDisplayableListItem(item)),
-  );
+  const resolved = ids
+    .map((id) => byId.get(id))
+    .filter(
+      (item): item is DmmItem => Boolean(item && isDisplayableListItem(item)),
+    );
+
+  const items = await mergeLiveStatusIntoItems(resolved);
 
   return NextResponse.json({ items });
 }

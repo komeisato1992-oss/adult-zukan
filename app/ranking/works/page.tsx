@@ -42,7 +42,7 @@ export default async function RankingWorksPage({
   const currentPage = parsePageParam(page);
   const catalog = await getSharedCatalogWorks();
   const rankedWorks = getPopularWorks(catalog, catalog.length);
-  const list = getPaginatedWorkCardListFromSorted(rankedWorks, {
+  const list = await getPaginatedWorkCardListFromSorted(rankedWorks, {
     page: currentPage,
   });
   const rankOffset = (list.currentPage - 1) * list.pageSize;

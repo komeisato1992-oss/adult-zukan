@@ -93,7 +93,7 @@ export default async function SeriesDetailPage({
   const works = await getSeriesWorksBySlug(slug);
   const currentSort = parseWorkSortParam(sort);
   const catalogOrder = await getCatalogOrderMap();
-  const list = getPaginatedDisplayableWorkCardList(works, {
+  const list = await getPaginatedDisplayableWorkCardList(works, {
     page: parsePageParam(page),
     sort: currentSort,
     catalogOrder,

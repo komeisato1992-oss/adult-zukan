@@ -115,11 +115,18 @@ export default async function ActressDetailPage({
       : displayableWorks;
   const currentSort = parseWorkSortParam(sort);
   const catalogOrder = await getCatalogOrderMap();
-  const list = getPaginatedWorkCardList(filteredWorks, {
+  const list = await getPaginatedWorkCardList(filteredWorks, {
     page: parsePageParam(page),
     sort: currentSort,
     catalogOrder,
   });
+  const { mergeLiveStatusIntoItems, mergeLiveStatusIntoItem } = await import(
+    "@/lib/dmm/work-live-status"
+  );
+  const popularWorks = await mergeLiveStatusIntoItems(sections.popularWorks);
+  const latestWork = sections.latestWork
+    ? await mergeLiveStatusIntoItem(sections.latestWork)
+    : null;
   const actressUrl = `${siteConfig.url}${getActressDetailPath(actress.name)}`;
 
   return (
@@ -177,11 +184,9 @@ export default async function ActressDetailPage({
           </div>
         </header>
 
-        {sections.latestWork ? (
-          <ActressLatestWork item={sections.latestWork} />
-        ) : null}
+        {latestWork ? <ActressLatestWork item={latestWork} /> : null}
 
-        <ActressPopularWorks items={sections.popularWorks} />
+        <ActressPopularWorks items={popularWorks} />
 
         <Suspense fallback={null}>
           <ActressPaginatedWorks

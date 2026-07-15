@@ -66,19 +66,68 @@ export function resolveFullSyncEnabled(): boolean {
   return process.env.ADULT_FULL_SYNC_ENABLED === "true";
 }
 
+export type SyncEnvPresence = "true" | "false" | "unset";
+
+function readEnvPresence(name: string): SyncEnvPresence {
+  const raw = process.env[name];
+  if (raw === undefined || raw === "") return "unset";
+  return raw === "true" ? "true" : "false";
+}
+
+/**
+ * 管理画面表示用。
+ * - enabled: 実行可能か（トグル優先、なければ env）
+ * - statusLabel: 有効 / 無効 / 未設定
+ * - envPresence: 環境変数の実値（API と画面で共通参照）
+ */
 export function getAdminOpsSettingsView(): {
   settings: AdminOpsSettings;
   lightSyncEnabled: boolean;
   fullSyncEnabled: boolean;
   lightSyncSource: "toggle" | "env";
   fullSyncSource: "toggle" | "env";
+  lightSyncEnv: SyncEnvPresence;
+  fullSyncEnv: SyncEnvPresence;
+  lightSyncStatus: "enabled" | "disabled" | "unset";
+  fullSyncStatus: "enabled" | "disabled" | "unset";
 } {
   const settings = readAdminOpsSettings();
+  const lightSyncEnv = readEnvPresence("ADULT_LIGHT_SYNC_ENABLED");
+  const fullSyncEnv = readEnvPresence("ADULT_FULL_SYNC_ENABLED");
+  const lightSyncEnabled = resolveLightSyncEnabled();
+  const fullSyncEnabled = resolveFullSyncEnabled();
+
+  const lightSyncStatus: "enabled" | "disabled" | "unset" =
+    settings.lightSyncEnabled != null
+      ? settings.lightSyncEnabled
+        ? "enabled"
+        : "disabled"
+      : lightSyncEnv === "unset"
+        ? "unset"
+        : lightSyncEnabled
+          ? "enabled"
+          : "disabled";
+
+  const fullSyncStatus: "enabled" | "disabled" | "unset" =
+    settings.fullSyncEnabled != null
+      ? settings.fullSyncEnabled
+        ? "enabled"
+        : "disabled"
+      : fullSyncEnv === "unset"
+        ? "unset"
+        : fullSyncEnabled
+          ? "enabled"
+          : "disabled";
+
   return {
     settings,
-    lightSyncEnabled: resolveLightSyncEnabled(),
-    fullSyncEnabled: resolveFullSyncEnabled(),
+    lightSyncEnabled,
+    fullSyncEnabled,
     lightSyncSource: settings.lightSyncEnabled != null ? "toggle" : "env",
     fullSyncSource: settings.fullSyncEnabled != null ? "toggle" : "env",
+    lightSyncEnv,
+    fullSyncEnv,
+    lightSyncStatus,
+    fullSyncStatus,
   };
 }

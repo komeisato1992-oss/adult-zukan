@@ -107,6 +107,9 @@ type AddSelectedResponseBody = {
     catalogCountAfter?: number;
     updatedShardFiles?: string[];
     newShardFiles?: string[];
+    worksMasterUpserted?: boolean;
+    storageLabel?: string;
+    publishedStatus?: "published" | "draft";
   };
 };
 
@@ -448,6 +451,8 @@ export function ImportManagementClient({
       let commitCount = 0;
       let failedBatchIndex: number | null = null;
       let remainingCandidates: FetchedImportCandidate[] = [];
+      let worksMasterUpserted = false;
+      let lastApiMessage: string | null = null;
 
       try {
         for (let batchIndex = 0; batchIndex < batches.length; batchIndex += 1) {
@@ -577,8 +582,14 @@ export function ImportManagementClient({
           for (const file of parsedBody.summary.newShardFiles ?? []) {
             newShardFiles.add(file);
           }
+          if (parsedBody.summary.worksMasterUpserted) {
+            worksMasterUpserted = true;
+          }
+          if (typeof parsedBody.message === "string" && parsedBody.message) {
+            lastApiMessage = parsedBody.message;
+          }
           if ((parsedBody.summary.addedCount ?? 0) > 0) {
-            commitCount += 1;
+            commitCount += worksMasterUpserted ? 0 : 1;
           }
           if (parsedBody.addedContentIds?.length) {
             allAddedIds.push(...parsedBody.addedContentIds);
@@ -669,25 +680,33 @@ export function ImportManagementClient({
             : current,
         );
 
-        const messageLines = [
-          options?.resume
-            ? "残り作品を作業用データへ追加しました。"
-            : `${addedCount.toLocaleString()}件を作業用データへ追加しました。`,
-          "本番サイトにはまだ反映されていません。",
-          "続けて作品を追加するか、最後に『本番反映・デプロイ』を実行してください。",
-          `選択：${totalSelected.toLocaleString()}件`,
-          `追加成功：${addedCount.toLocaleString()}件`,
-          `掲載済み：${catalogDuplicateCount.toLocaleString()}件`,
-          selectionDuplicateCount > 0
-            ? `重複：${selectionDuplicateCount.toLocaleString()}件`
-            : null,
-          `無効：${invalidCount.toLocaleString()}件`,
-          `処理バッチ：${batchCount}回`,
-          `GitHub commit：${commitCount}回`,
-          catalogCountAfter != null
-            ? `現在の総作品数：${catalogCountAfter.toLocaleString()}件`
-            : null,
-        ].filter(Boolean);
+        const messageLines = worksMasterUpserted
+          ? [
+              lastApiMessage,
+              !lastApiMessage
+                ? `${addedCount.toLocaleString()}件を作品マスターへ保存しました。`
+                : null,
+              !lastApiMessage ? "保存先：Supabase（デプロイなし）" : null,
+            ].filter(Boolean)
+          : [
+              options?.resume
+                ? "残り作品を作業用データへ追加しました。"
+                : `${addedCount.toLocaleString()}件を作業用データへ追加しました。`,
+              "本番サイトにはまだ反映されていません。",
+              "続けて作品を追加するか、最後に『本番反映・デプロイ』を実行してください。",
+              `選択：${totalSelected.toLocaleString()}件`,
+              `追加成功：${addedCount.toLocaleString()}件`,
+              `掲載済み：${catalogDuplicateCount.toLocaleString()}件`,
+              selectionDuplicateCount > 0
+                ? `重複：${selectionDuplicateCount.toLocaleString()}件`
+                : null,
+              `無効：${invalidCount.toLocaleString()}件`,
+              `処理バッチ：${batchCount}回`,
+              `GitHub commit：${commitCount}回`,
+              catalogCountAfter != null
+                ? `現在の総作品数：${catalogCountAfter.toLocaleString()}件`
+                : null,
+            ].filter(Boolean);
 
         setAddMessage(messageLines.join("\n"));
         setAddSummary({

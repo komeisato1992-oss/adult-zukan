@@ -1157,6 +1157,24 @@ export async function promoteCatalogToProduction(input: {
       );
     }
 
+    // 最新化後に軽量同期オーバーレイをカタログへ焼き込み
+    try {
+      const { flushLightOverlayIntoWorkingCatalog } = await import(
+        "@/lib/admin/fanza-light-overlay-flush"
+      );
+      const flushed = await flushLightOverlayIntoWorkingCatalog();
+      if (flushed.flushedCount > 0) {
+        startSha = (await fetchBranchSha(working)) ?? startSha;
+        compare = await compareBranches(
+          credentials,
+          production.branch,
+          working.branch,
+        );
+      }
+    } catch (error) {
+      console.warn("[catalog-promote] overlay flush skipped", error);
+    }
+
     const changedFiles = substantiveChangedFiles(compare.files);
 
     if ((compare.ahead_by ?? 0) === 0 && changedFiles.length === 0) {

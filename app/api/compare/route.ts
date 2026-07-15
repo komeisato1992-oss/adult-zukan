@@ -46,10 +46,16 @@ export async function GET(request: Request) {
 
   const catalog = await getCatalogWorks();
   const byId = new Map(catalog.map((item) => [item.content_id, item]));
-  const items = ids
+  const rawItems = ids
     .map((id) => byId.get(id))
-    .filter((item): item is NonNullable<typeof item> => Boolean(item))
-    .map((item) => {
+    .filter((item): item is NonNullable<typeof item> => Boolean(item));
+
+  const { mergeLiveStatusIntoItems } = await import(
+    "@/lib/dmm/work-live-status"
+  );
+  const liveItems = await mergeLiveStatusIntoItems(rawItems);
+
+  const items = liveItems.map((item) => {
       const release = getDmmReleaseDateInfo(item);
       const sale = getSalePriceInfo(item);
       return {

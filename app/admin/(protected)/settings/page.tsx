@@ -4,20 +4,33 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { GoogleEnvPresencePanel } from "@/components/admin/GoogleEnvPresencePanel";
 
+function syncStatusText(status: string | undefined, enabled: boolean): string {
+  if (status === "enabled") return "有効：実行可能";
+  if (status === "disabled") return "無効：設定が必要";
+  if (status === "unset") return "未設定：環境変数未設定";
+  return enabled ? "有効：実行可能" : "無効：設定が必要";
+}
+
 export default function AdminSettingsPage() {
   const [lightSyncEnabled, setLightSyncEnabled] = useState(false);
   const [fullSyncEnabled, setFullSyncEnabled] = useState(false);
+  const [lightSyncStatus, setLightSyncStatus] = useState<string>("unset");
+  const [fullSyncStatus, setFullSyncStatus] = useState<string>("unset");
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/admin/ops-settings");
+      const response = await fetch("/api/admin/ops-settings", {
+        cache: "no-store",
+      });
       const data = await response.json();
       if (response.ok) {
         setLightSyncEnabled(Boolean(data.lightSyncEnabled));
         setFullSyncEnabled(Boolean(data.fullSyncEnabled));
+        setLightSyncStatus(String(data.lightSyncStatus ?? "unset"));
+        setFullSyncStatus(String(data.fullSyncStatus ?? "unset"));
       }
     } finally {
       setLoading(false);
@@ -45,6 +58,8 @@ export default function AdminSettingsPage() {
     }
     setLightSyncEnabled(Boolean(data.lightSyncEnabled));
     setFullSyncEnabled(Boolean(data.fullSyncEnabled));
+    setLightSyncStatus(String(data.lightSyncStatus ?? "unset"));
+    setFullSyncStatus(String(data.fullSyncStatus ?? "unset"));
     setMessage("設定を保存しました。");
   };
 
@@ -67,7 +82,9 @@ export default function AdminSettingsPage() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="font-bold">軽量同期</p>
-            <p className="text-xs text-muted">価格・セール・順位などの更新</p>
+            <p className="text-xs text-muted">
+              {syncStatusText(lightSyncStatus, lightSyncEnabled)}
+            </p>
           </div>
           <button
             type="button"
@@ -84,7 +101,9 @@ export default function AdminSettingsPage() {
         <div className="flex items-center justify-between gap-3">
           <div>
             <p className="font-bold">完全同期</p>
-            <p className="text-xs text-muted">全データ再取得（高負荷）</p>
+            <p className="text-xs text-muted">
+              {syncStatusText(fullSyncStatus, fullSyncEnabled)}（高負荷）
+            </p>
           </div>
           <button
             type="button"

@@ -90,8 +90,14 @@ export async function getWorksListPageData(
   const currentPage = parsePageParam(query.page);
   const pagination = paginateItems(sorted, currentPage, WORKS_LIST_PAGE_SIZE);
 
+  // 一覧1画面分だけ DB の変動情報を一括取得してマージ
+  const { mergeLiveStatusIntoItems } = await import(
+    "@/lib/dmm/work-live-status"
+  );
+  const pageWithLive = await mergeLiveStatusIntoItems(pagination.items);
+
   return {
-    pageItems: mapPageItemsToWorkCards(pagination.items, {
+    pageItems: mapPageItemsToWorkCards(pageWithLive, {
       includeSaleInfo: isSalePage,
     }),
     totalItems: pagination.totalItems,

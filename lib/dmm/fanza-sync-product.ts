@@ -19,6 +19,7 @@ import {
 } from "@/lib/dmm/sync-diff";
 import {
   ADULT_SYNC_MODE_DATE,
+  ADULT_SYNC_MODE_DATE_RANK,
   ADULT_SYNC_MODE_FULL,
   ADULT_SYNC_MODE_LIGHT,
   ADULT_SYNC_MODE_PRICE,
@@ -43,6 +44,8 @@ export type FanzaSyncProductResult = {
   saleEnded: boolean;
   hidden: boolean;
   republished: boolean;
+  /** transport_error 時の HTTP ステータス（429 停止判定用） */
+  httpStatus?: number;
 };
 
 function hasText(value: unknown): value is string {
@@ -182,6 +185,33 @@ function markSuccessLight(
       work: {
         ...existing,
         date: nextDate,
+        lastSyncedAt: now,
+        updatedAt: now,
+      },
+      outcome: "updated",
+      priceChanged: false,
+      saleStarted: false,
+      saleEnded: false,
+      hidden: false,
+      republished: false,
+    };
+  }
+
+  if (mode === ADULT_SYNC_MODE_DATE_RANK) {
+    const nextDate = apiItem.date ?? existing.date;
+    const nextRank =
+      apiItem.sourcePopularityRank ?? existing.sourcePopularityRank;
+    const dateChanged = !stableSame(existing.date, nextDate);
+    const rankChanged = !stableSame(existing.sourcePopularityRank, nextRank);
+    if (!dateChanged && !rankChanged) {
+      return unchangedResult(existing);
+    }
+    return {
+      work: {
+        ...existing,
+        date: nextDate,
+        sourcePopularityRank: nextRank,
+        popularityUpdatedAt: rankChanged ? now : existing.popularityUpdatedAt,
         lastSyncedAt: now,
         updatedAt: now,
       },
@@ -415,6 +445,7 @@ export async function syncFanzaProduct(
         saleEnded: false,
         hidden: false,
         republished: false,
+        httpStatus: error.status,
       };
     }
 

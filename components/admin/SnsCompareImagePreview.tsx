@@ -10,11 +10,11 @@ import {
 } from "@/lib/admin/sns-image-export";
 import { buildImageProxyUrl } from "@/lib/image-proxy";
 import { siteConfig } from "@/lib/site-config";
+import { imageCoverClassName, imageCoverStyle } from "@/components/ui/image-cover";
 import { isValidImageUrl } from "@/lib/works";
 
 const COMPARE_PACKAGE_IMAGE_STYLE = {
-  objectFit: "cover" as const,
-  objectPosition: "right center" as const,
+  ...imageCoverStyle,
   width: "100%",
   height: "100%",
   display: "block" as const,
@@ -54,7 +54,7 @@ function ComparePackageImage({
           src={proxyUrl}
           alt={work.title}
           onError={() => setImageError(true)}
-          className="absolute inset-0 h-full w-full object-cover object-right"
+          className={`absolute inset-0 h-full w-full ${imageCoverClassName}`}
           style={COMPARE_PACKAGE_IMAGE_STYLE}
           crossOrigin="anonymous"
         />

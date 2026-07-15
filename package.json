@@ -42,12 +42,14 @@
     "adult:catalog:format": "node scripts/split-adult-catalog-media.mjs format",
     "adult:catalog:verify": "node scripts/split-adult-catalog-media.mjs verify",
     "test:adult-sync-guard": "node scripts/test-adult-sync-guard.mjs",
+    "migrate:work-live-status": "node scripts/migrate-work-live-status.mjs",
     "measure:vercel-cost-baseline": "node scripts/measure-vercel-cost-baseline.mjs",
     "measure:doujin-io": "node scripts/measure-doujin-io.mjs"
   },
   "dependencies": {
     "@google-analytics/data": "^6.1.0",
     "@next/third-parties": "^15.5.20",
+    "@supabase/supabase-js": "^2.110.5",
     "chart.js": "^4.5.1",
     "html-to-image": "^1.11.13",
     "next": "^15.5.20",

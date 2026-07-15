@@ -41,9 +41,17 @@ export const metadata = createPageMetadata({
 
 export default async function RankingPage() {
   const catalog = await getSharedCatalogWorks();
-  const popularWorks = toRankingWorkCardItems(getPopularWorks(catalog, 10));
-  const weeklyWorks = toRankingWorkCardItems(getWeeklyRankingWorks(catalog, 10));
-  const monthlyWorks = toRankingWorkCardItems(getMonthlyRankingWorks(catalog, 10));
+  const { mergeLiveStatusIntoItems } = await import(
+    "@/lib/dmm/work-live-status"
+  );
+  const [popularRaw, weeklyRaw, monthlyRaw] = await Promise.all([
+    mergeLiveStatusIntoItems(getPopularWorks(catalog, 10)),
+    mergeLiveStatusIntoItems(getWeeklyRankingWorks(catalog, 10)),
+    mergeLiveStatusIntoItems(getMonthlyRankingWorks(catalog, 10)),
+  ]);
+  const popularWorks = toRankingWorkCardItems(popularRaw);
+  const weeklyWorks = toRankingWorkCardItems(weeklyRaw);
+  const monthlyWorks = toRankingWorkCardItems(monthlyRaw);
   const [actressesResult, makersResult, seriesResult] = await Promise.all([
     getPopularActresses(10),
     getPopularMakers(10),

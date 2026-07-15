@@ -3,6 +3,7 @@ import Image from "next/image";
 import { WorkCard } from "@/components/ui/WorkCard";
 import { RankingWorkCard } from "@/components/ranking/RankingWorkCard";
 import { PersonImagePlaceholder } from "@/components/ui/PersonImagePlaceholder";
+import { imageCoverClassName } from "@/components/ui/image-cover";
 import type { Work } from "@/data/types";
 import type { WorkListCardItem } from "@/lib/works/work-list-card-item.types";
 import type {
@@ -179,7 +180,7 @@ export function RankedEntityList({
                   src={item.imageUrl}
                   alt=""
                   fill
-                  className="object-cover"
+                  className={imageCoverClassName}
                   sizes="36px"
                   unoptimized
                 />

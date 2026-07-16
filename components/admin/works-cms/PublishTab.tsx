@@ -30,6 +30,9 @@ type PublishTabProps = {
   setFilters: (next: PublishFilters) => void;
   selected: Set<string>;
   setSelected: (next: Set<string>) => void;
+  onSelectAllFiltered: () => void;
+  onClearSelection: () => void;
+  selectAllBusy?: boolean;
   busy: boolean;
   onSearch: () => void;
   onMutate: (
@@ -63,6 +66,9 @@ export function WorksCmsPublishTab({
   setFilters,
   selected,
   setSelected,
+  onSelectAllFiltered,
+  onClearSelection,
+  selectAllBusy = false,
   busy,
   onSearch,
   onMutate,
@@ -82,14 +88,6 @@ export function WorksCmsPublishTab({
     if (next.has(cid)) next.delete(cid);
     else next.add(cid);
     setSelected(next);
-  };
-
-  const selectAllFiltered = () => {
-    setSelected(new Set(items.map((item) => item.cid)));
-  };
-
-  const clearSelection = () => {
-    setSelected(new Set());
   };
 
   // フィルター変更時は選択を解除（初回マウントは対象外）
@@ -193,19 +191,19 @@ export function WorksCmsPublishTab({
       <div className="flex gap-2">
         <button
           type="button"
-          onClick={selectAllFiltered}
-          disabled={busy || items.length === 0}
+          onClick={onSelectAllFiltered}
+          disabled={busy || selectAllBusy || items.length === 0}
           className="min-h-[44px] flex-1 rounded-lg border border-border bg-white text-sm font-bold disabled:opacity-40"
         >
-          全選択
+          {selectAllBusy ? "選択中…" : "すべて選択"}
         </button>
         <button
           type="button"
-          onClick={clearSelection}
+          onClick={onClearSelection}
           disabled={busy || selected.size === 0}
           className="min-h-[44px] flex-1 rounded-lg border border-border bg-white text-sm font-bold disabled:opacity-40"
         >
-          全解除
+          選択解除
         </button>
       </div>
 

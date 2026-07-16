@@ -138,17 +138,27 @@ export async function getFanzaTvCheckStatus() {
   }
 
   const stats = await getFanzaTvCheckStats();
-  const profile = resolveProfilePath();
+  const onVercel = isVercelRuntime();
+  const profile = onVercel
+    ? {
+        kind: null as null,
+        path: null,
+        message:
+          "見放題判定はMac上で実行します。本番管理画面では結果と進捗のみ確認できます。",
+      }
+    : resolveProfilePath();
 
   return {
-    currentJob: job,
-    progressPercent: job ? fanzaTvCheckProgressPercent(job) : 0,
+    currentJob: onVercel ? null : job,
+    progressPercent:
+      !onVercel && job ? fanzaTvCheckProgressPercent(job) : 0,
     stats,
-    profileReady: Boolean(profile.kind),
+    profileReady: onVercel ? false : Boolean(profile.kind),
     profilePath: profile.path,
     profileKind: profile.kind,
     profileMessage: profile.message,
-    localOnly: !isVercelRuntime(),
+    localOnly: !onVercel,
+    canRunPlaywright: !onVercel,
   };
 }
 

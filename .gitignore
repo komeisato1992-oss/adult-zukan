@@ -58,8 +58,14 @@ yarn-error.log*
 /data/dmm/fanza-sync-history.json
 /data/dmm/live-status-init-job.json
 /data/dmm/fanza-tv-check-job.json
+# Playwright ログイン状態・Cookie・プロファイル（絶対にGitへ入れない）
 /.playwright/
+/.playwright/**
+**/fanza-tv-storage-state.json
+**/fanza-tv-profile/
 /reports/fanza-tv-check/
+/reports/fanza-tv-check/**
+/reports/fanza-tv-collect/
 
 # 同人図鑑: ジョブ/ログはローカルのみ。表示用カタログJSONは本番反映のため追跡する
 /data/doujin/import-jobs.json

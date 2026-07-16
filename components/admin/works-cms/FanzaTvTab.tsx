@@ -16,6 +16,8 @@ type FanzaTvTabProps = {
   stats: FanzaTvCheckStatsView | null;
   profileReady: boolean;
   profileMessage: string | null;
+  /** false = Vercel等。Playwright起動不可 */
+  canRunPlaywright: boolean;
   busy: boolean;
   onStart: (
     mode: "unchecked_only" | "full_recheck" | "limit",
@@ -36,6 +38,7 @@ export function WorksCmsFanzaTvTab({
   stats,
   profileReady,
   profileMessage,
+  canRunPlaywright,
   busy,
   onStart,
   onStop,
@@ -43,22 +46,22 @@ export function WorksCmsFanzaTvTab({
 }: FanzaTvTabProps) {
   const tv = overview?.fanzaTv;
   const totalCount = stats?.totalCount ?? overview?.totalCount ?? 0;
-  const availableCount =
-    stats?.availableCount ?? tv?.activeCount ?? 0;
+  const availableCount = stats?.availableCount ?? tv?.activeCount ?? 0;
   const unavailableCount =
     stats?.unavailableCount ?? tv?.notAvailableCount ?? 0;
-  const uncheckedCount =
-    stats?.uncheckedCount ?? tv?.uncheckedCount ?? 0;
-  const lastCheckedAt =
-    stats?.lastCheckedAt ?? tv?.lastCheckedAt ?? null;
+  const uncheckedCount = stats?.uncheckedCount ?? tv?.uncheckedCount ?? 0;
+  const lastCheckedAt = stats?.lastCheckedAt ?? tv?.lastCheckedAt ?? null;
   const schemaReady = stats?.schemaReady !== false;
 
   const running =
     job?.status === "running" || job?.status === "pending";
   const canResume =
+    canRunPlaywright &&
     (job?.status === "stopped" || job?.status === "failed") &&
     (job.pendingCount ?? 0) > 0;
   const progress = job?.progressPercent ?? 0;
+  const canStart =
+    canRunPlaywright && !busy && !running && schemaReady && profileReady;
 
   const cards = [
     { label: "対象作品", value: displayCount(totalCount) },
@@ -84,12 +87,18 @@ export function WorksCmsFanzaTvTab({
         <div className="rounded-xl border border-red-300 bg-red-50 px-3 py-2 text-xs text-red-950">
           works に fanza_tv_* 列がありません。判定は実行できません。Supabase SQL
           Editor で
-          <code className="mx-1">supabase/migrations/20260716_004_works_fanza_tv.sql</code>
+          <code className="mx-1">
+            supabase/migrations/20260716_004_works_fanza_tv.sql
+          </code>
           を適用してください。
         </div>
       ) : null}
 
-      {!profileReady ? (
+      {!canRunPlaywright ? (
+        <div className="rounded-xl border border-sky-300 bg-sky-50 px-3 py-2 text-xs text-sky-950">
+          見放題判定はMac上で実行します。本番管理画面では結果と進捗のみ確認できます。
+        </div>
+      ) : !profileReady ? (
         <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-950">
           {profileMessage ||
             "Playwrightプロファイルが未設定です。先に npm run fanza-tv:save-profile を実行してください。"}
@@ -110,43 +119,127 @@ export function WorksCmsFanzaTvTab({
         ))}
       </div>
 
+      {/* 前回処理結果（ジョブがあれば詳細、なければDB集計のみ） */}
       <div className="rounded-xl border border-border bg-white p-3 space-y-2">
-        <p className="text-sm font-bold">実行メニュー</p>
-        <div className="grid gap-1.5 sm:grid-cols-2">
-          <button
-            type="button"
-            disabled={busy || running || !schemaReady || !profileReady}
-            onClick={() => onStart("unchecked_only")}
-            className="min-h-[40px] rounded-lg bg-sky-600 text-sm font-bold text-white disabled:bg-zinc-300 disabled:text-zinc-600"
-          >
-            ① 未確認のみ判定
-          </button>
-          <button
-            type="button"
-            disabled={busy || running || !schemaReady || !profileReady}
-            onClick={() => onStart("full_recheck")}
-            className="min-h-[40px] rounded-lg border border-sky-600 text-sm font-bold text-sky-800 disabled:border-zinc-300 disabled:text-zinc-500"
-          >
-            ② 全件再判定
-          </button>
-        </div>
-        <p className="text-xs font-semibold text-muted">③ 指定件数のみ</p>
-        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
-          {([100, 500, 1000, "all"] as const).map((limit) => (
-            <button
-              key={String(limit)}
-              type="button"
-              disabled={busy || running || !schemaReady || !profileReady}
-              onClick={() => onStart("limit", limit)}
-              className="min-h-[40px] rounded-lg border border-border text-sm font-semibold disabled:text-zinc-500"
-            >
-              {limit === "all" ? "全件" : `${limit}件`}
-            </button>
-          ))}
-        </div>
+        <p className="text-sm font-bold">前回処理結果</p>
+        {job ? (
+          <dl className="grid grid-cols-2 gap-1.5 sm:grid-cols-4 text-xs">
+            <div>
+              <dt className="text-muted">状態</dt>
+              <dd className="font-bold">{job.status}</dd>
+            </div>
+            <div>
+              <dt className="text-muted">成功件数</dt>
+              <dd className="font-bold tabular-nums text-emerald-800">
+                {job.successCount.toLocaleString()}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-muted">失敗件数</dt>
+              <dd className="font-bold tabular-nums text-red-700">
+                {job.failedCount.toLocaleString()}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-muted">実行時間</dt>
+              <dd className="font-bold">{formatDuration(job.elapsedMs)}</dd>
+            </div>
+            <div className="col-span-2 sm:col-span-4">
+              <dt className="text-muted">メッセージ</dt>
+              <dd className="font-medium">{job.message || "—"}</dd>
+            </div>
+            {job.lastError ? (
+              <div className="col-span-2 sm:col-span-4">
+                <dt className="text-muted">エラー</dt>
+                <dd className="font-medium text-red-700">{job.lastError}</dd>
+              </div>
+            ) : null}
+          </dl>
+        ) : (
+          <p className="text-xs text-muted">
+            詳細ジョブ履歴はMac実行時に表示されます。現在のDB集計: 見放題{" "}
+            {displayCount(availableCount)} / 対象外{" "}
+            {displayCount(unavailableCount)} / 未確認{" "}
+            {displayCount(uncheckedCount)}
+          </p>
+        )}
       </div>
 
-      {job ? (
+      {canRunPlaywright ? (
+        <div className="rounded-xl border border-border bg-white p-3 space-y-2">
+          <p className="text-sm font-bold">実行メニュー（Macローカル）</p>
+          <div className="grid gap-1.5 sm:grid-cols-2">
+            <button
+              type="button"
+              disabled={!canStart}
+              onClick={() => onStart("unchecked_only")}
+              className="min-h-[40px] rounded-lg bg-sky-600 text-sm font-bold text-white disabled:bg-zinc-300 disabled:text-zinc-600"
+            >
+              ① 未確認のみ判定
+            </button>
+            <button
+              type="button"
+              disabled={!canStart}
+              onClick={() => onStart("full_recheck")}
+              className="min-h-[40px] rounded-lg border border-sky-600 text-sm font-bold text-sky-800 disabled:border-zinc-300 disabled:text-zinc-500"
+            >
+              ② 全件再判定
+            </button>
+          </div>
+          <p className="text-xs font-semibold text-muted">③ 指定件数のみ</p>
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+            {([100, 500, 1000, "all"] as const).map((limit) => (
+              <button
+                key={String(limit)}
+                type="button"
+                disabled={!canStart}
+                onClick={() => onStart("limit", limit)}
+                className="min-h-[40px] rounded-lg border border-border text-sm font-semibold disabled:text-zinc-500"
+              >
+                {limit === "all" ? "全件" : `${limit}件`}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-border bg-white p-3 space-y-2">
+          <p className="text-sm font-bold">実行メニュー</p>
+          <p className="text-xs text-muted">
+            本番（Vercel）では判定を開始できません。Macのターミナルで実行してください。
+          </p>
+          <div className="grid gap-1.5 sm:grid-cols-2 opacity-60">
+            <button
+              type="button"
+              disabled
+              className="min-h-[40px] rounded-lg bg-zinc-300 text-sm font-bold text-zinc-600"
+            >
+              ① 未確認のみ判定
+            </button>
+            <button
+              type="button"
+              disabled
+              className="min-h-[40px] rounded-lg border border-zinc-300 text-sm font-bold text-zinc-500"
+            >
+              ② 全件再判定
+            </button>
+          </div>
+          <p className="text-xs font-semibold text-muted">③ 指定件数のみ</p>
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+            {([100, 500, 1000, "all"] as const).map((limit) => (
+              <button
+                key={String(limit)}
+                type="button"
+                disabled
+                className="min-h-[40px] rounded-lg border border-zinc-300 text-sm font-semibold text-zinc-500"
+              >
+                {limit === "all" ? "全件" : `${limit}件`}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {job && canRunPlaywright ? (
         <div className="rounded-xl border border-sky-200 bg-sky-50 px-3 py-3 space-y-2 text-xs text-sky-950">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="font-bold">
@@ -211,9 +304,7 @@ export function WorksCmsFanzaTvTab({
             <div>
               <dt className="text-muted">予想残り時間</dt>
               <dd className="font-bold">
-                {running
-                  ? formatDuration(job.estimatedRemainingMs)
-                  : "—"}
+                {running ? formatDuration(job.estimatedRemainingMs) : "—"}
               </dd>
             </div>
             <div>
@@ -224,10 +315,6 @@ export function WorksCmsFanzaTvTab({
               </dd>
             </div>
           </dl>
-          <p className="truncate">{job.message}</p>
-          {job.lastError ? (
-            <p className="text-red-700">エラー: {job.lastError}</p>
-          ) : null}
         </div>
       ) : null}
 
@@ -237,9 +324,11 @@ export function WorksCmsFanzaTvTab({
           {`# 初回のみ: 年齢確認・ログイン状態を保存
 npm run fanza-tv:save-profile
 
-# 管理画面から実行（推奨・Cursorを閉じても継続）
-# または CLI:
-npm run fanza-tv:check -- --limit=100`}
+# 指定件数（例: 100件）
+npm run fanza-tv:check -- --limit=100
+
+# 未確認のみ / 全件は管理画面（Macローカル）から実行
+# または CLI で limit を指定`}
         </pre>
       </div>
     </section>

@@ -4,6 +4,7 @@ import { unstable_cache } from "next/cache";
 import { normalizeCatalogContentId } from "@/lib/dmm/catalog-snapshot";
 import { applyLiveStatusToItem } from "@/lib/dmm/work-live-status/map";
 import { supabaseFetchLiveStatusByCids } from "@/lib/dmm/work-live-status/supabase-store";
+import type { WorkLiveStatusRow } from "@/lib/dmm/work-live-status/types";
 import type { DmmItem } from "@/lib/dmm/types";
 import { workMasterRowToDmmItem } from "@/lib/dmm/works-master/map";
 import {
@@ -20,11 +21,18 @@ import type {
   WorksListQueryState,
 } from "@/lib/works/list-filters";
 import {
+  getAppliedGenres,
+  getAppliedMakers,
+} from "@/lib/works/list-filters";
+import {
   DEFAULT_CATALOG_SORT_OPTIONS,
+  getTokyoDateString,
+  isReleasedOnOrBefore,
   parseWorkSortParam,
   SALE_DEFAULT_WORK_SORT,
   type WorkSortKey,
   type WorkSortOption,
+  WORK_SORT_LABELS,
 } from "@/lib/works/sort";
 import { mapPageItemsToWorkCards } from "@/lib/works/paginated-work-list";
 import type { WorkListCardItem } from "@/lib/works/work-list-card-item.types";
@@ -43,13 +51,21 @@ const WORKS_MASTER_CACHE_TAG = "works-master";
 const PUBLIC_WORKS_LIST_TAG = "public-works-list";
 const WORKS_TABLE = "works";
 const LIVE_TABLE = "work_live_status";
-/** 本番 DB に CMS 列（manual_hidden/deleted_at）が未適用でも動く最小 SELECT */
 const LIST_SELECT =
   "cid,slug,title,description,package_image,image_status,sample_images,actresses,maker,label,series,genres,release_date,duration,product_code,affiliate_url,published,created_at,updated_at";
 
+let priceAmountColumnAvailable: boolean | null = null;
+let durationMinutesColumnAvailable: boolean | null = null;
+let listRpcAvailable: boolean | null = null;
+
+/**
+ * price_amount 未適用環境向けフォールバック。
+ * backfill が現在価格（円）を new_arrival_rank に格納する。
+ */
+const PRICE_SORT_FALLBACK_COLUMN = "new_arrival_rank";
+
 export function isPublicWorksDbQueryAvailable(): boolean {
   const backend = getConfiguredWorksMasterBackend();
-  // getConfiguredWorksMasterBackend() は auto を supabase/local に解決済み
   return backend === "supabase" || isWorksMasterSupabaseConfigured();
 }
 
@@ -61,29 +77,27 @@ function resolveSort(
   return parseWorkSortParam(query.sort);
 }
 
-function hasHeavyClientSideFilters(query: WorksListQueryState): boolean {
-  const price = (query.price ?? "all").trim();
-  const date = (query.date ?? "all").trim();
+function hasUnsupportedDbFilters(query: WorksListQueryState): boolean {
+  // テキスト検索・ジャンル複数は DB JSON 絞り込みが重いためカタログへ
   return (
     Boolean(query.q?.trim()) ||
     Boolean(query.genre?.trim()) ||
-    Boolean(query.genres?.trim()) ||
-    Boolean(query.maker?.trim()) ||
-    Boolean(query.makers?.trim()) ||
-    (price !== "" && price !== "all") ||
-    (date !== "" && date !== "all")
+    Boolean(query.genres?.trim())
   );
 }
 
-async function rowsToLiveItems(
-  rows: WorkMasterRow[],
-): Promise<DmmItem[]> {
+async function rowsToLiveItems(rows: WorkMasterRow[]): Promise<DmmItem[]> {
   const items = rows.map(workMasterRowToDmmItem);
   const cids = items.map((item) => item.content_id);
-  const liveMap = await measureAsync("supabase.live_status.by_cids", () =>
-    supabaseFetchLiveStatusByCids(cids),
-  );
-  incrPerfCounter("supabase.queries");
+  let liveMap = new Map<string, WorkLiveStatusRow>();
+  try {
+    liveMap = await measureAsync("supabase.live_status.by_cids", () =>
+      supabaseFetchLiveStatusByCids(cids),
+    );
+    incrPerfCounter("supabase.queries");
+  } catch (error) {
+    console.warn("[public-list] live status merge skipped", error);
+  }
   return items.map((item) =>
     applyLiveStatusToItem(item, liveMap.get(item.content_id) ?? null),
   );
@@ -98,7 +112,6 @@ function parseWorkRows(data: unknown[] | null): WorkMasterRow[] {
   return rows;
 }
 
-/** supabase-store の normalizeRow は export されていないためローカル複製 */
 function normalizeWorkMasterRowFromStore(
   raw: Record<string, unknown>,
 ): WorkMasterRow | null {
@@ -183,9 +196,13 @@ async function fetchWorksByCidsOrdered(
     return [];
   }
 
+  const today = getTokyoDateString();
   const map = new Map<string, WorkMasterRow>();
   for (const row of parseWorkRows(data)) {
     if (row.image_status === "now_printing" || row.image_status === "fetch_failed") {
+      continue;
+    }
+    if (!isReleasedOnOrBefore(row.release_date, today)) {
       continue;
     }
     map.set(row.cid, row);
@@ -193,114 +210,370 @@ async function fetchWorksByCidsOrdered(
   return cids.map((cid) => map.get(cid)).filter((row): row is WorkMasterRow => Boolean(row));
 }
 
-/** 新着・人気・セールなど単純ソートの1ページ分 */
-export async function fetchPublicWorksPage(options: {
+async function detectPriceAmountColumn(): Promise<boolean> {
+  if (priceAmountColumnAvailable != null) return priceAmountColumnAvailable;
+  const client = getSupabaseServiceClient();
+  if (!client) {
+    priceAmountColumnAvailable = false;
+    return false;
+  }
+  const { error } = await client
+    .from(LIVE_TABLE)
+    .select("price_amount")
+    .limit(1);
+  priceAmountColumnAvailable = !error;
+  return priceAmountColumnAvailable;
+}
+
+async function detectDurationMinutesColumn(): Promise<boolean> {
+  if (durationMinutesColumnAvailable != null) {
+    return durationMinutesColumnAvailable;
+  }
+  const client = getSupabaseServiceClient();
+  if (!client) {
+    durationMinutesColumnAvailable = false;
+    return false;
+  }
+  const { error } = await client
+    .from(WORKS_TABLE)
+    .select("duration_minutes")
+    .limit(1);
+  durationMinutesColumnAvailable = !error;
+  return durationMinutesColumnAvailable;
+}
+
+async function tryFetchViaRpc(options: {
   sort: WorkSortKey;
   page: number;
-  pageSize?: number;
+  pageSize: number;
   saleOnly?: boolean;
+  seed?: string;
+}): Promise<{ items: DmmItem[]; totalItems: number } | null> {
+  // マイグレーション未適用環境では RPC を試さない（ビルドログ汚染・余分な往復を避ける）
+  if (listRpcAvailable === false) return null;
+  if (listRpcAvailable == null) {
+    // price_amount 未適用なら RPC も未適用とみなす
+    const hasPriceAmount = await detectPriceAmountColumn();
+    if (!hasPriceAmount) {
+      listRpcAvailable = false;
+      return null;
+    }
+  }
+  const client = getSupabaseServiceClient();
+  if (!client) return null;
+
+  const page = Math.max(1, options.page);
+  const pageSize = options.pageSize;
+  const offset = (page - 1) * pageSize;
+
+  const { data, error } = await client.rpc("fetch_public_works_list_page", {
+    p_sort: options.sort,
+    p_offset: offset,
+    p_limit: pageSize,
+    p_sale_only: Boolean(options.saleOnly),
+    p_seed: options.seed ?? getTokyoDateString(),
+  });
+
+  if (error) {
+    listRpcAvailable = false;
+    console.warn("[public-list] rpc unavailable", error.message);
+    return null;
+  }
+  listRpcAvailable = true;
+
+  const rows = (data ?? []) as Array<{ cid?: string; total_count?: number }>;
+  const cids = rows
+    .map((row) => normalizeCatalogContentId(String(row.cid ?? "")))
+    .filter((cid): cid is string => Boolean(cid));
+  const totalItems =
+    rows.length > 0 ? Number(rows[0]?.total_count ?? cids.length) : 0;
+  const workRows = await fetchWorksByCidsOrdered(cids);
+  const items = await rowsToLiveItems(workRows);
+  return { items, totalItems };
+}
+
+function applyMakerFilter<T extends { eq: (col: string, val: string) => T }>(
+  query: T,
+  makers: string[],
+): T {
+  if (makers.length === 1) {
+    return query.eq("maker", makers[0]!);
+  }
+  return query;
+}
+
+async function fetchPublicWorksPageLegacy(options: {
+  sort: WorkSortKey;
+  page: number;
+  pageSize: number;
+  saleOnly?: boolean;
+  seed?: string;
+  makers?: string[];
+  price?: string;
+  date?: string;
 }): Promise<{ items: DmmItem[]; totalItems: number }> {
-  const pageSize = options.pageSize ?? WORKS_LIST_PAGE_SIZE;
+  const pageSize = options.pageSize;
   const page = Math.max(1, options.page);
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
   const client = getSupabaseServiceClient();
   if (!client) return { items: [], totalItems: 0 };
 
-  return measureAsync(`public.works.page.${options.sort}`, async () => {
-    // セール / 人気 / 割引率は live_status 起点
-    if (
-      options.saleOnly ||
-      options.sort === "popular" ||
-      options.sort === "discount-desc" ||
-      options.sort === "price-asc" ||
-      options.sort === "price-desc"
-    ) {
-      let liveQuery = client
-        .from(LIVE_TABLE)
-        .select("cid", { count: "exact" })
-        .eq("is_available", true);
+  const today = getTokyoDateString();
+  // PostgREST の or/filter に空白を入れるとパースが壊れるため、翌日未満で発売日を切る
+  const tomorrow = (() => {
+    const [y, m, d] = today.split("-").map(Number);
+    const dt = new Date(Date.UTC(y!, m! - 1, d! + 1));
+    return dt.toISOString().slice(0, 10);
+  })();
+  const releaseOnOrBeforeFilter = `release_date.is.null,release_date.lt.${tomorrow}`;
+  const hasPriceAmount = await detectPriceAmountColumn();
+  const hasDurationMinutes = await detectDurationMinutesColumn();
+  const makers = options.makers ?? [];
+  const singleMaker = makers.length === 1 ? makers[0] : undefined;
 
-      if (options.saleOnly || options.sort === "discount-desc") {
-        liveQuery = liveQuery.eq("is_sale", true);
-      }
+  const liveSorts = new Set<WorkSortKey>([
+    "popular",
+    "price-asc",
+    "price-desc",
+    "discount",
+    "rating",
+  ]);
 
-      if (options.sort === "popular") {
-        liveQuery = liveQuery
-          .not("popularity_rank", "is", null)
-          .order("popularity_rank", { ascending: true });
-      } else if (options.sort === "discount-desc") {
-        liveQuery = liveQuery.order("discount_rate", {
-          ascending: false,
+  if (options.saleOnly || liveSorts.has(options.sort)) {
+    let liveQuery = client
+      .from(LIVE_TABLE)
+      .select("cid", { count: "exact" })
+      .eq("is_available", true);
+
+    if (options.saleOnly || options.sort === "discount") {
+      liveQuery = liveQuery
+        .eq("is_sale", true)
+        .gt("discount_rate", 0)
+        .or(`sale_end_at.is.null,sale_end_at.gt.${new Date().toISOString()}`);
+    }
+
+    if (options.sort === "popular") {
+      // 0 は除外、null（未取得）は末尾
+      liveQuery = liveQuery
+        .or("popularity_rank.gt.0,popularity_rank.is.null")
+        .order("popularity_rank", { ascending: true, nullsFirst: false })
+        .order("review_count", { ascending: false, nullsFirst: false })
+        .order("rating", { ascending: false, nullsFirst: false });
+    } else if (options.sort === "discount") {
+      const priceCol = hasPriceAmount
+        ? "price_amount"
+        : PRICE_SORT_FALLBACK_COLUMN;
+      liveQuery = liveQuery
+        .order("discount_rate", { ascending: false, nullsFirst: false })
+        .order(priceCol, {
+          ascending: true,
           nullsFirst: false,
         });
-      } else if (options.sort === "price-asc") {
-        liveQuery = liveQuery
-          .not("price", "is", null)
-          .order("price", { ascending: true });
-      } else if (options.sort === "price-desc") {
-        liveQuery = liveQuery
-          .not("price", "is", null)
-          .order("price", { ascending: false });
-      } else {
-        liveQuery = liveQuery.order("updated_at", { ascending: false });
-      }
-
-      const { data, count, error } = await liveQuery.range(from, to);
-      incrPerfCounter("supabase.queries");
-      if (error) {
-        console.warn("[public-list] live page failed", error.message);
-        return { items: [], totalItems: 0 };
-      }
-
-      const cids = (data ?? [])
-        .map((row) =>
-          normalizeCatalogContentId(String((row as { cid?: string }).cid ?? "")),
-        )
-        .filter((cid): cid is string => Boolean(cid));
-      const rows = await fetchWorksByCidsOrdered(cids);
-      const items = await rowsToLiveItems(rows);
-      return { items, totalItems: count ?? items.length };
-    }
-
-    // 新着・追加順・再生時間など works テーブル起点
-    let worksQuery = client
-      .from(WORKS_TABLE)
-      .select(LIST_SELECT, { count: "exact" })
-      .eq("published", true)
-      .or("image_status.eq.ok,image_status.is.null");
-
-    if (options.sort === "release-desc" || options.sort === "new") {
-      worksQuery = worksQuery
-        .order("release_date", { ascending: false, nullsFirst: false })
-        .order("created_at", { ascending: false });
-    } else if (options.sort === "added") {
-      worksQuery = worksQuery.order("created_at", { ascending: false });
-    } else if (options.sort === "duration-desc") {
-      worksQuery = worksQuery.order("duration", {
-        ascending: false,
-        nullsFirst: false,
-      });
+    } else if (options.sort === "price-asc" || options.sort === "price-desc") {
+      const priceCol = hasPriceAmount
+        ? "price_amount"
+        : PRICE_SORT_FALLBACK_COLUMN;
+      liveQuery = liveQuery.gt(priceCol, 0);
+      liveQuery = liveQuery
+        .order(priceCol, {
+          ascending: options.sort === "price-asc",
+          nullsFirst: false,
+        })
+        .order("popularity_rank", { ascending: true, nullsFirst: false });
+    } else if (options.sort === "rating") {
+      liveQuery = liveQuery
+        .gt("review_count", 0)
+        .not("rating", "is", null)
+        .order("rating", { ascending: false, nullsFirst: false })
+        .order("review_count", { ascending: false, nullsFirst: false })
+        .order("popularity_rank", { ascending: true, nullsFirst: false });
     } else {
-      worksQuery = worksQuery
-        .order("release_date", { ascending: false, nullsFirst: false })
-        .order("created_at", { ascending: false });
+      liveQuery = liveQuery.order("updated_at", { ascending: false });
     }
 
-    const { data, count, error } = await worksQuery.range(from, to);
+    // 発売前除外は works 側で行うため、多めに取得して穴埋め
+    const overscan = Math.min(200, pageSize * 5);
+    const fetchFrom = Math.max(0, from);
+    const fetchTo = fetchFrom + overscan - 1;
+    const { data, count, error } = await liveQuery.range(fetchFrom, fetchTo);
     incrPerfCounter("supabase.queries");
     if (error) {
-      console.warn("[public-list] works page failed", error.message);
+      console.warn("[public-list] live page failed", error.message);
       return { items: [], totalItems: 0 };
     }
 
-    const rows = parseWorkRows(data).filter(
-      (row) =>
-        row.image_status !== "now_printing" &&
-        row.image_status !== "fetch_failed",
+    const cids = (data ?? [])
+      .map((row) =>
+        normalizeCatalogContentId(String((row as { cid?: string }).cid ?? "")),
+      )
+      .filter((cid): cid is string => Boolean(cid));
+
+    let workQuery = client
+      .from(WORKS_TABLE)
+      .select(LIST_SELECT)
+      .in("cid", cids)
+      .eq("published", true)
+      .or("image_status.eq.ok,image_status.is.null")
+      .or(releaseOnOrBeforeFilter);
+
+    if (singleMaker) {
+      workQuery = workQuery.eq("maker", singleMaker);
+    }
+
+    const { data: workData, error: workError } = await workQuery;
+    incrPerfCounter("supabase.queries");
+    if (workError) {
+      console.warn("[public-list] works filter failed", workError.message);
+      return { items: [], totalItems: 0 };
+    }
+
+    const workMap = new Map(
+      parseWorkRows(workData).map((row) => [row.cid, row] as const),
     );
-    const items = await rowsToLiveItems(rows);
+    const orderedRows = cids
+      .map((cid) => workMap.get(cid))
+      .filter((row): row is WorkMasterRow => Boolean(row))
+      .slice(0, pageSize);
+
+    const items = await rowsToLiveItems(orderedRows);
+    // count は live 側概算（発売前除外分は多少ずれる）
     return { items, totalItems: count ?? items.length };
+  }
+
+  // works テーブル起点: 新着 / 追加 / 再生時間 / ランダム
+  let worksQuery = client
+    .from(WORKS_TABLE)
+    .select(LIST_SELECT, { count: "exact" })
+    .eq("published", true)
+    .or("image_status.eq.ok,image_status.is.null")
+    .or(releaseOnOrBeforeFilter);
+
+  if (singleMaker) {
+    worksQuery = applyMakerFilter(worksQuery, makers);
+  }
+
+  if (options.sort === "release-new") {
+    worksQuery = worksQuery
+      .order("release_date", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false });
+  } else if (options.sort === "added") {
+    worksQuery = worksQuery.order("created_at", { ascending: false });
+  } else if (options.sort === "duration-desc") {
+    if (hasDurationMinutes) {
+      worksQuery = worksQuery
+        .gt("duration_minutes", 0)
+        .order("duration_minutes", { ascending: false, nullsFirst: false });
+    } else {
+      // テキスト duration はゼロ埋め済みを前提に DESC
+      worksQuery = worksQuery
+        .not("duration", "is", null)
+        .neq("duration", "0")
+        .order("duration", { ascending: false, nullsFirst: false });
+    }
+  } else if (options.sort === "random") {
+    // シード付きオフセット（ページ移動で重複しにくい）
+    const { count: totalCount } = await client
+      .from(WORKS_TABLE)
+      .select("cid", { count: "exact", head: true })
+      .eq("published", true)
+      .or("image_status.eq.ok,image_status.is.null")
+      .or(releaseOnOrBeforeFilter);
+    incrPerfCounter("supabase.queries");
+    const total = totalCount ?? 0;
+    if (total === 0) return { items: [], totalItems: 0 };
+    const seed = options.seed ?? getTokyoDateString();
+    let hash = 2166136261;
+    for (let i = 0; i < seed.length; i += 1) {
+      hash ^= seed.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    const base = hash >>> 0;
+    const start = (base + (page - 1) * pageSize) % Math.max(1, total);
+    const end = Math.min(start + pageSize - 1, total - 1);
+    const { data, error } = await worksQuery
+      .order("cid", { ascending: true })
+      .range(start, end);
+    incrPerfCounter("supabase.queries");
+    if (error) {
+      console.warn("[public-list] random page failed", error.message);
+      return { items: [], totalItems: 0 };
+    }
+    let rows = parseWorkRows(data);
+    if (rows.length < pageSize && start > 0) {
+      const need = pageSize - rows.length;
+      const { data: wrapData } = await client
+        .from(WORKS_TABLE)
+        .select(LIST_SELECT)
+        .eq("published", true)
+        .or("image_status.eq.ok,image_status.is.null")
+        .or(releaseOnOrBeforeFilter)
+        .order("cid", { ascending: true })
+        .range(0, need - 1);
+      incrPerfCounter("supabase.queries");
+      rows = [...rows, ...parseWorkRows(wrapData)];
+    }
+    const items = await rowsToLiveItems(rows.slice(0, pageSize));
+    return { items, totalItems: total };
+  } else {
+    worksQuery = worksQuery
+      .order("release_date", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false });
+  }
+
+  const { data, count, error } = await worksQuery.range(from, to);
+  incrPerfCounter("supabase.queries");
+  if (error) {
+    console.warn("[public-list] works page failed", error.message);
+    return { items: [], totalItems: 0 };
+  }
+
+  const rows = parseWorkRows(data).filter(
+    (row) =>
+      row.image_status !== "now_printing" &&
+      row.image_status !== "fetch_failed",
+  );
+  const items = await rowsToLiveItems(rows);
+  return { items, totalItems: count ?? items.length };
+}
+
+/** 新着・人気・セールなど単純ソートの1ページ分（最大 pageSize 件） */
+export async function fetchPublicWorksPage(options: {
+  sort: WorkSortKey;
+  page: number;
+  pageSize?: number;
+  saleOnly?: boolean;
+  seed?: string;
+  makers?: string[];
+  price?: string;
+  date?: string;
+}): Promise<{ items: DmmItem[]; totalItems: number }> {
+  const pageSize = options.pageSize ?? WORKS_LIST_PAGE_SIZE;
+  const page = Math.max(1, options.page);
+
+  return measureAsync(`public.works.page.${options.sort}`, async () => {
+    const makers = options.makers ?? [];
+    const canUseRpc =
+      makers.length === 0 &&
+      (!options.price || options.price === "all") &&
+      (!options.date || options.date === "all");
+
+    if (canUseRpc) {
+      const viaRpc = await tryFetchViaRpc({
+        sort: options.sort,
+        page,
+        pageSize,
+        saleOnly: options.saleOnly,
+        seed: options.seed,
+      });
+      if (viaRpc) return viaRpc;
+    }
+
+    return fetchPublicWorksPageLegacy({
+      ...options,
+      page,
+      pageSize,
+    });
   });
 }
 
@@ -327,7 +600,7 @@ export async function fetchCachedPublicWorksSlice(options: {
       return items;
     },
     [
-      "public-works-slice-v2",
+      "public-works-slice-v3",
       options.cacheKey,
       options.sort,
       String(options.limit),
@@ -361,7 +634,6 @@ async function fetchFilterOptionsUncached(): Promise<{
   const genreCounts = new Map<string, number>();
   const makerCounts = new Map<string, number>();
   const PAGE = 1000;
-  // フィルター用は全件走査せず最大3ページ分で近似（初回TTFBを守る）
   const MAX_PAGES = 1;
 
   for (let page = 0; page < MAX_PAGES; page += 1) {
@@ -427,36 +699,80 @@ export async function getCachedWorkFilterOptions(): Promise<{
   }
 }
 
+function buildListCacheKey(parts: {
+  sort: WorkSortKey;
+  isSalePage: boolean;
+  page: number;
+  seed?: string;
+  genres: string[];
+  makers: string[];
+  price: string;
+  date: string;
+}): string {
+  return [
+    "works-list-v3",
+    parts.sort,
+    parts.isSalePage ? "sale" : "all",
+    String(parts.page),
+    String(WORKS_LIST_PAGE_SIZE),
+    parts.seed ?? "-",
+    parts.genres.join(",") || "-",
+    parts.makers.join(",") || "-",
+    parts.price || "all",
+    parts.date || "all",
+  ].join(":");
+}
+
 /**
- * 公開作品一覧。単純ソートは DB 側で range 取得。
- * 複雑な絞り込みは呼び出し側でカタログフォールバック。
+ * 公開作品一覧。ソート・公開条件・ページングは DB 側で実行し 1 ページ分だけ取得。
+ * テキスト検索・ジャンル絞り込みのみカタログフォールバック。
  */
 export async function tryGetWorksListPageDataFromDb(
   query: WorksListQueryState,
 ): Promise<PublicWorksListPageData | null> {
   if (!isPublicWorksDbQueryAvailable()) return null;
-  if (hasHeavyClientSideFilters(query)) return null;
+  if (hasUnsupportedDbFilters(query)) return null;
 
   const isSalePage = isWorksListSaleQuery(query);
   const sort = resolveSort(query, isSalePage);
   const page = Math.max(1, Number(query.page) || 1);
+  const makers = getAppliedMakers(query);
+  const genres = getAppliedGenres(query);
+  const price = (query.price ?? "all").trim() || "all";
+  const date = (query.date ?? "all").trim() || "all";
 
-  // random / views は DB 単体では再現が難しいためフォールバック
-  if (
-    sort === "random" ||
-    sort === "today-views" ||
-    sort === "total-views"
-  ) {
+  // 価格帯・発売時期フィルターは現状カタログ側（ライブ結合後の数値判定）
+  if (price !== "all" || date !== "all" || makers.length > 1) {
     return null;
   }
 
-  const cacheKey = [
-    "works-list-v2",
+  // views 系のみ未対応
+  if (sort === "today-views" || sort === "total-views") {
+    return null;
+  }
+
+  const seed =
+    sort === "random"
+      ? (query.seed?.trim() || getTokyoDateString())
+      : undefined;
+
+  const cacheKey = buildListCacheKey({
     sort,
-    isSalePage ? "sale" : "all",
-    String(page),
-    String(WORKS_LIST_PAGE_SIZE),
-  ].join(":");
+    isSalePage,
+    page,
+    seed,
+    genres,
+    makers,
+    price,
+    date,
+  });
+
+  const sortOptions: WorkSortOption[] = isSalePage
+    ? [
+        { key: "discount", label: WORK_SORT_LABELS.discount },
+        ...DEFAULT_CATALOG_SORT_OPTIONS.filter((opt) => opt.key !== "discount"),
+      ]
+    : DEFAULT_CATALOG_SORT_OPTIONS;
 
   const cached = unstable_cache(
     async () => {
@@ -465,9 +781,12 @@ export async function tryGetWorksListPageDataFromDb(
         page,
         pageSize: WORKS_LIST_PAGE_SIZE,
         saleOnly: isSalePage,
+        seed,
+        makers,
+        price,
+        date,
       });
       if (items.length === 0 && totalItems === 0) {
-        // 空結果を Data Cache に残さない（throw でキャッシュ回避）
         throw new Error("public-list-empty");
       }
       const totalPages = Math.max(1, Math.ceil(totalItems / WORKS_LIST_PAGE_SIZE));
@@ -478,21 +797,18 @@ export async function tryGetWorksListPageDataFromDb(
         totalItems,
         totalPages,
         currentPage: Math.min(page, totalPages),
-        sortOptions: isSalePage
-          ? [
-              ...DEFAULT_CATALOG_SORT_OPTIONS,
-              { key: "discount-desc" as const, label: "割引率が高い順" },
-            ]
-          : DEFAULT_CATALOG_SORT_OPTIONS,
+        sortOptions,
       };
     },
     [cacheKey],
     {
       revalidate: isSalePage
         ? 300
-        : sort === "release-desc" || sort === "new"
+        : sort === "release-new"
           ? 600
-          : 900,
+          : sort === "random"
+            ? 120
+            : 900,
       tags: [WORKS_MASTER_CACHE_TAG, PUBLIC_WORKS_LIST_TAG, cacheKey],
     },
   );

@@ -83,7 +83,7 @@ export function getNewWorks(
   items: DmmItem[],
   limit = HOME_SECTION_LIMIT,
 ): DmmItem[] {
-  return sortWorks(filterDisplayableItems(items), "release-desc").slice(0, limit);
+  return sortWorks(filterDisplayableItems(items), "release-new").slice(0, limit);
 }
 
 export function getSaleWorks(

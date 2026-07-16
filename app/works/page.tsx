@@ -31,6 +31,7 @@ type WorksPageProps = {
     sale?: string;
     filter?: string;
     sort?: string;
+    seed?: string;
     page?: string;
     genre?: string;
     genres?: string;

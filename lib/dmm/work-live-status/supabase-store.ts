@@ -9,6 +9,7 @@ import type {
 
 const TABLE = "work_live_status";
 const CHUNK = 200;
+let priceAmountColumnAvailable: boolean | null = null;
 
 function normalizeRow(raw: Record<string, unknown>): WorkLiveStatusRow | null {
   const cid = normalizeCatalogContentId(String(raw.cid ?? ""));
@@ -17,6 +18,10 @@ function normalizeRow(raw: Record<string, unknown>): WorkLiveStatusRow | null {
     cid,
     price: raw.price == null ? null : String(raw.price),
     list_price: raw.list_price == null ? null : String(raw.list_price),
+    price_amount:
+      raw.price_amount == null || raw.price_amount === ""
+        ? null
+        : Number(raw.price_amount),
     discount_rate:
       raw.discount_rate == null || raw.discount_rate === ""
         ? null
@@ -99,6 +104,18 @@ export async function supabaseFetchLiveStatusByCids(
   return map;
 }
 
+async function detectPriceAmountColumn(): Promise<boolean> {
+  if (priceAmountColumnAvailable != null) return priceAmountColumnAvailable;
+  const client = getSupabaseServiceClient();
+  if (!client) {
+    priceAmountColumnAvailable = false;
+    return false;
+  }
+  const { error } = await client.from(TABLE).select("price_amount").limit(1);
+  priceAmountColumnAvailable = !error;
+  return priceAmountColumnAvailable;
+}
+
 export async function supabaseUpsertLiveStatusRows(
   rows: WorkLiveStatusUpsertInput[],
 ): Promise<{ upserted: number }> {
@@ -110,6 +127,7 @@ export async function supabaseUpsertLiveStatusRows(
     "@/lib/admin/works-cms-overrides"
   );
   const schemaV2 = await detectWorksCmsSchemaV2();
+  const hasPriceAmount = await detectPriceAmountColumn();
   const payload: Record<string, unknown>[] = [];
 
   for (const row of rows) {
@@ -128,6 +146,9 @@ export async function supabaseUpsertLiveStatusRows(
       delete base.fanza_tv_source;
       delete base.fanza_tv_error;
     }
+    if (!hasPriceAmount) {
+      delete base.price_amount;
+    }
     payload.push(base);
   }
 
@@ -139,6 +160,26 @@ export async function supabaseUpsertLiveStatusRows(
       count: "exact",
     });
     if (error) {
+      if (
+        hasPriceAmount &&
+        /price_amount/i.test(error.message || "")
+      ) {
+        priceAmountColumnAvailable = false;
+        for (const row of slice) delete row.price_amount;
+        const retry = await client.from(TABLE).upsert(slice, {
+          onConflict: "cid",
+          count: "exact",
+        });
+        if (retry.error) {
+          console.warn(
+            "[work-live-status] supabase upsert failed",
+            retry.error.message,
+          );
+          throw retry.error;
+        }
+        upserted += retry.count ?? slice.length;
+        continue;
+      }
       console.warn("[work-live-status] supabase upsert failed", error.message);
       throw error;
     }

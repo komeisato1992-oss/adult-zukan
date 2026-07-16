@@ -67,7 +67,7 @@ export default async function RankingPage() {
         : Promise.resolve([] as DmmItem[]),
       useDb
         ? fetchCachedPublicWorksSlice({
-            sort: "release-desc",
+            sort: "release-new",
             limit: 10,
             revalidateSec: 21600,
             cacheKey: "ranking-monthly",

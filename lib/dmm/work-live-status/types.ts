@@ -6,6 +6,8 @@ export type WorkLiveStatusRow = {
   cid: string;
   price: string | null;
   list_price: string | null;
+  /** 現在販売価格の整数（ソート用）。未設定環境では undefined */
+  price_amount?: number | null;
   discount_rate: number | null;
   is_sale: boolean;
   sale_start_at: string | null;

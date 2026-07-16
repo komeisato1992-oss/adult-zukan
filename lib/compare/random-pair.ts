@@ -86,7 +86,7 @@ export function selectRandomSeedWork(items: DmmItem[]): DmmItem | null {
     .sort((a, b) => {
       const addedDiff = parseAddedTimestamp(b) - parseAddedTimestamp(a);
       if (addedDiff !== 0) return addedDiff;
-      return parseReleaseTimestamp(b) - parseReleaseTimestamp(a);
+      return (parseReleaseTimestamp(b) ?? 0) - (parseReleaseTimestamp(a) ?? 0);
     })
     .slice(0, NEW_POOL_SIZE);
 

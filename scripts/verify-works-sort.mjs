@@ -1,150 +1,264 @@
 #!/usr/bin/env node
 /**
- * 人気順と追加順の差分を確認する。
- * 実行: node scripts/verify-works-sort.mjs
+ * /works 各ソートの先頭件数を DB から直接確認する。
  */
-import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { createClient } from "@supabase/supabase-js";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const snapshotPath = path.join(__dirname, "../data/dmm/catalog-snapshot.json");
+const ROOT = path.resolve(__dirname, "..");
 
-function parseReviewAverage(value) {
-  if (!value?.trim()) return 0;
-  const parsed = Number.parseFloat(value);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-}
-
-function getPopularityBreakdown(item) {
-  const rank =
-    typeof item.sourcePopularityRank === "number" &&
-    Number.isFinite(item.sourcePopularityRank) &&
-    item.sourcePopularityRank > 0
-      ? item.sourcePopularityRank
-      : null;
-  const reviewCount =
-    typeof item.review?.count === "number" && item.review.count > 0
-      ? item.review.count
-      : 0;
-  const reviewAverage = parseReviewAverage(item.review?.average);
-  const reviewScore =
-    reviewCount > 0 && reviewAverage > 0 ? reviewCount * reviewAverage : 0;
-
-  if (rank != null) {
-    return {
-      hasPopularityData: true,
-      source: "rank",
-      sourcePopularityRank: rank,
-      popularityScore: 10_000_000 - rank,
-    };
+function loadEnvLocal() {
+  const envPath = path.join(ROOT, ".env.local");
+  if (!existsSync(envPath)) return;
+  for (const line of readFileSync(envPath, "utf8").split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#") || !trimmed.includes("=")) continue;
+    const eq = trimmed.indexOf("=");
+    const key = trimmed.slice(0, eq).trim();
+    let value = trimmed.slice(eq + 1).trim();
+    if (
+      (value.startsWith('"') && value.endsWith('"')) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    if (!(key in process.env)) process.env[key] = value;
   }
-  if (reviewScore > 0) {
-    return {
-      hasPopularityData: true,
-      source: "review",
-      sourcePopularityRank: null,
-      popularityScore: reviewScore,
-    };
+}
+
+function todayTokyo() {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Tokyo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+async function main() {
+  loadEnvLocal();
+  const url =
+    process.env.SUPABASE_URL?.trim() ||
+    process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim();
+  const sb = createClient(url, key, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const today = todayTokyo();
+  const todayEnd = `${today} 23:59:59`;
+
+  const priceColProbe = await sb
+    .from("work_live_status")
+    .select("price_amount")
+    .limit(1);
+  const priceCol = priceColProbe.error ? "new_arrival_rank" : "price_amount";
+  console.log("price sort column:", priceCol, "today:", today);
+
+  async function attachWorks(rows) {
+    const cids = rows.map((r) => r.cid);
+    const { data: works } = await sb
+      .from("works")
+      .select(
+        "cid,title,release_date,created_at,duration,published",
+      )
+      .in("cid", cids)
+      .eq("published", true)
+      .or(`release_date.is.null,release_date.lte.${todayEnd}`);
+    const map = new Map((works || []).map((w) => [w.cid, w]));
+    return rows
+      .map((r) => {
+        const w = map.get(r.cid);
+        if (!w) return null;
+        return {
+          cid: r.cid,
+          title: (w.title || "").slice(0, 40),
+          price: r.price,
+          list_price: r.list_price,
+          price_sort: r[priceCol] ?? r.new_arrival_rank ?? r.price_amount,
+          popularity_rank: r.popularity_rank,
+          release_date: w.release_date,
+          created_at: w.created_at,
+          rating: r.rating,
+          review_count: r.review_count,
+          discount_rate: r.discount_rate,
+          duration: w.duration,
+          published: w.published,
+          is_available: r.is_available,
+          is_sale: r.is_sale,
+        };
+      })
+      .filter(Boolean)
+      .slice(0, 5);
   }
-  return {
-    hasPopularityData: false,
-    source: "none",
-    sourcePopularityRank: null,
-    popularityScore: Number.NEGATIVE_INFINITY,
-  };
-}
 
-function comparePopular(a, b) {
-  const aBreakdown = getPopularityBreakdown(a);
-  const bBreakdown = getPopularityBreakdown(b);
-  if (aBreakdown.hasPopularityData !== bBreakdown.hasPopularityData) {
-    return aBreakdown.hasPopularityData ? -1 : 1;
+  // popular
+  {
+    const { data } = await sb
+      .from("work_live_status")
+      .select(
+        "cid,price,list_price,popularity_rank,rating,review_count,discount_rate,is_available,is_sale,new_arrival_rank",
+      )
+      .eq("is_available", true)
+      .or("popularity_rank.gt.0,popularity_rank.is.null")
+      .order("popularity_rank", { ascending: true, nullsFirst: false })
+      .order("review_count", { ascending: false, nullsFirst: false })
+      .limit(40);
+    const top = await attachWorks(data || []);
+    console.log("\n=== popular (top5) ===");
+    console.table(top);
+    const ranks = top.map((t) => t.popularity_rank);
+    const ok = ranks.every(
+      (r, i) => i === 0 || ranks[i - 1] == null || r == null || r >= ranks[i - 1],
+    );
+    console.log("rank ascending?", ok, ranks);
   }
-  if (aBreakdown.popularityScore !== bBreakdown.popularityScore) {
-    return bBreakdown.popularityScore - aBreakdown.popularityScore;
+
+  // price-asc
+  {
+    let q = sb
+      .from("work_live_status")
+      .select(
+        `cid,price,list_price,popularity_rank,rating,review_count,discount_rate,is_available,is_sale,new_arrival_rank${priceCol === "price_amount" ? ",price_amount" : ""}`,
+      )
+      .eq("is_available", true)
+      .gt(priceCol, 0)
+      .order(priceCol, { ascending: true, nullsFirst: false })
+      .order("popularity_rank", { ascending: true, nullsFirst: false })
+      .limit(40);
+    const { data } = await q;
+    const top = await attachWorks(data || []);
+    console.log("\n=== price-asc (top5) ===");
+    console.table(top);
+    const prices = top.map((t) => t.price_sort);
+    const ok = prices.every((p, i) => i === 0 || p >= prices[i - 1]);
+    console.log("price ascending?", ok, prices);
   }
-  return 0;
+
+  // price-desc
+  {
+    const { data } = await sb
+      .from("work_live_status")
+      .select(
+        `cid,price,list_price,popularity_rank,rating,review_count,discount_rate,is_available,is_sale,new_arrival_rank${priceCol === "price_amount" ? ",price_amount" : ""}`,
+      )
+      .eq("is_available", true)
+      .gt(priceCol, 0)
+      .order(priceCol, { ascending: false, nullsFirst: false })
+      .order("popularity_rank", { ascending: true, nullsFirst: false })
+      .limit(40);
+    const top = await attachWorks(data || []);
+    console.log("\n=== price-desc (top5) ===");
+    console.table(top);
+    const prices = top.map((t) => t.price_sort);
+    const ok = prices.every((p, i) => i === 0 || p <= prices[i - 1]);
+    console.log("price descending?", ok, prices);
+  }
+
+  // release-new
+  {
+    const { data } = await sb
+      .from("works")
+      .select("cid,title,release_date,created_at,duration,published")
+      .eq("published", true)
+      .or("image_status.eq.ok,image_status.is.null")
+      .or(`release_date.is.null,release_date.lte.${todayEnd}`)
+      .order("release_date", { ascending: false, nullsFirst: false })
+      .limit(5);
+    console.log("\n=== release-new (top5) ===");
+    console.table(
+      (data || []).map((w) => ({
+        cid: w.cid,
+        title: (w.title || "").slice(0, 40),
+        release_date: w.release_date,
+        created_at: w.created_at,
+      })),
+    );
+  }
+
+  // added
+  {
+    const { data } = await sb
+      .from("works")
+      .select("cid,title,release_date,created_at,published")
+      .eq("published", true)
+      .or("image_status.eq.ok,image_status.is.null")
+      .or(`release_date.is.null,release_date.lte.${todayEnd}`)
+      .order("created_at", { ascending: false })
+      .limit(5);
+    console.log("\n=== added (top5) ===");
+    console.table(
+      (data || []).map((w) => ({
+        cid: w.cid,
+        title: (w.title || "").slice(0, 40),
+        created_at: w.created_at,
+        release_date: w.release_date,
+      })),
+    );
+  }
+
+  // rating
+  {
+    const { data } = await sb
+      .from("work_live_status")
+      .select(
+        "cid,price,list_price,popularity_rank,rating,review_count,discount_rate,is_available,is_sale,new_arrival_rank",
+      )
+      .eq("is_available", true)
+      .gt("review_count", 0)
+      .not("rating", "is", null)
+      .order("rating", { ascending: false, nullsFirst: false })
+      .order("review_count", { ascending: false, nullsFirst: false })
+      .limit(40);
+    const top = await attachWorks(data || []);
+    console.log("\n=== rating (top5) ===");
+    console.table(top);
+  }
+
+  // discount
+  {
+    const { data } = await sb
+      .from("work_live_status")
+      .select(
+        "cid,price,list_price,popularity_rank,rating,review_count,discount_rate,is_available,is_sale,new_arrival_rank",
+      )
+      .eq("is_available", true)
+      .eq("is_sale", true)
+      .gt("discount_rate", 0)
+      .order("discount_rate", { ascending: false, nullsFirst: false })
+      .order(priceCol, { ascending: true, nullsFirst: false })
+      .limit(40);
+    const top = await attachWorks(data || []);
+    console.log("\n=== discount (top5) ===");
+    console.table(top);
+  }
+
+  // duration-desc
+  {
+    const { data } = await sb
+      .from("works")
+      .select("cid,title,release_date,created_at,duration,published")
+      .eq("published", true)
+      .or("image_status.eq.ok,image_status.is.null")
+      .or(`release_date.is.null,release_date.lte.${todayEnd}`)
+      .not("duration", "is", null)
+      .order("duration", { ascending: false, nullsFirst: false })
+      .limit(5);
+    console.log("\n=== duration-desc (top5) ===");
+    console.table(
+      (data || []).map((w) => ({
+        cid: w.cid,
+        title: (w.title || "").slice(0, 40),
+        duration: w.duration,
+        release_date: w.release_date,
+      })),
+    );
+  }
 }
 
-function compareAdded(a, b, catalogOrder) {
-  const addedA = Date.parse(a.addedAt ?? "") || 0;
-  const addedB = Date.parse(b.addedAt ?? "") || 0;
-  if (addedA !== addedB) return addedB - addedA;
-  return (catalogOrder.get(a.content_id) ?? Number.MAX_SAFE_INTEGER) -
-    (catalogOrder.get(b.content_id) ?? Number.MAX_SAFE_INTEGER);
-}
-
-function loadCatalog() {
-  const parsed = JSON.parse(readFileSync(snapshotPath, "utf-8"));
-  return Array.isArray(parsed) ? parsed : parsed.works ?? parsed.items ?? [];
-}
-
-const catalog = loadCatalog();
-assert.ok(catalog.length > 0, "catalog should not be empty");
-
-const catalogOrder = new Map(
-  catalog.map((item, index) => [item.content_id, index]),
-);
-
-const popularSorted = [...catalog].sort(comparePopular);
-const addedSorted = [...catalog].sort((a, b) => compareAdded(a, b, catalogOrder));
-
-const popularTop = popularSorted.slice(0, 20).map((item, index) => {
-  const breakdown = getPopularityBreakdown(item);
-  return {
-    rank: index + 1,
-    content_id: item.content_id,
-    title: item.title?.slice(0, 40),
-    popularitySource: breakdown.source,
-    sourcePopularityRank: breakdown.sourcePopularityRank,
-    popularityScore: breakdown.popularityScore,
-    catalogIndex: catalogOrder.get(item.content_id),
-    addedAt: item.addedAt ?? null,
-    releaseDate: item.date ?? null,
-  };
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
 });
-
-const addedTop = addedSorted.slice(0, 20).map((item, index) => ({
-  rank: index + 1,
-  content_id: item.content_id,
-  title: item.title?.slice(0, 40),
-  catalogIndex: catalogOrder.get(item.content_id),
-  addedAt: item.addedAt ?? null,
-  releaseDate: item.date ?? null,
-}));
-
-const popularIds = popularTop.map((entry) => entry.content_id);
-const addedIds = addedTop.map((entry) => entry.content_id);
-const overlap = popularIds.filter((id, index) => addedIds[index] === id).length;
-
-console.log("=== 人気順 先頭20件 ===");
-console.table(popularTop);
-console.log("=== 追加順 先頭20件 ===");
-console.table(addedTop);
-
-const withRank = catalog.filter(
-  (item) =>
-    typeof item.sourcePopularityRank === "number" && item.sourcePopularityRank > 0,
-).length;
-const withReview = catalog.filter((item) => getPopularityBreakdown(item).source === "review")
-  .length;
-const withAddedAt = catalog.filter((item) => item.addedAt).length;
-
-console.log({
-  catalogCount: catalog.length,
-  withSourcePopularityRank: withRank,
-  withReviewPopularity: withReview,
-  withAddedAt,
-  popularVsAddedTop20SamePositionCount: overlap,
-});
-
-assert.ok(
-  popularTop.some((entry) => entry.popularitySource !== "none") ||
-    withRank > 0 ||
-    withReview > 0,
-  "popularity data should exist in catalog or review fallback",
-);
-
-console.log("verify-works-sort checks passed");

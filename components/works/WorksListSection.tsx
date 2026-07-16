@@ -15,8 +15,10 @@ import {
 } from "@/lib/works/list-filters";
 import type { WorkSortOption } from "@/lib/works/sort";
 import {
+  getTokyoDateString,
   parseWorkSortParam,
   SALE_DEFAULT_WORK_SORT,
+  toWorkSortUrlValue,
 } from "@/lib/works/sort";
 import type { WorkListCardItem } from "@/lib/works/work-list-card-item.types";
 import { WORK_LIST_GRID_CLASSNAME } from "@/components/works/work-list-grid";
@@ -133,7 +135,20 @@ export function WorksListSection({
           <select
             id="works-sort"
             value={currentSort}
-            onChange={(event) => updateQuery({ sort: event.target.value }, true)}
+            onChange={(event) => {
+              const nextSort = parseWorkSortParam(event.target.value);
+              const sortValue = toWorkSortUrlValue(nextSort);
+              updateQuery(
+                {
+                  sort: sortValue,
+                  seed:
+                    nextSort === "random"
+                      ? queryState.seed?.trim() || getTokyoDateString()
+                      : undefined,
+                },
+                true,
+              );
+            }}
             className="h-10 rounded border border-border bg-white px-3 text-sm text-foreground md:min-w-[160px]"
           >
             {sortOptions.map((option) => (

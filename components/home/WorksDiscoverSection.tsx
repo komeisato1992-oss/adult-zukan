@@ -3,19 +3,19 @@ import {
   HOME_WORK_SORT_KEYS,
   WORK_SORT_LABELS,
   type WorkSortKey,
-} from "@/lib/works/sort";
+} from "@/lib/works/sort-options";
 
 const HOME_SORT_HREFS: Record<WorkSortKey, string> = {
   popular: "/works?sort=popular",
   added: "/works?sort=added",
-  new: "/works?sort=new",
-  "release-desc": "/works?sort=new",
-  "price-desc": "/works?sort=price_desc",
-  "price-asc": "/works?sort=price_asc",
-  "discount-desc": "/works?sale=1",
+  "release-new": "/works?sort=release-new",
+  "price-desc": "/works?sort=price-desc",
+  "price-asc": "/works?sort=price-asc",
+  rating: "/works?sort=rating",
+  discount: "/works?sale=1&sort=discount",
   "today-views": "/works?sort=today-views",
   "total-views": "/works?sort=total-views",
-  "duration-desc": "/works?sort=duration_desc",
+  "duration-desc": "/works?sort=duration-desc",
   random: "/works?sort=random",
 };
 

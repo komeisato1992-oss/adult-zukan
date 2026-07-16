@@ -16,7 +16,9 @@ import {
 } from "@/lib/works/list-filters";
 import {
   buildCatalogOrderMap,
+  getTokyoDateString,
   getWorksSortOptions,
+  isReleasedOnOrBefore,
   parseWorkSortParam,
   SALE_DEFAULT_WORK_SORT,
   sortWorks,
@@ -50,6 +52,7 @@ export function parseWorksListQueryState(params: {
   sale?: string;
   filter?: string;
   sort?: string;
+  seed?: string;
   page?: string;
   genre?: string;
   genres?: string;
@@ -63,6 +66,7 @@ export function parseWorksListQueryState(params: {
     sale: params.sale,
     filter: params.filter,
     sort: params.sort,
+    seed: params.seed,
     genre: params.genre,
     genres: params.genres,
     maker: params.maker,
@@ -78,7 +82,10 @@ async function getWorksListPageDataFromCatalog(
   query: WorksListQueryState,
 ): Promise<WorksListPageData> {
   const isSalePage = isWorksListSaleQuery(query);
-  const displayableItems = filterDisplayableItems(catalog);
+  const today = getTokyoDateString();
+  const displayableItems = filterDisplayableItems(catalog).filter((item) =>
+    isReleasedOnOrBefore(item.date, today),
+  );
   const filterEntries = buildWorkFilterEntries(displayableItems);
   const entriesForOptions = isSalePage
     ? filterEntries.filter((entry) => isWorkOnSale(entry.item))
@@ -88,7 +95,10 @@ async function getWorksListPageDataFromCatalog(
   const filtered = filterWorkEntriesByQuery(filterEntries, query);
   const currentSort = resolveWorksListSort(query, isSalePage);
   const catalogOrder = buildCatalogOrderMap(catalog);
-  const sorted = sortWorks(filtered, currentSort, { catalogOrder });
+  const sorted = sortWorks(filtered, currentSort, {
+    catalogOrder,
+    randomSeed: query.seed,
+  });
   const currentPage = parsePageParam(query.page);
   const pagination = paginateItems(sorted, currentPage, WORKS_LIST_PAGE_SIZE);
 

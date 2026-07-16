@@ -28,6 +28,12 @@ import {
   getPopularMakers,
   getPopularSeries,
 } from "@/lib/ranking/entity-ranking-service";
+import {
+  getNewWorks,
+  getPopularWorks,
+  getSaleWorks,
+} from "@/lib/dmm/home-sections";
+import { mergeLiveStatusIntoItems } from "@/lib/dmm/work-live-status";
 import { filterDisplayableItems } from "@/lib/dmm/filter";
 import type { DmmItem } from "@/lib/dmm/types";
 import { measureAsync } from "@/lib/perf/measure";
@@ -46,6 +52,18 @@ export default async function HomePage() {
   return measureAsync("page.home", async () => {
     const useDb = isPublicWorksDbQueryAvailable();
 
+    const safeSlice = async (
+      loader: () => Promise<DmmItem[]>,
+      label: string,
+    ): Promise<DmmItem[]> => {
+      try {
+        return await loader();
+      } catch (error) {
+        console.warn(`[home] ${label} slice failed`, error);
+        return [];
+      }
+    };
+
     const [
       popularFromDb,
       newFromDb,
@@ -55,29 +73,41 @@ export default async function HomePage() {
       seriesResult,
     ] = await Promise.all([
       useDb
-        ? fetchCachedPublicWorksSlice({
-            sort: "popular",
-            limit: HOME_SECTION_LIMIT,
-            revalidateSec: 900,
-            cacheKey: "home-popular",
-          })
+        ? safeSlice(
+            () =>
+              fetchCachedPublicWorksSlice({
+                sort: "popular",
+                limit: HOME_SECTION_LIMIT,
+                revalidateSec: 900,
+                cacheKey: "home-popular",
+              }),
+            "popular",
+          )
         : Promise.resolve([] as DmmItem[]),
       useDb
-        ? fetchCachedPublicWorksSlice({
-            sort: "release-desc",
-            limit: HOME_SECTION_LIMIT,
-            revalidateSec: 600,
-            cacheKey: "home-new",
-          })
+        ? safeSlice(
+            () =>
+              fetchCachedPublicWorksSlice({
+                sort: "release-new",
+                limit: HOME_SECTION_LIMIT,
+                revalidateSec: 600,
+                cacheKey: "home-new",
+              }),
+            "new",
+          )
         : Promise.resolve([] as DmmItem[]),
       useDb
-        ? fetchCachedPublicWorksSlice({
-            sort: "discount-desc",
-            limit: HOME_SECTION_LIMIT,
-            saleOnly: true,
-            revalidateSec: 300,
-            cacheKey: "home-sale",
-          })
+        ? safeSlice(
+            () =>
+              fetchCachedPublicWorksSlice({
+                sort: "discount",
+                limit: HOME_SECTION_LIMIT,
+                saleOnly: true,
+                revalidateSec: 300,
+                cacheKey: "home-sale",
+              }),
+            "sale",
+          )
         : Promise.resolve([] as DmmItem[]),
       getPopularActresses(HOME_SECTION_LIMIT),
       getPopularMakers(8),
@@ -91,18 +121,19 @@ export default async function HomePage() {
 
     // 主要セクションが空のときだけカタログへフォールバック（セール0件では落とさない）
     if (!useDb || popularWorks.length === 0 || newWorks.length === 0) {
-      const { getPopularWorks, getNewWorks, getSaleWorks } = await import(
-        "@/lib/dmm/home-sections"
-      );
-      catalogFallback = await getSharedCatalogWorks();
-      if (popularWorks.length === 0) {
-        popularWorks = getPopularWorks(catalogFallback, HOME_SECTION_LIMIT);
-      }
-      if (newWorks.length === 0) {
-        newWorks = getNewWorks(catalogFallback, HOME_SECTION_LIMIT);
-      }
-      if (saleWorks.length === 0) {
-        saleWorks = getSaleWorks(catalogFallback, HOME_SECTION_LIMIT);
+      try {
+        catalogFallback = await getSharedCatalogWorks();
+        if (popularWorks.length === 0) {
+          popularWorks = getPopularWorks(catalogFallback, HOME_SECTION_LIMIT);
+        }
+        if (newWorks.length === 0) {
+          newWorks = getNewWorks(catalogFallback, HOME_SECTION_LIMIT);
+        }
+        if (saleWorks.length === 0) {
+          saleWorks = getSaleWorks(catalogFallback, HOME_SECTION_LIMIT);
+        }
+      } catch (error) {
+        console.warn("[home] catalog fallback failed", error);
       }
     }
 
@@ -110,10 +141,6 @@ export default async function HomePage() {
       catalogFallback != null
         ? filterDisplayableItems(catalogFallback)
         : [...popularWorks, ...newWorks, ...saleWorks];
-
-    const { mergeLiveStatusIntoItems } = await import(
-      "@/lib/dmm/work-live-status"
-    );
 
     const [popularMerged, newMerged, saleMerged, randomComparePairMerged] =
       await Promise.all([

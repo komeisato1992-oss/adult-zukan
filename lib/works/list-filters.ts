@@ -64,6 +64,8 @@ export type WorksListQueryState = {
   sale?: string;
   filter?: string;
   sort?: string;
+  /** random ソートの再現用シード（日付など） */
+  seed?: string;
   /** @deprecated genres を使用 */
   genre?: string;
   genres?: string;
@@ -437,6 +439,50 @@ export function getWorkFilterOptions(items: DmmItem[]): {
   };
 }
 
+/** sort URL 正規化（list-filters ↔ sort の循環 import を避けるためローカル実装） */
+function normalizeSortForUrl(value?: string): string | undefined {
+  if (!value?.trim()) return undefined;
+  switch (value) {
+    case "added":
+    case "added-desc":
+      return "added";
+    case "new":
+    case "latest":
+    case "release-new":
+    case "release-desc":
+    case "release_desc":
+      return "release-new";
+    case "price-desc":
+    case "price_desc":
+      return "price-desc";
+    case "price-asc":
+    case "price_asc":
+      return "price-asc";
+    case "rating":
+    case "rating-desc":
+    case "rating_desc":
+      return "rating";
+    case "discount":
+    case "discount-desc":
+    case "discount_desc":
+      return "discount";
+    case "today-views":
+      return "today-views";
+    case "total-views":
+      return "total-views";
+    case "duration-desc":
+    case "duration_desc":
+      return "duration-desc";
+    case "random":
+      return "random";
+    case "rank":
+    case "popular":
+      return undefined; // デフォルトは省略
+    default:
+      return undefined;
+  }
+}
+
 export function buildWorksQueryString(state: WorksListQueryState): string {
   const params = new URLSearchParams();
   const set = (key: string, value?: string) => {
@@ -446,7 +492,11 @@ export function buildWorksQueryString(state: WorksListQueryState): string {
   set("q", state.q);
   set("sale", state.sale);
   set("filter", state.filter);
-  if (state.sort && state.sort !== "popular") params.set("sort", state.sort);
+  const sortUrl = normalizeSortForUrl(state.sort);
+  if (sortUrl) params.set("sort", sortUrl);
+  if (sortUrl === "random") {
+    set("seed", state.seed);
+  }
   set("genres", state.genres);
   set("makers", state.makers);
   if (state.price && state.price !== "all") params.set("price", state.price);

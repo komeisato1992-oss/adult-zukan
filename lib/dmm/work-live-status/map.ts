@@ -3,6 +3,7 @@ import "server-only";
 import { normalizeCatalogContentId } from "@/lib/dmm/catalog-snapshot";
 import type { DmmItem } from "@/lib/dmm/types";
 import { getWorkSaleInfo } from "@/lib/dmm/work-sale-info";
+import { parseComparablePrice } from "@/lib/dmm/sale-price";
 import type {
   WorkLiveStatusRow,
   WorkLiveStatusUpsertInput,
@@ -12,6 +13,12 @@ function asPriceText(value: unknown): string | null {
   if (value == null) return null;
   const text = String(value).trim();
   return text || null;
+}
+
+function asPriceAmount(value: unknown): number | null {
+  return parseComparablePrice(
+    value == null ? null : (value as string | number),
+  );
 }
 
 function asFiniteNumber(value: unknown): number | null {
@@ -43,10 +50,13 @@ export function dmmItemToLiveStatusRow(
     item.availabilityStatus !== "unavailable" &&
     item.availability !== "unavailable";
 
+  const priceText = asPriceText(item.prices?.price ?? item.salePrice);
+  const priceAmount = asPriceAmount(priceText ?? item.salePrice);
   return {
     cid,
-    price: asPriceText(item.prices?.price ?? item.salePrice),
+    price: priceText,
     list_price: asPriceText(item.prices?.list_price ?? item.regularPrice),
+    price_amount: priceAmount,
     discount_rate: sale.discountRate ?? asInteger(item.discountRate),
     is_sale: sale.isSale || item.saleStatus === "on_sale",
     sale_start_at: null,
@@ -54,7 +64,8 @@ export function dmmItemToLiveStatusRow(
     rating,
     review_count: reviewCount,
     popularity_rank: asInteger(item.sourcePopularityRank),
-    new_arrival_rank: null,
+    // price_amount 未適用環境の数値ソート用（円）。適用後は price_amount を優先。
+    new_arrival_rank: priceAmount,
     is_available: isAvailable,
     manual_hidden: item.hiddenReason === "manual",
     fanza_tv_status: null,
@@ -154,6 +165,7 @@ export function liveStatusRowsEqual(
     a.cid === b.cid &&
     a.price === b.price &&
     a.list_price === b.list_price &&
+    (a.price_amount ?? null) === (b.price_amount ?? null) &&
     a.discount_rate === b.discount_rate &&
     a.is_sale === b.is_sale &&
     (a.sale_start_at ?? null) === (b.sale_start_at ?? null) &&

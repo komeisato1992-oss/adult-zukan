@@ -18,6 +18,17 @@ import type {
 import { hasDisplayableAdultImage } from "@/lib/works/image-status";
 import { pickPackageImageCandidate } from "@/lib/works/package-image";
 
+function normalizeDurationForDisplay(
+  duration: string | null | undefined,
+): string | undefined {
+  if (!duration?.trim()) return undefined;
+  const digits = duration.replace(/[^\d]/g, "");
+  if (!digits) return undefined;
+  const minutes = Number(digits);
+  if (!Number.isFinite(minutes) || minutes <= 0) return undefined;
+  return String(minutes);
+}
+
 function namedList(
   items: Array<{ id?: number; name?: string; ruby?: string }> | undefined,
   fallbackNames: string[],
@@ -73,7 +84,16 @@ export function dmmItemToWorkMasterRow(
     series: getDmmItemSeriesName(item) ?? null,
     genres,
     release_date: item.date?.trim() || null,
-    duration: item.volume?.trim() || null,
+    duration: (() => {
+      const raw = item.volume?.trim();
+      if (!raw) return null;
+      const digits = raw.replace(/[^\d]/g, "");
+      if (!digits) return raw;
+      const minutes = Number(digits);
+      if (!Number.isFinite(minutes) || minutes <= 0) return raw;
+      // text ソート用にゼロ埋め（表示時は normalizeDurationForDisplay）
+      return String(minutes).padStart(5, "0");
+    })(),
     product_code: item.product_id?.trim() || cid,
     affiliate_url: item.affiliateURL?.trim() || item.URL?.trim() || null,
     published: options?.published ?? true,
@@ -138,7 +158,8 @@ export function workMasterRowToDmmItem(row: WorkMasterRow): DmmItem {
           }
         : undefined,
     date: row.release_date ?? undefined,
-    volume: row.duration ?? undefined,
+    // DB ソート用ゼロ埋めを表示用に戻す
+    volume: normalizeDurationForDisplay(row.duration),
     actress: actresses,
     maker,
     label,

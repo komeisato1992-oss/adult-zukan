@@ -41,6 +41,9 @@ yarn-error.log*
 /data/admin/ga4-cache.json
 /data/admin/dmm-reports.json
 
+# local batch job progress（Git差分を出さない）
+/data/runtime/
+
 # local catalog backups (shards are the source of truth)
 /data/dmm/catalog-snapshot.json
 /data/dmm/catalog-snapshot.legacy.json

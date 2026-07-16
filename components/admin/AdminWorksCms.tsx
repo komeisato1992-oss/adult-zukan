@@ -735,10 +735,10 @@ export function AdminWorksCms() {
   const bottomBar =
     showBottomBar && portalReady
       ? createPortal(
+          // wrapper は画面下端に置くが透明領域のタップは透過させる
           <div
-            ref={bottomBarRef}
-            data-works-cms-bottom-bar
-            className="border-t border-border bg-white px-3 pt-3 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] sm:hidden"
+            data-works-cms-bottom-bar-root
+            className="pointer-events-none fixed inset-x-0 bottom-0 z-[1000] sm:hidden"
             style={{
               position: "fixed",
               left: 0,
@@ -747,136 +747,149 @@ export function AdminWorksCms() {
               width: "100%",
               maxWidth: "none",
               zIndex: 1000,
-              paddingBottom: "calc(12px + env(safe-area-inset-bottom, 0px))",
+              // 高さは中身に合わせる（画面全体に伸ばさない）
+              height: "auto",
+              top: "auto",
             }}
           >
-            <div className="mx-auto flex w-full max-w-none flex-col gap-1.5">
-              {tab === "add" ? (
-                <>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-bold">
-                      選択中 {selectedCount} 件
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
-                      <button
-                        type="button"
-                        className="min-h-[36px] rounded-lg border px-2.5 text-xs font-semibold"
-                        onClick={() =>
-                          setSelected(
-                            new Set(candidates.map((c) => c.contentId)),
-                          )
-                        }
-                        disabled={candidates.length === 0}
-                      >
-                        すべて選択
-                      </button>
-                      <button
-                        type="button"
-                        className="min-h-[36px] rounded-lg border px-2.5 text-xs font-semibold"
-                        onClick={() => setSelected(new Set())}
-                        disabled={selectedCount === 0}
-                      >
-                        選択解除
-                      </button>
+            <div
+              ref={bottomBarRef}
+              data-works-cms-bottom-bar
+              className="pointer-events-auto border-t border-border bg-white px-3 pt-3 shadow-[0_-4px_16px_rgba(0,0,0,0.08)]"
+              style={{
+                paddingBottom: "calc(12px + env(safe-area-inset-bottom, 0px))",
+              }}
+            >
+              <div className="mx-auto flex w-full max-w-none flex-col gap-1.5">
+                {tab === "add" ? (
+                  <>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-bold">
+                        選択中 {selectedCount} 件
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        <button
+                          type="button"
+                          className="min-h-[36px] rounded-lg border px-2.5 text-xs font-semibold"
+                          onClick={() =>
+                            setSelected(
+                              new Set(candidates.map((c) => c.contentId)),
+                            )
+                          }
+                          disabled={candidates.length === 0}
+                        >
+                          すべて選択
+                        </button>
+                        <button
+                          type="button"
+                          className="min-h-[36px] rounded-lg border px-2.5 text-xs font-semibold"
+                          onClick={() => setSelected(new Set())}
+                          disabled={selectedCount === 0}
+                        >
+                          選択解除
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                  <button
-                    type="button"
-                    disabled={busy || selectedCount === 0}
-                    onClick={() => void handleAddSelected()}
-                    className="min-h-[44px] w-full rounded-xl bg-sky-600 text-sm font-bold text-white disabled:bg-zinc-300 disabled:text-zinc-600"
-                  >
-                    Supabaseへ追加
-                  </button>
-                  {selectedCount === 0 ? (
-                    <p className="text-[11px] text-amber-800">
-                      作品を1件以上選択すると追加できます
-                    </p>
-                  ) : null}
-                </>
-              ) : (
-                <>
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-bold">
-                      選択中 {pubSelectedCount} 件
-                    </p>
-                    <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      disabled={busy || selectedCount === 0}
+                      onClick={() => void handleAddSelected()}
+                      className="min-h-[44px] w-full rounded-xl bg-sky-600 text-sm font-bold text-white disabled:bg-zinc-300 disabled:text-zinc-600"
+                    >
+                      Supabaseへ追加
+                    </button>
+                    {selectedCount === 0 ? (
+                      <p className="text-[11px] text-amber-800">
+                        作品を1件以上選択すると追加できます
+                      </p>
+                    ) : null}
+                  </>
+                ) : (
+                  <>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-bold">
+                        選択中 {pubSelectedCount} 件
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        <button
+                          type="button"
+                          className="min-h-[36px] rounded-lg border px-2.5 text-xs font-semibold disabled:opacity-40"
+                          onClick={() => void handlePubSelectAll()}
+                          disabled={
+                            busy || pubSelectAllBusy || items.length === 0
+                          }
+                        >
+                          {pubSelectAllBusy ? "選択中…" : "すべて選択"}
+                        </button>
+                        <button
+                          type="button"
+                          className="min-h-[36px] rounded-lg border px-2.5 text-xs font-semibold disabled:opacity-40"
+                          onClick={handlePubClearSelection}
+                          disabled={busy || pubSelectedCount === 0}
+                        >
+                          選択解除
+                        </button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
                       <button
                         type="button"
-                        className="min-h-[36px] rounded-lg border px-2.5 text-xs font-semibold disabled:opacity-40"
-                        onClick={() => void handlePubSelectAll()}
-                        disabled={
-                          busy || pubSelectAllBusy || items.length === 0
-                        }
-                      >
-                        {pubSelectAllBusy ? "選択中…" : "すべて選択"}
-                      </button>
-                      <button
-                        type="button"
-                        className="min-h-[36px] rounded-lg border px-2.5 text-xs font-semibold disabled:opacity-40"
-                        onClick={handlePubClearSelection}
                         disabled={busy || pubSelectedCount === 0}
+                        onClick={() =>
+                          void mutatePublish("publish", [...pubSelected])
+                        }
+                        className="min-h-[40px] rounded-lg bg-sky-600 text-xs font-bold text-white disabled:opacity-40"
                       >
-                        選択解除
+                        一括公開
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy || pubSelectedCount === 0}
+                        onClick={() =>
+                          void mutatePublish("unpublish", [...pubSelected])
+                        }
+                        className="min-h-[40px] rounded-lg border text-xs font-bold disabled:opacity-40"
+                      >
+                        一括非公開
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy || pubSelectedCount === 0}
+                        onClick={() =>
+                          void mutatePublish("mark_unavailable", [
+                            ...pubSelected,
+                          ])
+                        }
+                        className="min-h-[40px] rounded-lg border text-xs font-bold disabled:opacity-40"
+                      >
+                        一括販売終了
+                      </button>
+                      <button
+                        type="button"
+                        disabled={busy || pubSelectedCount === 0}
+                        onClick={() => {
+                          if (
+                            typeof window !== "undefined" &&
+                            window.confirm("選択作品を論理削除しますか？")
+                          ) {
+                            void mutatePublish("soft_delete", [
+                              ...pubSelected,
+                            ]);
+                          }
+                        }}
+                        className="min-h-[40px] rounded-lg border border-red-400 text-xs font-bold text-red-700 disabled:opacity-40"
+                      >
+                        一括削除
                       </button>
                     </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <button
-                      type="button"
-                      disabled={busy || pubSelectedCount === 0}
-                      onClick={() =>
-                        void mutatePublish("publish", [...pubSelected])
-                      }
-                      className="min-h-[40px] rounded-lg bg-sky-600 text-xs font-bold text-white disabled:opacity-40"
-                    >
-                      一括公開
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy || pubSelectedCount === 0}
-                      onClick={() =>
-                        void mutatePublish("unpublish", [...pubSelected])
-                      }
-                      className="min-h-[40px] rounded-lg border text-xs font-bold disabled:opacity-40"
-                    >
-                      一括非公開
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy || pubSelectedCount === 0}
-                      onClick={() =>
-                        void mutatePublish("mark_unavailable", [
-                          ...pubSelected,
-                        ])
-                      }
-                      className="min-h-[40px] rounded-lg border text-xs font-bold disabled:opacity-40"
-                    >
-                      一括販売終了
-                    </button>
-                    <button
-                      type="button"
-                      disabled={busy || pubSelectedCount === 0}
-                      onClick={() => {
-                        if (
-                          typeof window !== "undefined" &&
-                          window.confirm("選択作品を論理削除しますか？")
-                        ) {
-                          void mutatePublish("soft_delete", [...pubSelected]);
-                        }
-                      }}
-                      className="min-h-[40px] rounded-lg border border-red-400 text-xs font-bold text-red-700 disabled:opacity-40"
-                    >
-                      一括削除
-                    </button>
-                  </div>
-                  {pubSelectedCount === 0 ? (
-                    <p className="text-[11px] text-amber-800">
-                      作品を選択すると一括操作できます
-                    </p>
-                  ) : null}
-                </>
-              )}
+                    {pubSelectedCount === 0 ? (
+                      <p className="text-[11px] text-amber-800">
+                        作品を選択すると一括操作できます
+                      </p>
+                    ) : null}
+                  </>
+                )}
+              </div>
             </div>
           </div>,
           document.body,

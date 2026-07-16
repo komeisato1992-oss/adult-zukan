@@ -179,10 +179,11 @@ export function WorksCmsPublishTab({
           </p>
         ) : null}
         <button
+          id="works-cms-publish-search"
           type="button"
           onClick={onSearch}
           disabled={busy}
-          className="min-h-[40px] w-full rounded-lg bg-sky-600 text-sm font-bold text-white disabled:opacity-50"
+          className="relative z-0 min-h-[40px] w-full rounded-lg bg-sky-600 text-sm font-bold text-white disabled:opacity-50"
         >
           検索
         </button>

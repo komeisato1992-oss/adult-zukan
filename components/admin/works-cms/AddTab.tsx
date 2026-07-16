@@ -17,6 +17,19 @@ import {
   type FetchImportCandidatesSummary,
 } from "@/components/admin/works-cms/types";
 
+/** 数字以外を除去し、先頭の余分な0を落とす（050→50, 000→0） */
+function normalizeOffsetDigits(raw: string): string {
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return "";
+  return digits.replace(/^0+(?=\d)/, "");
+}
+
+function parseOffsetNumber(digits: string): number {
+  if (!digits) return 0;
+  const n = Number(digits);
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
 type AddTabProps = {
   sort: AdultImportSortMode;
   setSort: (v: AdultImportSortMode) => void;
@@ -62,6 +75,13 @@ export function WorksCmsAddTab({
   step,
 }: AddTabProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  /** フォーカス中のみ文字列編集。null のときは offset(number) を表示 */
+  const [offsetDraft, setOffsetDraft] = useState<string | null>(null);
+
+  const applyOffset = (next: number | ((prev: number) => number)) => {
+    setOffsetDraft(null);
+    setOffset(next);
+  };
 
   const toggleSelect = (id: string) => {
     const next = new Set(selected);
@@ -153,30 +173,52 @@ export function WorksCmsAddTab({
           </label>
           <input
             id="add-offset"
-            type="number"
-            min={0}
-            value={offset}
-            onChange={(e) => setOffset(Number(e.target.value) || 0)}
-            className="min-h-[36px] w-24 rounded-lg border border-border px-2"
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            autoComplete="off"
+            enterKeyHint="done"
+            value={offsetDraft !== null ? offsetDraft : String(offset)}
+            onFocus={() => {
+              setOffsetDraft(offset === 0 ? "" : String(offset));
+            }}
+            onChange={(e) => {
+              const next = normalizeOffsetDigits(e.target.value);
+              setOffsetDraft(next);
+              if (next !== "") {
+                setOffset(parseOffsetNumber(next));
+              }
+            }}
+            onBlur={() => {
+              const next =
+                offsetDraft === null || offsetDraft === ""
+                  ? 0
+                  : parseOffsetNumber(offsetDraft);
+              setOffset(next);
+              setOffsetDraft(null);
+            }}
+            className="min-h-[36px] w-24 rounded-lg border border-border px-2 tabular-nums"
           />
           <button
             type="button"
             className="min-h-[36px] rounded-lg border px-2.5 text-xs"
-            onClick={() => setOffset((v) => Math.max(0, v - fetchCount))}
+            onClick={() =>
+              applyOffset((v) => Math.max(0, v - fetchCount))
+            }
           >
             前へ
           </button>
           <button
             type="button"
             className="min-h-[36px] rounded-lg border px-2.5 text-xs"
-            onClick={() => setOffset((v) => v + fetchCount)}
+            onClick={() => applyOffset((v) => v + fetchCount)}
           >
             次へ
           </button>
           <button
             type="button"
             className="min-h-[36px] rounded-lg border px-2.5 text-xs"
-            onClick={() => setOffset(0)}
+            onClick={() => applyOffset(0)}
           >
             0に戻す
           </button>

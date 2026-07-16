@@ -261,6 +261,13 @@ export function AdminWorksCms() {
       (overview?.fanzaTv.unknownCount ?? 0) >
     0;
 
+  const selectOkCandidates = (list: FetchedImportCandidate[]) =>
+    new Set(
+      list
+        .filter((c) => c.imageStatus === "ok" && !c.imageUrlMissing)
+        .map((c) => c.contentId),
+    );
+
   const handleFetch = async () => {
     setBusy(true);
     setMessage(null);
@@ -278,16 +285,92 @@ export function AdminWorksCms() {
       if (!res.ok || !data.success) {
         throw new Error(data.error || data.message || "候補取得に失敗しました");
       }
-      setCandidates(data.candidates ?? []);
+      const nextCandidates = (data.candidates ??
+        []) as FetchedImportCandidate[];
+      setCandidates(nextCandidates);
       setSummary(data.summary ?? null);
-      setSelected(new Set());
+      // 画像あり（ok）のみ初期選択
+      setSelected(selectOkCandidates(nextCandidates));
       if (typeof data.summary?.nextOffset === "number") {
         setOffset(data.summary.nextOffset);
       }
+      const ok = data.summary?.imageOkCount ?? selectOkCandidates(nextCandidates).size;
+      const np = data.summary?.imageNowPrintingCount ?? 0;
+      const ff = data.summary?.imageFetchFailedCount ?? 0;
+      const nu = data.summary?.imageNoUrlCount ?? 0;
       setMessage(
-        `候補 ${data.summary?.candidateCount ?? 0}件（重複除外 ${data.summary?.duplicateExcludedCount ?? 0}）`,
+        [
+          `候補 ${data.summary?.candidateCount ?? nextCandidates.length}件`,
+          `画像あり ${ok} / NOW PRINTING ${np} / 確認失敗 ${ff} / URLなし ${nu}`,
+          data.summary?.imageCheckMessage || null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
       );
       await refreshWorksCmsOverview();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleRecheckFailedImages = async () => {
+    const targets = candidates.filter(
+      (c) => c.imageStatus === "fetch_failed" && !c.imageUrlMissing,
+    );
+    if (targets.length === 0) return;
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/import/recheck-candidate-images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ candidates: targets }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) {
+        throw new Error(data.error || "画像の再確認に失敗しました");
+      }
+      const updated = (data.candidates ?? []) as FetchedImportCandidate[];
+      const byId = new Map(updated.map((c) => [c.contentId, c]));
+      const nextCandidates = candidates.map((c) => byId.get(c.contentId) ?? c);
+      setCandidates(nextCandidates);
+
+      // 正常画像になった作品は自動選択ON、NOW PRINTING は OFF のまま
+      setSelected((prev) => {
+        const next = new Set(prev);
+        for (const c of updated) {
+          if (c.imageStatus === "ok" && !c.imageUrlMissing) {
+            next.add(c.contentId);
+          } else if (c.imageStatus === "now_printing" || c.imageUrlMissing) {
+            next.delete(c.contentId);
+          }
+        }
+        return next;
+      });
+
+      setSummary((prev) =>
+        prev
+          ? {
+              ...prev,
+              imageOkCount: nextCandidates.filter(
+                (c) => c.imageStatus === "ok" && !c.imageUrlMissing,
+              ).length,
+              imageNowPrintingCount: nextCandidates.filter(
+                (c) => c.imageStatus === "now_printing",
+              ).length,
+              imageFetchFailedCount: nextCandidates.filter(
+                (c) =>
+                  c.imageStatus === "fetch_failed" && !c.imageUrlMissing,
+              ).length,
+              imageNoUrlCount: nextCandidates.filter((c) => c.imageUrlMissing)
+                .length,
+              imageCheckMessage: data.stats?.message ?? prev.imageCheckMessage,
+            }
+          : prev,
+      );
+      setMessage(data.stats?.message || "画像の再確認が完了しました");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {
@@ -796,13 +879,21 @@ export function AdminWorksCms() {
                           type="button"
                           className="min-h-[36px] rounded-lg border px-2.5 text-xs font-semibold"
                           onClick={() =>
-                            setSelected(
-                              new Set(candidates.map((c) => c.contentId)),
-                            )
+                            setSelected(selectOkCandidates(candidates))
                           }
                           disabled={candidates.length === 0}
                         >
                           すべて選択
+                        </button>
+                        <button
+                          type="button"
+                          className="min-h-[36px] rounded-lg border px-2.5 text-xs font-semibold"
+                          onClick={() =>
+                            setSelected(selectOkCandidates(candidates))
+                          }
+                          disabled={candidates.length === 0}
+                        >
+                          画像ありだけ選択
                         </button>
                         <button
                           type="button"
@@ -968,6 +1059,7 @@ export function AdminWorksCms() {
           busy={busy}
           onFetch={() => void handleFetch()}
           onAddByCid={() => void handleAddByCid()}
+          onRecheckFailedImages={() => void handleRecheckFailedImages()}
           step={addStep}
         />
       ) : null}
@@ -1065,13 +1157,21 @@ export function AdminWorksCms() {
                       type="button"
                       className="min-h-[36px] rounded-lg border px-2.5 text-xs font-semibold"
                       onClick={() =>
-                        setSelected(
-                          new Set(candidates.map((c) => c.contentId)),
-                        )
+                        setSelected(selectOkCandidates(candidates))
                       }
                       disabled={candidates.length === 0}
                     >
                       すべて選択
+                    </button>
+                    <button
+                      type="button"
+                      className="min-h-[36px] rounded-lg border px-2.5 text-xs font-semibold"
+                      onClick={() =>
+                        setSelected(selectOkCandidates(candidates))
+                      }
+                      disabled={candidates.length === 0}
+                    >
+                      画像ありだけ選択
                     </button>
                     <button
                       type="button"

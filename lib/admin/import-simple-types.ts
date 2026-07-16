@@ -1,4 +1,5 @@
 import type { DmmItem } from "@/lib/dmm/types";
+import type { AdultImageStatus } from "@/lib/works/image-status-shared";
 
 /** 候補取得の並び順（FANZA API sort 切替用） */
 export type AdultImportSortMode = "popular" | "new";
@@ -55,6 +56,13 @@ export type FetchedImportCandidate = {
   /** 追加時の sourcePopularityRank 用（= absolutePopularityPosition） */
   rankPosition: number | null;
   candidateMeta: ImportCandidateMeta;
+  /** large→list→small で解決した判定用URL（プレースホルダー含む） */
+  packageImage?: string | null;
+  /** 候補取得時の画像判定結果 */
+  imageStatus?: AdultImageStatus | null;
+  imageStatusCheckedAt?: string | null;
+  /** packageImage が空（URLなし） */
+  imageUrlMissing?: boolean;
 };
 
 export type FetchImportCandidatesSummary = {
@@ -76,6 +84,14 @@ export type FetchImportCandidatesSummary = {
   popularityRangeMax: number | null;
   targetReached: boolean;
   message: string;
+  /** 候補取得直後の画像判定集計 */
+  imageOkCount?: number;
+  imageNowPrintingCount?: number;
+  imageFetchFailedCount?: number;
+  imageNoUrlCount?: number;
+  imageGetCount?: number;
+  imageCheckMessage?: string;
+  initialSelectedCount?: number;
 };
 
 export type FetchImportCandidatesResult = {
@@ -110,4 +126,8 @@ export type AddSelectedWorkInput = {
   contentId: string;
   item: DmmItem;
   sourcePopularityRank?: number | null;
+  /** 候補取得時の判定結果。あれば追加時に画像GETしない */
+  imageStatus?: AdultImageStatus | null;
+  imageStatusCheckedAt?: string | null;
+  packageImage?: string | null;
 };

@@ -1,6 +1,7 @@
 import type { FetchedImportCandidate } from "@/lib/admin/import-simple-types";
 import { getCandidateSelectionId } from "@/lib/admin/import-session-storage";
 import type { DmmItem } from "@/lib/dmm/types";
+import { pickPackageImageCandidate } from "@/lib/works/package-image";
 
 /** 追加APIへ送る最小限の作品データ（巨大なサンプル配列等を除外） */
 export function slimWorkItemForAdd(item: DmmItem): DmmItem {
@@ -33,6 +34,9 @@ export function buildAddSelectedWorksPayload(
     contentId: string;
     item: DmmItem;
     sourcePopularityRank: number | null;
+    imageStatus: string | null;
+    imageStatusCheckedAt: string | null;
+    packageImage: string | null;
   }>;
 } {
   return {
@@ -43,6 +47,12 @@ export function buildAddSelectedWorksPayload(
         candidate.candidateMeta?.absolutePopularityPosition ??
         candidate.rankPosition ??
         null,
+      imageStatus: candidate.imageStatus ?? null,
+      imageStatusCheckedAt: candidate.imageStatusCheckedAt ?? null,
+      packageImage:
+        candidate.packageImage !== undefined
+          ? candidate.packageImage
+          : pickPackageImageCandidate(candidate.item),
     })),
   };
 }

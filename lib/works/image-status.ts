@@ -159,13 +159,27 @@ export async function detectAdultImageStatusMany(
   concurrency = 4,
 ): Promise<AdultImageStatusResult[]> {
   const results: AdultImageStatusResult[] = new Array(urls.length);
+  const cache = new Map<string, Promise<AdultImageStatusResult>>();
   let next = 0;
+
+  async function detectCached(
+    url: string | null | undefined,
+  ): Promise<AdultImageStatusResult> {
+    const key = url?.trim() || "";
+    if (!key) return detectAdultImageStatus(url);
+    let pending = cache.get(key);
+    if (!pending) {
+      pending = detectAdultImageStatus(url);
+      cache.set(key, pending);
+    }
+    return pending;
+  }
 
   async function worker() {
     while (next < urls.length) {
       const i = next;
       next += 1;
-      results[i] = await detectAdultImageStatus(urls[i]);
+      results[i] = await detectCached(urls[i]);
     }
   }
 

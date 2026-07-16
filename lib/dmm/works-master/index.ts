@@ -251,13 +251,25 @@ export async function getPublishedWorksMasterContentIdSet(): Promise<Set<string>
   }
 }
 
+export type WorksMasterPrecheckedImage = {
+  status: "ok" | "now_printing" | "fetch_failed";
+  checkedAt: string;
+  packageImage?: string | null;
+};
+
 /**
  * 作品マスターへ保存。
  * Supabase 接続時は必ず works へ UPSERT。障害時のみローカル JSON へフォールバック。
+ *
+ * precheckedByCid があれば画像 GET しない（候補取得時の判定を再利用）。
+ * image_status が ok 以外の作品は保存するが初期 published=false。
  */
 export async function upsertWorksMasterFromDmmItems(
   works: DmmItem[],
-  options?: { published?: boolean },
+  options?: {
+    published?: boolean;
+    precheckedByCid?: Record<string, WorksMasterPrecheckedImage>;
+  },
 ): Promise<WorksMasterUpsertResult> {
   const configuredBackend = getConfiguredWorksMasterBackend();
   const published = options?.published ?? true;
@@ -277,9 +289,10 @@ export async function upsertWorksMasterFromDmmItems(
   const { computeWorksPublished } = await import(
     "@/lib/admin/works-cms-publish"
   );
+  const prechecked = options?.precheckedByCid ?? {};
 
-  // 追加時: imageURL.large→list→small を URL 文字列判定し、必要な作品のみ GET
-  // （通常閲覧・検索・公開管理では再判定しない。DB の image_status を参照）
+  // 追加時: 事前判定があればそれを使い、未設定のみ URL→必要時 GET
+  // （通常閲覧・検索・公開管理では再判定しない）
   const draftRows = works
     .map((work) => {
       const row = dmmItemToWorkMasterRow(work, {
@@ -287,32 +300,62 @@ export async function upsertWorksMasterFromDmmItems(
         now,
       });
       if (!row) return null;
-      // large → list → small 順の候補（now_printing / noimage URL も含む）
-      if (!pickPackageImageCandidate(work) && !row.package_image) return null;
+      const pre = prechecked[row.cid];
+      if (pre?.packageImage !== undefined) {
+        row.package_image = pre.packageImage;
+      }
+      // URLなしでも手動追加（非公開）を許可するため、prechecked があれば通す
+      if (!pickPackageImageCandidate(work) && !row.package_image && !pre) {
+        return null;
+      }
       return { work, row };
     })
     .filter((entry): entry is { work: DmmItem; row: WorkMasterUpsertInput } =>
       Boolean(entry),
     );
 
-  const statusResults = await detectAdultImageStatusMany(
-    draftRows.map(
-      (entry) =>
-        pickPackageImageCandidate(entry.work) ?? entry.row.package_image,
-    ),
-    4,
-  );
+  const needDetectIndexes: number[] = [];
+  const needDetectUrls: Array<string | null> = [];
+  for (let i = 0; i < draftRows.length; i += 1) {
+    const cid = draftRows[i].row.cid;
+    if (prechecked[cid]?.status) continue;
+    needDetectIndexes.push(i);
+    needDetectUrls.push(
+      pickPackageImageCandidate(draftRows[i].work) ??
+        draftRows[i].row.package_image,
+    );
+  }
+
+  const detectedFresh =
+    needDetectUrls.length > 0
+      ? await detectAdultImageStatusMany(needDetectUrls, 3)
+      : [];
+  const detectedByDraftIndex = new Map<
+    number,
+    (typeof detectedFresh)[number]
+  >();
+  needDetectIndexes.forEach((draftIndex, j) => {
+    detectedByDraftIndex.set(draftIndex, detectedFresh[j]);
+  });
 
   const rows = draftRows
     .map((entry, index) => {
-      const detected = statusResults[index];
       const row = entry.row;
-      row.image_status = detected.status;
-      row.image_status_checked_at = detected.checkedAt;
+      const pre = prechecked[row.cid];
+      if (pre?.status) {
+        row.image_status = pre.status;
+        row.image_status_checked_at = pre.checkedAt;
+      } else {
+        const detected = detectedByDraftIndex.get(index);
+        if (!detected) return null;
+        row.image_status = detected.status;
+        row.image_status_checked_at = detected.checkedAt;
+      }
 
-      // NOW PRINTING / 取得失敗はマスターへ載せない（追加除外）
-      if (!isAdultImageStatusOk(detected.status)) {
-        return null;
+      // ok 以外は安全のため非公開（手動選択の NOW PRINTING / 取得失敗を含む）
+      if (!isAdultImageStatusOk(row.image_status)) {
+        row.published = false;
+        return row;
       }
 
       if (options?.published !== false) {
@@ -420,6 +463,10 @@ export async function revalidateWorksMasterAfterAdd(): Promise<void> {
   invalidateLocalWorksMasterCache();
   try {
     revalidateTag(WORKS_MASTER_CACHE_TAG);
+    revalidateTag("public-works-list");
+    revalidateTag("public-work-filter-options");
+    revalidateTag("public-entity-summaries");
+    revalidateTag("actress-list");
   } catch {
     // build / non-Next context
   }

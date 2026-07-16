@@ -7,7 +7,7 @@ import {
 } from "@/lib/admin/fetch-import-candidates";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 120;
 
 type FailureCode =
   | "UNAUTHORIZED"

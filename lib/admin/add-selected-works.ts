@@ -29,8 +29,9 @@ import type {
 import { normalizeCatalogContentId } from "@/lib/dmm/catalog-snapshot";
 import { logCatalogSnapshotThrownError } from "@/lib/dmm/catalog-snapshot-json";
 import type { IndexUpdateStats } from "@/lib/dmm/index-builders";
-import { isValidDmmListItem } from "@/lib/dmm/filter";
+import { isImportCandidateMetadataValid } from "@/lib/dmm/filter";
 import { enrichCatalogItemMetadata } from "@/lib/dmm/catalog-metadata";
+import type { AdultImageStatus } from "@/lib/works/image-status-shared";
 import {
   appendWorksToCatalogShards,
   clearCatalogShardCache,
@@ -129,7 +130,8 @@ function prepareCatalogItem(
     throw new AddSelectedWorksError("content_id と作品データが一致しません。");
   }
 
-  if (!isValidDmmListItem(item)) {
+  // 画像なし / NOW PRINTING も手動追加可（公開は upsert 側で制御）
+  if (!isImportCandidateMetadataValid(item)) {
     throw new AddSelectedWorksError(
       "作品データがカタログ追加条件を満たしていません。",
     );
@@ -161,6 +163,9 @@ function parseWorkEntries(entries: unknown): AddSelectedWorkInput[] {
       contentId?: string;
       item?: DmmItem;
       sourcePopularityRank?: number | null;
+      imageStatus?: string | null;
+      imageStatusCheckedAt?: string | null;
+      packageImage?: string | null;
     };
 
     const contentId = record.contentId?.trim();
@@ -170,10 +175,29 @@ function parseWorkEntries(entries: unknown): AddSelectedWorkInput[] {
       throw new AddSelectedWorksError(`作品データ(${index + 1}件目)が不正です。`);
     }
 
+    const imageStatusRaw = String(record.imageStatus ?? "").trim();
+    const imageStatus: AdultImageStatus | null =
+      imageStatusRaw === "ok" ||
+      imageStatusRaw === "now_printing" ||
+      imageStatusRaw === "fetch_failed"
+        ? imageStatusRaw
+        : null;
+
     return {
       contentId,
       item,
       sourcePopularityRank: record.sourcePopularityRank ?? null,
+      imageStatus,
+      imageStatusCheckedAt:
+        typeof record.imageStatusCheckedAt === "string"
+          ? record.imageStatusCheckedAt
+          : null,
+      packageImage:
+        record.packageImage === undefined
+          ? undefined
+          : record.packageImage == null
+            ? null
+            : String(record.packageImage),
     };
   });
 }
@@ -233,8 +257,9 @@ function classifySelectedWorks(
       continue;
     }
 
-    // URL有無のみ。NOW PRINTING 判定は upsert 時（URL文字列→必要時のみGET）
-    if (!pickPackageImageCandidate(work.item)) {
+    // 事前判定ありなら URL なしでも追加可。未判定かつ URL なしのみ除外
+    const hasPrechecked = Boolean(work.imageStatus);
+    if (!pickPackageImageCandidate(work.item) && !hasPrechecked) {
       imageMissingContentIds.push(normalizedId || work.contentId);
       continue;
     }
@@ -244,7 +269,7 @@ function classifySelectedWorks(
         sourcePopularityRank: work.sourcePopularityRank,
       });
 
-      if (!pickPackageImageCandidate(prepared)) {
+      if (!pickPackageImageCandidate(prepared) && !hasPrechecked) {
         imageMissingContentIds.push(normalizedId || work.contentId);
         continue;
       }
@@ -447,7 +472,7 @@ async function addSelectedWorksToWorksMaster(
   const selectionDuplicateCount =
     classified.selectionDuplicateContentIds.length;
   const invalidCount = classified.invalidContentIds.length;
-  let imageMissingExcludedCount = classified.imageMissingContentIds.length;
+  const imageMissingExcludedCount = classified.imageMissingContentIds.length;
 
   logPhase("deduplicate", {
     receivedCount: selectedCount,
@@ -489,9 +514,30 @@ async function addSelectedWorksToWorksMaster(
     };
   }
 
+  const precheckedByCid: Record<
+    string,
+    {
+      status: AdultImageStatus;
+      checkedAt: string;
+      packageImage?: string | null;
+    }
+  > = {};
+  for (const work of works) {
+    const cid = normalizeCatalogContentId(work.contentId);
+    if (!cid || !work.imageStatus) continue;
+    precheckedByCid[cid] = {
+      status: work.imageStatus,
+      checkedAt: work.imageStatusCheckedAt || new Date().toISOString(),
+      packageImage:
+        work.packageImage !== undefined
+          ? work.packageImage
+          : pickPackageImageCandidate(work.item),
+    };
+  }
+
   const upsertResult = await upsertWorksMasterFromDmmItems(
     classified.preparedItems,
-    { published: true },
+    { published: true, precheckedByCid },
   );
 
   // 変動情報も同時に UPSERT（Git/JSONなし）
@@ -512,12 +558,6 @@ async function addSelectedWorksToWorksMaster(
     supabaseSavedCount,
     jsonFallbackCount,
   } = upsertResult;
-
-  // upsert 時の GET 判定で落ちた分を画像なし除外に加算
-  imageMissingExcludedCount += Math.max(
-    0,
-    classified.preparedItems.length - upserted,
-  );
 
   // Git / catalog JSON / commit / push / deploy は行わない。タグのみ再検証。
   // （JSON フォールバック時のみローカル works-master.json を更新）

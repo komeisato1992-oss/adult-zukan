@@ -11,14 +11,20 @@ function isVrItem(item: DmmItem): boolean {
   return genres.some((genre) => /VR/i.test(genre.name));
 }
 
-/** 一覧・静的生成用：有効なDMM作品か判定 */
-export function isValidDmmListItem(item: DmmItem): boolean {
+/** メタデータのみ（画像は問わない）。作品追加候補の受付用 */
+export function isImportCandidateMetadataValid(item: DmmItem): boolean {
   if (!item.content_id?.trim()) return false;
   if (!item.title?.trim()) return false;
   if (!item.affiliateURL?.trim() && !item.URL?.trim()) return false;
   if (isVrItem(item)) return false;
-  if (!hasValidImage(item)) return false;
   if (!getDmmFanzaUrl(item)) return false;
+  return true;
+}
+
+/** 一覧・静的生成用：有効なDMM作品か判定 */
+export function isValidDmmListItem(item: DmmItem): boolean {
+  if (!isImportCandidateMetadataValid(item)) return false;
+  if (!hasValidImage(item)) return false;
 
   return Boolean(getValidImageUrl(item, ["large", "list"]));
 }

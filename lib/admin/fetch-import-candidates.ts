@@ -1,10 +1,11 @@
 import "server-only";
 
-import {
-  hasCollectibleImage,
-} from "@/lib/admin/import-collect-filters";
 import { fetchCatalogFromGitHub } from "@/lib/admin/github-catalog";
 import { isGitHubCatalogConfigured } from "@/lib/admin/github-config";
+import {
+  checkImportCandidateImages,
+  initialSelectedContentIds,
+} from "@/lib/admin/check-import-candidate-images";
 import {
   nextCollectPageHits,
   normalizeDmmOffset,
@@ -35,7 +36,7 @@ import {
 } from "@/lib/dmm/catalog-dedupe";
 import { fetchDmmItemList, isDmmConfigured } from "@/lib/dmm/client";
 import { readCatalogSnapshot } from "@/lib/dmm/catalog-snapshot";
-import { isValidDmmListItem } from "@/lib/dmm/filter";
+import { isImportCandidateMetadataValid } from "@/lib/dmm/filter";
 import type { DmmFetchOptions } from "@/lib/dmm/types";
 import type { DmmItem } from "@/lib/dmm/types";
 
@@ -54,11 +55,7 @@ type FetchBlockContext = {
   batchKeys: Set<string>;
 };
 
-type FetchRejectReason =
-  | "catalogPublished"
-  | "duplicate"
-  | "noImage"
-  | "invalid";
+type FetchRejectReason = "catalogPublished" | "duplicate" | "invalid";
 
 type CatalogKeyLoadResult = {
   keys: Set<string>;
@@ -168,8 +165,8 @@ function classifyFetchItem(
   if (workMatchesCatalogIds(item, context.batchKeys)) {
     return "duplicate";
   }
-  if (!hasCollectibleImage(item)) return "noImage";
-  if (!isValidDmmListItem(item)) return "invalid";
+  // 画像有無は除外しない（取得後に image_status 判定し、初期選択のみ制御）
+  if (!isImportCandidateMetadataValid(item)) return "invalid";
 
   return null;
 }
@@ -184,9 +181,6 @@ function recordFetchExclusion(
       break;
     case "duplicate":
       summary.duplicateExcludedCount += 1;
-      break;
-    case "noImage":
-      summary.imageMissingExcludedCount += 1;
       break;
     case "invalid":
       summary.invalidExcludedCount += 1;
@@ -326,7 +320,7 @@ export function parseFetchCandidatesRequest(body: unknown): {
 
   return {
     sort: parseFetchSort(payload.sort),
-    offset: parseStartOffset(payload.offset),
+    offset: parseStartOffset(payload.startOffset ?? payload.offset),
     requestedCount: parseRequestedCount(
       payload.requestedCount ?? payload.requestCount,
     ),
@@ -441,5 +435,28 @@ export async function fetchImportCandidates(input: {
   summary.targetReached = candidates.length >= requestedCount;
   summary.message = buildFetchSummaryMessage(summary);
 
-  return { candidates, summary };
+  // 候補取得直後のみ画像判定（通常閲覧・再描画では行わない）
+  const checked = await checkImportCandidateImages(candidates, {
+    concurrency: 3,
+  });
+  summary.imageOkCount = checked.stats.okCount;
+  summary.imageNowPrintingCount = checked.stats.nowPrintingCount;
+  summary.imageFetchFailedCount = checked.stats.fetchFailedCount;
+  summary.imageNoUrlCount = checked.stats.noUrlCount;
+  summary.imageGetCount = checked.stats.imageGetCount;
+  summary.imageCheckMessage = checked.stats.message;
+  summary.initialSelectedCount = initialSelectedContentIds(
+    checked.candidates,
+  ).length;
+  // 旧「画像なし除外」欄は判定結果の非ok件数を参考表示
+  summary.imageMissingExcludedCount =
+    checked.stats.nowPrintingCount +
+    checked.stats.fetchFailedCount +
+    checked.stats.noUrlCount;
+
+  if (checked.stats.message) {
+    summary.message = `${summary.message}\n${checked.stats.message}`;
+  }
+
+  return { candidates: checked.candidates, summary };
 }

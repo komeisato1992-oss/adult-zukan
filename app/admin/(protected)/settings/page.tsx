@@ -118,6 +118,19 @@ export default function AdminSettingsPage() {
         </div>
       </section>
 
+      <section className="rounded-2xl border border-border bg-white p-4 space-y-2">
+        <p className="font-bold">コード変更時の本番反映</p>
+        <p className="text-xs text-muted">
+          作品追加・価格更新・公開状態の変更ではデプロイ不要です。UIやコードを本番へ反映するときだけ使います。
+        </p>
+        <Link
+          href="/admin/deploy"
+          className="inline-flex min-h-[44px] items-center rounded-xl border border-border px-4 text-sm font-bold"
+        >
+          デプロイ・本番反映ページへ
+        </Link>
+      </section>
+
       <Link
         href="/admin/import"
         className="inline-flex min-h-[48px] items-center rounded-xl bg-sky-600 px-4 font-bold text-white"

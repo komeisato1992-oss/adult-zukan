@@ -25,11 +25,16 @@ export type WorksCmsOverview = {
   noPackageImageCount: number;
   unavailableCount: number;
   manualHiddenCount: number;
+  worksMasterCount: number;
+  liveStatusCount: number;
+  missingLiveCount: number;
+  initRatePercent: number;
+  liveInitComplete: boolean;
   lastWorkAddedAt: string | null;
   lastLightSyncAt: string | null;
   runningJobLabel: string | null;
   errorCount: number;
-  tone: "ok" | "running" | "warn" | "error";
+  tone: "ok" | "running" | "warn" | "error" | "unset";
   fanzaTv: {
     uncheckedCount: number;
     activeCount: number;
@@ -86,7 +91,9 @@ function toneFromOverview(input: {
   running: boolean;
   errorCount: number;
   noPackageImageCount: number;
+  supabaseReady: boolean;
 }): WorksCmsOverview["tone"] {
+  if (!input.supabaseReady) return "unset";
   if (input.errorCount > 0) return "error";
   if (input.running) return "running";
   if (input.noPackageImageCount > 0) return "warn";
@@ -198,14 +205,41 @@ export async function getWorksCmsOverview(): Promise<WorksCmsOverview> {
 
   const sync = await getFanzaSyncStatus();
   const mig = readWorksMasterMigrationJob();
+  const { getWorkLiveStatusStorageInfo } = await import(
+    "@/lib/dmm/work-live-status"
+  );
+  const { getWorksMasterStorageInfo } = await import(
+    "@/lib/dmm/works-master"
+  );
+  const { getLiveStatusInitStatus } = await import(
+    "@/lib/admin/live-status-init-runner"
+  );
+  const liveStorage = await getWorkLiveStatusStorageInfo();
+  const worksMaster = await getWorksMasterStorageInfo();
+  const liveInit = await getLiveStatusInitStatus();
+
+  const worksMasterCount = liveInit.worksCount || worksMaster.rowCount || 0;
+  const liveStatusCount = liveInit.liveStatusCount || liveStorage.rowCount || 0;
+  const missingLiveCount = liveInit.missingCount ?? Math.max(0, worksMasterCount - liveStatusCount);
+  const initRatePercent = liveInit.initRatePercent;
+  const liveInitComplete =
+    worksMasterCount > 0 && missingLiveCount === 0 && initRatePercent >= 100;
+
+  const initRunning =
+    liveInit.currentJob?.status === "running" ||
+    liveInit.currentJob?.status === "pending" ||
+    liveInit.currentJob?.status === "waiting";
   const running =
     sync.currentJob?.status === "running" ||
     sync.currentJob?.status === "pending" ||
-    mig.status === "running";
+    mig.status === "running" ||
+    initRunning;
   const runningJobLabel = running
     ? sync.currentJob?.status === "running" || sync.currentJob?.status === "pending"
-      ? `軽量同期 ${sync.currentJob.processedCount}/${sync.currentJob.targetCount}`
-      : `作品移行 ${mig.processedCount}/${mig.targetCount}`
+      ? `掲載更新 ${sync.currentJob.processedCount}/${sync.currentJob.targetCount}`
+      : initRunning
+        ? `変動情報初期化 ${liveStatusCount}/${worksMasterCount}`
+        : `作品移行 ${mig.processedCount}/${mig.targetCount}`
     : null;
 
   const errorCount =
@@ -219,12 +253,19 @@ export async function getWorksCmsOverview(): Promise<WorksCmsOverview> {
     sync.history?.[0]?.completedAt ??
     null;
 
+  const supabaseReady = Boolean(client);
+
   return {
     publishedCount,
     unpublishedCount,
     noPackageImageCount,
     unavailableCount,
     manualHiddenCount,
+    worksMasterCount,
+    liveStatusCount,
+    missingLiveCount,
+    initRatePercent,
+    liveInitComplete,
     lastWorkAddedAt,
     lastLightSyncAt,
     runningJobLabel,
@@ -233,6 +274,7 @@ export async function getWorksCmsOverview(): Promise<WorksCmsOverview> {
       running,
       errorCount,
       noPackageImageCount,
+      supabaseReady,
     }),
     fanzaTv: {
       uncheckedCount,
@@ -377,7 +419,10 @@ export async function patchWorksCmsPublish(input: {
     | "hard_delete"
     | "reset_fanza_tv";
   reason?: string;
-}): Promise<{ updated: number }> {
+}): Promise<{
+  updated: number;
+  skipped: Array<{ cid: string; reason: string }>;
+}> {
   const client = getSupabaseServiceClient();
   if (!client) throw new Error("Supabase未設定");
 
@@ -388,7 +433,7 @@ export async function patchWorksCmsPublish(input: {
         .filter((c): c is string => Boolean(c)),
     ),
   ];
-  if (cids.length === 0) return { updated: 0 };
+  if (cids.length === 0) return { updated: 0, skipped: [] };
 
   const { supabaseFetchWorkMasterByCids, supabaseUpsertWorkMasterRows } =
     await import("@/lib/dmm/works-master/supabase-store");
@@ -405,13 +450,17 @@ export async function patchWorksCmsPublish(input: {
   const lives = await supabaseFetchLiveStatusByCids(cids);
   const now = new Date().toISOString();
   const overridePatches: Parameters<typeof upsertWorksCmsOverrides>[0] = [];
+  const skipped: Array<{ cid: string; reason: string }> = [];
 
   const masterUpserts: WorkMasterRow[] = [];
   const liveUpserts: WorkLiveStatusUpsertLoose[] = [];
 
   for (const cid of cids) {
     const master = masters.get(cid);
-    if (!master) continue;
+    if (!master) {
+      skipped.push({ cid, reason: "作品マスターに存在しません" });
+      continue;
+    }
     const live = lives.get(cid);
     const ov = getWorksCmsOverride(cid) ?? { cid };
 
@@ -422,6 +471,13 @@ export async function patchWorksCmsPublish(input: {
 
     switch (input.action) {
       case "publish":
+        if (!master.package_image?.trim()) {
+          skipped.push({
+            cid,
+            reason: "パッケージ画像がないため公開できません",
+          });
+          continue;
+        }
         manualHidden = false;
         deletedAt = null;
         isAvailable = true;
@@ -538,7 +594,7 @@ export async function patchWorksCmsPublish(input: {
   await revalidateWorksMasterAfterAdd();
   revalidateWorkLiveStatusAfterSync();
 
-  return { updated: masterUpserts.length };
+  return { updated: masterUpserts.length, skipped };
 }
 
 type WorkLiveStatusUpsertLoose = WorkLiveStatusRow;

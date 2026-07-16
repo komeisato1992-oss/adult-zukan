@@ -1,162 +1,147 @@
 "use client";
 
-import Link from "next/link";
-import Image from "next/image";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { WorksMasterMigrationPanel } from "@/components/admin/WorksMasterMigrationPanel";
-import { buildAddSelectedWorksPayload } from "@/lib/admin/import-add-payload";
-import type {
-  AdultImportSortMode,
-  FetchedImportCandidate,
-  FetchImportCandidatesSummary,
-} from "@/lib/admin/import-simple-types";
-import { getAdultImportSortLabel } from "@/lib/admin/import-simple-types";
-import type { AdultSyncMode } from "@/lib/dmm/sync-mode";
-import { getAdultSyncModeLabel } from "@/lib/dmm/sync-mode";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { WorksCmsAddTab } from "@/components/admin/works-cms/AddTab";
+import { WorksCmsFanzaTvTab } from "@/components/admin/works-cms/FanzaTvTab";
+import { WorksCmsHistoryTab } from "@/components/admin/works-cms/HistoryTab";
+import { WorksCmsOverviewPanel } from "@/components/admin/works-cms/OverviewPanel";
 import {
-  getDmmItemActressNameList,
-  getDmmItemImageUrl,
-  getDmmItemMakerName,
-} from "@/lib/dmm/display";
-import { formatDmmItemPrice } from "@/lib/dmm/release-date";
+  WorksCmsPublishTab,
+  type PublishFilters,
+} from "@/components/admin/works-cms/PublishTab";
+import { WorksCmsSyncTab } from "@/components/admin/works-cms/SyncTab";
+import { WorksCmsTabNav } from "@/components/admin/works-cms/TabNav";
+import {
+  FETCH_COUNTS,
+  type AddStep,
+  type AdultImportSortMode,
+  type AdultSyncMode,
+  type CmsListItem,
+  type FetchedImportCandidate,
+  type FetchImportCandidatesSummary,
+  type LiveInitJob,
+  type SyncHistoryEntry,
+  type SyncJob,
+  type SyncStatusPayload,
+  type WorksCmsOverview,
+  type WorksCmsTabId,
+} from "@/components/admin/works-cms/types";
+import { buildAddSelectedWorksPayload } from "@/lib/admin/import-add-payload";
 
-type TabId = "add" | "sync" | "publish" | "history";
-
-type Overview = {
-  publishedCount: number;
-  unpublishedCount: number;
-  noPackageImageCount: number;
-  unavailableCount: number;
-  manualHiddenCount: number;
-  lastWorkAddedAt: string | null;
-  lastLightSyncAt: string | null;
-  runningJobLabel: string | null;
-  errorCount: number;
-  tone: "ok" | "running" | "warn" | "error";
-  fanzaTv: {
-    uncheckedCount: number;
-    activeCount: number;
-    notAvailableCount: number;
-    unknownCount: number;
-    lastCheckedAt: string | null;
-    errorCount: number;
-    resumeCursor: number;
-  };
-      offsets: {
-        bySort: {
-          new: { lastOffset: number };
-          popular: { lastOffset: number };
-        };
-      };
+const DEFAULT_FILTERS: PublishFilters = {
+  cid: "",
+  title: "",
+  actress: "",
+  maker: "",
+  label: "",
+  series: "",
+  genre: "",
+  status: "all",
 };
-
-type CmsItem = {
-  cid: string;
-  title: string;
-  package_image: string | null;
-  maker: string | null;
-  actresses: string[];
-  published: boolean;
-  manual_hidden: boolean;
-  is_available: boolean;
-  fanza_tv_status: string | null;
-  price: string | null;
-};
-
-const TABS: Array<{ id: TabId; label: string }> = [
-  { id: "add", label: "1. 作品を追加" },
-  { id: "sync", label: "2. 掲載情報を更新" },
-  { id: "publish", label: "3. 公開状態を管理" },
-  { id: "history", label: "4. 処理履歴" },
-];
-
-const FETCH_COUNTS = [20, 50, 100, 200, 500] as const;
-
-const SYNC_MODES: AdultSyncMode[] = [
-  "price",
-  "review",
-  "rank",
-  "date",
-  "availability",
-  "light",
-];
-
-function toneClass(tone: Overview["tone"]): string {
-  if (tone === "ok") return "border-emerald-400 bg-emerald-50 text-emerald-950";
-  if (tone === "running") return "border-sky-400 bg-sky-50 text-sky-950";
-  if (tone === "warn") return "border-amber-400 bg-amber-50 text-amber-950";
-  return "border-red-400 bg-red-50 text-red-950";
-}
-
-function formatDateTime(value: string | null | undefined): string {
-  if (!value) return "—";
-  const t = Date.parse(value);
-  if (!Number.isFinite(t)) return value;
-  return new Date(t).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
-}
 
 export function AdminWorksCms() {
-  const [tab, setTab] = useState<TabId>("add");
-  const [overview, setOverview] = useState<Overview | null>(null);
+  const [tab, setTab] = useState<WorksCmsTabId>("add");
+  const [overview, setOverview] = useState<WorksCmsOverview | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // add tab
+  // add
   const [sort, setSort] = useState<AdultImportSortMode>("new");
-  const [fetchCount, setFetchCount] = useState<(typeof FETCH_COUNTS)[number]>(50);
+  const [fetchCount, setFetchCount] =
+    useState<(typeof FETCH_COUNTS)[number]>(50);
   const [offset, setOffset] = useState(0);
   const [candidates, setCandidates] = useState<FetchedImportCandidate[]>([]);
-  const [summary, setSummary] = useState<FetchImportCandidatesSummary | null>(null);
+  const [summary, setSummary] = useState<FetchImportCandidatesSummary | null>(
+    null,
+  );
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [cidInput, setCidInput] = useState("");
 
-  // sync tab
-  const [syncMode, setSyncMode] = useState<AdultSyncMode>("light");
-  const [syncJob, setSyncJob] = useState<{
-    status: string;
-    processedCount: number;
-    targetCount: number;
-    successCount: number;
-    updatedCount: number;
-    errorCount: number;
-    message?: string | null;
-    lastProcessedContentId?: string | null;
-  } | null>(null);
+  // sync
+  const [syncJob, setSyncJob] = useState<SyncJob | null>(null);
+  const [syncHistory, setSyncHistory] = useState<SyncHistoryEntry[]>([]);
+  const [canStartLightSync, setCanStartLightSync] = useState(false);
+  const [disableReasons, setDisableReasons] = useState<string[]>([]);
+  const [syncTargetCount, setSyncTargetCount] = useState(0);
+  const [liveInitJob, setLiveInitJob] = useState<LiveInitJob | null>(null);
+  const [lastSuccessByMode, setLastSuccessByMode] = useState<
+    Partial<Record<AdultSyncMode, string | null>>
+  >({});
+  const liveInitProcessingRef = useRef(false);
 
-  // publish tab
-  const [items, setItems] = useState<CmsItem[]>([]);
-  const [filterQ, setFilterQ] = useState("");
-  const [filterPublished, setFilterPublished] = useState<"all" | "published" | "unpublished">("all");
+  // publish
+  const [items, setItems] = useState<CmsListItem[]>([]);
+  const [filters, setFilters] = useState<PublishFilters>(DEFAULT_FILTERS);
   const [pubSelected, setPubSelected] = useState<Set<string>>(new Set());
-  const [historyExpanded, setHistoryExpanded] = useState(false);
   const [editCid, setEditCid] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
 
   const refreshOverview = useCallback(async () => {
-    const res = await fetch("/api/admin/works-cms/overview", { cache: "no-store" });
+    const res = await fetch("/api/admin/works-cms/overview", {
+      cache: "no-store",
+    });
     const data = await res.json();
     if (data.success) setOverview(data.overview);
   }, []);
 
   const refreshSync = useCallback(async () => {
-    const res = await fetch("/api/admin/fanza-sync/status", { cache: "no-store" });
-    const data = await res.json();
-    if (data.success) setSyncJob(data.currentJob);
+    const res = await fetch("/api/admin/fanza-sync/status", {
+      cache: "no-store",
+    });
+    const data = (await res.json()) as SyncStatusPayload;
+    if (!data.success) return;
+    setSyncJob(data.currentJob);
+    setSyncHistory(data.history ?? []);
+    setCanStartLightSync(Boolean(data.canStartLightSync));
+    setDisableReasons(data.disableReasons ?? []);
+    setSyncTargetCount(data.syncTargetCount ?? 0);
+    if (data.liveStatusInit?.currentJob) {
+      setLiveInitJob(data.liveStatusInit.currentJob);
+    }
+    const byMode: Partial<Record<AdultSyncMode, string | null>> = {};
+    for (const h of data.history ?? []) {
+      const mode = (h.mode || "light") as AdultSyncMode;
+      if (h.status === "completed" && h.completedAt) {
+        if (!byMode[mode] || (byMode[mode] ?? "") < h.completedAt) {
+          byMode[mode] = h.completedAt;
+        }
+      }
+    }
+    if (data.currentJob?.status === "completed" && data.currentJob.completedAt) {
+      const mode = (data.currentJob.mode || "light") as AdultSyncMode;
+      byMode[mode] = data.currentJob.completedAt;
+    }
+    setLastSuccessByMode(byMode);
   }, []);
 
   const refreshList = useCallback(async () => {
     const params = new URLSearchParams({
       page: "1",
-      pageSize: "30",
-      published: filterPublished,
+      pageSize: "40",
     });
-    if (filterQ.trim()) params.set("q", filterQ.trim());
+    if (filters.title.trim()) params.set("q", filters.title.trim());
+    if (filters.cid.trim()) params.set("cid", filters.cid.trim());
+    if (filters.actress.trim()) params.set("actress", filters.actress.trim());
+    if (filters.maker.trim()) params.set("maker", filters.maker.trim());
+    if (filters.label.trim()) params.set("label", filters.label.trim());
+    if (filters.series.trim()) params.set("series", filters.series.trim());
+    if (filters.genre.trim()) params.set("genre", filters.genre.trim());
+
+    if (filters.status === "published") params.set("published", "published");
+    else if (filters.status === "unpublished")
+      params.set("published", "unpublished");
+    if (filters.status === "noImage") params.set("noImage", "1");
+    if (filters.status === "unavailable") params.set("unavailable", "1");
+    if (filters.status === "manualHidden") params.set("manualHidden", "1");
+    if (filters.status === "fanzaActive") params.set("fanzaTv", "active");
+    if (filters.status === "fanzaUnchecked") params.set("fanzaTv", "unchecked");
+
     const res = await fetch(`/api/admin/works-cms/list?${params}`, {
       cache: "no-store",
     });
     const data = await res.json();
     if (data.success) setItems(data.items ?? []);
-  }, [filterPublished, filterQ]);
+  }, [filters]);
 
   useEffect(() => {
     void refreshOverview();
@@ -174,8 +159,19 @@ export function AdminWorksCms() {
     }
   }, [overview, sort]);
 
-  const selectedCount = selected.size;
-  const pubSelectedCount = pubSelected.size;
+  const addStep: AddStep = useMemo(() => {
+    if (selected.size > 0) return 4;
+    if (candidates.length > 0) return 3;
+    if (summary) return 2;
+    return 1;
+  }, [selected.size, candidates.length, summary]);
+
+  const fanzaReady =
+    (overview?.fanzaTv.uncheckedCount ?? 0) +
+      (overview?.fanzaTv.activeCount ?? 0) +
+      (overview?.fanzaTv.notAvailableCount ?? 0) +
+      (overview?.fanzaTv.unknownCount ?? 0) >
+    0;
 
   const handleFetch = async () => {
     setBusy(true);
@@ -192,7 +188,7 @@ export function AdminWorksCms() {
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "候補取得に失敗しました");
+        throw new Error(data.error || data.message || "候補取得に失敗しました");
       }
       setCandidates(data.candidates ?? []);
       setSummary(data.summary ?? null);
@@ -227,7 +223,10 @@ export function AdminWorksCms() {
       if (!res.ok || data.error) {
         throw new Error(data.error || data.message || "追加に失敗");
       }
-      setMessage(data.message || `${data.summary?.addedCount ?? 0}件追加`);
+      setMessage(
+        data.message ||
+          `${data.summary?.addedCount ?? 0}件をSupabaseへ追加しました（デプロイなし）`,
+      );
       setSelected(new Set());
       await refreshOverview();
     } catch (error) {
@@ -251,7 +250,7 @@ export function AdminWorksCms() {
         throw new Error(data.error || "CID追加に失敗");
       }
       setMessage(
-        `CID追加: ${data.addedCount}件（重複 ${data.duplicateCount}）`,
+        `CID追加: ${data.addedCount}件（重複 ${data.duplicateCount}）・デプロイなし`,
       );
       setCidInput("");
       await refreshOverview();
@@ -264,11 +263,19 @@ export function AdminWorksCms() {
 
   const runSyncLoop = async () => {
     for (;;) {
-      const res = await fetch("/api/admin/fanza-sync/process", { method: "POST" });
+      const res = await fetch("/api/admin/fanza-sync/process", {
+        method: "POST",
+      });
       const data = await res.json();
       if (data.currentJob) setSyncJob(data.currentJob);
-      if (!data.success) throw new Error(data.error || "同期バッチ失敗");
-      if (data.done || data.job?.status === "completed" || data.job?.status === "failed") {
+      if (!data.success) throw new Error(data.error || data.message || "同期バッチ失敗");
+      if (
+        data.done ||
+        data.job?.status === "completed" ||
+        data.job?.status === "failed" ||
+        data.currentJob?.status === "completed" ||
+        data.currentJob?.status === "failed"
+      ) {
         break;
       }
       if (data.job?.status === "stopped" || data.stopped) break;
@@ -277,22 +284,22 @@ export function AdminWorksCms() {
     await refreshSync();
   };
 
-  const handleStartSync = async () => {
+  const handleStartSync = async (mode: AdultSyncMode) => {
     setBusy(true);
     setMessage(null);
     try {
       const res = await fetch("/api/admin/fanza-sync/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode: syncMode, trigger: "manual" }),
+        body: JSON.stringify({ mode, trigger: "manual" }),
       });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "同期開始に失敗");
+        throw new Error(data.error || data.message || "同期開始に失敗");
       }
-      setSyncJob(data.job);
+      setSyncJob(data.job ?? data.currentJob);
       await runSyncLoop();
-      setMessage("掲載情報の更新が完了しました（デプロイなし）");
+      setMessage("掲載情報の更新が完了しました（Supabaseのみ・デプロイなし）");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {
@@ -303,18 +310,125 @@ export function AdminWorksCms() {
   const handleResumeSync = async () => {
     setBusy(true);
     try {
-      const res = await fetch("/api/admin/fanza-sync/resume", { method: "POST" });
+      const res = await fetch("/api/admin/fanza-sync/resume", {
+        method: "POST",
+      });
       const data = await res.json();
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "再開に失敗");
+        throw new Error(data.error || data.message || "再開に失敗");
       }
       await runSyncLoop();
+      setMessage("同期を再開して完了しました（デプロイなし）");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {
       setBusy(false);
     }
   };
+
+  const processLiveInitBatch = useCallback(async () => {
+    if (liveInitProcessingRef.current) return null;
+    liveInitProcessingRef.current = true;
+    try {
+      const res = await fetch(
+        "/api/admin/fanza-sync/init-live-status/process",
+        {
+          method: "POST",
+          cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        },
+      );
+      const data = await res.json();
+      if (data.job) setLiveInitJob(data.job);
+      if (!res.ok || data.ok === false || data.success === false) {
+        throw new Error(data.message || "初期化バッチ失敗");
+      }
+      return data as { done?: boolean; job?: LiveInitJob; message?: string };
+    } finally {
+      liveInitProcessingRef.current = false;
+    }
+  }, []);
+
+  const handleStartLiveInit = async () => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/fanza-sync/init-live-status", {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok || data.ok === false || data.success === false) {
+        throw new Error(data.message || "初期化開始に失敗");
+      }
+      if (data.currentJob) setLiveInitJob(data.currentJob);
+      setMessage(data.message ?? "変動情報の初期化を開始しました");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleStopLiveInit = async () => {
+    const res = await fetch("/api/admin/fanza-sync/init-live-status/stop", {
+      method: "POST",
+      cache: "no-store",
+    });
+    const data = await res.json();
+    if (data.currentJob) setLiveInitJob(data.currentJob);
+    setMessage(data.message ?? "初期化を停止しました");
+  };
+
+  const handleResumeLiveInit = async () => {
+    const res = await fetch("/api/admin/fanza-sync/init-live-status/resume", {
+      method: "POST",
+      cache: "no-store",
+    });
+    const data = await res.json();
+    if (data.currentJob) setLiveInitJob(data.currentJob);
+    setMessage(data.message ?? "初期化を再開しました");
+  };
+
+  useEffect(() => {
+    if (
+      !liveInitJob ||
+      (liveInitJob.status !== "running" &&
+        liveInitJob.status !== "pending" &&
+        liveInitJob.status !== "waiting")
+    ) {
+      return;
+    }
+    let cancelled = false;
+    const run = async () => {
+      if (liveInitJob.status === "waiting" && liveInitJob.waitUntil) {
+        const waitMs = Date.parse(liveInitJob.waitUntil) - Date.now();
+        if (waitMs > 0) {
+          await new Promise((r) =>
+            setTimeout(r, Math.min(waitMs + 50, 20_000)),
+          );
+        }
+      }
+      if (cancelled) return;
+      try {
+        const result = await processLiveInitBatch();
+        if (result?.done) {
+          setMessage(result.job?.message ?? "変動情報の初期化が完了しました");
+          await refreshSync();
+          await refreshOverview();
+        }
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : String(error));
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [liveInitJob, processLiveInitBatch, refreshOverview, refreshSync]);
 
   const mutatePublish = async (
     action: string,
@@ -334,7 +448,14 @@ export function AdminWorksCms() {
       if (!res.ok || !data.success) {
         throw new Error(data.error || "更新に失敗");
       }
-      setMessage(`${action}: ${data.updated}件（デプロイなし）`);
+      const skipped = Array.isArray(data.skipped) ? data.skipped : [];
+      const skipMsg =
+        skipped.length > 0
+          ? ` / スキップ ${skipped.length}件（${skipped[0]?.reason ?? ""}）`
+          : "";
+      setMessage(
+        `${action}: ${data.updated}件更新${skipMsg}（デプロイなし）`,
+      );
       setPubSelected(new Set());
       await refreshList();
       await refreshOverview();
@@ -370,606 +491,217 @@ export function AdminWorksCms() {
     }
   };
 
-  const historyRows = useMemo(() => {
-    const rows: Array<{
-      name: string;
-      status: string;
-      detail: string;
-    }> = [];
-    if (syncJob) {
-      rows.push({
-        name: "掲載情報同期",
-        status: syncJob.status,
-        detail: `${syncJob.processedCount}/${syncJob.targetCount} 更新${syncJob.updatedCount} 失敗${syncJob.errorCount}`,
-      });
-    }
-    if (overview?.runningJobLabel) {
-      rows.push({
-        name: "実行中",
-        status: "running",
-        detail: overview.runningJobLabel,
-      });
-    }
-    rows.push({
-      name: "FANZA TV判定",
-      status: "local-only",
-      detail: `未確認${overview?.fanzaTv.uncheckedCount ?? 0} / 対象${overview?.fanzaTv.activeCount ?? 0} / 不明${overview?.fanzaTv.unknownCount ?? 0}`,
-    });
-    return rows;
-  }, [syncJob, overview]);
-
-  const visibleHistory = historyExpanded ? historyRows : historyRows.slice(0, 5);
+  const selectedCount = selected.size;
+  const pubSelectedCount = pubSelected.size;
+  const showBottomBar = tab === "add" || tab === "publish";
 
   return (
-    <div className="space-y-4 pb-[calc(5.5rem+env(safe-area-inset-bottom))]">
-      {/* 上部ステータス（固定寄り） */}
-      <section
-        className={`sticky top-0 z-20 rounded-2xl border px-3 py-3 text-sm shadow-sm backdrop-blur ${
-          overview ? toneClass(overview.tone) : "border-border bg-white"
-        }`}
-      >
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="font-bold">作品CMS（Supabaseのみ・デプロイ不要）</p>
-          <button
-            type="button"
-            className="underline"
-            onClick={() => void refreshOverview()}
-          >
-            更新
-          </button>
-        </div>
-        {overview ? (
-          <div className="mt-2 grid grid-cols-2 gap-1 text-xs sm:grid-cols-3 lg:grid-cols-4">
-            <p>公開 {overview.publishedCount.toLocaleString()}</p>
-            <p>非公開 {overview.unpublishedCount.toLocaleString()}</p>
-            <p>画像なし {overview.noPackageImageCount.toLocaleString()}</p>
-            <p>販売終了 {overview.unavailableCount.toLocaleString()}</p>
-            <p>手動非公開 {overview.manualHiddenCount.toLocaleString()}</p>
-            <p>最終追加 {formatDateTime(overview.lastWorkAddedAt)}</p>
-            <p>最終同期 {formatDateTime(overview.lastLightSyncAt)}</p>
-            <p>実行中 {overview.runningJobLabel ?? "—"}</p>
-            <p>エラー {overview.errorCount}</p>
-          </div>
-        ) : (
-          <p className="mt-2 text-xs">読込中…</p>
-        )}
-      </section>
+    <div
+      className={`space-y-3 ${
+        showBottomBar
+          ? "pb-[calc(5.5rem+env(safe-area-inset-bottom))]"
+          : "pb-[env(safe-area-inset-bottom)]"
+      }`}
+    >
+      <WorksCmsOverviewPanel
+        overview={overview}
+        onRefresh={() => {
+          void refreshOverview();
+          void refreshSync();
+        }}
+      />
 
-      {/* タブ */}
-      <nav
-        className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1"
-        aria-label="作品管理タブ"
-      >
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            type="button"
-            onClick={() => setTab(t.id)}
-            className={`min-h-[44px] shrink-0 rounded-full px-4 text-sm font-bold ${
-              tab === t.id
-                ? "bg-sky-600 text-white"
-                : "border border-border bg-white text-foreground"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </nav>
+      <WorksCmsTabNav activeTab={tab} onChange={setTab} />
 
       {message ? (
-        <p className="rounded-xl bg-zinc-100 px-3 py-2 text-sm">{message}</p>
+        <p className="rounded-lg bg-zinc-100 px-3 py-2 text-xs sm:text-sm whitespace-pre-wrap">
+          {message}
+        </p>
       ) : null}
 
       {tab === "add" ? (
-        <section className="space-y-4 rounded-2xl border border-border bg-white p-4">
-          <div className="flex flex-wrap gap-2">
-            {(["new", "popular"] as AdultImportSortMode[]).map((s) => (
-              <button
-                key={s}
-                type="button"
-                onClick={() => setSort(s)}
-                className={`min-h-[40px] rounded-xl px-3 text-sm ${
-                  sort === s ? "bg-sky-600 text-white" : "border border-border"
-                }`}
-              >
-                {getAdultImportSortLabel(s)}
-              </button>
-            ))}
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {FETCH_COUNTS.map((n) => (
-              <button
-                key={n}
-                type="button"
-                onClick={() => setFetchCount(n)}
-                className={`min-h-[40px] rounded-xl px-3 text-sm ${
-                  fetchCount === n ? "bg-sky-600 text-white" : "border border-border"
-                }`}
-              >
-                {n}件
-              </button>
-            ))}
-          </div>
-          <div className="flex flex-wrap items-center gap-2 text-sm">
-            <span>offset</span>
-            <input
-              type="number"
-              value={offset}
-              onChange={(e) => setOffset(Number(e.target.value) || 0)}
-              className="min-h-[40px] w-24 rounded-lg border border-border px-2"
-            />
-            <button
-              type="button"
-              className="min-h-[40px] rounded-lg border px-3"
-              onClick={() => setOffset((v) => Math.max(0, v - fetchCount))}
-            >
-              前へ
-            </button>
-            <button
-              type="button"
-              className="min-h-[40px] rounded-lg border px-3"
-              onClick={() => setOffset((v) => v + fetchCount)}
-            >
-              次へ
-            </button>
-            <button
-              type="button"
-              className="min-h-[40px] rounded-lg border px-3"
-              onClick={() => setOffset(0)}
-            >
-              0に戻す
-            </button>
-          </div>
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => void handleFetch()}
-            className="min-h-[48px] w-full rounded-2xl bg-sky-600 font-bold text-white disabled:opacity-50"
-          >
-            候補を取得
-          </button>
-          {summary ? (
-            <div className="rounded-xl bg-sky-50 px-3 py-2 text-xs text-sky-950">
-              <p>API取得 {summary.apiFetchedCount} / 既存除外 {summary.publishedExcludedCount}</p>
-              <p>
-                重複除外 {summary.duplicateExcludedCount} / 新規候補{" "}
-                {summary.candidateCount} / 画像なし除外{" "}
-                {summary.imageMissingExcludedCount} / エラー相当{" "}
-                {summary.invalidExcludedCount}
-              </p>
-            </div>
-          ) : null}
-
-          <div className="space-y-2">
-            <p className="text-sm font-bold">CID直接追加</p>
-            <textarea
-              value={cidInput}
-              onChange={(e) => setCidInput(e.target.value)}
-              rows={3}
-              placeholder="CIDを改行またはカンマ区切り"
-              className="w-full rounded-xl border border-border p-2 text-sm"
-            />
-            <button
-              type="button"
-              disabled={busy || !cidInput.trim()}
-              onClick={() => void handleAddByCid()}
-              className="min-h-[44px] rounded-xl bg-sky-600 px-4 text-sm font-bold text-white disabled:opacity-50"
-            >
-              CIDで追加
-            </button>
-          </div>
-
-          <ul className="space-y-2">
-            {candidates.map((c) => {
-              const id = c.contentId;
-              const checked = selected.has(id);
-              return (
-                <li
-                  key={id}
-                  className="flex gap-3 rounded-xl border border-border p-2"
-                >
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={() => {
-                      setSelected((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(id)) next.delete(id);
-                        else next.add(id);
-                        return next;
-                      });
-                    }}
-                    className="mt-2"
-                  />
-                  <div className="relative h-16 w-12 shrink-0 overflow-hidden rounded bg-zinc-100">
-                    {getDmmItemImageUrl(c.item) ? (
-                      <Image
-                        src={getDmmItemImageUrl(c.item)!}
-                        alt=""
-                        fill
-                        className="object-cover"
-                        unoptimized
-                      />
-                    ) : null}
-                  </div>
-                  <div className="min-w-0 flex-1 text-sm">
-                    <p className="line-clamp-2 font-medium">{c.item.title}</p>
-                    <p className="text-xs text-muted">
-                      {getDmmItemMakerName(c.item) ?? "—"} /{" "}
-                      {getDmmItemActressNameList(c.item).slice(0, 2).join("、") || "—"}
-                    </p>
-                    <p className="text-xs">{formatDmmItemPrice(c.item) || "—"}</p>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
+        <WorksCmsAddTab
+          sort={sort}
+          setSort={setSort}
+          fetchCount={fetchCount}
+          setFetchCount={setFetchCount}
+          offset={offset}
+          setOffset={setOffset}
+          candidates={candidates}
+          summary={summary}
+          selected={selected}
+          setSelected={setSelected}
+          cidInput={cidInput}
+          setCidInput={setCidInput}
+          busy={busy}
+          onFetch={() => void handleFetch()}
+          onAddByCid={() => void handleAddByCid()}
+          step={addStep}
+        />
       ) : null}
 
       {tab === "sync" ? (
-        <section className="space-y-4 rounded-2xl border border-border bg-white p-4">
-          <p className="text-sm text-muted">
-            価格・セール・評価・順位・販売状況をDBへ直接更新します。Git差分・デプロイはありません。
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {SYNC_MODES.map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                onClick={() => setSyncMode(mode)}
-                className={`min-h-[40px] rounded-xl px-3 text-sm ${
-                  syncMode === mode
-                    ? "bg-sky-600 text-white"
-                    : "border border-border"
-                }`}
-              >
-                {getAdultSyncModeLabel(mode)}
-              </button>
-            ))}
-          </div>
-          {syncJob ? (
-            <div className="rounded-xl bg-sky-50 px-3 py-2 text-sm">
-              <p>
-                状態 {syncJob.status} / {syncJob.processedCount}/
-                {syncJob.targetCount}
-              </p>
-              <p>
-                更新 {syncJob.updatedCount} / 失敗 {syncJob.errorCount} / 最終CID{" "}
-                {syncJob.lastProcessedContentId ?? "—"}
-              </p>
-              <p className="text-xs">{syncJob.message}</p>
-            </div>
-          ) : null}
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void handleStartSync()}
-              className="min-h-[48px] flex-1 rounded-2xl bg-sky-600 font-bold text-white disabled:opacity-50"
-            >
-              同期開始（100件バッチ）
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => void handleResumeSync()}
-              className="min-h-[48px] rounded-2xl border border-emerald-500 px-4 font-bold text-emerald-800 disabled:opacity-50"
-            >
-              途中再開
-            </button>
-          </div>
-
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
-            <p className="font-bold">FANZA TV判定（ローカル専用）</p>
-            <p className="mt-1 text-xs">
-              未確認 {overview?.fanzaTv.uncheckedCount ?? 0} / 対象{" "}
-              {overview?.fanzaTv.activeCount ?? 0} / 対象外{" "}
-              {overview?.fanzaTv.notAvailableCount ?? 0} / 不明{" "}
-              {overview?.fanzaTv.unknownCount ?? 0}
-            </p>
-            <p className="mt-1 text-xs">
-              最終判定 {formatDateTime(overview?.fanzaTv.lastCheckedAt)} /
-              再開位置 {overview?.fanzaTv.resumeCursor ?? 0}
-            </p>
-            <p className="mt-2 text-xs">
-              VercelではPlaywright判定しません。Macで
-              <code className="mx-1">npm run fanza-tv:collect</code>
-              →
-              <code className="mx-1">npm run fanza-tv:ingest</code>
-              を実行してください。
-            </p>
-          </div>
-        </section>
+        <WorksCmsSyncTab
+          overview={overview}
+          syncJob={syncJob}
+          syncTargetCount={syncTargetCount}
+          canStartLightSync={canStartLightSync}
+          disableReasons={disableReasons}
+          lastSuccessByMode={lastSuccessByMode}
+          liveInitJob={liveInitJob}
+          busy={busy}
+          onStartSync={(mode) => void handleStartSync(mode)}
+          onResumeSync={() => void handleResumeSync()}
+          onStartLiveInit={() => void handleStartLiveInit()}
+          onStopLiveInit={() => void handleStopLiveInit()}
+          onResumeLiveInit={() => void handleResumeLiveInit()}
+        />
       ) : null}
 
       {tab === "publish" ? (
-        <section className="space-y-3 rounded-2xl border border-border bg-white p-4">
-          <div className="flex flex-wrap gap-2">
-            <input
-              value={filterQ}
-              onChange={(e) => setFilterQ(e.target.value)}
-              placeholder="タイトル検索"
-              className="min-h-[40px] flex-1 rounded-lg border border-border px-2 text-sm"
-            />
-            <select
-              value={filterPublished}
-              onChange={(e) =>
-                setFilterPublished(e.target.value as typeof filterPublished)
-              }
-              className="min-h-[40px] rounded-lg border border-border px-2 text-sm"
-            >
-              <option value="all">すべて</option>
-              <option value="published">公開中</option>
-              <option value="unpublished">非公開</option>
-            </select>
-            <button
-              type="button"
-              className="min-h-[40px] rounded-lg border px-3 text-sm"
-              onClick={() => void refreshList()}
-            >
-              検索
-            </button>
-          </div>
-
-          <ul className="space-y-2">
-            {items.map((item) => {
-              const checked = pubSelected.has(item.cid);
-              return (
-                <li
-                  key={item.cid}
-                  className="rounded-xl border border-border p-2 text-sm"
-                >
-                  <div className="flex gap-2">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() => {
-                        setPubSelected((prev) => {
-                          const next = new Set(prev);
-                          if (next.has(item.cid)) next.delete(item.cid);
-                          else next.add(item.cid);
-                          return next;
-                        });
-                      }}
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="line-clamp-2 font-medium">{item.title}</p>
-                      <p className="text-xs text-muted">
-                        {item.cid} / {item.maker ?? "—"} /{" "}
-                        {item.published ? "公開" : "非公開"}
-                        {item.manual_hidden ? " / 手動非公開" : ""}
-                        {!item.is_available ? " / 販売終了" : ""}
-                        {item.fanza_tv_status === "active" ? " / 見放題" : ""}
-                      </p>
-                      <details className="mt-1">
-                        <summary className="cursor-pointer text-xs text-sky-700">
-                          操作
-                        </summary>
-                        <div className="mt-2 flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            className="rounded-lg bg-sky-600 px-2 py-1 text-xs text-white"
-                            onClick={() =>
-                              void mutatePublish("publish", [item.cid])
-                            }
-                          >
-                            公開
-                          </button>
-                          <button
-                            type="button"
-                            className="rounded-lg border px-2 py-1 text-xs"
-                            onClick={() =>
-                              void mutatePublish("unpublish", [item.cid])
-                            }
-                          >
-                            非公開
-                          </button>
-                          <button
-                            type="button"
-                            className="rounded-lg border px-2 py-1 text-xs"
-                            onClick={() =>
-                              void mutatePublish("manual_hide", [item.cid], {
-                                reason: "手動非公開",
-                              })
-                            }
-                          >
-                            手動非公開
-                          </button>
-                          <button
-                            type="button"
-                            className="rounded-lg border px-2 py-1 text-xs"
-                            onClick={() =>
-                              void mutatePublish("mark_unavailable", [item.cid])
-                            }
-                          >
-                            販売終了
-                          </button>
-                          <button
-                            type="button"
-                            className="rounded-lg border px-2 py-1 text-xs"
-                            onClick={() =>
-                              void mutatePublish("restore", [item.cid])
-                            }
-                          >
-                            復活
-                          </button>
-                          <button
-                            type="button"
-                            className="rounded-lg border px-2 py-1 text-xs"
-                            onClick={() => {
-                              setEditCid(item.cid);
-                              setEditTitle(item.title);
-                            }}
-                          >
-                            編集
-                          </button>
-                          <button
-                            type="button"
-                            className="rounded-lg border px-2 py-1 text-xs"
-                            onClick={() =>
-                              void mutatePublish("reset_fanza_tv", [item.cid])
-                            }
-                          >
-                            見放題再判定
-                          </button>
-                          <button
-                            type="button"
-                            className="rounded-lg border border-red-400 px-2 py-1 text-xs text-red-700"
-                            onClick={() => {
-                              if (
-                                typeof window !== "undefined" &&
-                                window.confirm("論理削除しますか？")
-                              ) {
-                                void mutatePublish("soft_delete", [item.cid]);
-                              }
-                            }}
-                          >
-                            削除
-                          </button>
-                        </div>
-                      </details>
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-
-          {editCid ? (
-            <div className="rounded-xl border border-sky-300 bg-sky-50 p-3">
-              <p className="text-sm font-bold">編集: {editCid}</p>
-              <input
-                value={editTitle}
-                onChange={(e) => setEditTitle(e.target.value)}
-                className="mt-2 min-h-[40px] w-full rounded-lg border px-2 text-sm"
-              />
-              <div className="mt-2 flex gap-2">
-                <button
-                  type="button"
-                  className="rounded-lg bg-sky-600 px-3 py-2 text-sm text-white"
-                  onClick={() => void handleSaveEdit()}
-                >
-                  保存
-                </button>
-                <button
-                  type="button"
-                  className="rounded-lg border px-3 py-2 text-sm"
-                  onClick={() => setEditCid(null)}
-                >
-                  キャンセル
-                </button>
-              </div>
-            </div>
-          ) : null}
-        </section>
+        <WorksCmsPublishTab
+          items={items}
+          filters={filters}
+          setFilters={setFilters}
+          selected={pubSelected}
+          setSelected={setPubSelected}
+          busy={busy}
+          onSearch={() => void refreshList()}
+          onMutate={(action, cids, extra) =>
+            void mutatePublish(action, cids, extra)
+          }
+          onEdit={(cid, title) => {
+            setEditCid(cid);
+            setEditTitle(title);
+          }}
+          editCid={editCid}
+          editTitle={editTitle}
+          setEditTitle={setEditTitle}
+          onSaveEdit={() => void handleSaveEdit()}
+          onCancelEdit={() => setEditCid(null)}
+          fanzaReady={fanzaReady}
+        />
       ) : null}
+
+      {tab === "fanza-tv" ? <WorksCmsFanzaTvTab overview={overview} /> : null}
 
       {tab === "history" ? (
-        <section className="space-y-3 rounded-2xl border border-border bg-white p-4">
-          <WorksMasterMigrationPanel />
-          <ul className="space-y-2 text-sm">
-            {visibleHistory.map((row, idx) => (
-              <li key={`${row.name}-${idx}`} className="rounded-xl border p-3">
-                <p className="font-bold">{row.name}</p>
-                <p className="text-xs">状態: {row.status}</p>
-                <p className="text-xs text-muted">{row.detail}</p>
-              </li>
-            ))}
-          </ul>
-          {historyRows.length > 5 ? (
-            <button
-              type="button"
-              className="text-sm text-sky-700 underline"
-              onClick={() => setHistoryExpanded((v) => !v)}
-            >
-              {historyExpanded ? "閉じる" : "すべて見る"}
-            </button>
-          ) : null}
-          <a
-            href="/api/admin/works-master-migration/errors"
-            className="inline-flex min-h-[40px] items-center rounded-xl border px-3 text-sm"
-          >
-            エラーCSV出力
-          </a>
-          <p className="text-xs text-muted">
-            コード変更時の本番反映は{" "}
-            <Link href="/admin/deploy" className="underline">
-              デプロイ専用ページ
-            </Link>
-            へ分離済みです。
-          </p>
-        </section>
+        <WorksCmsHistoryTab
+          overview={overview}
+          syncJob={syncJob}
+          syncHistory={syncHistory}
+          liveInitJob={liveInitJob}
+          onResumeSync={() => void handleResumeSync()}
+          busy={busy}
+        />
       ) : null}
 
-      {/* 下部固定バー */}
-      {(tab === "add" || tab === "publish") && (
-        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-white/95 px-3 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
-          <div className="mx-auto flex max-w-3xl flex-wrap items-center justify-between gap-2">
-            <p className="text-sm font-bold">
-              選択中 {tab === "add" ? selectedCount : pubSelectedCount} 件
-            </p>
+      {showBottomBar ? (
+        <div className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-white/95 px-3 py-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] shadow-[0_-4px_16px_rgba(0,0,0,0.08)]">
+          <div className="mx-auto flex max-w-3xl flex-col gap-1.5">
             {tab === "add" ? (
-              <button
-                type="button"
-                disabled={busy || selectedCount === 0}
-                onClick={() => void handleAddSelected()}
-                className="min-h-[44px] rounded-xl bg-sky-600 px-4 text-sm font-bold text-white disabled:opacity-40"
-              >
-                選択を追加
-              </button>
+              <>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-sm font-bold">選択中 {selectedCount} 件</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    <button
+                      type="button"
+                      className="min-h-[36px] rounded-lg border px-2.5 text-xs font-semibold"
+                      onClick={() =>
+                        setSelected(
+                          new Set(candidates.map((c) => c.contentId)),
+                        )
+                      }
+                      disabled={candidates.length === 0}
+                    >
+                      すべて選択
+                    </button>
+                    <button
+                      type="button"
+                      className="min-h-[36px] rounded-lg border px-2.5 text-xs font-semibold"
+                      onClick={() => setSelected(new Set())}
+                      disabled={selectedCount === 0}
+                    >
+                      選択解除
+                    </button>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={busy || selectedCount === 0}
+                  onClick={() => void handleAddSelected()}
+                  className="min-h-[44px] w-full rounded-xl bg-sky-600 text-sm font-bold text-white disabled:bg-zinc-300 disabled:text-zinc-600"
+                >
+                  Supabaseへ追加
+                </button>
+                {selectedCount === 0 ? (
+                  <p className="text-[11px] text-amber-800">
+                    作品を1件以上選択すると追加できます
+                  </p>
+                ) : null}
+              </>
             ) : (
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  disabled={busy || pubSelectedCount === 0}
-                  onClick={() =>
-                    void mutatePublish("publish", [...pubSelected])
-                  }
-                  className="min-h-[40px] rounded-xl bg-sky-600 px-3 text-xs font-bold text-white disabled:opacity-40"
-                >
-                  一括公開
-                </button>
-                <button
-                  type="button"
-                  disabled={busy || pubSelectedCount === 0}
-                  onClick={() =>
-                    void mutatePublish("unpublish", [...pubSelected])
-                  }
-                  className="min-h-[40px] rounded-xl border px-3 text-xs font-bold disabled:opacity-40"
-                >
-                  一括非公開
-                </button>
-                <button
-                  type="button"
-                  disabled={busy || pubSelectedCount === 0}
-                  onClick={() =>
-                    void mutatePublish("mark_unavailable", [...pubSelected])
-                  }
-                  className="min-h-[40px] rounded-xl border px-3 text-xs font-bold disabled:opacity-40"
-                >
-                  一括販売終了
-                </button>
-                <button
-                  type="button"
-                  disabled={busy || pubSelectedCount === 0}
-                  onClick={() => {
-                    if (
-                      typeof window !== "undefined" &&
-                      window.confirm("選択作品を論理削除しますか？")
-                    ) {
-                      void mutatePublish("soft_delete", [...pubSelected]);
+              <>
+                <p className="text-sm font-bold">
+                  選択中 {pubSelectedCount} 件
+                </p>
+                <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap">
+                  <button
+                    type="button"
+                    disabled={busy || pubSelectedCount === 0}
+                    onClick={() =>
+                      void mutatePublish("publish", [...pubSelected])
                     }
-                  }}
-                  className="min-h-[40px] rounded-xl border border-red-400 px-3 text-xs font-bold text-red-700 disabled:opacity-40"
-                >
-                  一括削除
-                </button>
-              </div>
+                    className="min-h-[40px] rounded-lg bg-sky-600 text-xs font-bold text-white disabled:opacity-40"
+                  >
+                    一括公開
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy || pubSelectedCount === 0}
+                    onClick={() =>
+                      void mutatePublish("unpublish", [...pubSelected])
+                    }
+                    className="min-h-[40px] rounded-lg border text-xs font-bold disabled:opacity-40"
+                  >
+                    一括非公開
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy || pubSelectedCount === 0}
+                    onClick={() =>
+                      void mutatePublish("mark_unavailable", [...pubSelected])
+                    }
+                    className="min-h-[40px] rounded-lg border text-xs font-bold disabled:opacity-40"
+                  >
+                    一括販売終了
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy || pubSelectedCount === 0}
+                    onClick={() => {
+                      if (
+                        typeof window !== "undefined" &&
+                        window.confirm("選択作品を論理削除しますか？")
+                      ) {
+                        void mutatePublish("soft_delete", [...pubSelected]);
+                      }
+                    }}
+                    className="min-h-[40px] rounded-lg border border-red-400 text-xs font-bold text-red-700 disabled:opacity-40"
+                  >
+                    一括削除
+                  </button>
+                </div>
+                {pubSelectedCount === 0 ? (
+                  <p className="text-[11px] text-amber-800">
+                    作品を選択すると一括操作できます
+                  </p>
+                ) : null}
+              </>
             )}
           </div>
         </div>
-      )}
+      ) : null}
     </div>
   );
 }

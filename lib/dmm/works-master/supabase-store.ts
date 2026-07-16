@@ -153,6 +153,41 @@ export async function supabaseFetchAllWorkMasterCids(): Promise<string[]> {
   return cids;
 }
 
+export async function supabaseFetchAllPublishedWorkMasterCids(): Promise<string[]> {
+  const client = getSupabaseServiceClient();
+  if (!client) return [];
+
+  const cids: string[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const to = from + PAGE - 1;
+    const { data, error } = await client
+      .from(TABLE)
+      .select("cid")
+      .eq("published", true)
+      .order("cid", { ascending: true })
+      .range(from, to);
+
+    if (error) {
+      console.warn(
+        "[works-master] supabase published cid list failed",
+        error.message,
+      );
+      throw error;
+    }
+
+    const batch = data ?? [];
+    for (const raw of batch) {
+      const cid = normalizeCatalogContentId(
+        String((raw as { cid?: string }).cid ?? ""),
+      );
+      if (cid) cids.push(cid);
+    }
+    if (batch.length < PAGE) break;
+  }
+
+  return cids;
+}
+
 export async function supabaseUpsertWorkMasterRows(
   rows: WorkMasterUpsertInput[],
 ): Promise<{ upserted: number }> {
@@ -202,15 +237,68 @@ export async function supabaseUpsertWorkMasterRows(
   return { upserted };
 }
 
-export async function supabaseCountWorkMasterRows(): Promise<number> {
+export type TableCountStatus =
+  | "ok"
+  | "connection_error"
+  | "table_missing"
+  | "fetch_failed";
+
+export type TableCountResult = {
+  count: number | null;
+  status: TableCountStatus;
+  message: string | null;
+};
+
+function classifySupabaseCountError(error: {
+  message?: string;
+  code?: string;
+}): TableCountResult {
+  const message = error.message ?? "件数取得に失敗しました";
+  const code = error.code ?? "";
+  const lowered = message.toLowerCase();
+  if (
+    code === "42P01" ||
+    code === "PGRST205" ||
+    lowered.includes("does not exist") ||
+    lowered.includes("schema cache")
+  ) {
+    return { count: null, status: "table_missing", message: "テーブル未作成" };
+  }
+  if (
+    code === "PGRST301" ||
+    lowered.includes("fetch failed") ||
+    lowered.includes("network") ||
+    lowered.includes("enotfound") ||
+    lowered.includes("econnrefused")
+  ) {
+    return { count: null, status: "connection_error", message: "接続エラー" };
+  }
+  return { count: null, status: "fetch_failed", message: "取得失敗" };
+}
+
+export async function supabaseCountWorkMasterRowsDetailed(): Promise<TableCountResult> {
   const client = getSupabaseServiceClient();
-  if (!client) return 0;
+  if (!client) {
+    return {
+      count: null,
+      status: "connection_error",
+      message: "接続エラー",
+    };
+  }
   const { count, error } = await client
     .from(TABLE)
     .select("cid", { count: "exact", head: true });
   if (error) {
     console.warn("[works-master] supabase count failed", error.message);
-    return 0;
+    return classifySupabaseCountError(error);
   }
-  return count ?? 0;
+  return { count: count ?? 0, status: "ok", message: null };
+}
+
+export async function supabaseCountWorkMasterRows(): Promise<number> {
+  const result = await supabaseCountWorkMasterRowsDetailed();
+  if (result.status !== "ok" || result.count == null) {
+    throw new Error(result.message ?? "works count failed");
+  }
+  return result.count;
 }

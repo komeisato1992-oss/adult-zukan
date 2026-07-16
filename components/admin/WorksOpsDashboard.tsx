@@ -50,6 +50,15 @@ type OpsLog = {
 
 type LightSyncStatus = "enabled" | "disabled" | "unset";
 type StepId = 1 | 2 | 3 | 4;
+type CountStatus = "ok" | "connection_error" | "table_missing" | "fetch_failed";
+
+type StorageCountState = {
+  backend: string;
+  label: string;
+  rowCount: number | null;
+  countStatus: CountStatus;
+  countMessage: string | null;
+};
 
 const FETCH_COUNTS = [20, 50, 100, 200] as const;
 const STEPS: Array<{ id: StepId; short: string; label: string }> = [
@@ -76,6 +85,109 @@ function statusLabel(status: LightSyncStatus): string {
   if (status === "enabled") return "有効：実行可能";
   if (status === "disabled") return "無効：設定が必要";
   return "未設定：環境変数未設定";
+}
+
+function formatCountLabel(
+  count: number | null | undefined,
+  status?: CountStatus | null,
+  message?: string | null,
+): string {
+  if (status === "table_missing") return "テーブル未作成";
+  if (status === "connection_error") return "接続エラー";
+  if (status === "fetch_failed") return message || "取得失敗";
+  if (count == null) return "—";
+  return `${count.toLocaleString()}件`;
+}
+
+async function readAdminJson<T>(response: Response): Promise<{
+  ok: boolean;
+  status: number;
+  data: T | null;
+  htmlReturned: boolean;
+  parseError: string | null;
+}> {
+  const contentType = response.headers.get("content-type") ?? "";
+  const rawText = await response.text();
+  const htmlReturned =
+    contentType.includes("text/html") ||
+    /^\s*<!DOCTYPE/i.test(rawText) ||
+    /^\s*<html/i.test(rawText);
+
+  if (htmlReturned) {
+    return {
+      ok: false,
+      status: response.status,
+      data: null,
+      htmlReturned: true,
+      parseError: "候補取得APIがJSONではなくHTMLを返しました",
+    };
+  }
+
+  if (!rawText.trim()) {
+    return {
+      ok: false,
+      status: response.status,
+      data: null,
+      htmlReturned: false,
+      parseError: `サーバーから空の応答が返されました（HTTP ${response.status}）`,
+    };
+  }
+
+  try {
+    return {
+      ok: true,
+      status: response.status,
+      data: JSON.parse(rawText) as T,
+      htmlReturned: false,
+      parseError: null,
+    };
+  } catch {
+    return {
+      ok: false,
+      status: response.status,
+      data: null,
+      htmlReturned: false,
+      parseError: `サーバー応答のJSON解析に失敗しました（HTTP ${response.status}）`,
+    };
+  }
+}
+
+function candidateFetchErrorMessage(input: {
+  responseOk: boolean;
+  htmlReturned: boolean;
+  parseError: string | null;
+  body: {
+    ok?: boolean;
+    success?: boolean;
+    errorCode?: string;
+    message?: string;
+    error?: string;
+  } | null;
+}): string {
+  if (input.htmlReturned) {
+    return "候補取得APIがJSONではなくHTMLを返しました";
+  }
+  if (input.parseError) return input.parseError;
+
+  const body = input.body;
+  if (!body) return "候補の取得に失敗しました。";
+
+  const cause =
+    body.message ||
+    body.error ||
+    (body.errorCode === "FANZA_API_NOT_CONFIGURED"
+      ? "FANZA API認証情報が本番環境で未設定です"
+      : body.errorCode === "FANZA_API_FAILED"
+        ? "FANZA APIから候補を取得できませんでした"
+        : null);
+
+  if (!input.responseOk || body.ok === false || body.success === false) {
+    return cause
+      ? `候補取得に失敗しました\n原因：${cause}`
+      : "候補の取得に失敗しました。";
+  }
+
+  return cause ?? "候補の取得に失敗しました。";
 }
 
 function CardShell({
@@ -129,7 +241,6 @@ export function WorksOpsDashboard({
   const [syncJob, setSyncJob] = useState<FanzaSyncJob | null>(null);
   const [syncHistory, setSyncHistory] = useState<FanzaSyncHistoryEntry[]>([]);
   const [syncProgress, setSyncProgress] = useState(0);
-  const [lightSyncEnabled, setLightSyncEnabled] = useState(false);
   const [lightSyncStatus, setLightSyncStatus] =
     useState<LightSyncStatus>("unset");
   const [fullSyncEnabled, setFullSyncEnabled] = useState(false);
@@ -139,15 +250,19 @@ export function WorksOpsDashboard({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showTechDetail, setShowTechDetail] = useState(false);
-  const [liveStorage, setLiveStorage] = useState<{
+  const [liveStorage, setLiveStorage] = useState<StorageCountState | null>(null);
+  const [worksMasterStorage, setWorksMasterStorage] =
+    useState<StorageCountState | null>(null);
+  const [missingLiveCount, setMissingLiveCount] = useState<number | null>(null);
+  const [syncDisableReasons, setSyncDisableReasons] = useState<string[]>([]);
+  const [canStartLightSync, setCanStartLightSync] = useState(false);
+  const [syncTargetCount, setSyncTargetCount] = useState(0);
+  const [liveRuntime, setLiveRuntime] = useState<{
+    enabled: boolean;
     backend: string;
-    label: string;
-    rowCount: number;
-  } | null>(null);
-  const [worksMasterStorage, setWorksMasterStorage] = useState<{
-    backend: string;
-    label: string;
-    rowCount: number;
+    hasSupabaseUrl: boolean;
+    hasServiceRoleKey: boolean;
+    tableAvailable: boolean | null;
   } | null>(null);
   const [lastAddStatus, setLastAddStatus] = useState<{
     completed: boolean;
@@ -162,6 +277,24 @@ export function WorksOpsDashboard({
     totalMs: number | null;
   } | null>(null);
   const [syncTargetLimit, setSyncTargetLimit] = useState<number | null>(null);
+  const [initializingLive, setInitializingLive] = useState(false);
+  const [liveInitJob, setLiveInitJob] = useState<{
+    jobId: string;
+    status: string;
+    worksCount: number;
+    liveStatusCount: number;
+    missingAtStart: number;
+    insertedCount: number;
+    failedCount: number;
+    remainingCount: number;
+    batchesCompleted: number;
+    startedAt: string;
+    message: string;
+    waitUntil: string | null;
+  } | null>(null);
+  const [initRatePercent, setInitRatePercent] = useState(0);
+  const liveInitProcessingRef = useRef(false);
+  const [fetchErrorDetail, setFetchErrorDetail] = useState<string | null>(null);
 
   const [fetchSort, setFetchSort] = useState<AdultImportSortMode>("popular");
   const [fetchCount, setFetchCount] = useState<number>(50);
@@ -218,34 +351,159 @@ export function WorksOpsDashboard({
       cache: "no-store",
     });
     if (!response.ok) return null;
-    const data = await response.json();
-    setSyncJob(data.currentJob);
+    const parsed = await readAdminJson<{
+      currentJob?: FanzaSyncJob | null;
+      history?: FanzaSyncHistoryEntry[];
+      progressPercent?: number;
+      storage?: StorageCountState & {
+        runtime?: {
+          enabled: boolean;
+          backend: string;
+          hasSupabaseUrl: boolean;
+          hasServiceRoleKey: boolean;
+          tableAvailable: boolean | null;
+        };
+      };
+      worksMaster?: StorageCountState;
+      counts?: {
+        worksMaster?: number | null;
+        liveStatus?: number | null;
+        missing?: number | null;
+        worksMasterStatus?: CountStatus;
+        liveStatusStatus?: CountStatus;
+        worksMasterMessage?: string | null;
+        liveStatusMessage?: string | null;
+        initRatePercent?: number;
+      };
+      lightSync?: { enabled?: boolean; status?: LightSyncStatus };
+      canStartLightSync?: boolean;
+      disableReasons?: string[];
+      syncTargetCount?: number;
+      syncTargetLimit?: number | null;
+      liveStatusInit?: {
+        currentJob?: {
+          jobId: string;
+          status: string;
+          worksCount: number;
+          liveStatusCount: number;
+          missingAtStart: number;
+          insertedCount: number;
+          failedCount: number;
+          remainingCount: number;
+          batchesCompleted: number;
+          startedAt: string;
+          message: string;
+          waitUntil: string | null;
+        } | null;
+        progressPercent?: number;
+        worksCount?: number;
+        liveStatusCount?: number;
+        missingCount?: number;
+        initRatePercent?: number;
+      };
+      metrics?: {
+        last?: {
+          requestedCount?: number;
+          dbFetchMs?: number;
+          jsonFallbackCount?: number;
+          totalMs?: number;
+        } | null;
+        cacheHitRate?: number;
+      };
+    }>(response);
+
+    if (!parsed.ok || !parsed.data) return null;
+    const data = parsed.data;
+
+    setSyncJob(data.currentJob ?? null);
     setSyncHistory(data.history ?? []);
     setSyncProgress(data.progressPercent ?? 0);
+
     if (data.storage) {
       setLiveStorage({
         backend: String(data.storage.backend ?? ""),
         label: String(data.storage.label ?? ""),
-        rowCount: Number(data.storage.rowCount ?? 0),
+        rowCount:
+          data.storage.rowCount == null ? null : Number(data.storage.rowCount),
+        countStatus: (data.storage.countStatus ??
+          data.counts?.liveStatusStatus ??
+          "ok") as CountStatus,
+        countMessage:
+          data.storage.countMessage ?? data.counts?.liveStatusMessage ?? null,
       });
+      if (data.storage.runtime) {
+        setLiveRuntime(data.storage.runtime);
+      }
     }
     if (data.worksMaster) {
       setWorksMasterStorage({
         backend: String(data.worksMaster.backend ?? ""),
         label: String(data.worksMaster.label ?? ""),
-        rowCount: Number(data.worksMaster.rowCount ?? 0),
+        rowCount:
+          data.worksMaster.rowCount == null
+            ? null
+            : Number(data.worksMaster.rowCount),
+        countStatus: (data.worksMaster.countStatus ??
+          data.counts?.worksMasterStatus ??
+          "ok") as CountStatus,
+        countMessage:
+          data.worksMaster.countMessage ??
+          data.counts?.worksMasterMessage ??
+          null,
       });
     }
+    if (data.counts?.missing != null) {
+      setMissingLiveCount(Number(data.counts.missing));
+    } else if (
+      data.worksMaster?.rowCount != null &&
+      data.storage?.rowCount != null
+    ) {
+      setMissingLiveCount(
+        Math.max(0, Number(data.worksMaster.rowCount) - Number(data.storage.rowCount)),
+      );
+    } else {
+      setMissingLiveCount(null);
+    }
+
+    if (typeof data.counts?.initRatePercent === "number") {
+      setInitRatePercent(data.counts.initRatePercent);
+    }
+
+    if (data.liveStatusInit) {
+      if (data.liveStatusInit.currentJob) {
+        setLiveInitJob(data.liveStatusInit.currentJob);
+      }
+      if (typeof data.liveStatusInit.initRatePercent === "number") {
+        setInitRatePercent(data.liveStatusInit.initRatePercent);
+      }
+      if (typeof data.liveStatusInit.missingCount === "number") {
+        setMissingLiveCount(data.liveStatusInit.missingCount);
+      }
+      if (typeof data.liveStatusInit.liveStatusCount === "number") {
+        const liveCount = data.liveStatusInit.liveStatusCount;
+        setLiveStorage((prev) =>
+          prev ? { ...prev, rowCount: liveCount } : prev,
+        );
+      }
+      if (typeof data.liveStatusInit.worksCount === "number") {
+        const worksCount = data.liveStatusInit.worksCount;
+        setWorksMasterStorage((prev) =>
+          prev ? { ...prev, rowCount: worksCount } : prev,
+        );
+      }
+    }
+
+    if (data.lightSync?.status) {
+      setLightSyncStatus(data.lightSync.status);
+    }
+    setCanStartLightSync(Boolean(data.canStartLightSync));
+    setSyncDisableReasons(
+      Array.isArray(data.disableReasons) ? data.disableReasons : [],
+    );
+    setSyncTargetCount(Number(data.syncTargetCount ?? 0));
+
     if (data.metrics) {
-      const last = data.metrics.last as
-        | {
-            requestedCount?: number;
-            dbFetchMs?: number;
-            jsonFallbackCount?: number;
-            totalMs?: number;
-          }
-        | null
-        | undefined;
+      const last = data.metrics.last;
       setLiveMetrics({
         requestedCount: last?.requestedCount ?? null,
         dbFetchMs: last?.dbFetchMs ?? null,
@@ -260,10 +518,10 @@ export function WorksOpsDashboard({
     setSyncTargetLimit(
       data.syncTargetLimit == null ? null : Number(data.syncTargetLimit),
     );
-    return data as {
-      currentJob: FanzaSyncJob | null;
-      history: FanzaSyncHistoryEntry[];
-      progressPercent: number;
+    return {
+      currentJob: data.currentJob ?? null,
+      history: data.history ?? [],
+      progressPercent: data.progressPercent ?? 0,
     };
   }, []);
 
@@ -273,7 +531,6 @@ export function WorksOpsDashboard({
     });
     if (!response.ok) return;
     const data = await response.json();
-    setLightSyncEnabled(Boolean(data.lightSyncEnabled));
     setFullSyncEnabled(Boolean(data.fullSyncEnabled));
     if (
       data.lightSyncStatus === "enabled" ||
@@ -341,6 +598,220 @@ export function WorksOpsDashboard({
     syncHistory[0]?.startedAt ||
     null;
 
+  const processLiveInitBatch = useCallback(async () => {
+    if (liveInitProcessingRef.current) return;
+    liveInitProcessingRef.current = true;
+    setInitializingLive(true);
+    try {
+      const response = await fetch(
+        "/api/admin/fanza-sync/init-live-status/process",
+        {
+          method: "POST",
+          cache: "no-store",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        },
+      );
+      const parsed = await readAdminJson<{
+        ok?: boolean;
+        success?: boolean;
+        message?: string;
+        done?: boolean;
+        waited?: boolean;
+        job?: {
+          jobId: string;
+          status: string;
+          worksCount: number;
+          liveStatusCount: number;
+          missingAtStart: number;
+          insertedCount: number;
+          failedCount: number;
+          remainingCount: number;
+          batchesCompleted: number;
+          startedAt: string;
+          message: string;
+          waitUntil: string | null;
+        };
+      }>(response);
+      const body = parsed.data;
+      if (
+        parsed.htmlReturned ||
+        parsed.parseError ||
+        !response.ok ||
+        !body ||
+        body.ok === false ||
+        body.success === false
+      ) {
+        if (body?.job) setLiveInitJob(body.job);
+        throw new Error(
+          parsed.parseError ||
+            body?.message ||
+            "変動情報の初期化バッチに失敗しました",
+        );
+      }
+      if (body.job) {
+        setLiveInitJob(body.job);
+        setMissingLiveCount(body.job.remainingCount);
+        setInitRatePercent(
+          body.job.worksCount > 0
+            ? Math.min(
+                100,
+                Math.round(
+                  (body.job.liveStatusCount / body.job.worksCount) * 100,
+                ),
+              )
+            : 0,
+        );
+        setLiveStorage((prev) =>
+          prev ? { ...prev, rowCount: body.job!.liveStatusCount } : prev,
+        );
+        setWorksMasterStorage((prev) =>
+          prev ? { ...prev, rowCount: body.job!.worksCount } : prev,
+        );
+      }
+      return body;
+    } finally {
+      liveInitProcessingRef.current = false;
+      setInitializingLive(false);
+    }
+  }, []);
+
+  const handleStartLiveInit = async () => {
+    setError(null);
+    setMessage(null);
+    const started = Date.now();
+    try {
+      const response = await fetch("/api/admin/fanza-sync/init-live-status", {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const parsed = await readAdminJson<{
+        ok?: boolean;
+        success?: boolean;
+        message?: string;
+        currentJob?: {
+          jobId: string;
+          status: string;
+          worksCount: number;
+          liveStatusCount: number;
+          missingAtStart: number;
+          insertedCount: number;
+          failedCount: number;
+          remainingCount: number;
+          batchesCompleted: number;
+          startedAt: string;
+          message: string;
+          waitUntil: string | null;
+        };
+      }>(response);
+      const body = parsed.data;
+      if (
+        parsed.htmlReturned ||
+        parsed.parseError ||
+        !response.ok ||
+        !body ||
+        body.ok === false ||
+        body.success === false
+      ) {
+        throw new Error(
+          parsed.parseError ||
+            body?.message ||
+            "変動情報の初期化開始に失敗しました",
+        );
+      }
+      if (body.currentJob) setLiveInitJob(body.currentJob);
+      setMessage(body.message ?? "変動情報の自動初期化を開始しました");
+      pushLog({
+        action: "変動情報初期化",
+        ok: true,
+        message: body.message ?? "開始",
+        durationMs: Date.now() - started,
+      });
+    } catch (err) {
+      const msg =
+        err instanceof Error ? err.message : "変動情報の初期化開始に失敗しました";
+      setError(msg);
+      pushLog({
+        action: "変動情報初期化",
+        ok: false,
+        message: msg,
+        durationMs: Date.now() - started,
+      });
+    }
+  };
+
+  const handleStopLiveInit = async () => {
+    const response = await fetch("/api/admin/fanza-sync/init-live-status/stop", {
+      method: "POST",
+      cache: "no-store",
+    });
+    const parsed = await readAdminJson<{
+      currentJob?: typeof liveInitJob;
+      message?: string;
+    }>(response);
+    if (parsed.data?.currentJob) setLiveInitJob(parsed.data.currentJob);
+    setMessage(parsed.data?.message ?? "初期化を停止しました");
+  };
+
+  const handleResumeLiveInit = async () => {
+    const response = await fetch(
+      "/api/admin/fanza-sync/init-live-status/resume",
+      { method: "POST", cache: "no-store" },
+    );
+    const parsed = await readAdminJson<{
+      currentJob?: typeof liveInitJob;
+      message?: string;
+    }>(response);
+    if (parsed.data?.currentJob) setLiveInitJob(parsed.data.currentJob);
+    setMessage(parsed.data?.message ?? "初期化を再開しました");
+  };
+
+  useEffect(() => {
+    if (
+      !liveInitJob ||
+      (liveInitJob.status !== "running" &&
+        liveInitJob.status !== "pending" &&
+        liveInitJob.status !== "waiting") ||
+      initializingLive
+    ) {
+      return;
+    }
+
+    let cancelled = false;
+    const run = async () => {
+      if (liveInitJob.status === "waiting" && liveInitJob.waitUntil) {
+        const waitMs = Date.parse(liveInitJob.waitUntil) - Date.now();
+        if (waitMs > 0) {
+          await new Promise((resolve) =>
+            setTimeout(resolve, Math.min(waitMs + 50, 20_000)),
+          );
+        }
+      }
+      if (cancelled) return;
+      try {
+        const result = await processLiveInitBatch();
+        if (result?.done) {
+          setMessage(
+            result.job?.message ?? "変動情報の初期化が完了しました",
+          );
+          await refreshSync();
+        }
+      } catch (err) {
+        const msg =
+          err instanceof Error
+            ? err.message
+            : "変動情報の初期化バッチに失敗しました";
+        setError(msg);
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [liveInitJob, initializingLive, processLiveInitBatch, refreshSync]);
+
   const processSyncBatch = useCallback(async () => {
     if (syncProcessingRef.current) return;
     syncProcessingRef.current = true;
@@ -381,6 +852,7 @@ export function WorksOpsDashboard({
   const handleFetchCandidates = async () => {
     setFetching(true);
     setError(null);
+    setFetchErrorDetail(null);
     setMessage(null);
     setFetchProgress({ done: 0, total: fetchCount });
     const started = Date.now();
@@ -402,13 +874,40 @@ export function WorksOpsDashboard({
         body: JSON.stringify({
           sort: fetchSort,
           offset: startOffset,
+          requestedCount: fetchCount,
           requestCount: fetchCount,
         }),
       });
       window.clearInterval(tick);
-      const body = await response.json();
-      if (!response.ok || !body.success) {
-        throw new Error(body.message ?? body.error ?? "候補の取得に失敗しました。");
+
+      const parsed = await readAdminJson<{
+        ok?: boolean;
+        success?: boolean;
+        errorCode?: string;
+        message?: string;
+        error?: string;
+        candidates?: FetchedImportCandidate[];
+        summary?: FetchImportCandidatesSummary;
+        newCandidateCount?: number;
+      }>(response);
+
+      const body = parsed.data;
+      const fetchFailed =
+        parsed.htmlReturned ||
+        Boolean(parsed.parseError) ||
+        !response.ok ||
+        body?.ok === false ||
+        body?.success === false ||
+        !body;
+
+      if (fetchFailed) {
+        const msg = candidateFetchErrorMessage({
+          responseOk: response.ok,
+          htmlReturned: parsed.htmlReturned,
+          parseError: parsed.parseError,
+          body,
+        });
+        throw new Error(msg);
       }
 
       const nextCandidates = (body.candidates ?? []) as FetchedImportCandidate[];
@@ -418,6 +917,7 @@ export function WorksOpsDashboard({
       setSelected(new Set(nextCandidates.map((c) => c.contentId)));
       setFetchProgress({ done: fetchCount, total: fetchCount });
       setActiveStep(2);
+      setFetchErrorDetail(null);
 
       if (nextSummary?.nextOffset != null) {
         writeStoredOffset(fetchSort, nextSummary.nextOffset);
@@ -438,10 +938,11 @@ export function WorksOpsDashboard({
     } catch (err) {
       const msg = err instanceof Error ? err.message : "候補の取得に失敗しました。";
       setError(msg);
+      setFetchErrorDetail(msg);
       pushLog({
         action: "候補取得",
         ok: false,
-        message: msg,
+        message: msg.split("\n")[0] ?? msg,
         durationMs: Date.now() - started,
         detail: msg,
       });
@@ -505,7 +1006,10 @@ export function WorksOpsDashboard({
           prev
             ? {
                 ...prev,
-                rowCount: Math.max(prev.rowCount, prev.rowCount + added),
+                rowCount:
+                  prev.rowCount == null
+                    ? body.summary!.addedCount!
+                    : prev.rowCount + body.summary!.addedCount!,
               }
             : prev,
         );
@@ -537,8 +1041,12 @@ export function WorksOpsDashboard({
   };
 
   const handleStartSync = async (mode: AdultSyncMode) => {
-    if (mode !== "full" && !lightSyncEnabled) {
-      setError("軽量同期が無効です。設定画面で有効にするか、環境変数を確認してください。");
+    if (!canStartLightSync && mode !== "full") {
+      setError(
+        syncDisableReasons.length > 0
+          ? `軽量同期を開始できません\n原因：${syncDisableReasons.join(" / ")}`
+          : "軽量同期が無効です。設定画面で有効にするか、環境変数を確認してください。",
+      );
       return;
     }
     if (mode === "full" && !fullSyncEnabled) {
@@ -1045,6 +1553,21 @@ export function WorksOpsDashboard({
             : "未掲載作品を取得"}
         </button>
 
+        {fetchErrorDetail ? (
+          <div className="mt-3 rounded-xl border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-900">
+            <p className="font-bold">候補取得に失敗しました</p>
+            <p className="mt-1 whitespace-pre-line">{fetchErrorDetail}</p>
+            <button
+              type="button"
+              disabled={!configured || !dmmConfigured || fetching}
+              onClick={() => void handleFetchCandidates()}
+              className="mt-3 min-h-[44px] rounded-xl border border-red-300 bg-white px-4 font-bold text-red-800 disabled:opacity-50"
+            >
+              再試行
+            </button>
+          </div>
+        ) : null}
+
         {fetching || summary ? (
           <div className="mt-3 rounded-xl bg-sky-50 px-3 py-2 text-sm text-sky-950">
             <p>
@@ -1077,9 +1600,14 @@ export function WorksOpsDashboard({
           <p className="mt-1 text-xs">
             新規作品は作品マスターへ直接保存します。Git・JSON・デプロイは発生しません。
           </p>
-          {typeof worksMasterStorage?.rowCount === "number" ? (
+          {worksMasterStorage ? (
             <p className="mt-1 text-xs">
-              マスター件数：{worksMasterStorage.rowCount.toLocaleString()}件
+              マスター件数：
+              {formatCountLabel(
+                worksMasterStorage.rowCount,
+                worksMasterStorage.countStatus,
+                worksMasterStorage.countMessage,
+              )}
             </p>
           ) : null}
           {lastAddStatus?.completed ? (
@@ -1254,14 +1782,64 @@ export function WorksOpsDashboard({
 
         <div className="mb-4 rounded-xl border border-sky-200 bg-sky-50 px-3 py-3 text-sm text-sky-950">
           <p className="font-bold">データ保存先: {liveStorage?.label ?? "読込中…"}</p>
-          <p className="mt-1 text-xs">
-            同期対象{" "}
-            {syncTargetLimit != null
-              ? `${syncTargetLimit.toLocaleString()}件（上限）`
-              : "全掲載作品"}
-            {" / "}
-            DB件数 {(liveStorage?.rowCount ?? 0).toLocaleString()}件
-          </p>
+          <dl className="mt-2 space-y-1 text-xs">
+            <div className="flex justify-between gap-3">
+              <dt>作品マスター</dt>
+              <dd className="font-semibold">
+                {formatCountLabel(
+                  worksMasterStorage?.rowCount,
+                  worksMasterStorage?.countStatus,
+                  worksMasterStorage?.countMessage,
+                )}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt>変動情報</dt>
+              <dd className="font-semibold">
+                {(liveStorage?.rowCount ?? liveInitJob?.liveStatusCount ?? 0).toLocaleString()}{" "}
+                /{" "}
+                {(worksMasterStorage?.rowCount ?? liveInitJob?.worksCount ?? 0).toLocaleString()}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt>初期化率</dt>
+              <dd className="font-semibold">{initRatePercent}%</dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt>未初期化</dt>
+              <dd className="font-semibold">
+                {missingLiveCount == null
+                  ? "—"
+                  : `${missingLiveCount.toLocaleString()}件`}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt>軽量同期</dt>
+              <dd className="font-semibold">{statusLabel(lightSyncStatus)}</dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt>Supabase接続</dt>
+              <dd className="font-semibold">
+                {liveRuntime?.hasSupabaseUrl && liveRuntime?.hasServiceRoleKey
+                  ? "接続可能"
+                  : "未設定"}
+              </dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt>最終成功日時</dt>
+              <dd className="font-semibold">{formatDateTime(lastSyncAt)}</dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt>同期対象</dt>
+              <dd className="font-semibold">
+                {syncTargetLimit != null
+                  ? `${syncTargetLimit.toLocaleString()}件（上限）`
+                  : syncTargetCount > 0
+                    ? `${syncTargetCount.toLocaleString()}件`
+                    : "0件"}
+              </dd>
+            </div>
+          </dl>
           <p className="mt-2 text-xs">
             取得件数 {liveMetrics?.requestedCount ?? "—"}
             {" / "}
@@ -1305,6 +1883,81 @@ export function WorksOpsDashboard({
           ) : null}
         </div>
 
+        {(missingLiveCount ?? 0) > 0 ||
+        liveInitJob?.status === "running" ||
+        liveInitJob?.status === "waiting" ||
+        liveInitJob?.status === "stopped" ||
+        liveInitJob?.status === "failed" ? (
+          <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 px-3 py-3 text-sm text-amber-950">
+            <p className="font-bold">変動情報の自動初期化</p>
+            <p className="mt-1 text-xs">
+              未初期化CIDを検出し、100件ずつバックグラウンドで完了まで処理します。
+              Git・JSON・デプロイは発生しません。
+            </p>
+            {liveInitJob ? (
+              <p className="mt-2 text-xs">
+                {liveInitJob.message}
+                {" / "}
+                挿入 {liveInitJob.insertedCount.toLocaleString()}
+                {" / "}
+                失敗 {liveInitJob.failedCount.toLocaleString()}
+                {" / "}
+                バッチ {liveInitJob.batchesCompleted.toLocaleString()}
+              </p>
+            ) : null}
+            <div className="mt-3 flex flex-wrap gap-2">
+              {!(
+                liveInitJob?.status === "running" ||
+                liveInitJob?.status === "pending" ||
+                liveInitJob?.status === "waiting"
+              ) ? (
+                <button
+                  type="button"
+                  disabled={
+                    !configured ||
+                    syncRunning ||
+                    liveStorage?.countStatus === "table_missing" ||
+                    liveStorage?.countStatus === "connection_error"
+                  }
+                  onClick={() =>
+                    void (liveInitJob?.status === "stopped" ||
+                    liveInitJob?.status === "failed"
+                      ? handleResumeLiveInit()
+                      : handleStartLiveInit())
+                  }
+                  className="min-h-[44px] flex-1 rounded-xl border border-amber-500 bg-white px-3 font-bold disabled:opacity-50"
+                >
+                  {liveInitJob?.status === "stopped" ||
+                  liveInitJob?.status === "failed"
+                    ? "初期化を再開"
+                    : "変動情報を自動初期化"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  disabled={!configured}
+                  onClick={() => void handleStopLiveInit()}
+                  className="min-h-[44px] flex-1 rounded-xl border border-zinc-400 bg-white px-3 font-bold disabled:opacity-50"
+                >
+                  初期化を停止
+                </button>
+              )}
+            </div>
+            {initializingLive ||
+            liveInitJob?.status === "running" ||
+            liveInitJob?.status === "waiting" ? (
+              <div className="mt-3">
+                <div className="h-2 overflow-hidden rounded-full bg-amber-100">
+                  <div
+                    className="h-full bg-amber-500 transition-all"
+                    style={{ width: `${Math.min(100, initRatePercent)}%` }}
+                  />
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="space-y-2">
           {(
             [
@@ -1337,15 +1990,26 @@ export function WorksOpsDashboard({
             !dmmConfigured ||
             syncStarting ||
             syncRunning ||
-            !lightSyncEnabled
+            !canStartLightSync
           }
           onClick={() => void handleStartSync(syncMode === "full" ? "light" : syncMode)}
-          className="mt-4 min-h-[52px] w-full rounded-xl bg-sky-600 font-bold text-white disabled:opacity-50"
+          className="mt-4 min-h-[52px] w-full rounded-xl bg-sky-600 font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
           {syncRunning && syncJob?.mode !== "full"
             ? `更新中… ${syncJob?.processedCount ?? 0} / ${syncJob?.targetCount ?? 0}`
             : "掲載作品を最新に更新"}
         </button>
+
+        {!canStartLightSync && !syncRunning ? (
+          <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-amber-900">
+            {(syncDisableReasons.length > 0
+              ? syncDisableReasons
+              : ["更新条件が揃っていません"]
+            ).map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+          </ul>
+        ) : null}
 
         {syncJob &&
         (syncJob.status === "failed" || syncJob.status === "partial_failed") &&

@@ -2,6 +2,7 @@ import "server-only";
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
+import { getWorkLiveStatusRuntimeStatus } from "@/lib/dmm/work-live-status/types";
 
 export const ADMIN_OPS_SETTINGS_PATH = "data/dmm/admin-ops-settings.json";
 
@@ -53,30 +54,58 @@ export function writeAdminOpsSettings(
   return next;
 }
 
-/** 実行可否: 管理画面トグル優先、なければ環境変数 */
+function parseBoolEnv(name: string): boolean | null {
+  const raw = process.env[name];
+  if (raw === undefined || raw === "") return null;
+  const value = raw.trim().toLowerCase();
+  if (value === "1" || value === "true" || value === "yes" || value === "on") {
+    return true;
+  }
+  if (value === "0" || value === "false" || value === "no" || value === "off") {
+    return false;
+  }
+  return null;
+}
+
+function isWorkLiveStatusReadyForLightSync(): boolean {
+  return getWorkLiveStatusRuntimeStatus().enabled;
+}
+
+/**
+ * 軽量同期の実行可否（共通）。
+ * 1. 管理画面トグル
+ * 2. ADULT_LIGHT_SYNC_ENABLED
+ * 3. WORK_LIVE_STATUS + Supabase/local が利用可能
+ */
 export function resolveLightSyncEnabled(): boolean {
   const settings = readAdminOpsSettings();
   if (settings.lightSyncEnabled != null) return settings.lightSyncEnabled;
-  return process.env.ADULT_LIGHT_SYNC_ENABLED === "true";
+
+  const env = parseBoolEnv("ADULT_LIGHT_SYNC_ENABLED");
+  if (env != null) return env;
+
+  return isWorkLiveStatusReadyForLightSync();
 }
 
 export function resolveFullSyncEnabled(): boolean {
   const settings = readAdminOpsSettings();
   if (settings.fullSyncEnabled != null) return settings.fullSyncEnabled;
-  return process.env.ADULT_FULL_SYNC_ENABLED === "true";
+  const env = parseBoolEnv("ADULT_FULL_SYNC_ENABLED");
+  return env === true;
 }
 
 export type SyncEnvPresence = "true" | "false" | "unset";
 
 function readEnvPresence(name: string): SyncEnvPresence {
-  const raw = process.env[name];
-  if (raw === undefined || raw === "") return "unset";
-  return raw === "true" ? "true" : "false";
+  const parsed = parseBoolEnv(name);
+  if (parsed === true) return "true";
+  if (parsed === false) return "false";
+  return "unset";
 }
 
 /**
  * 管理画面表示用。
- * - enabled: 実行可能か（トグル優先、なければ env）
+ * - enabled: 実行可能か（トグル優先、なければ env / work_live_status）
  * - statusLabel: 有効 / 無効 / 未設定
  * - envPresence: 環境変数の実値（API と画面で共通参照）
  */
@@ -84,28 +113,44 @@ export function getAdminOpsSettingsView(): {
   settings: AdminOpsSettings;
   lightSyncEnabled: boolean;
   fullSyncEnabled: boolean;
-  lightSyncSource: "toggle" | "env";
+  lightSyncSource: "toggle" | "env" | "work_live_status";
   fullSyncSource: "toggle" | "env";
   lightSyncEnv: SyncEnvPresence;
   fullSyncEnv: SyncEnvPresence;
   lightSyncStatus: "enabled" | "disabled" | "unset";
   fullSyncStatus: "enabled" | "disabled" | "unset";
+  workLiveStatus: {
+    enabled: boolean;
+    backend: string;
+    hasSupabaseUrl: boolean;
+    hasServiceRoleKey: boolean;
+    tableAvailable: boolean | null;
+  };
 } {
   const settings = readAdminOpsSettings();
   const lightSyncEnv = readEnvPresence("ADULT_LIGHT_SYNC_ENABLED");
   const fullSyncEnv = readEnvPresence("ADULT_FULL_SYNC_ENABLED");
   const lightSyncEnabled = resolveLightSyncEnabled();
   const fullSyncEnabled = resolveFullSyncEnabled();
+  const workLiveStatus = getWorkLiveStatusRuntimeStatus();
+  const workLiveReady = workLiveStatus.enabled;
+
+  const lightSyncSource: "toggle" | "env" | "work_live_status" =
+    settings.lightSyncEnabled != null
+      ? "toggle"
+      : lightSyncEnv !== "unset"
+        ? "env"
+        : "work_live_status";
 
   const lightSyncStatus: "enabled" | "disabled" | "unset" =
     settings.lightSyncEnabled != null
       ? settings.lightSyncEnabled
         ? "enabled"
         : "disabled"
-      : lightSyncEnv === "unset"
-        ? "unset"
-        : lightSyncEnabled
-          ? "enabled"
+      : lightSyncEnabled
+        ? "enabled"
+        : lightSyncEnv === "unset" && !workLiveReady
+          ? "unset"
           : "disabled";
 
   const fullSyncStatus: "enabled" | "disabled" | "unset" =
@@ -123,11 +168,12 @@ export function getAdminOpsSettingsView(): {
     settings,
     lightSyncEnabled,
     fullSyncEnabled,
-    lightSyncSource: settings.lightSyncEnabled != null ? "toggle" : "env",
+    lightSyncSource,
     fullSyncSource: settings.fullSyncEnabled != null ? "toggle" : "env",
     lightSyncEnv,
     fullSyncEnv,
     lightSyncStatus,
     fullSyncStatus,
+    workLiveStatus,
   };
 }

@@ -327,7 +327,9 @@ export function parseFetchCandidatesRequest(body: unknown): {
   return {
     sort: parseFetchSort(payload.sort),
     offset: parseStartOffset(payload.offset),
-    requestedCount: parseRequestedCount(payload.requestedCount),
+    requestedCount: parseRequestedCount(
+      payload.requestedCount ?? payload.requestCount,
+    ),
   };
 }
 

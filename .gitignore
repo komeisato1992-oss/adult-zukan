@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+/.node
 /.pnp
 .pnp.*
 .yarn/*
@@ -55,6 +56,7 @@ yarn-error.log*
 /data/dmm/fanza-sync-job.json
 /data/dmm/fanza-light-overlay.json
 /data/dmm/fanza-sync-history.json
+/data/dmm/live-status-init-job.json
 
 # 同人図鑑: ジョブ/ログはローカルのみ。表示用カタログJSONは本番反映のため追跡する
 /data/doujin/import-jobs.json

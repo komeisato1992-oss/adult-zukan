@@ -151,6 +151,10 @@ export async function localCountLiveStatusRows(): Promise<number> {
   return Object.keys(readFile().entries).length;
 }
 
+export async function localFetchAllLiveStatusCids(): Promise<string[]> {
+  return Object.keys(readFile().entries);
+}
+
 export function invalidateLocalLiveStatusCache(): void {
   const store = getMemoryStore();
   store.__workLiveStatusLocal = null;

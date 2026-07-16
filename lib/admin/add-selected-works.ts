@@ -517,7 +517,7 @@ async function addSelectedWorksToWorksMaster(
     selectionDuplicateCount,
     invalidCount,
     retried: false,
-    catalogCountAfter: storageInfo.rowCount,
+    catalogCountAfter: storageInfo.rowCount ?? undefined,
     githubCommitSucceeded: false,
     storageTarget: writeBackend === "supabase" ? "supabase" : "local",
     storageLabel: getWorksMasterStorageLabel(writeBackend),

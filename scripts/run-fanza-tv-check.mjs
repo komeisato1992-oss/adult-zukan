@@ -6,6 +6,12 @@
  *
  *   node scripts/run-fanza-tv-check.mjs
  *   npm run fanza-tv:check -- --limit=100
+ *   npm run fanza-tv:check -- --limit=500
+ *   npm run fanza-tv:check -- --limit=1000
+ *   npm run fanza-tv:check -- --limit=5000
+ *   npm run fanza-tv:check -- --limit=all
+ *   npm run fanza-tv:check -- --fresh --limit=1000
+ *   npm run fanza-tv:check -- --limit=1000 --fetch-only
  */
 
 import { createClient } from "@supabase/supabase-js";
@@ -221,67 +227,181 @@ async function launchBrowser() {
   return { kind: "storage", browser, context, page };
 }
 
-function parseCliLimit() {
-  const arg = process.argv.find((a) => a.startsWith("--limit="));
-  if (!arg) return null;
-  const raw = arg.slice("--limit=".length);
-  if (raw === "all") return null;
-  const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
+function hasCliFlag(name) {
+  return process.argv.some(
+    (a) => a === `--${name}` || a.startsWith(`--${name}=`),
+  );
 }
 
-async function ensureCliJob() {
-  const existing = readJob();
-  if (existing?.status === "running" || existing?.status === "pending") {
-    return existing;
+/**
+ * `--limit=1000` / `--limit 1000` / `--limit=all` を解釈する。
+ * @returns {{ kind: 'default' } | { kind: 'all' } | { kind: 'number', value: number }}
+ */
+function parseCliLimit() {
+  const argv = process.argv;
+  let raw = null;
+  for (let i = 0; i < argv.length; i++) {
+    const a = argv[i];
+    if (a.startsWith("--limit=")) {
+      raw = a.slice("--limit=".length);
+      break;
+    }
+    if (a === "--limit") {
+      raw = argv[i + 1] && !argv[i + 1].startsWith("-") ? argv[i + 1] : "";
+      break;
+    }
   }
-  if (
-    existing &&
-    (existing.status === "stopped" || existing.status === "failed") &&
-    Array.isArray(existing.pendingCids) &&
-    existing.pendingCids.length > 0 &&
-    !process.argv.includes("--fresh")
-  ) {
-    return existing;
+  if (raw == null) return { kind: "default" };
+  const normalized = String(raw).trim().toLowerCase();
+  if (!normalized || normalized === "all") return { kind: "all" };
+  const n = Number(normalized);
+  if (!Number.isFinite(n) || n <= 0) {
+    throw new Error(
+      `不正な --limit です: ${raw}（例: 100 / 500 / 1000 / 5000 / all）`,
+    );
   }
+  return { kind: "number", value: Math.floor(n) };
+}
 
-  // CLI 単独起動: works.fanza_tv_status=unknown を対象
-  loadEnvLocal();
-  const client = getSupabase();
-  await assertWorksSchema(client);
-  const limit = parseCliLimit() ?? 100;
+function formatRequestedLimit(parsed) {
+  if (parsed.kind === "all") return "all";
+  if (parsed.kind === "number") return parsed.value;
+  return 100;
+}
+
+function resolveNumericLimit(parsed) {
+  if (parsed.kind === "all") return null;
+  if (parsed.kind === "number") return parsed.value;
+  return 100;
+}
+
+function printCountsHeader(requested, fetched, note = "") {
+  console.log(`Requested : ${requested}`);
+  console.log(`Fetched   : ${fetched}${note ? ` ${note}` : ""}`);
+}
+
+function printRunSummary({
+  requested,
+  fetched,
+  processed,
+  updated,
+  success,
+  failed,
+  available,
+  unavailable,
+  remainingUnknown,
+  includeHeader = true,
+}) {
+  if (includeHeader) {
+    printCountsHeader(requested, fetched);
+  }
+  console.log(`Processed : ${processed}`);
+  console.log(`Updated   : ${updated}`);
+  console.log("");
+  console.log(`success              : ${success}`);
+  console.log(`failed               : ${failed}`);
+  console.log(`available            : ${available}`);
+  console.log(`unavailable          : ${unavailable}`);
+  console.log(`remaining unknown    : ${remainingUnknown}`);
+}
+
+async function countUnknownWorks(client) {
+  const { count, error } = await client
+    .from("works")
+    .select("cid", { count: "exact", head: true })
+    .eq("fanza_tv_status", "unknown");
+  if (error) throw error;
+  return count ?? 0;
+}
+
+async function fetchUnknownCids(client, limit) {
   const cids = [];
   let from = 0;
-  while (cids.length < limit) {
+  const pageSize = 1000;
+  const wantsAll = limit == null;
+  while (wantsAll || cids.length < limit) {
+    const end = from + pageSize - 1;
     const { data, error } = await client
       .from("works")
-      .select("cid,fanza_tv_status")
+      .select("cid")
       .eq("fanza_tv_status", "unknown")
       .order("cid", { ascending: true })
-      .range(from, from + 999);
+      .range(from, end);
     if (error) throw error;
     const rows = data ?? [];
     if (rows.length === 0) break;
     for (const row of rows) {
       if (row.cid) cids.push(String(row.cid));
-      if (cids.length >= limit) break;
+      if (!wantsAll && cids.length >= limit) break;
     }
-    if (rows.length < 1000) break;
-    from += 1000;
+    if (rows.length < pageSize) break;
+    from += pageSize;
   }
+  return wantsAll ? cids : cids.slice(0, limit);
+}
+
+/**
+ * CLI 用ジョブ作成。--limit / --fresh 指定時は既存ジョブを破棄して新規作成。
+ */
+async function ensureCliJob(options = {}) {
+  const forceNew = Boolean(options.forceNew);
+  const existing = readJob();
+
+  if (
+    !forceNew &&
+    existing &&
+    (existing.status === "running" || existing.status === "pending")
+  ) {
+    return {
+      job: existing,
+      requested: existing.limit === "all" || existing.limit == null
+        ? "all"
+        : existing.limit,
+      fetched: existing.targetCount,
+      resumed: true,
+    };
+  }
+
+  if (
+    !forceNew &&
+    existing &&
+    (existing.status === "stopped" || existing.status === "failed") &&
+    Array.isArray(existing.pendingCids) &&
+    existing.pendingCids.length > 0
+  ) {
+    return {
+      job: existing,
+      requested: existing.limit === "all" || existing.limit == null
+        ? "all"
+        : existing.limit,
+      fetched: existing.targetCount,
+      resumed: true,
+    };
+  }
+
+  loadEnvLocal();
+  const client = getSupabase();
+  await assertWorksSchema(client);
+
+  const parsed = parseCliLimit();
+  const requested = formatRequestedLimit(parsed);
+  const numericLimit = resolveNumericLimit(parsed);
+
+  const cids = await fetchUnknownCids(client, numericLimit);
 
   const now = new Date().toISOString();
   const job = {
     jobId: `fanza-tv-cli-${Date.now()}`,
     status: "running",
     mode: "limit",
-    limit,
+    limit: requested,
     targetCount: cids.length,
     processedCount: 0,
     successCount: 0,
     failedCount: 0,
     availableCount: 0,
     unavailableCount: 0,
+    updatedCount: 0,
     pendingCids: cids,
     currentCid: null,
     batchSize: BATCH_SIZE,
@@ -292,29 +412,74 @@ async function ensureCliJob() {
     estimatedRemainingMs: null,
     stopRequested: false,
     pid: process.pid,
-    message: `CLI 判定開始（${cids.length}件）`,
+    message: `CLI 判定開始（${cids.length}件 / requested=${requested}）`,
     lastError: null,
     profilePath: existsSync(PROFILE_DIR) ? PROFILE_DIR : STATE_PATH,
     logPath: null,
   };
   writeJob(job);
-  return job;
+  return { job, requested, fetched: cids.length, resumed: false };
 }
 
 async function main() {
   loadEnvLocal();
   process.chdir(ROOT);
 
-  let job = readJob();
-  if (!job || process.argv.includes("--fresh") || process.argv.includes("--limit=")) {
-    // API 起動時は既存ジョブを使う。CLI --limit 時は新規
-    if (!job || process.argv.includes("--fresh") || (!job.pendingCids?.length && process.argv.includes("--limit="))) {
-      job = await ensureCliJob();
+  const forceNew = hasCliFlag("fresh") || hasCliFlag("limit");
+  const spawnedByApi = hasCliFlag("job") && !hasCliFlag("limit");
+
+  let job = null;
+  let requested = null;
+  let fetched = null;
+
+  if (spawnedByApi) {
+    job = readJob();
+    if (!job) {
+      console.error("ジョブがありません（API spawn）。");
+      process.exit(1);
+    }
+    requested = job.limit ?? job.targetCount;
+    fetched = job.targetCount;
+    printCountsHeader(requested, fetched, "(api job)");
+  } else {
+    const created = await ensureCliJob({ forceNew });
+    job = created.job;
+    requested = created.requested;
+    fetched = created.fetched;
+    // 長時間判定の前に件数を出す（最終サマリーでも再表示）
+    if (!hasCliFlag("fetch-only")) {
+      printCountsHeader(
+        requested,
+        fetched,
+        created.resumed ? "(resume existing job)" : "",
+      );
     }
   }
-  if (!job) {
-    console.error("ジョブがありません。管理画面から開始するか --limit=100 を指定してください");
-    process.exit(1);
+
+  if (hasCliFlag("fetch-only")) {
+    const client = getSupabase();
+    await assertWorksSchema(client);
+    const remainingUnknown = await countUnknownWorks(client);
+    // 判定はせず取得件数だけ確認して終了
+    job.status = "stopped";
+    job.stopRequested = true;
+    job.message = `fetch-only（requested=${requested}, fetched=${fetched}）`;
+    job.updatedAt = new Date().toISOString();
+    job.pendingCids = [];
+    writeJob(job);
+    printRunSummary({
+      requested,
+      fetched,
+      processed: 0,
+      updated: 0,
+      success: 0,
+      failed: 0,
+      available: 0,
+      unavailable: 0,
+      remainingUnknown,
+      includeHeader: true,
+    });
+    return;
   }
 
   const client = getSupabase();
@@ -325,18 +490,19 @@ async function main() {
   job.pid = process.pid;
   job.updatedAt = new Date().toISOString();
   job.message = "Playwright で判定中…";
+  job.updatedCount = Number(job.updatedCount ?? 0) || 0;
   writeJob(job);
 
   const startedMs = Date.parse(job.startedAt) || Date.now();
   let session = null;
   const pendingBatch = [];
+  let updatedInSession = 0;
 
   try {
     session = await launchBrowser();
     const { page } = session;
 
     while (job.pendingCids.length > 0) {
-      // 停止フラグをディスクから再読込
       const latest = readJob();
       if (latest?.stopRequested || latest?.status === "stopped") {
         job = {
@@ -351,6 +517,8 @@ async function main() {
         };
         if (pendingBatch.length > 0) {
           await saveBatch(client, pendingBatch);
+          updatedInSession += pendingBatch.length;
+          job.updatedCount = (job.updatedCount || 0) + pendingBatch.length;
           pendingBatch.length = 0;
         }
         writeJob(job);
@@ -402,7 +570,10 @@ async function main() {
         pendingBatch.length >= BATCH_SIZE ||
         job.pendingCids.length === 0
       ) {
+        const batchLen = pendingBatch.length;
         await saveBatch(client, pendingBatch);
+        updatedInSession += batchLen;
+        job.updatedCount = (job.updatedCount || 0) + batchLen;
         pendingBatch.length = 0;
         writeJob(job);
       } else {
@@ -414,7 +585,11 @@ async function main() {
 
     if (job.status !== "stopped") {
       if (pendingBatch.length > 0) {
+        const batchLen = pendingBatch.length;
         await saveBatch(client, pendingBatch);
+        updatedInSession += batchLen;
+        job.updatedCount = (job.updatedCount || 0) + batchLen;
+        pendingBatch.length = 0;
       }
       job.status = "completed";
       job.currentCid = null;
@@ -424,20 +599,29 @@ async function main() {
       job.message = `完了（成功 ${job.successCount} / 失敗 ${job.failedCount} / 見放題 ${job.availableCount} / 対象外 ${job.unavailableCount}）`;
       job.updatedAt = job.completedAt;
       writeJob(job);
-      console.log("[fanza-tv-check] completed", {
-        success: job.successCount,
-        failed: job.failedCount,
-        available: job.availableCount,
-        unavailable: job.unavailableCount,
-        elapsedMs: job.elapsedMs,
-      });
     }
+
+    const remainingUnknown = await countUnknownWorks(client);
+    printRunSummary({
+      requested,
+      fetched,
+      processed: job.processedCount,
+      updated: job.updatedCount || updatedInSession,
+      success: job.successCount,
+      failed: job.failedCount,
+      available: job.availableCount,
+      unavailable: job.unavailableCount,
+      remainingUnknown,
+      includeHeader: true,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error("[fanza-tv-check] fatal", message);
     if (pendingBatch.length > 0) {
       try {
         await saveBatch(client, pendingBatch);
+        updatedInSession += pendingBatch.length;
+        job.updatedCount = (job.updatedCount || 0) + pendingBatch.length;
       } catch {
         // ignore
       }
@@ -448,6 +632,24 @@ async function main() {
     job.updatedAt = new Date().toISOString();
     job.elapsedMs = Date.now() - startedMs;
     writeJob(job);
+    let remainingUnknown = "?";
+    try {
+      remainingUnknown = await countUnknownWorks(client);
+    } catch {
+      // ignore
+    }
+    printRunSummary({
+      requested,
+      fetched,
+      processed: job.processedCount,
+      updated: job.updatedCount || updatedInSession,
+      success: job.successCount,
+      failed: job.failedCount,
+      available: job.availableCount,
+      unavailable: job.unavailableCount,
+      remainingUnknown,
+      includeHeader: true,
+    });
     process.exitCode = 1;
   } finally {
     try {

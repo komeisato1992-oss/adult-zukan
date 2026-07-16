@@ -9,6 +9,7 @@ import {
   SYNC_CARDS,
   type LiveInitJob,
   type SyncJob,
+  type SyncProgressState,
   type SyncTargetScope,
   type WorksCmsOverview,
 } from "@/components/admin/works-cms/types";
@@ -18,12 +19,19 @@ type SyncTabProps = {
   overview: WorksCmsOverview | null;
   syncJob: SyncJob | null;
   syncTargetCount: number;
+  uncheckedCount: number;
+  syncProgress: SyncProgressState | null;
   canStartLightSync: boolean;
   disableReasons: string[];
   lastSuccessByMode: Partial<Record<AdultSyncMode, string | null>>;
   liveInitJob: LiveInitJob | null;
   busy: boolean;
-  onStartSync: (mode: AdultSyncMode) => void;
+  onStartSync: (input: {
+    mode: AdultSyncMode;
+    limit: number;
+    targetScope: SyncTargetScope;
+    startOffset: number;
+  }) => void;
   onResumeSync: () => void;
   onStartLiveInit: () => void;
   onStopLiveInit: () => void;
@@ -44,10 +52,15 @@ const TARGET_OPTIONS: Array<{ id: SyncTargetScope; label: string }> = [
   { id: "cid_range", label: "CID範囲" },
 ];
 
+const PRESET_LIMITS = [100, 300, 500, 1000] as const;
+const DEFAULT_LIMIT = 300;
+
 export function WorksCmsSyncTab({
   overview,
   syncJob,
   syncTargetCount,
+  uncheckedCount,
+  syncProgress,
   canStartLightSync,
   disableReasons,
   lastSuccessByMode,
@@ -63,23 +76,73 @@ export function WorksCmsSyncTab({
 }: SyncTabProps) {
   const [targetScope, setTargetScope] = useState<SyncTargetScope>("all");
   const [filterValue, setFilterValue] = useState("");
+  const [runLimit, setRunLimit] = useState(DEFAULT_LIMIT);
+  const [customLimitDraft, setCustomLimitDraft] = useState("");
+  const [usingCustom, setUsingCustom] = useState(false);
+  /** null = サーバー保存の nextOffset を使う */
+  const [offsetOverride, setOffsetOverride] = useState<number | null>(null);
 
   const scopeBlockReason = useMemo(() => {
-    if (targetScope === "all") return null;
-    return "対象絞り込み（全作品以外）は次回実装予定です。現在は全作品のみ実行できます。";
+    if (targetScope === "all" || targetScope === "unchecked") return null;
+    return "対象絞り込み（全作品・未確認以外）は次回実装予定です。";
   }, [targetScope]);
+
+  const progressScope: SyncTargetScope =
+    targetScope === "unchecked" ? "unchecked" : "all";
+  const savedProgress = syncProgress?.scopes?.[progressScope] ?? null;
+  const universeTotal =
+    targetScope === "unchecked" ? uncheckedCount : syncTargetCount;
+  const startOffset = Math.max(
+    0,
+    offsetOverride ?? savedProgress?.nextOffset ?? 0,
+  );
+  const effectiveStart =
+    universeTotal > 0 ? Math.min(startOffset, Math.max(0, universeTotal - 1)) : 0;
+  const thisRunCount = Math.min(
+    Math.max(1, runLimit),
+    Math.max(0, universeTotal - effectiveStart),
+  );
+  const thisRunEnd =
+    thisRunCount > 0 ? effectiveStart + thisRunCount - 1 : effectiveStart;
+  const nextStartAfterRun =
+    universeTotal > 0 && effectiveStart + thisRunCount >= universeTotal
+      ? 0
+      : effectiveStart + thisRunCount;
 
   const baseReasons = disableReasons.length > 0 ? disableReasons : [];
   const blockedReasons = [
     ...baseReasons,
     ...(scopeBlockReason ? [scopeBlockReason] : []),
+    ...(thisRunCount <= 0 ? ["今回の処理対象が0件です"] : []),
   ];
-  const canRun = canStartLightSync && !scopeBlockReason && !busy;
+  const canRun =
+    canStartLightSync && !scopeBlockReason && !busy && thisRunCount > 0;
   const initComplete = overview?.liveInitComplete === true;
   const initRunning =
     liveInitJob?.status === "running" ||
     liveInitJob?.status === "pending" ||
     liveInitJob?.status === "waiting";
+  const showLargeWarning = runLimit >= 500;
+
+  const applyPreset = (n: number) => {
+    setUsingCustom(false);
+    setCustomLimitDraft("");
+    setRunLimit(n);
+  };
+
+  const applyCustom = () => {
+    const n = Math.floor(Number(customLimitDraft));
+    if (!Number.isFinite(n) || n <= 0) return;
+    setUsingCustom(true);
+    setRunLimit(Math.min(5000, Math.max(1, n)));
+  };
+
+  const startPayload = (mode: AdultSyncMode) => ({
+    mode,
+    limit: runLimit,
+    targetScope: progressScope,
+    startOffset: effectiveStart,
+  });
 
   return (
     <section className="space-y-3">
@@ -87,36 +150,193 @@ export function WorksCmsSyncTab({
         価格・セール・評価・順位・販売状況をSupabaseへ直接更新します。デプロイは発生しません。
       </p>
 
-      <div className="rounded-xl border border-border bg-white p-3 space-y-2">
-        <p className="text-sm font-bold">更新対象</p>
-        <div className="flex flex-wrap gap-1.5">
-          {TARGET_OPTIONS.map((opt) => (
-            <button
-              key={opt.id}
-              type="button"
-              onClick={() => setTargetScope(opt.id)}
-              className={`min-h-[34px] rounded-lg px-2.5 text-xs ${
-                targetScope === opt.id
-                  ? "bg-sky-600 font-semibold text-white"
-                  : "border border-border"
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
+      <div className="rounded-xl border border-border bg-white p-3 space-y-3">
+        <div className="space-y-2">
+          <p className="text-sm font-bold">更新対象</p>
+          <div className="flex flex-wrap gap-1.5">
+            {TARGET_OPTIONS.map((opt) => (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => {
+                  setTargetScope(opt.id);
+                  setOffsetOverride(null);
+                }}
+                className={`min-h-[40px] rounded-lg px-3 text-xs ${
+                  targetScope === opt.id
+                    ? "bg-sky-600 font-semibold text-white"
+                    : "border border-border"
+                }`}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+          {targetScope !== "all" &&
+          targetScope !== "unchecked" &&
+          targetScope !== "selected" ? (
+            <input
+              value={filterValue}
+              onChange={(e) => setFilterValue(e.target.value)}
+              placeholder="絞り込み条件（将来用）"
+              className="min-h-[36px] w-full rounded-lg border border-border px-2 text-sm"
+              disabled
+            />
+          ) : null}
         </div>
-        {targetScope !== "all" && targetScope !== "unchecked" && targetScope !== "selected" ? (
-          <input
-            value={filterValue}
-            onChange={(e) => setFilterValue(e.target.value)}
-            placeholder="絞り込み条件（将来用）"
-            className="min-h-[36px] w-full rounded-lg border border-border px-2 text-sm"
-            disabled
-          />
-        ) : null}
-        <p className="text-xs text-muted">
-          対象件数: {syncTargetCount.toLocaleString()}件
+
+        <div className="space-y-2 border-t border-border pt-3">
+          <p className="text-sm font-bold">処理件数</p>
+          <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+            {PRESET_LIMITS.map((n) => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => applyPreset(n)}
+                className={`min-h-[44px] rounded-lg text-sm font-semibold ${
+                  !usingCustom && runLimit === n
+                    ? "bg-sky-600 text-white"
+                    : "border border-border"
+                }`}
+              >
+                {n}件
+              </button>
+            ))}
+            <div className="col-span-2 sm:col-span-3 flex gap-1.5">
+              <input
+                type="number"
+                min={1}
+                max={5000}
+                inputMode="numeric"
+                value={customLimitDraft}
+                onChange={(e) => setCustomLimitDraft(e.target.value)}
+                placeholder="件数を入力"
+                className={`min-h-[44px] flex-1 rounded-lg border px-3 text-sm ${
+                  usingCustom ? "border-sky-500 ring-1 ring-sky-300" : "border-border"
+                }`}
+              />
+              <button
+                type="button"
+                onClick={applyCustom}
+                className="min-h-[44px] shrink-0 rounded-lg border border-border px-3 text-sm font-semibold"
+              >
+                適用
+              </button>
+            </div>
+          </div>
+          {showLargeWarning ? (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-950">
+              大量処理は時間と通信量が増えます。通常は300件以下を推奨します。
+            </p>
+          ) : null}
+        </div>
+
+        <div className="rounded-lg border border-border bg-zinc-50 px-2.5 py-2 text-xs space-y-1">
+          <p>
+            対象総数：
+            <span className="font-bold tabular-nums">
+              {universeTotal.toLocaleString()}
+            </span>
+            件
+            {targetScope === "unchecked" ? "（image_status未確認）" : null}
+          </p>
+          <p>
+            今回の処理：
+            <span className="font-bold tabular-nums">
+              {thisRunCount.toLocaleString()}
+            </span>
+            件（{effectiveStart}〜{thisRunEnd}）
+          </p>
+          <p>
+            次回開始：
+            <span className="font-bold tabular-nums">{nextStartAfterRun}</span>
+          </p>
+          {savedProgress?.lastRunEnd != null &&
+          savedProgress.lastRunStart != null ? (
+            <p className="text-muted">
+              前回処理：{savedProgress.lastRunStart}〜{savedProgress.lastRunEnd}
+              {savedProgress.lastLimit != null
+                ? `（指定${savedProgress.lastLimit}件）`
+                : ""}
+            </p>
+          ) : null}
+        </div>
+
+        <div className="flex flex-wrap gap-1.5">
+          <label className="flex min-h-[40px] items-center gap-1.5 rounded-lg border border-border px-2 text-xs">
+            開始offset
+            <input
+              type="number"
+              min={0}
+              inputMode="numeric"
+              value={effectiveStart}
+              onChange={(e) => {
+                const n = Math.floor(Number(e.target.value));
+                setOffsetOverride(Number.isFinite(n) ? Math.max(0, n) : 0);
+              }}
+              className="w-20 min-h-[32px] rounded border border-border px-1.5 tabular-nums"
+            />
+          </label>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() =>
+              setOffsetOverride(Math.max(0, effectiveStart - runLimit))
+            }
+            className="min-h-[40px] rounded-lg border border-border px-3 text-xs font-semibold disabled:opacity-50"
+          >
+            前へ
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setOffsetOverride(effectiveStart + runLimit)}
+            className="min-h-[40px] rounded-lg border border-border px-3 text-xs font-semibold disabled:opacity-50"
+          >
+            次へ
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setOffsetOverride(0)}
+            className="min-h-[40px] rounded-lg border border-border px-3 text-xs font-semibold disabled:opacity-50"
+          >
+            0に戻す
+          </button>
+          <button
+            type="button"
+            disabled={!canRun}
+            onClick={() => {
+              const mode =
+                (syncJob?.mode as AdultSyncMode | undefined) ||
+                (savedProgress?.lastMode as AdultSyncMode | undefined) ||
+                "light";
+              const safeMode =
+                mode === "price" ||
+                mode === "review" ||
+                mode === "rank" ||
+                mode === "date" ||
+                mode === "availability" ||
+                mode === "light"
+                  ? mode
+                  : "light";
+              onStartSync({
+                mode: safeMode,
+                limit: runLimit,
+                targetScope: progressScope,
+                startOffset: savedProgress?.nextOffset ?? 0,
+              });
+              setOffsetOverride(null);
+            }}
+            className="min-h-[40px] rounded-lg border border-emerald-500 bg-emerald-50 px-3 text-xs font-bold text-emerald-900 disabled:opacity-50"
+          >
+            次の{runLimit}件を実行
+          </button>
+        </div>
+        <p className="text-[11px] text-muted">
+          「次の{runLimit}件を実行」は保存済みの次回開始位置から続けます。各カードの実行ボタンは上の開始offsetを使います。
         </p>
+
         {blockedReasons.length > 0 ? (
           <ul className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs text-amber-950 space-y-0.5">
             {blockedReasons.map((r) => (
@@ -141,7 +361,7 @@ export function WorksCmsSyncTab({
           <p className="truncate">{syncJob.message}</p>
           {(syncJob.status === "partial_failed" ||
             syncJob.status === "failed" ||
-            syncJob.cursor) && (
+            syncJob.cursor != null) && (
             <button
               type="button"
               disabled={busy}
@@ -168,18 +388,24 @@ export function WorksCmsSyncTab({
               </div>
               <dl className="grid grid-cols-2 gap-1 text-[11px]">
                 <div>
-                  <dt className="text-muted">対象件数</dt>
+                  <dt className="text-muted">対象総数</dt>
                   <dd className="font-semibold tabular-nums">
-                    {syncTargetCount.toLocaleString()}件
+                    {universeTotal.toLocaleString()}件
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-muted">今回の処理</dt>
+                  <dd className="font-semibold tabular-nums">
+                    {thisRunCount.toLocaleString()}件
                   </dd>
                 </div>
                 <div>
                   <dt className="text-muted">予想所要</dt>
                   <dd className="font-semibold">
-                    {estimateSyncEta(syncTargetCount, card.etaPerThousandSec)}
+                    {estimateSyncEta(thisRunCount, card.etaPerThousandSec)}
                   </dd>
                 </div>
-                <div className="col-span-2">
+                <div>
                   <dt className="text-muted">最終成功</dt>
                   <dd className="font-semibold">{formatDateTime(last)}</dd>
                 </div>
@@ -187,10 +413,13 @@ export function WorksCmsSyncTab({
               <button
                 type="button"
                 disabled={!canRun}
-                onClick={() => onStartSync(card.mode)}
-                className="min-h-[40px] w-full rounded-lg bg-sky-600 text-sm font-bold text-white disabled:bg-zinc-300 disabled:text-zinc-600"
+                onClick={() => {
+                  setOffsetOverride(null);
+                  onStartSync(startPayload(card.mode));
+                }}
+                className="min-h-[44px] w-full rounded-lg bg-sky-600 text-sm font-bold text-white disabled:bg-zinc-300 disabled:text-zinc-600"
               >
-                実行
+                {thisRunCount}件を実行
               </button>
               {!canRun && blockedReasons[0] ? (
                 <p className="text-[11px] text-amber-800">

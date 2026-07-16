@@ -201,6 +201,61 @@ export async function supabaseFetchAllPublishedWorkMasterCids(): Promise<string[
   return cids;
 }
 
+/** image_status が未判定（null）の CID を安定順（cid昇順）で返す */
+export async function supabaseFetchUncheckedImageStatusCids(): Promise<
+  string[]
+> {
+  const client = getSupabaseServiceClient();
+  if (!client) return [];
+
+  const cids: string[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const to = from + PAGE - 1;
+    const { data, error } = await client
+      .from(TABLE)
+      .select("cid")
+      .is("image_status", null)
+      .order("cid", { ascending: true })
+      .range(from, to);
+
+    if (error) {
+      console.warn(
+        "[works-master] supabase unchecked image_status cid list failed",
+        error.message,
+      );
+      throw error;
+    }
+
+    const batch = data ?? [];
+    for (const raw of batch) {
+      const cid = normalizeCatalogContentId(
+        String((raw as { cid?: string }).cid ?? ""),
+      );
+      if (cid) cids.push(cid);
+    }
+    if (batch.length < PAGE) break;
+  }
+
+  return cids;
+}
+
+export async function supabaseCountUncheckedImageStatus(): Promise<number> {
+  const client = getSupabaseServiceClient();
+  if (!client) return 0;
+  const { count, error } = await client
+    .from(TABLE)
+    .select("cid", { count: "exact", head: true })
+    .is("image_status", null);
+  if (error) {
+    console.warn(
+      "[works-master] supabase unchecked image_status count failed",
+      error.message,
+    );
+    throw error;
+  }
+  return count ?? 0;
+}
+
 export async function supabaseUpsertWorkMasterRows(
   rows: WorkMasterUpsertInput[],
 ): Promise<{ upserted: number }> {

@@ -21,15 +21,31 @@ export function createFanzaSyncJob(input: {
   targetCount: number;
   batchSize?: number;
   mode?: AdultSyncMode;
+  targetScope?: FanzaSyncJob["targetScope"];
+  runStartOffset?: number;
+  runLimit?: number;
+  universeCount?: number;
+  cursor?: number;
 }): FanzaSyncJob {
   const now = new Date().toISOString();
   const jobId = createFanzaSyncJobId();
+  const runStartOffset = Math.max(0, Math.floor(input.runStartOffset ?? 0));
+  const runLimit = Math.max(1, Math.floor(input.runLimit ?? input.targetCount));
+  const universeCount = Math.max(
+    0,
+    Math.floor(input.universeCount ?? input.targetCount),
+  );
+  const cursor = Math.max(0, Math.floor(input.cursor ?? runStartOffset));
 
   return {
     jobId,
     trigger: input.trigger,
     status: "running",
     mode: input.mode ?? "full",
+    targetScope: input.targetScope ?? "all",
+    runStartOffset,
+    runLimit,
+    universeCount,
     targetCount: input.targetCount,
     processedCount: 0,
     successCount: 0,
@@ -39,7 +55,7 @@ export function createFanzaSyncJob(input: {
     hiddenCount: 0,
     republishedCount: 0,
     errorCount: 0,
-    cursor: 0,
+    cursor,
     batchSize: input.batchSize ?? FANZA_SYNC_DEFAULT_BATCH_SIZE,
     startedAt: now,
     updatedAt: now,
@@ -116,12 +132,20 @@ export function parseFanzaSyncJob(raw: unknown): FanzaSyncJob | null {
     "failed",
   ]);
 
+  const targetScope =
+    value.targetScope === "unchecked" ? "unchecked" : "all";
+
   return {
     jobId: value.jobId,
     trigger: value.trigger === "auto" ? "auto" : "manual",
     status: validStatuses.has(value.status as FanzaSyncJobStatus)
       ? (value.status as FanzaSyncJobStatus)
       : "failed",
+    mode: value.mode,
+    targetScope,
+    runStartOffset: Number(value.runStartOffset ?? 0),
+    runLimit: Number(value.runLimit ?? value.targetCount ?? 0),
+    universeCount: Number(value.universeCount ?? value.targetCount ?? 0),
     targetCount: Number(value.targetCount ?? 0),
     processedCount: Number(value.processedCount ?? 0),
     successCount: Number(value.successCount ?? 0),

@@ -108,120 +108,251 @@ function toneFromOverview(input: {
   return "ok";
 }
 
-export async function getWorksCmsOverview(): Promise<WorksCmsOverview> {
+type OverviewSqlStats = {
+  totalCount: number;
+  publishedCount: number;
+  unpublishedCount: number;
+  manualHiddenCount: number;
+  noPackageImageCount: number;
+  publishedNoImageCount: number;
+  worksMasterCount: number;
+  liveStatusCount: number;
+  unavailableCount: number;
+  missingLiveCount: number;
+  fanzaTvAvailableCount: number;
+  fanzaTvUnavailableCount: number;
+  fanzaTvUncheckedCount: number;
+  lastWorkAddedAt: string | null;
+  fanzaTvLastCheckedAt: string | null;
+};
+
+const OVERVIEW_CACHE_TTL_MS = 5 * 60 * 1000;
+let overviewCache: { at: number; value: WorksCmsOverview } | null = null;
+
+/** 作品追加・掲載更新・公開管理などの更新後に呼ぶ */
+export function invalidateWorksCmsOverviewCache(): void {
+  overviewCache = null;
+}
+
+function num(v: unknown): number {
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function parseOverviewSqlStats(raw: unknown): OverviewSqlStats | null {
+  if (!raw || typeof raw !== "object") return null;
+  const row = raw as Record<string, unknown>;
+  return {
+    totalCount: num(row.total_count),
+    publishedCount: num(row.published_count),
+    unpublishedCount: num(row.unpublished_count),
+    manualHiddenCount: num(row.manual_hidden_count),
+    noPackageImageCount: num(row.no_image_count),
+    publishedNoImageCount: num(row.published_no_image_count),
+    worksMasterCount: num(row.works_master_count ?? row.total_count),
+    liveStatusCount: num(row.live_status_count),
+    unavailableCount: num(row.unavailable_count),
+    missingLiveCount: num(row.missing_live_count),
+    fanzaTvAvailableCount: num(row.fanza_tv_available_count),
+    fanzaTvUnavailableCount: num(row.fanza_tv_unavailable_count),
+    fanzaTvUncheckedCount: num(row.fanza_tv_unchecked_count),
+    lastWorkAddedAt:
+      row.last_work_added_at == null ? null : String(row.last_work_added_at),
+    fanzaTvLastCheckedAt:
+      row.fanza_tv_last_checked_at == null
+        ? null
+        : String(row.fanza_tv_last_checked_at),
+  };
+}
+
+/** 1回の RPC で集計。未適用時は並列 COUNT（全件スキャンしない）へフォールバック */
+async function fetchOverviewSqlStats(
+  client: NonNullable<ReturnType<typeof getSupabaseServiceClient>>,
+): Promise<OverviewSqlStats> {
+  const { data, error } = await client.rpc("works_cms_overview_stats");
+  if (!error) {
+    const parsed = parseOverviewSqlStats(data);
+    if (parsed) return parsed;
+  } else {
+    console.warn(
+      "[works-cms] overview RPC unavailable, using count fallback:",
+      error.message,
+    );
+  }
+
+  const noImageOr =
+    "image_status.eq.now_printing,image_status.eq.fetch_failed,and(image_status.is.null,or(package_image.is.null,package_image.eq.))";
+
+  const [
+    totalRes,
+    publishedRes,
+    unpublishedRes,
+    manualHiddenRes,
+    noImageRes,
+    publishedNoImageRes,
+    liveRes,
+    unavailableRes,
+    tvAvailableRes,
+    tvUnavailableRes,
+    latestRes,
+    tvCheckedRes,
+  ] = await Promise.all([
+    client.from("works").select("cid", { count: "exact", head: true }),
+    client
+      .from("works")
+      .select("cid", { count: "exact", head: true })
+      .eq("published", true),
+    client
+      .from("works")
+      .select("cid", { count: "exact", head: true })
+      .eq("published", false),
+    client
+      .from("works")
+      .select("cid", { count: "exact", head: true })
+      .eq("manual_hidden", true),
+    client
+      .from("works")
+      .select("cid", { count: "exact", head: true })
+      .or(noImageOr),
+    client
+      .from("works")
+      .select("cid", { count: "exact", head: true })
+      .eq("published", true)
+      .or(noImageOr),
+    client
+      .from("work_live_status")
+      .select("cid", { count: "exact", head: true }),
+    client
+      .from("work_live_status")
+      .select("cid", { count: "exact", head: true })
+      .eq("is_available", false),
+    client
+      .from("works")
+      .select("cid", { count: "exact", head: true })
+      .eq("fanza_tv_status", "available"),
+    client
+      .from("works")
+      .select("cid", { count: "exact", head: true })
+      .eq("fanza_tv_status", "unavailable"),
+    client
+      .from("works")
+      .select("created_at")
+      .order("created_at", { ascending: false })
+      .limit(1),
+    client
+      .from("works")
+      .select("fanza_tv_checked_at")
+      .not("fanza_tv_checked_at", "is", null)
+      .order("fanza_tv_checked_at", { ascending: false })
+      .limit(1),
+  ]);
+
+  const totalCount = totalRes.count ?? 0;
+  const liveStatusCount = liveRes.count ?? 0;
+  const tvAvailable = tvAvailableRes.count ?? 0;
+  const tvUnavailable = tvUnavailableRes.count ?? 0;
+
+  return {
+    totalCount,
+    publishedCount: publishedRes.count ?? 0,
+    unpublishedCount: unpublishedRes.count ?? 0,
+    manualHiddenCount: manualHiddenRes.count ?? 0,
+    noPackageImageCount: noImageRes.count ?? 0,
+    publishedNoImageCount: publishedNoImageRes.count ?? 0,
+    worksMasterCount: totalCount,
+    liveStatusCount,
+    unavailableCount: unavailableRes.count ?? 0,
+    missingLiveCount: Math.max(0, totalCount - liveStatusCount),
+    fanzaTvAvailableCount: tvAvailable,
+    fanzaTvUnavailableCount: tvUnavailable,
+    fanzaTvUncheckedCount: Math.max(
+      0,
+      totalCount - tvAvailable - tvUnavailable,
+    ),
+    lastWorkAddedAt: latestRes.data?.[0]?.created_at ?? null,
+    fanzaTvLastCheckedAt: tvCheckedRes.data?.[0]?.fanza_tv_checked_at ?? null,
+  };
+}
+
+export async function getWorksCmsOverview(options?: {
+  force?: boolean;
+}): Promise<WorksCmsOverview> {
+  if (
+    !options?.force &&
+    overviewCache &&
+    Date.now() - overviewCache.at < OVERVIEW_CACHE_TTL_MS
+  ) {
+    return overviewCache.value;
+  }
+
   const schemaV2 = await detectWorksCmsSchemaV2();
   const client = getSupabaseServiceClient();
   const overrides = listWorksCmsOverrides();
 
-  let publishedCount = 0;
-  let unpublishedCount = 0;
-  let noPackageImageCount = 0;
-  let unavailableCount = 0;
-  let manualHiddenCount = 0;
-  let lastWorkAddedAt: string | null = null;
-
-  let uncheckedCount = 0;
-  let activeCount = 0;
-  let notAvailableCount = 0;
-  let unknownCount = 0;
-  let lastCheckedAt: string | null = null;
-  let fanzaErrorCount = 0;
-
-  let totalCount = 0;
-  let publishedNoImageCount = 0;
+  let stats: OverviewSqlStats = {
+    totalCount: 0,
+    publishedCount: 0,
+    unpublishedCount: 0,
+    manualHiddenCount: 0,
+    noPackageImageCount: 0,
+    publishedNoImageCount: 0,
+    worksMasterCount: 0,
+    liveStatusCount: 0,
+    unavailableCount: 0,
+    missingLiveCount: 0,
+    fanzaTvAvailableCount: 0,
+    fanzaTvUnavailableCount: 0,
+    fanzaTvUncheckedCount: 0,
+    lastWorkAddedAt: null,
+    fanzaTvLastCheckedAt: null,
+  };
 
   if (client) {
-    const { count: pub } = await client
-      .from("works")
-      .select("cid", { count: "exact", head: true })
-      .eq("published", true);
-    publishedCount = pub ?? 0;
-
-    const { countWorksWithoutValidPackageImage } = await import(
-      "@/lib/admin/unpublish-no-image-works"
-    );
-    const imageCounts = await countWorksWithoutValidPackageImage();
-    totalCount = imageCounts.totalCount;
-    noPackageImageCount = imageCounts.noImageCount;
-    publishedNoImageCount = imageCounts.publishedNoImageCount;
-    unpublishedCount = Math.max(0, totalCount - publishedCount);
-
-    const { count: unavail } = await client
-      .from("work_live_status")
-      .select("cid", { count: "exact", head: true })
-      .eq("is_available", false);
-    unavailableCount = unavail ?? 0;
-
-    const { data: latest } = await client
-      .from("works")
-      .select("created_at")
-      .order("created_at", { ascending: false })
-      .limit(1);
-    lastWorkAddedAt = latest?.[0]?.created_at ?? null;
-
-    // FANZA TV counts（works.fanza_tv_* のみ）
-    const { getFanzaTvCheckStats } = await import(
-      "@/lib/admin/fanza-tv-check-db"
-    );
-    const tvStats = await getFanzaTvCheckStats();
-    if (tvStats.schemaReady) {
-      uncheckedCount = tvStats.uncheckedCount;
-      activeCount = tvStats.availableCount;
-      notAvailableCount = tvStats.unavailableCount;
-      unknownCount = 0;
-      lastCheckedAt = tvStats.lastCheckedAt;
-    }
-    for (const ov of overrides) {
-      if (ov.fanza_tv_error) fanzaErrorCount += 1;
-    }
+    stats = await fetchOverviewSqlStats(client);
   }
 
+  // JSON override 由来の手動非公開・削除（DB 未反映分の補正）
+  let manualHiddenCount = stats.manualHiddenCount;
+  let unpublishedCount = stats.unpublishedCount;
+  let fanzaErrorCount = 0;
   for (const ov of overrides) {
-    if (ov.manual_hidden) manualHiddenCount += 1;
+    if (ov.manual_hidden && !schemaV2) manualHiddenCount += 1;
     if (ov.deleted_at) unpublishedCount += 1;
-  }
-
-  if (schemaV2 && client) {
-    const { count: mh } = await client
-      .from("works")
-      .select("cid", { count: "exact", head: true })
-      .eq("manual_hidden", true);
-    manualHiddenCount = mh ?? manualHiddenCount;
+    if (ov.fanza_tv_error) fanzaErrorCount += 1;
   }
 
   const sync = await getFanzaSyncStatus();
   const mig = readWorksMasterMigrationJob();
-  const { getWorkLiveStatusStorageInfo } = await import(
-    "@/lib/dmm/work-live-status"
+  const { loadLiveStatusInitSnapshot } = await import(
+    "@/lib/admin/live-status-init-store"
   );
-  const { getWorksMasterStorageInfo } = await import(
-    "@/lib/dmm/works-master"
-  );
-  const { getLiveStatusInitStatus } = await import(
-    "@/lib/admin/live-status-init-runner"
-  );
-  const liveStorage = await getWorkLiveStatusStorageInfo();
-  const worksMaster = await getWorksMasterStorageInfo();
-  const liveInit = await getLiveStatusInitStatus();
+  const liveInitJob = loadLiveStatusInitSnapshot().currentJob;
 
-  const worksMasterCount = liveInit.worksCount || worksMaster.rowCount || 0;
-  const liveStatusCount = liveInit.liveStatusCount || liveStorage.rowCount || 0;
-  const missingLiveCount = liveInit.missingCount ?? Math.max(0, worksMasterCount - liveStatusCount);
-  const initRatePercent = liveInit.initRatePercent;
+  const worksMasterCount = stats.worksMasterCount;
+  const liveStatusCount = stats.liveStatusCount;
+  const missingLiveCount = stats.missingLiveCount;
+  const initRatePercent =
+    worksMasterCount <= 0
+      ? 0
+      : Math.min(
+          100,
+          Math.round((liveStatusCount / worksMasterCount) * 100),
+        );
   const liveInitComplete =
     worksMasterCount > 0 && missingLiveCount === 0 && initRatePercent >= 100;
 
   const initRunning =
-    liveInit.currentJob?.status === "running" ||
-    liveInit.currentJob?.status === "pending" ||
-    liveInit.currentJob?.status === "waiting";
+    liveInitJob?.status === "running" ||
+    liveInitJob?.status === "pending" ||
+    liveInitJob?.status === "waiting";
   const running =
     sync.currentJob?.status === "running" ||
     sync.currentJob?.status === "pending" ||
     mig.status === "running" ||
     initRunning;
   const runningJobLabel = running
-    ? sync.currentJob?.status === "running" || sync.currentJob?.status === "pending"
+    ? sync.currentJob?.status === "running" ||
+      sync.currentJob?.status === "pending"
       ? `掲載更新 ${sync.currentJob.processedCount}/${sync.currentJob.targetCount}`
       : initRunning
         ? `変動情報初期化 ${liveStatusCount}/${worksMasterCount}`
@@ -240,21 +371,23 @@ export async function getWorksCmsOverview(): Promise<WorksCmsOverview> {
     null;
 
   const supabaseReady = Boolean(client);
+  const noPackageImageCount = stats.noPackageImageCount;
+  const publishedNoImageCount = stats.publishedNoImageCount;
 
-  return {
-    totalCount,
-    publishedCount,
+  const result: WorksCmsOverview = {
+    totalCount: stats.totalCount,
+    publishedCount: stats.publishedCount,
     unpublishedCount,
     noPackageImageCount,
     publishedNoImageCount,
-    unavailableCount,
+    unavailableCount: stats.unavailableCount,
     manualHiddenCount,
     worksMasterCount,
     liveStatusCount,
     missingLiveCount,
     initRatePercent,
     liveInitComplete,
-    lastWorkAddedAt,
+    lastWorkAddedAt: stats.lastWorkAddedAt,
     lastLightSyncAt,
     runningJobLabel,
     errorCount,
@@ -265,11 +398,11 @@ export async function getWorksCmsOverview(): Promise<WorksCmsOverview> {
       supabaseReady,
     }),
     fanzaTv: {
-      uncheckedCount,
-      activeCount,
-      notAvailableCount,
-      unknownCount,
-      lastCheckedAt,
+      uncheckedCount: stats.fanzaTvUncheckedCount,
+      activeCount: stats.fanzaTvAvailableCount,
+      notAvailableCount: stats.fanzaTvUnavailableCount,
+      unknownCount: 0,
+      lastCheckedAt: stats.fanzaTvLastCheckedAt,
       becameActiveCount: 0,
       becameUnavailableCount: 0,
       errorCount: fanzaErrorCount,
@@ -280,6 +413,9 @@ export async function getWorksCmsOverview(): Promise<WorksCmsOverview> {
     deployRequired: false,
     jsonFallbackKept: true,
   };
+
+  overviewCache = { at: Date.now(), value: result };
+  return result;
 }
 
 export async function listWorksCmsItems(

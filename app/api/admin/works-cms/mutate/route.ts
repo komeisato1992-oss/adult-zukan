@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin/auth";
 import {
+  invalidateWorksCmsOverviewCache,
   patchWorksCmsPublish,
   updateWorkMasterFields,
 } from "@/lib/admin/works-cms-service";
@@ -13,6 +14,7 @@ export async function POST(request: Request) {
   }
 
   try {
+    invalidateWorksCmsOverviewCache();
     const body = (await request.json()) as {
       type?: "publish" | "edit";
       cids?: string[];

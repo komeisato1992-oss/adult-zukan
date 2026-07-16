@@ -68,7 +68,21 @@ export async function measureAsync<T>(
     incrPerfCounter(`${name}.calls`);
     incrPerfCounter(`${name}.ms`, Math.round(durationMs));
     if (isPerfDebugEnabled()) {
-      console.info(`[perf] ${name} ${durationMs.toFixed(1)}ms`);
+      console.info(`[perf] ${name} ${durationMs.toFixed(1)}ms`, {
+        supabaseQueries: getPerfCounter("supabase.queries"),
+      });
     }
   }
+}
+
+/** ページ単位のサマリログ（PERFORMANCE_DEBUG=true のみ） */
+export function logPagePerfSummary(
+  route: string,
+  extra?: Record<string, unknown>,
+): void {
+  if (!isPerfDebugEnabled()) return;
+  console.info(`[perf:page] ${route}`, {
+    ...extra,
+    ...getPerfSnapshot(),
+  });
 }

@@ -42,6 +42,7 @@ export const pageIntros = {
 export const navItems = [
   { href: "/", label: "TOP" },
   { href: "/works", label: "作品一覧" },
+  { href: "/works?sort=new", label: "新着" },
   { href: "/favorites", label: "お気に入り❤️" },
   { href: "/ranking", label: "ランキング" },
   { href: "/actresses", label: "女優" },

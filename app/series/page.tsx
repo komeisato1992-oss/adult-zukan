@@ -3,10 +3,6 @@ import { PageLayout } from "@/components/layout/PageLayout";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { PageIntro } from "@/components/ui/PageIntro";
 import { JsonLd } from "@/components/seo/JsonLd";
-import {
-  getCatalogItems,
-  getCatalogSeries,
-} from "@/lib/dmm/catalog-entities";
 import { siteConfig, pageIntros } from "@/lib/site-config";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import { truncateDescription } from "@/lib/seo/descriptions";
@@ -16,6 +12,7 @@ import {
   createBreadcrumbJsonLd,
   createCollectionPageJsonLd,
 } from "@/lib/seo/json-ld";
+import { getCachedSeriesSummaries } from "@/lib/catalog/cached-entity-summaries";
 
 export const revalidate = 86400;
 
@@ -27,8 +24,7 @@ export const metadata = createPageMetadata({
 });
 
 export default async function SeriesPage() {
-  const items = await getCatalogItems();
-  const series = getCatalogSeries(items).sort(
+  const series = (await getCachedSeriesSummaries()).sort(
     (a, b) =>
       b.workCount - a.workCount || a.name.localeCompare(b.name, "ja"),
   );

@@ -7,15 +7,15 @@ import { JsonLd } from "@/components/seo/JsonLd";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import { createBreadcrumbJsonLd, createItemListJsonLd } from "@/lib/seo/json-ld";
 import { toRankingJsonLdEntries } from "@/lib/ranking/work-card-item";
-import { parsePageParam } from "@/lib/pagination";
+import { parsePageParam, WORKS_LIST_PAGE_SIZE } from "@/lib/pagination";
 import { siteConfig } from "@/lib/site-config";
+import { getPaginatedWorkCardListFromSorted } from "@/lib/works/paginated-work-list";
+import { mapPageItemsToWorkCards } from "@/lib/works/paginated-work-list";
 import {
-  getPaginatedWorkCardListFromSorted,
-} from "@/lib/works/paginated-work-list";
-import {
-  getPopularWorks,
-  getSharedCatalogWorks,
-} from "@/lib/works/catalog";
+  fetchPublicWorksPage,
+  isPublicWorksDbQueryAvailable,
+} from "@/lib/works/public-list-query";
+import { measureAsync } from "@/lib/perf/measure";
 
 export const revalidate = 21600;
 
@@ -40,11 +40,35 @@ export default async function RankingWorksPage({
 }: RankingWorksPageProps) {
   const { page } = await searchParams;
   const currentPage = parsePageParam(page);
-  const catalog = await getSharedCatalogWorks();
-  const rankedWorks = getPopularWorks(catalog, catalog.length);
-  const list = await getPaginatedWorkCardListFromSorted(rankedWorks, {
-    page: currentPage,
+
+  const list = await measureAsync("page.ranking.works", async () => {
+    if (isPublicWorksDbQueryAvailable()) {
+      const { items, totalItems } = await fetchPublicWorksPage({
+        sort: "popular",
+        page: currentPage,
+        pageSize: WORKS_LIST_PAGE_SIZE,
+      });
+      const totalPages = Math.max(1, Math.ceil(totalItems / WORKS_LIST_PAGE_SIZE));
+      return {
+        pageItems: mapPageItemsToWorkCards(items),
+        totalItems,
+        totalPages,
+        currentPage: Math.min(currentPage, totalPages),
+        pageSize: WORKS_LIST_PAGE_SIZE,
+      };
+    }
+
+    const { getPopularWorks, getSharedCatalogWorks } = await import(
+      "@/lib/works/catalog"
+    );
+    const catalog = await getSharedCatalogWorks();
+    const rankedWorks = getPopularWorks(catalog, Math.min(catalog.length, 200));
+    return getPaginatedWorkCardListFromSorted(rankedWorks, {
+      page: currentPage,
+      pageSize: WORKS_LIST_PAGE_SIZE,
+    });
   });
+
   const rankOffset = (list.currentPage - 1) * list.pageSize;
 
   return (

@@ -23,13 +23,6 @@ import {
 
 export const revalidate = 86400;
 
-/**
- * searchParams（page/sort）を使うエンティティ詳細は ISR だと
- * production で DYNAMIC_SERVER_USAGE → 500 になるため動的描画を強制する。
- * （90cfb7c の修正。コスト削減で外したところ再発した）
- */
-export const dynamic = "force-dynamic";
-
 export const dynamicParams = true;
 
 type LabelDetailPageProps = {

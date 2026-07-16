@@ -2,10 +2,6 @@ import Link from "next/link";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { JsonLd } from "@/components/seo/JsonLd";
-import {
-  getCatalogItems,
-  getCatalogMakers,
-} from "@/lib/dmm/catalog-entities";
 import { siteConfig, pageIntros } from "@/lib/site-config";
 import { PageIntro } from "@/components/ui/PageIntro";
 import { createPageMetadata } from "@/lib/seo/metadata";
@@ -16,6 +12,7 @@ import {
   createBreadcrumbJsonLd,
   createCollectionPageJsonLd,
 } from "@/lib/seo/json-ld";
+import { getCachedMakerSummaries } from "@/lib/catalog/cached-entity-summaries";
 
 export const revalidate = 86400;
 
@@ -27,11 +24,7 @@ export const metadata = createPageMetadata({
 });
 
 export default async function MakersPage() {
-  const items = await getCatalogItems();
-  const makers = getCatalogMakers(items).sort(
-    (a, b) =>
-      b.workCount - a.workCount || a.name.localeCompare(b.name, "ja"),
-  );
+  const makers = await getCachedMakerSummaries();
 
   return (
     <>

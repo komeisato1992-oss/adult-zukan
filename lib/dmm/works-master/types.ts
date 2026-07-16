@@ -14,12 +14,17 @@ export type WorkMasterNamedEntity = {
   ruby?: string;
 };
 
+export type WorkMasterImageStatus = "ok" | "now_printing" | "fetch_failed";
+
 export type WorkMasterRow = {
   cid: string;
   slug: string;
   title: string;
   description: string | null;
   package_image: string | null;
+  /** 追加・掲載情報更新時のみ設定。閲覧時はこの値を使う */
+  image_status: WorkMasterImageStatus | null;
+  image_status_checked_at: string | null;
   sample_images: string[];
   actresses: WorkMasterNamedEntity[];
   maker: string | null;

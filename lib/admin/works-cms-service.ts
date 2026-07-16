@@ -8,9 +8,9 @@ import {
   type FanzaTvStatusValue,
 } from "@/lib/admin/works-cms-publish";
 import {
-  hasValidPackageImage,
-  isMissingAdultImage,
-} from "@/lib/works/package-image";
+  hasDisplayableAdultImage,
+  isAdultImageStatusMissing,
+} from "@/lib/works/image-status";
 import { NO_PACKAGE_IMAGE_REASON } from "@/lib/admin/unpublish-no-image-works";
 import {
   detectWorksCmsSchemaV2,
@@ -81,6 +81,7 @@ export type WorksCmsListItem = {
   slug: string;
   title: string;
   package_image: string | null;
+  image_status: string | null;
   maker: string | null;
   actresses: string[];
   release_date: string | null;
@@ -300,7 +301,7 @@ export async function listWorksCmsItems(
   let query = client
     .from("works")
     .select(
-      "cid,slug,title,package_image,maker,actresses,release_date,published,created_at,updated_at",
+      "cid,slug,title,package_image,image_status,image_status_checked_at,maker,actresses,release_date,published,created_at,updated_at",
       { count: "exact" },
     )
     .order("updated_at", { ascending: false })
@@ -367,6 +368,8 @@ export async function listWorksCmsItems(
       title: String(raw.title ?? cid),
       package_image:
         raw.package_image == null ? null : String(raw.package_image),
+      image_status:
+        raw.image_status == null ? null : String(raw.image_status),
       maker: raw.maker == null ? null : String(raw.maker),
       actresses,
       release_date:
@@ -399,8 +402,11 @@ export async function listWorksCmsItems(
   if (filter.noImage) {
     items = items.filter(
       (i) =>
-        isMissingAdultImage(i.package_image) ||
-        !hasValidPackageImage(i.package_image),
+        isAdultImageStatusMissing(i.image_status) ||
+        !hasDisplayableAdultImage({
+          imageStatus: i.image_status,
+          packageImage: i.package_image,
+        }),
     );
   }
   if (filter.manualHidden) {
@@ -489,7 +495,12 @@ export async function patchWorksCmsPublish(input: {
 
     switch (input.action) {
       case "publish":
-        if (!hasValidPackageImage(master.package_image)) {
+        if (
+          !hasDisplayableAdultImage({
+            imageStatus: master.image_status,
+            packageImage: master.package_image,
+          })
+        ) {
           skipped.push({
             cid,
             reason: "パッケージ画像がないため公開できません",
@@ -558,6 +569,7 @@ export async function patchWorksCmsPublish(input: {
         ? false
         : computeWorksPublished({
             packageImage: master.package_image,
+            imageStatus: master.image_status,
             isAvailable,
             manualHidden,
             deletedAt,
@@ -566,7 +578,11 @@ export async function patchWorksCmsPublish(input: {
     const hiddenReason =
       input.action === "manual_hide"
         ? input.reason ?? ov.manual_hidden_reason ?? "手動非公開"
-        : !published && !hasValidPackageImage(master.package_image)
+        : !published &&
+            !hasDisplayableAdultImage({
+              imageStatus: master.image_status,
+              packageImage: master.package_image,
+            })
           ? NO_PACKAGE_IMAGE_REASON
           : manualHidden
             ? ov.manual_hidden_reason ?? null
@@ -678,8 +694,20 @@ export async function updateWorkMasterFields(input: {
       ? input.patch.package_image
       : existing.package_image;
 
+  let imageStatus = existing.image_status;
+  let imageStatusCheckedAt = existing.image_status_checked_at;
+  if (input.patch.package_image !== undefined) {
+    const { detectAdultImageStatus } = await import(
+      "@/lib/works/image-status"
+    );
+    const detected = await detectAdultImageStatus(packageImage);
+    imageStatus = detected.status;
+    imageStatusCheckedAt = detected.checkedAt;
+  }
+
   const published = computeWorksPublished({
     packageImage,
+    imageStatus,
     isAvailable: live?.is_available !== false,
     manualHidden: Boolean(manualHidden),
     deletedAt: ov?.deleted_at ?? existing.deleted_at,
@@ -692,6 +720,8 @@ export async function updateWorkMasterFields(input: {
     cid,
     slug: existing.slug || cid,
     package_image: packageImage,
+    image_status: imageStatus,
+    image_status_checked_at: imageStatusCheckedAt,
     published,
     manual_hidden: Boolean(manualHidden),
     manual_hidden_reason:

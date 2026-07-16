@@ -1,14 +1,15 @@
 import "server-only";
 
-import { hasValidPackageImage } from "@/lib/works/package-image";
+import { hasDisplayableAdultImage } from "@/lib/works/image-status";
 
 /**
  * 公開条件:
- * 有効な package_image あり AND is_available=true AND manual_hidden=false
+ * image_status=ok（未判定時は URL フォールバック）AND is_available AND NOT manual_hidden
  * （論理削除は常に非公開）
  */
 export function computeWorksPublished(input: {
   packageImage: string | null | undefined;
+  imageStatus?: string | null;
   isAvailable: boolean;
   manualHidden: boolean;
   deletedAt?: string | null;
@@ -16,7 +17,10 @@ export function computeWorksPublished(input: {
   if (input.deletedAt) return false;
   if (input.manualHidden) return false;
   if (!input.isAvailable) return false;
-  return hasValidPackageImage(input.packageImage);
+  return hasDisplayableAdultImage({
+    imageStatus: input.imageStatus,
+    packageImage: input.packageImage,
+  });
 }
 
 /** works.fanza_tv_status の正規値。legacy: active / not_available も受理 */

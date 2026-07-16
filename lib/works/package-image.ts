@@ -1,8 +1,8 @@
 /**
  * パッケージ画像の有効判定（候補取得・追加・公開・一覧・管理画面で共有）
  *
- * URL文字列のみで判定する。
- * HEAD/GET・ハッシュ比較・類似画像判定・全件画像ダウンロードは行わない。
+ * URL文字列の軽量チェック。画像GETは行わない。
+ * NOW PRINTING の実体判定は追加・更新時の image_status（lib/works/image-status.ts）で行う。
  */
 
 const IMAGE_EXTENSIONS = /\.(jpe?g|webp|png|gif)(\?|#|$)/i;
@@ -158,4 +158,54 @@ export function resolvePackageImageUrl(
  */
 export function hasValidPackageImage(work: PackageImageSource): boolean {
   return resolvePackageImageUrl(work) != null;
+}
+
+function isFetchableImageUrl(url?: string | null): boolean {
+  if (url == null) return false;
+  const trimmed = String(url).trim();
+  if (!trimmed) return false;
+  if (INVALID_LITERALS.has(trimmed.toLowerCase())) return false;
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+  return (
+    IMAGE_EXTENSIONS.test(parsed.pathname) || IMAGE_EXTENSIONS.test(trimmed)
+  );
+}
+
+/**
+ * 追加・更新時の取得対象URL（プレースホルダーURLも含めて返す）。
+ * 表示可否の最終判定は image_status を使うこと。
+ */
+export function pickPackageImageCandidate(
+  work: PackageImageSource,
+  order: Array<"large" | "list" | "small"> = ["large", "list", "small"],
+): string | null {
+  if (work == null) return null;
+
+  if (typeof work === "string") {
+    return isFetchableImageUrl(work) ? work.trim() : null;
+  }
+
+  for (const candidate of [
+    work.package_image,
+    work.packageImage,
+    work.imageUrl,
+  ]) {
+    if (isFetchableImageUrl(candidate)) return String(candidate).trim();
+  }
+
+  const imageURL = work.imageURL;
+  if (imageURL) {
+    for (const key of order) {
+      const candidate = imageURL[key];
+      if (isFetchableImageUrl(candidate)) return String(candidate).trim();
+    }
+  }
+
+  return null;
 }

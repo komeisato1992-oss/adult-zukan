@@ -12,7 +12,6 @@ import { WorkDescriptionReadMore } from "@/components/works/WorkDescriptionReadM
 import { FavoriteButton } from "@/components/user/FavoriteButton";
 import { FavoriteCardButton } from "@/components/user/FavoriteCardButton";
 import type { DmmReleaseDateInfo } from "@/lib/dmm/release-date";
-import { isMissingAdultImage } from "@/lib/works/package-image";
 
 type DmmWorkHeroProps = {
   title: string;
@@ -97,12 +96,9 @@ export function DmmWorkHero({
   fanzaTvUrl,
 }: DmmWorkHeroProps) {
   const [activeImage, setActiveImage] = useState<string | null>(null);
-  const safeImageUrl =
-    imageUrl && !isMissingAdultImage(imageUrl) ? imageUrl : undefined;
-  const samplePoster =
-    sampleMoviePoster && !isMissingAdultImage(sampleMoviePoster)
-      ? sampleMoviePoster
-      : safeImageUrl;
+  // 画像なし判定は追加・更新時の image_status。閲覧時は渡された URL をそのまま使う。
+  const safeImageUrl = imageUrl?.trim() || undefined;
+  const samplePoster = sampleMoviePoster?.trim() || safeImageUrl;
   const showSampleThumbnail = Boolean(sampleMovie && fanzaUrl && samplePoster);
   const hasActresses = Boolean(actressNameList && actressNameList.length > 0);
 

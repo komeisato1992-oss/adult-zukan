@@ -70,6 +70,13 @@ function normalizeRow(raw: Partial<WorkMasterRow> & { cid?: string }): WorkMaste
     title: (raw.title?.trim() || cid),
     description: raw.description?.trim() || null,
     package_image: raw.package_image?.trim() || null,
+    image_status:
+      raw.image_status === "ok" ||
+      raw.image_status === "now_printing" ||
+      raw.image_status === "fetch_failed"
+        ? raw.image_status
+        : null,
+    image_status_checked_at: raw.image_status_checked_at || null,
     sample_images: Array.isArray(raw.sample_images)
       ? raw.sample_images.filter((url): url is string => typeof url === "string" && Boolean(url.trim()))
       : [],

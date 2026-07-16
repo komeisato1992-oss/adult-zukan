@@ -7,9 +7,9 @@ import {
   upsertWorksCmsOverrides,
 } from "@/lib/admin/works-cms-overrides";
 import {
-  hasValidPackageImage,
-  isMissingAdultImage,
-} from "@/lib/works/package-image";
+  hasDisplayableAdultImage,
+  isAdultImageStatusMissing,
+} from "@/lib/works/image-status";
 
 export const NO_PACKAGE_IMAGE_REASON = "no_package_image";
 
@@ -27,10 +27,7 @@ export type UnpublishNoImageResult = {
 
 /**
  * works 内の画像なし作品を一括非公開にする。
- * - published=false
- * - manual_hidden=false（手動非公開とは分離。カラムがある場合のみ）
- * - 理由=no_package_image（overrides + 可能なら DB）
- * Git / JSONカタログ / デプロイは行わない。
+ * image_status（追加・更新時判定）を優先し、未判定時のみ URL へフォールバック。
  */
 export async function unpublishWorksWithoutPackageImage(): Promise<UnpublishNoImageResult> {
   const client = getSupabaseServiceClient();
@@ -50,7 +47,7 @@ export async function unpublishWorksWithoutPackageImage(): Promise<UnpublishNoIm
     const to = from + PAGE - 1;
     const { data, error } = await client
       .from("works")
-      .select("cid,package_image,published")
+      .select("cid,package_image,image_status,published")
       .order("cid", { ascending: true })
       .range(from, to);
 
@@ -72,12 +69,15 @@ export async function unpublishWorksWithoutPackageImage(): Promise<UnpublishNoIm
 
       const packageImage =
         (raw as { package_image?: string | null }).package_image ?? null;
+      const imageStatus =
+        (raw as { image_status?: string | null }).image_status ?? null;
       const published = (raw as { published?: boolean }).published !== false;
 
-      // 公開・管理共通: isMissingAdultImage（プレースホルダー含む）
       if (
-        !isMissingAdultImage(packageImage) &&
-        hasValidPackageImage(packageImage)
+        hasDisplayableAdultImage({
+          imageStatus,
+          packageImage,
+        })
       ) {
         continue;
       }
@@ -109,30 +109,27 @@ export async function unpublishWorksWithoutPackageImage(): Promise<UnpublishNoIm
         })),
       );
 
-      for (const cid of toUnpublish) {
-        const patch: Record<string, unknown> = {
-          published: false,
-          updated_at: now,
-        };
-        if (schemaV2) {
-          patch.manual_hidden = false;
-          patch.manual_hidden_reason = NO_PACKAGE_IMAGE_REASON;
-        }
+      const patch: Record<string, unknown> = {
+        published: false,
+        updated_at: now,
+      };
+      if (schemaV2) {
+        patch.manual_hidden = false;
+        patch.manual_hidden_reason = NO_PACKAGE_IMAGE_REASON;
+      }
 
-        const { error: upError } = await client
-          .from("works")
-          .update(patch)
-          .eq("cid", cid);
+      const { error: updateError } = await client
+        .from("works")
+        .update(patch)
+        .in("cid", toUnpublish);
 
-        if (upError) {
-          console.warn(
-            "[unpublish-no-image] update failed",
-            cid,
-            upError.message,
-          );
-          continue;
-        }
-        unpublishedCount += 1;
+      if (updateError) {
+        console.warn(
+          "[unpublish-no-image] update failed",
+          updateError.message,
+        );
+      } else {
+        unpublishedCount += toUnpublish.length;
       }
     }
 
@@ -159,7 +156,7 @@ export async function unpublishWorksWithoutPackageImage(): Promise<UnpublishNoIm
   };
 }
 
-/** 概要用: 画像なし作品数を isMissingAdultImage 基準で数える */
+/** 概要用: 画像なし作品数を image_status 基準で数える */
 export async function countWorksWithoutValidPackageImage(): Promise<{
   totalCount: number;
   noImageCount: number;
@@ -178,7 +175,7 @@ export async function countWorksWithoutValidPackageImage(): Promise<{
     const to = from + PAGE - 1;
     const { data, error } = await client
       .from("works")
-      .select("cid,package_image,published")
+      .select("cid,package_image,image_status,published")
       .order("cid", { ascending: true })
       .range(from, to);
 
@@ -194,10 +191,15 @@ export async function countWorksWithoutValidPackageImage(): Promise<{
       totalCount += 1;
       const packageImage =
         (raw as { package_image?: string | null }).package_image ?? null;
+      const imageStatus =
+        (raw as { image_status?: string | null }).image_status ?? null;
       const published = (raw as { published?: boolean }).published !== false;
       const missing =
-        isMissingAdultImage(packageImage) ||
-        !hasValidPackageImage(packageImage);
+        isAdultImageStatusMissing(imageStatus) ||
+        !hasDisplayableAdultImage({
+          imageStatus,
+          packageImage,
+        });
       if (missing) {
         noImageCount += 1;
         if (published) publishedNoImageCount += 1;

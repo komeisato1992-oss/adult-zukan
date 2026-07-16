@@ -14,7 +14,6 @@ import {
 } from "@/lib/dmm/release-date";
 import { slugify } from "@/lib/utils";
 import { getValidImageUrl } from "@/lib/works";
-import { isMissingAdultImage } from "@/lib/works/package-image";
 
 export { getDmmSampleMovieUrl } from "@/lib/dmm/sample-movie";
 
@@ -80,9 +79,7 @@ export function getDmmSampleImages(item: DmmItem): string[] {
     sample.sample_s?.image ??
     [];
 
-  return images.filter(
-    (url) => Boolean(url) && !isMissingAdultImage(url),
-  );
+  return images.filter(Boolean);
 }
 
 const DELIVERY_LABELS: Record<string, string> = {

@@ -22,7 +22,6 @@ import {
 } from "@/lib/compare/analytics";
 import { formatPriceYen } from "@/lib/compare/types";
 import { buildComparePageHref } from "@/lib/compare/urls";
-import { isMissingAdultImage } from "@/lib/works/package-image";
 
 type CompareMobileViewProps = {
   items: CompareItem[];
@@ -54,7 +53,7 @@ function MobileWorkImage({
   item: CompareItem;
   sizes?: string;
 }) {
-  if (isMissingAdultImage(item.imageUrl)) {
+  if (!item.imageUrl) {
     return (
       <div className="flex h-[170px] w-[125px] max-h-[190px] max-w-[140px] shrink-0 items-center justify-center rounded bg-surface text-xs text-muted">
         画像なし
@@ -64,7 +63,7 @@ function MobileWorkImage({
   return (
     <div className="flex h-[170px] w-[125px] max-h-[190px] max-w-[140px] shrink-0 items-center justify-center overflow-hidden rounded bg-surface">
       <Image
-        src={item.imageUrl!}
+        src={item.imageUrl}
         alt={item.title}
         width={125}
         height={170}

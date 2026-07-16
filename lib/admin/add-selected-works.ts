@@ -43,7 +43,7 @@ import {
   type CatalogManifest,
 } from "@/lib/dmm/catalog-shards";
 import type { DmmItem } from "@/lib/dmm/types";
-import { hasValidPackageImage } from "@/lib/works/package-image";
+import { pickPackageImageCandidate } from "@/lib/works/package-image";
 
 export class AddSelectedWorksError extends Error {
   status: number;
@@ -233,8 +233,8 @@ function classifySelectedWorks(
       continue;
     }
 
-    // フロント除外に依存せず、サーバー側で画像を再判定
-    if (!hasValidPackageImage(work.item)) {
+    // URL有無のみ。NOW PRINTING 実体判定は upsert 時に1回 GET する
+    if (!pickPackageImageCandidate(work.item)) {
       imageMissingContentIds.push(normalizedId || work.contentId);
       continue;
     }
@@ -244,7 +244,7 @@ function classifySelectedWorks(
         sourcePopularityRank: work.sourcePopularityRank,
       });
 
-      if (!hasValidPackageImage(prepared)) {
+      if (!pickPackageImageCandidate(prepared)) {
         imageMissingContentIds.push(normalizedId || work.contentId);
         continue;
       }
@@ -447,7 +447,7 @@ async function addSelectedWorksToWorksMaster(
   const selectionDuplicateCount =
     classified.selectionDuplicateContentIds.length;
   const invalidCount = classified.invalidContentIds.length;
-  const imageMissingExcludedCount = classified.imageMissingContentIds.length;
+  let imageMissingExcludedCount = classified.imageMissingContentIds.length;
 
   logPhase("deduplicate", {
     receivedCount: selectedCount,
@@ -512,6 +512,12 @@ async function addSelectedWorksToWorksMaster(
     supabaseSavedCount,
     jsonFallbackCount,
   } = upsertResult;
+
+  // upsert 時の GET 判定で落ちた分を画像なし除外に加算
+  imageMissingExcludedCount += Math.max(
+    0,
+    classified.preparedItems.length - upserted,
+  );
 
   // Git / catalog JSON / commit / push / deploy は行わない。タグのみ再検証。
   // （JSON フォールバック時のみローカル works-master.json を更新）

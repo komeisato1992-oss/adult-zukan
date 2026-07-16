@@ -15,10 +15,8 @@ import type {
   WorkMasterRow,
   WorkMasterUpsertInput,
 } from "@/lib/dmm/works-master/types";
-import {
-  hasValidPackageImage,
-  resolvePackageImageUrl,
-} from "@/lib/works/package-image";
+import { hasDisplayableAdultImage } from "@/lib/works/image-status";
+import { pickPackageImageCandidate } from "@/lib/works/package-image";
 
 function namedList(
   items: Array<{ id?: number; name?: string; ruby?: string }> | undefined,
@@ -39,7 +37,7 @@ function namedList(
     .map((name) => ({ name }));
 }
 
-/** DmmItem → works 行 */
+/** DmmItem → works 行（image_status は呼び出し側で判定して埋める） */
 export function dmmItemToWorkMasterRow(
   item: DmmItem,
   options?: { published?: boolean; now?: string },
@@ -64,8 +62,10 @@ export function dmmItemToWorkMasterRow(
       item.description?.trim() ||
       item.comment?.trim() ||
       null,
-    // 無効URLへのフォールバック禁止（now_printing 等を公開画像にしない）
-    package_image: resolvePackageImageUrl(item),
+    // 取得判定用に候補URLを保持（表示可否は image_status）
+    package_image: pickPackageImageCandidate(item),
+    image_status: null,
+    image_status_checked_at: null,
     sample_images: getDmmSampleImages(item),
     actresses,
     maker: getDmmItemMakerName(item) ?? null,
@@ -85,7 +85,7 @@ export function dmmItemToWorkMasterRow(
   };
 }
 
-/** works 行 → DmmItem（公開表示用） */
+/** works 行 → DmmItem（公開表示用）。image_status で画像有無を決める */
 export function workMasterRowToDmmItem(row: WorkMasterRow): DmmItem {
   const actresses = (row.actresses ?? []).map((entry, index) => ({
     id: entry.id ?? index + 1,
@@ -110,6 +110,11 @@ export function workMasterRowToDmmItem(row: WorkMasterRow): DmmItem {
     ? row.sample_images.filter(Boolean)
     : [];
 
+  const showImage = hasDisplayableAdultImage({
+    imageStatus: row.image_status,
+    packageImage: row.package_image,
+  });
+
   return {
     content_id: row.cid,
     product_id: row.product_code ?? row.cid,
@@ -117,13 +122,14 @@ export function workMasterRowToDmmItem(row: WorkMasterRow): DmmItem {
     description: row.description ?? undefined,
     URL: row.affiliate_url || "",
     affiliateURL: row.affiliate_url || "",
-    imageURL: hasValidPackageImage(row.package_image)
-      ? {
-          list: row.package_image as string,
-          small: row.package_image as string,
-          large: row.package_image as string,
-        }
-      : undefined,
+    imageURL:
+      showImage && row.package_image
+        ? {
+            list: row.package_image,
+            small: row.package_image,
+            large: row.package_image,
+          }
+        : undefined,
     sampleImageURL:
       sampleImages.length > 0
         ? {

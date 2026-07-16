@@ -36,7 +36,12 @@ export function WorksCmsOverviewPanel({
 
   const primary: Metric[] = [
     {
-      label: "公開",
+      label: "総作品数",
+      value: (overview.totalCount ?? overview.worksMasterCount).toLocaleString(),
+      tone: (overview.totalCount ?? overview.worksMasterCount) > 0 ? "ok" : "unset",
+    },
+    {
+      label: "公開中",
       value: overview.publishedCount.toLocaleString(),
       tone: "ok",
     },
@@ -49,12 +54,24 @@ export function WorksCmsOverviewPanel({
       label: "画像なし",
       value: overview.noPackageImageCount.toLocaleString(),
       tone: overview.noPackageImageCount > 0 ? "warn" : "ok",
+      detail:
+        (overview.publishedNoImageCount ?? 0) > 0
+          ? `うち公開中 ${overview.publishedNoImageCount}`
+          : undefined,
     },
     {
       label: "販売終了",
       value: overview.unavailableCount.toLocaleString(),
       tone: overview.unavailableCount > 0 ? "warn" : "ok",
     },
+    {
+      label: "手動非公開",
+      value: overview.manualHiddenCount.toLocaleString(),
+      tone: overview.manualHiddenCount > 0 ? "warn" : "ok",
+    },
+  ];
+
+  const secondary: Metric[] = [
     {
       label: "マスター",
       value: overview.worksMasterCount.toLocaleString(),
@@ -65,9 +82,6 @@ export function WorksCmsOverviewPanel({
       value: overview.liveStatusCount.toLocaleString(),
       tone: overview.liveInitComplete ? "ok" : "warn",
     },
-  ];
-
-  const secondary: Metric[] = [
     {
       label: "未初期化",
       value: overview.missingLiveCount.toLocaleString(),
@@ -132,7 +146,7 @@ export function WorksCmsOverviewPanel({
             <p className="truncate text-sm font-bold tabular-nums leading-tight">
               {m.value}
             </p>
-            {expanded && m.detail ? (
+            {(expanded || m.label === "画像なし") && m.detail ? (
               <p className="truncate text-[10px] opacity-70">{m.detail}</p>
             ) : null}
           </div>

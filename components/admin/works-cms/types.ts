@@ -15,9 +15,11 @@ export type WorksCmsTabId =
 export type OverviewTone = "ok" | "running" | "warn" | "error" | "unset";
 
 export type WorksCmsOverview = {
+  totalCount?: number;
   publishedCount: number;
   unpublishedCount: number;
   noPackageImageCount: number;
+  publishedNoImageCount?: number;
   unavailableCount: number;
   manualHiddenCount: number;
   worksMasterCount: number;

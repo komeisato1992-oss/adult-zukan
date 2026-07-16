@@ -43,6 +43,7 @@ import {
   type CatalogManifest,
 } from "@/lib/dmm/catalog-shards";
 import type { DmmItem } from "@/lib/dmm/types";
+import { hasValidPackageImage } from "@/lib/works/package-image";
 
 export class AddSelectedWorksError extends Error {
   status: number;
@@ -209,12 +210,14 @@ function classifySelectedWorks(
   catalogDuplicateContentIds: string[];
   selectionDuplicateContentIds: string[];
   invalidContentIds: string[];
+  imageMissingContentIds: string[];
 } {
   const preparedItems: DmmItem[] = [];
   const addedContentIds: string[] = [];
   const catalogDuplicateContentIds: string[] = [];
   const selectionDuplicateContentIds: string[] = [];
   const invalidContentIds: string[] = [];
+  const imageMissingContentIds: string[] = [];
   const batchKeys = new Set<string>();
 
   for (const work of works) {
@@ -230,10 +233,21 @@ function classifySelectedWorks(
       continue;
     }
 
+    // フロント除外に依存せず、サーバー側で画像を再判定
+    if (!hasValidPackageImage(work.item)) {
+      imageMissingContentIds.push(normalizedId || work.contentId);
+      continue;
+    }
+
     try {
       const prepared = prepareCatalogItem(work.item, work.contentId, {
         sourcePopularityRank: work.sourcePopularityRank,
       });
+
+      if (!hasValidPackageImage(prepared)) {
+        imageMissingContentIds.push(normalizedId || work.contentId);
+        continue;
+      }
 
       for (const key of buildCatalogIdSet([prepared])) {
         batchKeys.add(key);
@@ -258,6 +272,7 @@ function classifySelectedWorks(
     catalogDuplicateContentIds,
     selectionDuplicateContentIds,
     invalidContentIds,
+    imageMissingContentIds,
   };
 }
 
@@ -290,6 +305,9 @@ function buildResultMessage(input: {
       summary.selectionDuplicateCount > 0
         ? `選択内重複：${summary.selectionDuplicateCount}件`
         : null,
+      (summary.imageMissingExcludedCount ?? 0) > 0
+        ? `画像なし除外：${summary.imageMissingExcludedCount}件`
+        : null,
       summary.invalidCount > 0 ? `無効：${summary.invalidCount}件` : null,
     ]
       .filter(Boolean)
@@ -318,6 +336,9 @@ function buildResultMessage(input: {
       `掲載済み除外：${summary.catalogDuplicateCount}件`,
       summary.selectionDuplicateCount > 0
         ? `選択内重複：${summary.selectionDuplicateCount}件`
+        : null,
+      (summary.imageMissingExcludedCount ?? 0) > 0
+        ? `画像なし除外：${summary.imageMissingExcludedCount}件`
         : null,
       `無効：${summary.invalidCount}件`,
       `追加成功：${summary.addedCount}件`,
@@ -426,12 +447,14 @@ async function addSelectedWorksToWorksMaster(
   const selectionDuplicateCount =
     classified.selectionDuplicateContentIds.length;
   const invalidCount = classified.invalidContentIds.length;
+  const imageMissingExcludedCount = classified.imageMissingContentIds.length;
 
   logPhase("deduplicate", {
     receivedCount: selectedCount,
     catalogDuplicateCount,
     selectionDuplicateCount,
     invalidCount,
+    imageMissingExcludedCount,
     validAddCount: classified.preparedItems.length,
   });
 
@@ -442,6 +465,7 @@ async function addSelectedWorksToWorksMaster(
       catalogDuplicateCount,
       selectionDuplicateCount,
       invalidCount,
+      imageMissingExcludedCount,
       retried: false,
       catalogCountAfter: catalogCount,
       githubCommitSucceeded: false,
@@ -516,6 +540,7 @@ async function addSelectedWorksToWorksMaster(
     catalogDuplicateCount,
     selectionDuplicateCount,
     invalidCount,
+    imageMissingExcludedCount,
     retried: false,
     catalogCountAfter: storageInfo.rowCount ?? undefined,
     githubCommitSucceeded: false,
@@ -797,6 +822,7 @@ export async function addSelectedWorksToCatalog(
   let catalogDuplicateCount = 0;
   let selectionDuplicateCount = 0;
   let invalidCount = 0;
+  let imageMissingExcludedCount = 0;
   let addedContentIds: string[] = [];
   let committedToGitHub = false;
   let validAddCount = 0;
@@ -826,6 +852,7 @@ export async function addSelectedWorksToCatalog(
       catalogDuplicateCount = classified.catalogDuplicateContentIds.length;
       selectionDuplicateCount = classified.selectionDuplicateContentIds.length;
       invalidCount = classified.invalidContentIds.length;
+      imageMissingExcludedCount = classified.imageMissingContentIds.length;
       validAddCount = classified.preparedItems.length;
 
       logPhase("deduplicate", {
@@ -833,6 +860,7 @@ export async function addSelectedWorksToCatalog(
         catalogDuplicateCount,
         selectionDuplicateCount,
         invalidCount,
+        imageMissingExcludedCount,
         validAddCount: classified.preparedItems.length,
       });
 
@@ -843,6 +871,7 @@ export async function addSelectedWorksToCatalog(
           catalogDuplicateCount,
           selectionDuplicateCount,
           invalidCount,
+          imageMissingExcludedCount,
           retried,
           catalogCountAfter: catalogState.items.length,
           githubCommitSucceeded: false,

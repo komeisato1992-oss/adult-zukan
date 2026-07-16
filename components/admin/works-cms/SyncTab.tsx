@@ -28,6 +28,8 @@ type SyncTabProps = {
   onStartLiveInit: () => void;
   onStopLiveInit: () => void;
   onResumeLiveInit: () => void;
+  onUnpublishNoImage: () => void;
+  unpublishNoImageResult?: string | null;
 };
 
 const TARGET_OPTIONS: Array<{ id: SyncTargetScope; label: string }> = [
@@ -56,6 +58,8 @@ export function WorksCmsSyncTab({
   onStartLiveInit,
   onStopLiveInit,
   onResumeLiveInit,
+  onUnpublishNoImage,
+  unpublishNoImageResult,
 }: SyncTabProps) {
   const [targetScope, setTargetScope] = useState<SyncTargetScope>("all");
   const [filterValue, setFilterValue] = useState("");
@@ -256,6 +260,37 @@ export function WorksCmsSyncTab({
                   再開
                 </button>
               </div>
+            ) : null}
+          </div>
+
+          <div className="rounded-lg border border-amber-200 bg-white px-2.5 py-2">
+            <p className="font-bold">画像なし作品を非公開化</p>
+            <p className="mt-1 text-muted">
+              hasValidPackageImage で無効な作品を published=false /
+              理由=no_package_image にします。Git・JSON・デプロイは発生しません。画像が後から取得できれば再公開候補になります。
+            </p>
+            <p className="mt-1">
+              現在の画像なし:{" "}
+              <span className="font-semibold tabular-nums">
+                {overview?.noPackageImageCount.toLocaleString() ?? "—"}件
+              </span>
+              {(overview?.publishedNoImageCount ?? 0) > 0 ? (
+                <span className="text-amber-800">
+                  {" "}
+                  （うち公開中 {overview?.publishedNoImageCount}件）
+                </span>
+              ) : null}
+            </p>
+            <button
+              type="button"
+              disabled={busy || (overview?.noPackageImageCount ?? 0) === 0}
+              onClick={onUnpublishNoImage}
+              className="mt-2 min-h-[36px] w-full rounded-lg bg-amber-600 px-3 font-semibold text-white disabled:opacity-50 sm:w-auto"
+            >
+              画像なし作品を非公開化
+            </button>
+            {unpublishNoImageResult ? (
+              <p className="mt-1 text-emerald-800">{unpublishNoImageResult}</p>
             ) : null}
           </div>
         </div>

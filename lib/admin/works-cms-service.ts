@@ -7,6 +7,8 @@ import {
   normalizeFanzaTvStatus,
   type FanzaTvStatusValue,
 } from "@/lib/admin/works-cms-publish";
+import { hasValidPackageImage } from "@/lib/works/package-image";
+import { NO_PACKAGE_IMAGE_REASON } from "@/lib/admin/unpublish-no-image-works";
 import {
   detectWorksCmsSchemaV2,
   getWorksCmsOverride,
@@ -20,9 +22,11 @@ import type { WorkMasterRow } from "@/lib/dmm/works-master/types";
 import type { WorkLiveStatusRow } from "@/lib/dmm/work-live-status/types";
 
 export type WorksCmsOverview = {
+  totalCount: number;
   publishedCount: number;
   unpublishedCount: number;
   noPackageImageCount: number;
+  publishedNoImageCount: number;
   unavailableCount: number;
   manualHiddenCount: number;
   worksMasterCount: number;
@@ -120,6 +124,9 @@ export async function getWorksCmsOverview(): Promise<WorksCmsOverview> {
   let lastCheckedAt: string | null = null;
   let fanzaErrorCount = 0;
 
+  let totalCount = 0;
+  let publishedNoImageCount = 0;
+
   if (client) {
     const { count: pub } = await client
       .from("works")
@@ -127,17 +134,14 @@ export async function getWorksCmsOverview(): Promise<WorksCmsOverview> {
       .eq("published", true);
     publishedCount = pub ?? 0;
 
-    const { count: total } = await client
-      .from("works")
-      .select("cid", { count: "exact", head: true });
-    const totalCount = total ?? 0;
+    const { countWorksWithoutValidPackageImage } = await import(
+      "@/lib/admin/unpublish-no-image-works"
+    );
+    const imageCounts = await countWorksWithoutValidPackageImage();
+    totalCount = imageCounts.totalCount;
+    noPackageImageCount = imageCounts.noImageCount;
+    publishedNoImageCount = imageCounts.publishedNoImageCount;
     unpublishedCount = Math.max(0, totalCount - publishedCount);
-
-    const { count: noImg } = await client
-      .from("works")
-      .select("cid", { count: "exact", head: true })
-      .or("package_image.is.null,package_image.eq.");
-    noPackageImageCount = noImg ?? 0;
 
     const { count: unavail } = await client
       .from("work_live_status")
@@ -256,9 +260,11 @@ export async function getWorksCmsOverview(): Promise<WorksCmsOverview> {
   const supabaseReady = Boolean(client);
 
   return {
+    totalCount,
     publishedCount,
     unpublishedCount,
     noPackageImageCount,
+    publishedNoImageCount,
     unavailableCount,
     manualHiddenCount,
     worksMasterCount,
@@ -273,7 +279,7 @@ export async function getWorksCmsOverview(): Promise<WorksCmsOverview> {
     tone: toneFromOverview({
       running,
       errorCount,
-      noPackageImageCount,
+      noPackageImageCount: noPackageImageCount + publishedNoImageCount,
       supabaseReady,
     }),
     fanzaTv: {
@@ -328,10 +334,6 @@ export async function listWorksCmsItems(
   } else if (filter.published === "unpublished") {
     query = query.eq("published", false);
   }
-  if (filter.noImage) {
-    query = query.or("package_image.is.null,package_image.eq.");
-  }
-
   const { data, count, error } = await query;
   if (error) {
     console.warn("[works-cms] list failed", error.message);
@@ -388,6 +390,9 @@ export async function listWorksCmsItems(
   }
   if (filter.label?.trim()) {
     /* label not in select for speed — skip deep */
+  }
+  if (filter.noImage) {
+    items = items.filter((i) => !hasValidPackageImage(i.package_image));
   }
   if (filter.manualHidden) {
     items = items.filter((i) => i.manual_hidden);
@@ -471,7 +476,7 @@ export async function patchWorksCmsPublish(input: {
 
     switch (input.action) {
       case "publish":
-        if (!master.package_image?.trim()) {
+        if (!hasValidPackageImage(master.package_image)) {
           skipped.push({
             cid,
             reason: "パッケージ画像がないため公開できません",
@@ -532,15 +537,21 @@ export async function patchWorksCmsPublish(input: {
             deletedAt,
           });
 
+    const hiddenReason =
+      input.action === "manual_hide"
+        ? input.reason ?? ov.manual_hidden_reason ?? "手動非公開"
+        : !published && !hasValidPackageImage(master.package_image)
+          ? NO_PACKAGE_IMAGE_REASON
+          : manualHidden
+            ? ov.manual_hidden_reason ?? null
+            : published
+              ? null
+              : ov.manual_hidden_reason ?? null;
+
     overridePatches.push({
       cid,
       manual_hidden: manualHidden,
-      manual_hidden_reason:
-        input.action === "manual_hide"
-          ? input.reason ?? ov.manual_hidden_reason ?? "手動非公開"
-          : manualHidden
-            ? ov.manual_hidden_reason ?? null
-            : null,
+      manual_hidden_reason: hiddenReason,
       deleted_at: deletedAt,
       fanza_tv_status: normalizeFanzaTvStatus(fanzaStatus),
     });
@@ -549,10 +560,7 @@ export async function patchWorksCmsPublish(input: {
       ...master,
       published,
       manual_hidden: manualHidden,
-      manual_hidden_reason:
-        input.action === "manual_hide"
-          ? input.reason ?? "手動非公開"
-          : master.manual_hidden_reason,
+      manual_hidden_reason: hiddenReason,
       deleted_at: deletedAt,
       updated_at: now,
     });

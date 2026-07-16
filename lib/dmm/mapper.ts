@@ -6,6 +6,11 @@ import {
   parseDmmPrice,
   slugify,
 } from "@/lib/utils";
+import {
+  hasValidPackageImage,
+  resolvePackageImageUrl,
+} from "@/lib/works/package-image";
+import { isWorkPubliclyVisible } from "@/lib/dmm/catalog-visibility";
 
 function buildRankingScore(item: DmmItem, index: number): number {
   const reviewAverage = parseFloat(item.review?.average ?? "0");
@@ -32,11 +37,7 @@ export function mapDmmItemToWork(item: DmmItem, index = 0): Work {
   const makerName = maker?.name ?? "不明";
   const makerSlug = slugify(makerName);
 
-  const imageUrl =
-    item.imageURL?.large ??
-    item.imageURL?.list ??
-    item.imageURL?.small ??
-    "";
+  const imageUrl = resolvePackageImageUrl(item) ?? "";
 
   const description =
     genreNames.length > 0
@@ -80,5 +81,7 @@ export function mapDmmItemToWork(item: DmmItem, index = 0): Work {
 }
 
 export function mapDmmItemsToWorks(items: DmmItem[]): Work[] {
-  return items.map((item, index) => mapDmmItemToWork(item, index));
+  return items
+    .filter((item) => hasValidPackageImage(item) && isWorkPubliclyVisible(item))
+    .map((item, index) => mapDmmItemToWork(item, index));
 }

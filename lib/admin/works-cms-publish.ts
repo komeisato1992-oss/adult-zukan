@@ -1,8 +1,10 @@
 import "server-only";
 
+import { hasValidPackageImage } from "@/lib/works/package-image";
+
 /**
- * 公開条件（第6段階）:
- * package_image あり AND is_available=true AND manual_hidden=false
+ * 公開条件:
+ * 有効な package_image あり AND is_available=true AND manual_hidden=false
  * （論理削除は常に非公開）
  */
 export function computeWorksPublished(input: {
@@ -14,8 +16,7 @@ export function computeWorksPublished(input: {
   if (input.deletedAt) return false;
   if (input.manualHidden) return false;
   if (!input.isAvailable) return false;
-  const image = input.packageImage?.trim();
-  return Boolean(image);
+  return hasValidPackageImage(input.packageImage);
 }
 
 export type FanzaTvStatusValue = "active" | "not_available" | "unknown";

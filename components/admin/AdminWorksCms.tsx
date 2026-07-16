@@ -75,6 +75,9 @@ export function AdminWorksCms() {
   const [pubSelected, setPubSelected] = useState<Set<string>>(new Set());
   const [editCid, setEditCid] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
+  const [unpublishNoImageResult, setUnpublishNoImageResult] = useState<
+    string | null
+  >(null);
 
   const refreshOverview = useCallback(async () => {
     const res = await fetch("/api/admin/works-cms/overview", {
@@ -430,6 +433,40 @@ export function AdminWorksCms() {
     };
   }, [liveInitJob, processLiveInitBatch, refreshOverview, refreshSync]);
 
+  const handleUnpublishNoImage = async () => {
+    if (
+      typeof window !== "undefined" &&
+      !window.confirm(
+        "画像なし作品を一括で非公開にします。よろしいですか？（デプロイなし）",
+      )
+    ) {
+      return;
+    }
+    setBusy(true);
+    setUnpublishNoImageResult(null);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/works-cms/unpublish-no-image", {
+        method: "POST",
+        cache: "no-store",
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "一括非公開に失敗しました");
+      }
+      const msg =
+        data.message ||
+        `画像なし ${data.noImageCount}件中 ${data.unpublishedCount}件を非公開化（デプロイなし）`;
+      setUnpublishNoImageResult(msg);
+      setMessage(msg);
+      await refreshOverview();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const mutatePublish = async (
     action: string,
     cids: string[],
@@ -555,6 +592,8 @@ export function AdminWorksCms() {
           onStartLiveInit={() => void handleStartLiveInit()}
           onStopLiveInit={() => void handleStopLiveInit()}
           onResumeLiveInit={() => void handleResumeLiveInit()}
+          onUnpublishNoImage={() => void handleUnpublishNoImage()}
+          unpublishNoImageResult={unpublishNoImageResult}
         />
       ) : null}
 

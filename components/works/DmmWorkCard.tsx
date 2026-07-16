@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 import { FavoriteCardButton } from "@/components/user/FavoriteCardButton";
 import { CatalogWorkImage } from "@/components/ui/CatalogWorkImage";
 import { WorkCardCtaRow } from "@/components/works/WorkCardCtaRow";
@@ -60,7 +63,8 @@ export function DmmWorkCard({
       ? "text-base max-[768px]:text-[13px]"
       : "text-sm max-[768px]:text-[13px]";
 
-  if (!hasValidImage(item) || !imageUrl) return null;
+  const [hidden, setHidden] = useState(false);
+  if (!hasValidImage(item) || !imageUrl || hidden) return null;
 
   return (
     <article
@@ -74,6 +78,7 @@ export function DmmWorkCard({
               alt={item.title}
               variant="portrait"
               sizes="(max-width: 389px) 50vw, (max-width: 768px) 33vw, 25vw"
+              onLoadError={() => setHidden(true)}
             />
             {isOnSale && (
               <span className="absolute right-2.5 top-2.5 z-10 rounded-sm bg-accent px-2 py-0.5 text-xs font-bold text-white shadow-sm max-[768px]:right-1 max-[768px]:top-1 max-[768px]:px-1 max-[768px]:text-[9px]">

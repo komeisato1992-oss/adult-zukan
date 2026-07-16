@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useState } from "react";
 import { FavoriteCardButton } from "@/components/user/FavoriteCardButton";
 import { CatalogWorkImage } from "@/components/ui/CatalogWorkImage";
 import { WorkCardCtaRow } from "@/components/works/WorkCardCtaRow";
@@ -18,6 +21,10 @@ export function WorkListCard({
   item,
   priceDisplayMode = "default",
 }: WorkListCardProps) {
+  // 画像読み込み失敗時はカードごと非表示（DBは更新しない）
+  const [hidden, setHidden] = useState(false);
+  if (hidden) return null;
+
   return (
     <article className="group flex h-full max-w-full flex-col overflow-hidden rounded-lg border border-border/80 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/20 hover:shadow-md">
       <div className="relative">
@@ -27,6 +34,7 @@ export function WorkListCard({
             alt={item.title}
             variant="landscape"
             sizes="(max-width: 389px) 50vw, (max-width: 768px) 33vw, 25vw"
+            onLoadError={() => setHidden(true)}
           />
           {item.fanzaTvActive ? (
             <span className="absolute left-2 top-2 rounded bg-emerald-600/95 px-1.5 py-0.5 text-[10px] font-bold text-white">

@@ -15,6 +15,12 @@ import {
   toHistoryEntry,
 } from "@/lib/admin/fanza-sync-job";
 import {
+  advanceFanzaSyncProgress,
+  isFanzaSyncTargetScope,
+  loadFanzaSyncProgress,
+  type FanzaSyncTargetScope,
+} from "@/lib/admin/fanza-sync-progress";
+import {
   finalizeSnapshotWithHistory,
   loadFanzaSyncSnapshot,
   persistFanzaSyncSnapshotLocally,
@@ -23,6 +29,7 @@ import {
 import {
   selectFanzaSyncBatch,
   sortWorksForFanzaSync,
+  sortWorksForFanzaSyncStable,
 } from "@/lib/admin/fanza-sync-priority";
 import {
   commitCatalogBundleToGitHub,
@@ -90,7 +97,10 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
-async function loadCatalogForSync(mode?: AdultSyncMode): Promise<CatalogSnapshotHandle> {
+async function loadCatalogForSync(
+  mode?: AdultSyncMode,
+  options?: { applyEnvLimit?: boolean },
+): Promise<CatalogSnapshotHandle> {
   // 部分同期は works マスター（Supabase）を優先。Git/JSON書き換えはしない。
   if (mode && isAdultPartialSyncMode(mode)) {
     try {
@@ -123,8 +133,13 @@ async function loadCatalogForSync(mode?: AdultSyncMode): Promise<CatalogSnapshot
           items = mergeWorksMasterIntoCatalog(items, extra);
         }
       }
-      const limit = getAdultLightSyncTargetLimit();
-      if (limit > 0) items = items.slice(0, limit);
+      // UIの処理件数で制御する。環境変数上限は applyEnvLimit 時のみ（自動cron等）
+      if (options?.applyEnvLimit !== false) {
+        const limit = getAdultLightSyncTargetLimit();
+        if (limit > 0 && options?.applyEnvLimit) {
+          items = items.slice(0, limit);
+        }
+      }
       return {
         items,
         sha: null,
@@ -168,7 +183,7 @@ async function loadCatalogForSync(mode?: AdultSyncMode): Promise<CatalogSnapshot
   }
 
   let items = handle.items;
-  if (mode && isAdultPartialSyncMode(mode)) {
+  if (mode && isAdultPartialSyncMode(mode) && options?.applyEnvLimit) {
     const limit = getAdultLightSyncTargetLimit();
     if (limit > 0) {
       items = items.slice(0, limit);
@@ -176,6 +191,46 @@ async function loadCatalogForSync(mode?: AdultSyncMode): Promise<CatalogSnapshot
   }
 
   return { ...handle, items };
+}
+
+/**
+ * 掲載情報更新の対象宇宙を安定順で返す。
+ * all: 全作品 / unchecked: image_status IS NULL
+ */
+async function loadSyncUniverse(
+  mode: AdultSyncMode,
+  scope: FanzaSyncTargetScope,
+): Promise<DmmItem[]> {
+  const { items } = await loadCatalogForSync(mode, { applyEnvLimit: false });
+  const byCid = new Map<string, DmmItem>();
+  for (const item of items) {
+    const cid = normalizeCatalogContentId(item.content_id);
+    if (cid) byCid.set(cid, { ...item, content_id: cid });
+  }
+
+  if (scope === "unchecked") {
+    const { supabaseFetchUncheckedImageStatusCids } = await import(
+      "@/lib/dmm/works-master/supabase-store"
+    );
+    const uncheckedCids = await supabaseFetchUncheckedImageStatusCids();
+    const ordered: DmmItem[] = [];
+    for (const cid of uncheckedCids) {
+      const item = byCid.get(cid);
+      if (item) ordered.push(item);
+    }
+    return ordered;
+  }
+
+  return sortWorksForFanzaSyncStable([...byCid.values()]);
+}
+
+const DEFAULT_RUN_LIMIT = 300;
+const MAX_RUN_LIMIT = 5000;
+
+function clampRunLimit(raw: unknown): number {
+  const n = Math.floor(Number(raw));
+  if (!Number.isFinite(n) || n <= 0) return DEFAULT_RUN_LIMIT;
+  return Math.min(MAX_RUN_LIMIT, Math.max(1, n));
 }
 
 function sleep(ms: number): Promise<void> {
@@ -284,6 +339,8 @@ function updateJobFromBatch(
   const cursor = job.cursor + batch.length;
   const completed = processedCount >= job.targetCount;
   const lastItem = batch[batch.length - 1];
+  const runStart = job.runStartOffset ?? 0;
+  const endInclusive = processedCount > 0 ? runStart + processedCount - 1 : null;
 
   return {
     ...job,
@@ -305,7 +362,9 @@ function updateJobFromBatch(
         : "completed"
       : "running",
     message: completed
-      ? "全作品の同期が完了しました。"
+      ? endInclusive == null
+        ? "今回の処理が完了しました。"
+        : `今回処理: ${runStart}〜${endInclusive} / 次回開始: ${runStart + processedCount}`
       : `同期中… ${processedCount.toLocaleString()} / ${job.targetCount.toLocaleString()} 件`,
     lockOwner: completed ? null : job.lockOwner,
   };
@@ -327,6 +386,12 @@ export async function startFanzaSyncJob(input: {
   trigger: FanzaSyncTrigger;
   batchSize?: number;
   mode?: AdultSyncMode;
+  /** 1回の処理件数（UI）。未指定時は自動cron向けに環境変数上限を使う */
+  limit?: number;
+  targetScope?: FanzaSyncTargetScope;
+  /** 明示オフセット。未指定なら保存済み nextOffset から */
+  startOffset?: number;
+  resetCursor?: boolean;
 }): Promise<{ job: FanzaSyncJob; alreadyRunning: boolean }> {
   if (!isDmmConfigured()) {
     throw new FanzaSyncError("FANZA API の設定が未完了です。", 503);
@@ -368,13 +433,77 @@ export async function startFanzaSyncJob(input: {
     return { job: current, alreadyRunning: true };
   }
 
-  const { items } = await loadCatalogForSync(mode);
-  const job = createFanzaSyncJob({
-    trigger: input.trigger,
-    targetCount: items.length,
-    batchSize: input.batchSize,
-    mode,
-  });
+  const targetScope: FanzaSyncTargetScope = isFanzaSyncTargetScope(
+    input.targetScope,
+  )
+    ? input.targetScope
+    : "all";
+
+  let job: FanzaSyncJob;
+
+  if (isAdultPartialSyncMode(mode)) {
+    const universe = await loadSyncUniverse(mode, targetScope);
+    const universeCount = universe.length;
+    if (universeCount === 0) {
+      throw new FanzaSyncError("同期対象が0件です。", 400);
+    }
+
+    const runLimit =
+      input.limit != null
+        ? clampRunLimit(input.limit)
+        : (() => {
+            const envLimit = getAdultLightSyncTargetLimit();
+            return envLimit > 0 ? envLimit : clampRunLimit(DEFAULT_RUN_LIMIT);
+          })();
+
+    const progress = loadFanzaSyncProgress().scopes[targetScope];
+    let startOffset = 0;
+    if (input.resetCursor) {
+      startOffset = 0;
+    } else if (input.startOffset != null && Number.isFinite(Number(input.startOffset))) {
+      startOffset = Math.max(0, Math.floor(Number(input.startOffset)));
+    } else {
+      startOffset = progress.nextOffset ?? 0;
+    }
+    if (startOffset >= universeCount) {
+      startOffset = 0;
+    }
+
+    const runCount = Math.min(runLimit, universeCount - startOffset);
+    if (runCount <= 0) {
+      throw new FanzaSyncError("今回の処理対象が0件です。", 400);
+    }
+
+    const endInclusive = startOffset + runCount - 1;
+    job = createFanzaSyncJob({
+      trigger: input.trigger,
+      targetCount: runCount,
+      batchSize: input.batchSize,
+      mode,
+      targetScope,
+      runStartOffset: startOffset,
+      runLimit,
+      universeCount,
+      cursor: startOffset,
+    });
+    job = {
+      ...job,
+      message: `同期開始: ${startOffset}〜${endInclusive}（${runCount}件 / 総数 ${universeCount.toLocaleString()}）`,
+    };
+  } else {
+    const { items } = await loadCatalogForSync(mode, { applyEnvLimit: false });
+    job = createFanzaSyncJob({
+      trigger: input.trigger,
+      targetCount: items.length,
+      batchSize: input.batchSize,
+      mode,
+      targetScope: "all",
+      runStartOffset: 0,
+      runLimit: items.length,
+      universeCount: items.length,
+      cursor: 0,
+    });
+  }
 
   const nextSnapshot: FanzaSyncJobSnapshot = {
     currentJob: job,
@@ -466,7 +595,7 @@ export async function processFanzaSyncBatch(options?: {
     return { job: null, processedInBatch: 0, committedToGitHub: false };
   }
 
-  if (isFanzaSyncJobStale(job, FANZA_SYNC_JOB_STALE_MS)) {
+    if (isFanzaSyncJobStale(job, FANZA_SYNC_JOB_STALE_MS)) {
     const failedJob: FanzaSyncJob = {
       ...job,
       status: "failed",
@@ -475,6 +604,17 @@ export async function processFanzaSyncBatch(options?: {
       updatedAt: new Date().toISOString(),
       lockOwner: null,
     };
+    const staleMode = (job.mode as AdultSyncMode) ?? ADULT_SYNC_MODE_FULL;
+    if (isAdultPartialSyncMode(staleMode)) {
+      advanceFanzaSyncProgress({
+        scope: job.targetScope === "unchecked" ? "unchecked" : "all",
+        runStartOffset: job.runStartOffset ?? 0,
+        processedCount: job.processedCount,
+        limit: job.runLimit ?? job.targetCount,
+        mode: staleMode,
+        universeCount: job.universeCount ?? 0,
+      });
+    }
     const finalized = finalizeSnapshotWithHistory({
       currentJob: failedJob,
       history: snapshot.history,
@@ -489,8 +629,20 @@ export async function processFanzaSyncBatch(options?: {
   }
 
   const mode = (job.mode as AdultSyncMode) ?? ADULT_SYNC_MODE_FULL;
-  const sorted = sortWorksForFanzaSync((await loadCatalogForSync(mode)).items);
-  const batch = selectFanzaSyncBatch(sorted, job.cursor, job.batchSize);
+  const targetScope: FanzaSyncTargetScope =
+    job.targetScope === "unchecked" ? "unchecked" : "all";
+
+  // 部分同期は安定順＋絶対カーソル。フルは従来の優先度順。
+  const sorted = isAdultPartialSyncMode(mode)
+    ? await loadSyncUniverse(mode, targetScope)
+    : sortWorksForFanzaSync(
+        (await loadCatalogForSync(mode, { applyEnvLimit: false })).items,
+      );
+
+  const remainingInRun = Math.max(0, job.targetCount - job.processedCount);
+  const batchTake = Math.min(job.batchSize, remainingInRun);
+  const batch =
+    batchTake > 0 ? selectFanzaSyncBatch(sorted, job.cursor, batchTake) : [];
 
   if (batch.length === 0) {
     const completedJob: FanzaSyncJob = {
@@ -498,9 +650,22 @@ export async function processFanzaSyncBatch(options?: {
       status: job.errorCount > 0 ? "partial_failed" : "completed",
       completedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      message: "全作品の同期が完了しました。",
+      message:
+        job.processedCount > 0
+          ? `今回の処理が完了しました（${job.runStartOffset ?? 0}〜${(job.runStartOffset ?? 0) + job.processedCount - 1}）。次回開始: ${(job.runStartOffset ?? 0) + job.processedCount}`
+          : "全作品の同期が完了しました。",
       lockOwner: null,
     };
+    if (isAdultPartialSyncMode(mode)) {
+      advanceFanzaSyncProgress({
+        scope: targetScope,
+        runStartOffset: job.runStartOffset ?? 0,
+        processedCount: job.processedCount,
+        limit: job.runLimit ?? job.targetCount,
+        mode,
+        universeCount: job.universeCount ?? sorted.length,
+      });
+    }
     const finalized = finalizeSnapshotWithHistory({
       currentJob: completedJob,
       history: snapshot.history,
@@ -548,6 +713,37 @@ export async function processFanzaSyncBatch(options?: {
         "FANZA API が 429（レート制限）を返したため同期を停止しました。途中再開できます。",
       lockOwner: null,
     };
+  }
+
+  // 成功済み位置まで進捗を保存（通信エラー・完了を含む）
+  if (isAdultPartialSyncMode(mode)) {
+    const progress = advanceFanzaSyncProgress({
+      scope: targetScope,
+      runStartOffset: updatedJob.runStartOffset ?? 0,
+      processedCount: updatedJob.processedCount,
+      limit: updatedJob.runLimit ?? updatedJob.targetCount,
+      mode,
+      universeCount: updatedJob.universeCount ?? sorted.length,
+    });
+    if (updatedJob.status !== "running") {
+      const start = updatedJob.runStartOffset ?? 0;
+      const end =
+        updatedJob.processedCount > 0
+          ? start + updatedJob.processedCount - 1
+          : null;
+      updatedJob = {
+        ...updatedJob,
+        message:
+          end == null
+            ? updatedJob.message
+            : `今回処理: ${start}〜${end} / 次回開始: ${progress.nextOffset}${
+                updatedJob.status === "failed" ||
+                updatedJob.status === "partial_failed"
+                  ? "（途中停止・進捗保存済み）"
+                  : ""
+              }`,
+      };
+    }
   }
 
   const nextSnapshot = buildSnapshotAfterBatch(updatedJob, snapshot.history);

@@ -58,6 +58,8 @@ export type SyncStatusPayload = {
   canStartLightSync: boolean;
   disableReasons: string[];
   syncTargetCount: number;
+  uncheckedCount?: number;
+  syncProgress?: SyncProgressState | null;
   lightSync?: {
     enabled: boolean;
     status: "enabled" | "disabled" | "unset";
@@ -83,6 +85,7 @@ export type SyncStatusPayload = {
     liveStatus: number | null;
     missing: number | null;
     initRatePercent: number;
+    uncheckedImageStatus?: number;
   };
   liveStatusInit?: {
     currentJob: LiveInitJob | null;
@@ -90,6 +93,22 @@ export type SyncStatusPayload = {
     liveStatusCount: number;
     missingCount: number;
     initRatePercent: number;
+  };
+};
+
+export type SyncProgressEntry = {
+  nextOffset: number;
+  lastRunStart: number | null;
+  lastRunEnd: number | null;
+  lastLimit: number | null;
+  lastMode: string | null;
+  updatedAt: string | null;
+};
+
+export type SyncProgressState = {
+  scopes: {
+    all: SyncProgressEntry;
+    unchecked: SyncProgressEntry;
   };
 };
 
@@ -108,6 +127,10 @@ export type SyncJob = {
   completedAt?: string | null;
   updatedAt?: string;
   cursor?: number;
+  targetScope?: "all" | "unchecked";
+  runStartOffset?: number;
+  runLimit?: number;
+  universeCount?: number;
 };
 
 export type SyncHistoryEntry = {

@@ -64,6 +64,11 @@ function computeSyncPriorityScore(item: DmmItem, now: number): number {
   return score;
 }
 
+/** カーソル継続用の安定順（cid昇順）。オフセットがずれないようにする。 */
+export function sortWorksForFanzaSyncStable(items: DmmItem[]): DmmItem[] {
+  return [...items].sort((a, b) => a.content_id.localeCompare(b.content_id));
+}
+
 export function selectFanzaSyncBatch(
   sortedItems: DmmItem[],
   cursor: number,

@@ -17,16 +17,30 @@ export async function POST(request: Request) {
     const body = (await request.json().catch(() => ({}))) as {
       batchSize?: number;
       mode?: string;
+      limit?: number;
+      targetScope?: string;
+      startOffset?: number;
+      resetCursor?: boolean;
     };
 
     const { isAdultSyncMode } = await import("@/lib/dmm/sync-mode");
     const mode = isAdultSyncMode(body.mode) ? body.mode : "light";
+    const { isFanzaSyncTargetScope } = await import(
+      "@/lib/admin/fanza-sync-progress"
+    );
 
     const { job, alreadyRunning } = await startFanzaSyncJob({
       trigger: "manual",
       batchSize:
         body.batchSize == null ? undefined : Number(body.batchSize),
       mode,
+      limit: body.limit == null ? undefined : Number(body.limit),
+      targetScope: isFanzaSyncTargetScope(body.targetScope)
+        ? body.targetScope
+        : "all",
+      startOffset:
+        body.startOffset == null ? undefined : Number(body.startOffset),
+      resetCursor: body.resetCursor === true,
     });
 
     if (alreadyRunning) {

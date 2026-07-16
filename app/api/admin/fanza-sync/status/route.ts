@@ -5,7 +5,7 @@ import {
   getFanzaSyncStatus,
 } from "@/lib/admin/fanza-sync-runner";
 import { fanzaSyncProgressPercent } from "@/lib/admin/fanza-sync-job";
-import { getAdultLightSyncTargetLimit } from "@/lib/admin/fanza-sync-constants";
+import { loadFanzaSyncProgress } from "@/lib/admin/fanza-sync-progress";
 import { getLiveStatusInitStatus } from "@/lib/admin/live-status-init-runner";
 import { getWorkLiveStatusStorageInfo } from "@/lib/dmm/work-live-status";
 import { getWorksMasterStorageInfo } from "@/lib/dmm/works-master";
@@ -21,7 +21,6 @@ export async function GET() {
   const job = snapshot.currentJob;
   const storage = await getWorkLiveStatusStorageInfo();
   const worksMaster = await getWorksMasterStorageInfo();
-  const targetLimit = getAdultLightSyncTargetLimit();
   const ops = getAdminOpsSettingsView();
   const lightSyncEnabled = resolveLightSyncEnabled();
   const liveInit = await getLiveStatusInitStatus();
@@ -37,14 +36,24 @@ export async function GET() {
   const liveCount = liveInit.liveStatusCount || storage.rowCount;
   const missingCount = liveInit.missingCount;
 
+  let uncheckedCount = 0;
+  try {
+    const { supabaseCountUncheckedImageStatus } = await import(
+      "@/lib/dmm/works-master/supabase-store"
+    );
+    uncheckedCount = await supabaseCountUncheckedImageStatus();
+  } catch (error) {
+    console.warn("[fanza-sync/status] unchecked count failed", error);
+  }
+
   const syncTargetCount =
-    targetLimit > 0
-      ? targetLimit
-      : liveCount != null && liveCount > 0
-        ? liveCount
-        : worksCount != null && worksCount > 0
-          ? worksCount
-          : 0;
+    liveCount != null && liveCount > 0
+      ? liveCount
+      : worksCount != null && worksCount > 0
+        ? worksCount
+        : 0;
+
+  const syncProgress = loadFanzaSyncProgress();
 
   const canStartLightSync =
     lightSyncEnabled &&
@@ -115,6 +124,7 @@ export async function GET() {
       liveStatusMessage: storage.countMessage,
       missing: missingCount,
       initRatePercent: liveInit.initRatePercent,
+      uncheckedImageStatus: uncheckedCount,
     },
     liveStatusInit: {
       currentJob: liveInitJobPublic,
@@ -133,8 +143,9 @@ export async function GET() {
     canStartLightSync,
     disableReasons: [...new Set(disableReasons)],
     syncTargetCount,
+    uncheckedCount,
+    syncProgress,
     metrics: storage.metrics,
-    syncTargetLimit: targetLimit > 0 ? targetLimit : null,
     note: "価格・セール・評価・販売状況をDBへ直接更新します。デプロイは発生しません。",
   });
 }

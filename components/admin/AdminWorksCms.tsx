@@ -33,7 +33,9 @@ import {
   type LiveInitJob,
   type SyncHistoryEntry,
   type SyncJob,
+  type SyncProgressState,
   type SyncStatusPayload,
+  type SyncTargetScope,
   type WorksCmsTabId,
 } from "@/components/admin/works-cms/types";
 import { buildAddSelectedWorksPayload } from "@/lib/admin/import-add-payload";
@@ -85,6 +87,10 @@ export function AdminWorksCms() {
   const [canStartLightSync, setCanStartLightSync] = useState(false);
   const [disableReasons, setDisableReasons] = useState<string[]>([]);
   const [syncTargetCount, setSyncTargetCount] = useState(0);
+  const [uncheckedCount, setUncheckedCount] = useState(0);
+  const [syncProgress, setSyncProgress] = useState<SyncProgressState | null>(
+    null,
+  );
   const [liveInitJob, setLiveInitJob] = useState<LiveInitJob | null>(null);
   const [lastSuccessByMode, setLastSuccessByMode] = useState<
     Partial<Record<AdultSyncMode, string | null>>
@@ -129,6 +135,8 @@ export function AdminWorksCms() {
     setCanStartLightSync(Boolean(data.canStartLightSync));
     setDisableReasons(data.disableReasons ?? []);
     setSyncTargetCount(data.syncTargetCount ?? 0);
+    setUncheckedCount(data.uncheckedCount ?? data.counts?.uncheckedImageStatus ?? 0);
+    setSyncProgress(data.syncProgress ?? null);
     if (data.liveStatusInit?.currentJob) {
       setLiveInitJob(data.liveStatusInit.currentJob);
     }
@@ -364,16 +372,32 @@ export function AdminWorksCms() {
     await refreshSync();
   };
 
-  const handleStartSync = async (mode: AdultSyncMode) => {
+  const handleStartSync = async (input: {
+    mode: AdultSyncMode;
+    limit: number;
+    targetScope: SyncTargetScope;
+    startOffset: number;
+  }) => {
+    if (busy) return;
     setBusy(true);
     setMessage(null);
     try {
       const res = await fetch("/api/admin/fanza-sync/start", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode, trigger: "manual" }),
+        body: JSON.stringify({
+          mode: input.mode,
+          trigger: "manual",
+          limit: input.limit,
+          targetScope:
+            input.targetScope === "unchecked" ? "unchecked" : "all",
+          startOffset: input.startOffset,
+        }),
       });
       const data = await res.json();
+      if (data.alreadyRunning) {
+        throw new Error(data.message || "現在、更新処理を実行中です");
+      }
       if (!res.ok || !data.success) {
         throw new Error(data.error || data.message || "同期開始に失敗");
       }
@@ -953,12 +977,14 @@ export function AdminWorksCms() {
           overview={overview}
           syncJob={syncJob}
           syncTargetCount={syncTargetCount}
+          uncheckedCount={uncheckedCount}
+          syncProgress={syncProgress}
           canStartLightSync={canStartLightSync}
           disableReasons={disableReasons}
           lastSuccessByMode={lastSuccessByMode}
           liveInitJob={liveInitJob}
           busy={busy}
-          onStartSync={(mode) => void handleStartSync(mode)}
+          onStartSync={(input) => void handleStartSync(input)}
           onResumeSync={() => void handleResumeSync()}
           onStartLiveInit={() => void handleStartLiveInit()}
           onStopLiveInit={() => void handleStopLiveInit()}

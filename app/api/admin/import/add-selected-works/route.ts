@@ -7,6 +7,7 @@ import {
   toAddSelectedWorksErrorMessage,
 } from "@/lib/admin/add-selected-works";
 import { AddSelectedWorksFailure } from "@/lib/admin/add-selected-works-types";
+import { invalidateWorksCmsOverviewCache } from "@/lib/admin/works-cms-service";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -17,6 +18,8 @@ export async function POST(request: Request) {
   if (!(await isAdminAuthenticated())) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  invalidateWorksCmsOverviewCache();
 
   let rawBody = "";
   let payloadByteLength = 0;

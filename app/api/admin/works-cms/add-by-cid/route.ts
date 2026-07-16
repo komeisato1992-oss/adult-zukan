@@ -5,6 +5,7 @@ import { fetchDmmItemByContentId } from "@/lib/dmm/client";
 import { addSelectedWorksToCatalog } from "@/lib/admin/add-selected-works";
 import { slimWorkItemForAdd } from "@/lib/admin/import-add-payload";
 import type { DmmItem } from "@/lib/dmm/types";
+import { invalidateWorksCmsOverviewCache } from "@/lib/admin/works-cms-service";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +16,7 @@ export async function POST(request: Request) {
   }
 
   try {
+    invalidateWorksCmsOverviewCache();
     const body = (await request.json()) as { cids?: string | string[] };
     const raw = Array.isArray(body.cids)
       ? body.cids

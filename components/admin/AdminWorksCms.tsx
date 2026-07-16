@@ -34,7 +34,6 @@ import {
   type SyncHistoryEntry,
   type SyncJob,
   type SyncStatusPayload,
-  type WorksCmsOverview,
   type WorksCmsTabId,
 } from "@/components/admin/works-cms/types";
 import { buildAddSelectedWorksPayload } from "@/lib/admin/import-add-payload";
@@ -42,6 +41,10 @@ import {
   buildWorksCmsListSearchParams,
   fetchAllFilteredWorksCmsCids,
 } from "@/lib/admin/works-cms-list-params";
+import {
+  refreshWorksCmsOverview,
+  useWorksCmsOverview,
+} from "@/lib/admin/works-cms-overview-client";
 
 /** 公開タブ・スマホ固定バーのフォールバック高さ（計測前） */
 const PUBLISH_MOBILE_BAR_FALLBACK_PX = 220;
@@ -60,7 +63,7 @@ const DEFAULT_FILTERS: PublishFilters = {
 
 export function AdminWorksCms() {
   const [tab, setTab] = useState<WorksCmsTabId>("add");
-  const [overview, setOverview] = useState<WorksCmsOverview | null>(null);
+  const { data: overview = null } = useWorksCmsOverview();
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -114,14 +117,6 @@ export function AdminWorksCms() {
   >(null);
   const [fanzaTvCanRunPlaywright, setFanzaTvCanRunPlaywright] =
     useState(false);
-
-  const refreshOverview = useCallback(async () => {
-    const res = await fetch("/api/admin/works-cms/overview", {
-      cache: "no-store",
-    });
-    const data = await res.json();
-    if (data.success) setOverview(data.overview);
-  }, []);
 
   const refreshSync = useCallback(async () => {
     const res = await fetch("/api/admin/fanza-sync/status", {
@@ -194,10 +189,9 @@ export function AdminWorksCms() {
   }, []);
 
   useEffect(() => {
-    void refreshOverview();
     void refreshSync();
     void refreshFanzaTv();
-  }, [refreshOverview, refreshSync, refreshFanzaTv]);
+  }, [refreshSync, refreshFanzaTv]);
 
   useEffect(() => {
     setPortalReady(true);
@@ -217,10 +211,26 @@ export function AdminWorksCms() {
     if (!running && tab !== "fanza-tv") return;
     const id = window.setInterval(() => {
       void refreshFanzaTv();
-      if (running) void refreshOverview();
     }, 2000);
     return () => window.clearInterval(id);
-  }, [fanzaTvJob?.status, tab, refreshFanzaTv, refreshOverview]);
+  }, [fanzaTvJob?.status, tab, refreshFanzaTv]);
+
+  // 見放題判定の完了時のみ運用状況を再取得（ポーリング中は再取得しない）
+  const prevFanzaTvStatusRef = useRef<string | null>(null);
+  useEffect(() => {
+    const prev = prevFanzaTvStatusRef.current;
+    const cur = fanzaTvJob?.status ?? null;
+    prevFanzaTvStatusRef.current = cur;
+    if (
+      prev &&
+      (prev === "running" || prev === "pending") &&
+      cur &&
+      cur !== "running" &&
+      cur !== "pending"
+    ) {
+      void refreshWorksCmsOverview();
+    }
+  }, [fanzaTvJob?.status]);
 
   useEffect(() => {
     if (overview?.offsets?.bySort) {
@@ -269,7 +279,7 @@ export function AdminWorksCms() {
       setMessage(
         `候補 ${data.summary?.candidateCount ?? 0}件（重複除外 ${data.summary?.duplicateExcludedCount ?? 0}）`,
       );
-      await refreshOverview();
+      await refreshWorksCmsOverview();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {
@@ -298,7 +308,7 @@ export function AdminWorksCms() {
           `${data.summary?.addedCount ?? 0}件をSupabaseへ追加しました（デプロイなし）`,
       );
       setSelected(new Set());
-      await refreshOverview();
+      await refreshWorksCmsOverview();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {
@@ -323,7 +333,7 @@ export function AdminWorksCms() {
         `CID追加: ${data.addedCount}件（重複 ${data.duplicateCount}）・デプロイなし`,
       );
       setCidInput("");
-      await refreshOverview();
+      await refreshWorksCmsOverview();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {
@@ -350,7 +360,7 @@ export function AdminWorksCms() {
       }
       if (data.job?.status === "stopped" || data.stopped) break;
     }
-    await refreshOverview();
+    await refreshWorksCmsOverview();
     await refreshSync();
   };
 
@@ -574,7 +584,7 @@ export function AdminWorksCms() {
         if (result?.done) {
           setMessage(result.job?.message ?? "変動情報の初期化が完了しました");
           await refreshSync();
-          await refreshOverview();
+          await refreshWorksCmsOverview();
         }
       } catch (error) {
         setMessage(error instanceof Error ? error.message : String(error));
@@ -584,7 +594,7 @@ export function AdminWorksCms() {
     return () => {
       cancelled = true;
     };
-  }, [liveInitJob, processLiveInitBatch, refreshOverview, refreshSync]);
+  }, [liveInitJob, processLiveInitBatch, refreshSync]);
 
   const handleUnpublishNoImage = async () => {
     if (
@@ -612,7 +622,7 @@ export function AdminWorksCms() {
         `画像なし ${data.noImageCount}件中 ${data.unpublishedCount}件を非公開化（デプロイなし）`;
       setUnpublishNoImageResult(msg);
       setMessage(msg);
-      await refreshOverview();
+      await refreshWorksCmsOverview();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {
@@ -648,7 +658,7 @@ export function AdminWorksCms() {
       );
       setPubSelected(new Set());
       await refreshList();
-      await refreshOverview();
+      await refreshWorksCmsOverview();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {
@@ -674,6 +684,7 @@ export function AdminWorksCms() {
       setEditCid(null);
       setMessage("作品を更新しました（Supabaseのみ）");
       await refreshList();
+      await refreshWorksCmsOverview();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : String(error));
     } finally {
@@ -890,7 +901,7 @@ export function AdminWorksCms() {
       <WorksCmsOverviewPanel
         overview={overview}
         onRefresh={() => {
-          void refreshOverview();
+          void refreshWorksCmsOverview();
           void refreshSync();
         }}
       />

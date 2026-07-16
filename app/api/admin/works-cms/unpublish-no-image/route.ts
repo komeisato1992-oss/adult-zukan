@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { isAdminAuthenticated } from "@/lib/admin/auth";
 import { unpublishWorksWithoutPackageImage } from "@/lib/admin/unpublish-no-image-works";
+import { invalidateWorksCmsOverviewCache } from "@/lib/admin/works-cms-service";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
@@ -13,6 +14,7 @@ export async function POST() {
 
   try {
     const result = await unpublishWorksWithoutPackageImage();
+    invalidateWorksCmsOverviewCache();
     return NextResponse.json({
       success: true,
       ...result,

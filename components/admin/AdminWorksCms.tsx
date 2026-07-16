@@ -91,6 +91,8 @@ export function AdminWorksCms() {
   const [fanzaTvProfileMessage, setFanzaTvProfileMessage] = useState<
     string | null
   >(null);
+  const [fanzaTvCanRunPlaywright, setFanzaTvCanRunPlaywright] =
+    useState(false);
 
   const refreshOverview = useCallback(async () => {
     const res = await fetch("/api/admin/works-cms/overview", {
@@ -140,6 +142,9 @@ export function AdminWorksCms() {
     setFanzaTvStats(data.stats ?? null);
     setFanzaTvProfileReady(Boolean(data.profileReady));
     setFanzaTvProfileMessage(data.profileMessage ?? null);
+    setFanzaTvCanRunPlaywright(
+      data.canRunPlaywright === true || data.localOnly === true,
+    );
   }, []);
 
   const refreshList = useCallback(async () => {
@@ -441,6 +446,12 @@ export function AdminWorksCms() {
     mode: "unchecked_only" | "full_recheck" | "limit",
     limit?: 100 | 500 | 1000 | "all",
   ) => {
+    if (!fanzaTvCanRunPlaywright) {
+      setMessage(
+        "見放題判定はMac上で実行します。本番管理画面では結果と進捗のみ確認できます。",
+      );
+      return;
+    }
     setBusy(true);
     setMessage(null);
     try {
@@ -468,6 +479,7 @@ export function AdminWorksCms() {
   };
 
   const handleStopFanzaTv = async () => {
+    if (!fanzaTvCanRunPlaywright) return;
     setBusy(true);
     try {
       const res = await fetch("/api/admin/fanza-tv-check/stop", {
@@ -489,6 +501,12 @@ export function AdminWorksCms() {
   };
 
   const handleResumeFanzaTv = async () => {
+    if (!fanzaTvCanRunPlaywright) {
+      setMessage(
+        "見放題判定はMac上で実行します。本番管理画面では結果と進捗のみ確認できます。",
+      );
+      return;
+    }
     setBusy(true);
     setMessage(null);
     try {
@@ -743,6 +761,7 @@ export function AdminWorksCms() {
           stats={fanzaTvStats}
           profileReady={fanzaTvProfileReady}
           profileMessage={fanzaTvProfileMessage}
+          canRunPlaywright={fanzaTvCanRunPlaywright}
           busy={busy}
           onStart={(mode, limit) => void handleStartFanzaTv(mode, limit)}
           onStop={() => void handleStopFanzaTv()}

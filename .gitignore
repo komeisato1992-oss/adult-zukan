@@ -57,6 +57,9 @@ yarn-error.log*
 /data/dmm/fanza-light-overlay.json
 /data/dmm/fanza-sync-history.json
 /data/dmm/live-status-init-job.json
+/data/dmm/fanza-tv-check-job.json
+/.playwright/
+/reports/fanza-tv-check/
 
 # 同人図鑑: ジョブ/ログはローカルのみ。表示用カタログJSONは本番反映のため追跡する
 /data/doujin/import-jobs.json

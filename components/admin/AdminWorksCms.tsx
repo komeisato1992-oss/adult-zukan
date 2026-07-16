@@ -17,6 +17,8 @@ import {
   type AdultImportSortMode,
   type AdultSyncMode,
   type CmsListItem,
+  type FanzaTvCheckJobView,
+  type FanzaTvCheckStatsView,
   type FetchedImportCandidate,
   type FetchImportCandidatesSummary,
   type LiveInitJob,
@@ -79,6 +81,17 @@ export function AdminWorksCms() {
     string | null
   >(null);
 
+  // fanza tv check
+  const [fanzaTvJob, setFanzaTvJob] = useState<FanzaTvCheckJobView | null>(
+    null,
+  );
+  const [fanzaTvStats, setFanzaTvStats] =
+    useState<FanzaTvCheckStatsView | null>(null);
+  const [fanzaTvProfileReady, setFanzaTvProfileReady] = useState(false);
+  const [fanzaTvProfileMessage, setFanzaTvProfileMessage] = useState<
+    string | null
+  >(null);
+
   const refreshOverview = useCallback(async () => {
     const res = await fetch("/api/admin/works-cms/overview", {
       cache: "no-store",
@@ -117,6 +130,18 @@ export function AdminWorksCms() {
     setLastSuccessByMode(byMode);
   }, []);
 
+  const refreshFanzaTv = useCallback(async () => {
+    const res = await fetch("/api/admin/fanza-tv-check/status", {
+      cache: "no-store",
+    });
+    const data = await res.json();
+    if (!data.success) return;
+    setFanzaTvJob(data.currentJob ?? null);
+    setFanzaTvStats(data.stats ?? null);
+    setFanzaTvProfileReady(Boolean(data.profileReady));
+    setFanzaTvProfileMessage(data.profileMessage ?? null);
+  }, []);
+
   const refreshList = useCallback(async () => {
     const params = new URLSearchParams({
       page: "1",
@@ -149,11 +174,27 @@ export function AdminWorksCms() {
   useEffect(() => {
     void refreshOverview();
     void refreshSync();
-  }, [refreshOverview, refreshSync]);
+    void refreshFanzaTv();
+  }, [refreshOverview, refreshSync, refreshFanzaTv]);
 
   useEffect(() => {
     if (tab === "publish") void refreshList();
   }, [tab, refreshList]);
+
+  useEffect(() => {
+    if (tab === "fanza-tv") void refreshFanzaTv();
+  }, [tab, refreshFanzaTv]);
+
+  useEffect(() => {
+    const running =
+      fanzaTvJob?.status === "running" || fanzaTvJob?.status === "pending";
+    if (!running && tab !== "fanza-tv") return;
+    const id = window.setInterval(() => {
+      void refreshFanzaTv();
+      if (running) void refreshOverview();
+    }, 2000);
+    return () => window.clearInterval(id);
+  }, [fanzaTvJob?.status, tab, refreshFanzaTv, refreshOverview]);
 
   useEffect(() => {
     if (overview?.offsets?.bySort) {
@@ -396,6 +437,79 @@ export function AdminWorksCms() {
     setMessage(data.message ?? "初期化を再開しました");
   };
 
+  const handleStartFanzaTv = async (
+    mode: "unchecked_only" | "full_recheck" | "limit",
+    limit?: 100 | 500 | 1000 | "all",
+  ) => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/fanza-tv-check/start", {
+        method: "POST",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode, limit: limit ?? null }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "見放題判定の開始に失敗しました");
+      }
+      setFanzaTvJob(data.currentJob ?? null);
+      setMessage(
+        data.message ??
+          "見放題判定を開始しました（Mac上でPlaywrightが動作・デプロイなし）",
+      );
+      await refreshFanzaTv();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleStopFanzaTv = async () => {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/admin/fanza-tv-check/stop", {
+        method: "POST",
+        cache: "no-store",
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "停止に失敗しました");
+      }
+      setFanzaTvJob(data.currentJob ?? null);
+      setMessage(data.message ?? "見放題判定を停止しました");
+      await refreshFanzaTv();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleResumeFanzaTv = async () => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/admin/fanza-tv-check/resume", {
+        method: "POST",
+        cache: "no-store",
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || "再開に失敗しました");
+      }
+      setFanzaTvJob(data.currentJob ?? null);
+      setMessage(data.message ?? "見放題判定を再開しました");
+      await refreshFanzaTv();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   useEffect(() => {
     if (
       !liveInitJob ||
@@ -622,7 +736,19 @@ export function AdminWorksCms() {
         />
       ) : null}
 
-      {tab === "fanza-tv" ? <WorksCmsFanzaTvTab overview={overview} /> : null}
+      {tab === "fanza-tv" ? (
+        <WorksCmsFanzaTvTab
+          overview={overview}
+          job={fanzaTvJob}
+          stats={fanzaTvStats}
+          profileReady={fanzaTvProfileReady}
+          profileMessage={fanzaTvProfileMessage}
+          busy={busy}
+          onStart={(mode, limit) => void handleStartFanzaTv(mode, limit)}
+          onStop={() => void handleStopFanzaTv()}
+          onResume={() => void handleResumeFanzaTv()}
+        />
+      ) : null}
 
       {tab === "history" ? (
         <WorksCmsHistoryTab
@@ -630,7 +756,9 @@ export function AdminWorksCms() {
           syncJob={syncJob}
           syncHistory={syncHistory}
           liveInitJob={liveInitJob}
+          fanzaTvJob={fanzaTvJob}
           onResumeSync={() => void handleResumeSync()}
+          onResumeFanzaTv={() => void handleResumeFanzaTv()}
           busy={busy}
         />
       ) : null}

@@ -106,6 +106,38 @@ alter table public.work_live_status
   add column if not exists fanza_tv_error text;
 
 -- -----------------------------------------------------------------------------
+-- 4/4  Phase7 FANZA TV（見放題）判定結果 on works
+-- -----------------------------------------------------------------------------
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_type t
+    join pg_namespace n on n.oid = t.typnamespace
+    where n.nspname = 'public' and t.typname = 'fanza_tv_status_enum'
+  ) then
+    create type public.fanza_tv_status_enum as enum (
+      'unknown',
+      'available',
+      'unavailable'
+    );
+  end if;
+end $$;
+
+alter table public.works
+  add column if not exists fanza_tv_status public.fanza_tv_status_enum
+    not null default 'unknown';
+alter table public.works
+  add column if not exists fanza_tv_checked_at timestamptz;
+alter table public.works
+  add column if not exists fanza_tv_url text;
+
+create index if not exists works_fanza_tv_status_idx
+  on public.works (fanza_tv_status);
+create index if not exists works_fanza_tv_checked_at_idx
+  on public.works (fanza_tv_checked_at desc nulls last);
+
+-- -----------------------------------------------------------------------------
 -- 確認用（実行結果で 2 行出ればOK）
 -- -----------------------------------------------------------------------------
 select

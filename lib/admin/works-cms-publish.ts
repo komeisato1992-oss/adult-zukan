@@ -19,7 +19,8 @@ export function computeWorksPublished(input: {
   return hasValidPackageImage(input.packageImage);
 }
 
-export type FanzaTvStatusValue = "active" | "not_available" | "unknown";
+/** works.fanza_tv_status の正規値。legacy: active / not_available も受理 */
+export type FanzaTvStatusValue = "available" | "unavailable" | "unknown";
 
 export function normalizeFanzaTvStatus(
   value: string | null | undefined,
@@ -27,7 +28,7 @@ export function normalizeFanzaTvStatus(
   if (!value) return null;
   const v = value.trim().toLowerCase();
   if (v === "active" || v === "available" || v === "yes" || v === "true") {
-    return "active";
+    return "available";
   }
   if (
     v === "not_available" ||
@@ -35,7 +36,7 @@ export function normalizeFanzaTvStatus(
     v === "no" ||
     v === "false"
   ) {
-    return "not_available";
+    return "unavailable";
   }
   if (v === "unknown" || v === "pending" || v === "unchecked") {
     return "unknown";
@@ -46,5 +47,5 @@ export function normalizeFanzaTvStatus(
 export function isFanzaTvActiveBadge(
   status: string | null | undefined,
 ): boolean {
-  return normalizeFanzaTvStatus(status) === "active";
+  return normalizeFanzaTvStatus(status) === "available";
 }

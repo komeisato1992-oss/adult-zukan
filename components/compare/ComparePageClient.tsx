@@ -26,6 +26,7 @@ import {
   trackCompareEvent,
 } from "@/lib/compare/analytics";
 import { buildComparePageHref } from "@/lib/compare/urls";
+import { isMissingAdultImage } from "@/lib/works/package-image";
 
 function CompareDescription({
   contentId,
@@ -201,9 +202,9 @@ export function ComparePageClient() {
                   className="rounded-lg border border-border bg-white p-4 shadow-sm"
                 >
                   <Link href={`/works/${item.contentId}`} className="block">
-                    {item.imageUrl ? (
+                    {!isMissingAdultImage(item.imageUrl) ? (
                       <Image
-                        src={item.imageUrl}
+                        src={item.imageUrl!}
                         alt={item.title}
                         width={320}
                         height={180}

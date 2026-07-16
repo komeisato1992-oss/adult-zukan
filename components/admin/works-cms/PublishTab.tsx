@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useState, type ReactNode } from "react";
 import type { CmsListItem } from "@/components/admin/works-cms/types";
-import { hasValidPackageImage } from "@/lib/works/package-image";
+import { isMissingAdultImage, isValidImageUrl } from "@/lib/works/package-image";
 
 type PublishFilters = {
   cid: string;
@@ -172,7 +172,9 @@ export function WorksCmsPublishTab({
       <ul className="space-y-1.5">
         {items.map((item) => {
           const checked = selected.has(item.cid);
-          const noImage = !hasValidPackageImage(item.package_image);
+          const noImage =
+            isMissingAdultImage(item.package_image) ||
+            !isValidImageUrl(item.package_image);
           return (
             <li
               key={item.cid}

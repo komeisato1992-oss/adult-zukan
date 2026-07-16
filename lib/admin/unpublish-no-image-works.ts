@@ -6,7 +6,10 @@ import {
   detectWorksCmsSchemaV2,
   upsertWorksCmsOverrides,
 } from "@/lib/admin/works-cms-overrides";
-import { hasValidPackageImage } from "@/lib/works/package-image";
+import {
+  hasValidPackageImage,
+  isMissingAdultImage,
+} from "@/lib/works/package-image";
 
 export const NO_PACKAGE_IMAGE_REASON = "no_package_image";
 
@@ -71,7 +74,13 @@ export async function unpublishWorksWithoutPackageImage(): Promise<UnpublishNoIm
         (raw as { package_image?: string | null }).package_image ?? null;
       const published = (raw as { published?: boolean }).published !== false;
 
-      if (hasValidPackageImage(packageImage)) continue;
+      // 公開・管理共通: isMissingAdultImage（プレースホルダー含む）
+      if (
+        !isMissingAdultImage(packageImage) &&
+        hasValidPackageImage(packageImage)
+      ) {
+        continue;
+      }
 
       noImageCount += 1;
       if (sampleCids.length < 20) sampleCids.push(cid);
@@ -150,7 +159,7 @@ export async function unpublishWorksWithoutPackageImage(): Promise<UnpublishNoIm
   };
 }
 
-/** 概要用: 画像なし作品数を hasValidPackageImage で正確に数える */
+/** 概要用: 画像なし作品数を isMissingAdultImage 基準で数える */
 export async function countWorksWithoutValidPackageImage(): Promise<{
   totalCount: number;
   noImageCount: number;
@@ -186,7 +195,10 @@ export async function countWorksWithoutValidPackageImage(): Promise<{
       const packageImage =
         (raw as { package_image?: string | null }).package_image ?? null;
       const published = (raw as { published?: boolean }).published !== false;
-      if (!hasValidPackageImage(packageImage)) {
+      const missing =
+        isMissingAdultImage(packageImage) ||
+        !hasValidPackageImage(packageImage);
+      if (missing) {
         noImageCount += 1;
         if (published) publishedNoImageCount += 1;
       }

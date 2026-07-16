@@ -6,6 +6,7 @@ import {
   imageCoverClassName,
   imageCoverStyle,
 } from "@/components/ui/image-cover";
+import { isMissingAdultImage } from "@/lib/works/package-image";
 
 const VARIANTS = {
   landscape: {
@@ -42,8 +43,9 @@ export function CatalogWorkImage({
 }: CatalogWorkImageProps) {
   const [failed, setFailed] = useState(false);
   const config = VARIANTS[variant];
+  const missing = isMissingAdultImage(src);
 
-  if (!src?.trim() || failed) {
+  if (!src?.trim() || missing || failed) {
     return (
       <div
         className={`relative w-full max-w-full overflow-hidden bg-zinc-100 ${config.frameClass} ${frameClassName}`}

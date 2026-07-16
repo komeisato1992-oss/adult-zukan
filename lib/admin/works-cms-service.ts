@@ -7,7 +7,10 @@ import {
   normalizeFanzaTvStatus,
   type FanzaTvStatusValue,
 } from "@/lib/admin/works-cms-publish";
-import { hasValidPackageImage } from "@/lib/works/package-image";
+import {
+  hasValidPackageImage,
+  isMissingAdultImage,
+} from "@/lib/works/package-image";
 import { NO_PACKAGE_IMAGE_REASON } from "@/lib/admin/unpublish-no-image-works";
 import {
   detectWorksCmsSchemaV2,
@@ -394,7 +397,11 @@ export async function listWorksCmsItems(
     /* label not in select for speed — skip deep */
   }
   if (filter.noImage) {
-    items = items.filter((i) => !hasValidPackageImage(i.package_image));
+    items = items.filter(
+      (i) =>
+        isMissingAdultImage(i.package_image) ||
+        !hasValidPackageImage(i.package_image),
+    );
   }
   if (filter.manualHidden) {
     items = items.filter((i) => i.manual_hidden);

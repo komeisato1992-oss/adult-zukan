@@ -12,6 +12,7 @@ import { WorkDescriptionReadMore } from "@/components/works/WorkDescriptionReadM
 import { FavoriteButton } from "@/components/user/FavoriteButton";
 import { FavoriteCardButton } from "@/components/user/FavoriteCardButton";
 import type { DmmReleaseDateInfo } from "@/lib/dmm/release-date";
+import { isMissingAdultImage } from "@/lib/works/package-image";
 
 type DmmWorkHeroProps = {
   title: string;
@@ -96,7 +97,12 @@ export function DmmWorkHero({
   fanzaTvUrl,
 }: DmmWorkHeroProps) {
   const [activeImage, setActiveImage] = useState<string | null>(null);
-  const samplePoster = sampleMoviePoster ?? imageUrl;
+  const safeImageUrl =
+    imageUrl && !isMissingAdultImage(imageUrl) ? imageUrl : undefined;
+  const samplePoster =
+    sampleMoviePoster && !isMissingAdultImage(sampleMoviePoster)
+      ? sampleMoviePoster
+      : safeImageUrl;
   const showSampleThumbnail = Boolean(sampleMovie && fanzaUrl && samplePoster);
   const hasActresses = Boolean(actressNameList && actressNameList.length > 0);
 
@@ -151,16 +157,16 @@ export function DmmWorkHero({
       >
         <div className="grid gap-5 max-[768px]:gap-3 lg:grid-cols-[minmax(0,320px)_1fr] lg:items-stretch lg:gap-8">
           <div className="mx-auto w-full max-w-[280px] max-[768px]:my-1 max-[768px]:max-w-[min(92vw,420px)] lg:mx-0 lg:max-w-[320px]">
-            {imageUrl ? (
+            {safeImageUrl ? (
               <div className="relative">
                 <button
                   type="button"
-                  onClick={() => setActiveImage(imageUrl)}
+                  onClick={() => setActiveImage(safeImageUrl)}
                   className="block w-full cursor-zoom-in border-0 bg-transparent p-0 shadow-none"
                   aria-label={`${title} のジャケット画像を拡大表示`}
                 >
                   <Image
-                    src={imageUrl}
+                    src={safeImageUrl}
                     alt={title}
                     width={360}
                     height={510}

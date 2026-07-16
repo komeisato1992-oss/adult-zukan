@@ -210,7 +210,8 @@ export function WorksCmsPublishTab({
                     {noImage ? <Tag tone="warn">画像なし</Tag> : null}
                     {!item.is_available ? <Tag tone="warn">販売終了</Tag> : null}
                     {item.manual_hidden ? <Tag tone="warn">手動非公開</Tag> : null}
-                    {item.fanza_tv_status === "active" ? (
+                    {item.fanza_tv_status === "active" ||
+                    item.fanza_tv_status === "available" ? (
                       <Tag tone="ok">見放題</Tag>
                     ) : null}
                   </div>

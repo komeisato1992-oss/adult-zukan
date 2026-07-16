@@ -8,6 +8,7 @@ import {
   formatDuration,
 } from "@/components/admin/works-cms/format";
 import type {
+  FanzaTvCheckJobView,
   LiveInitJob,
   SyncHistoryEntry,
   SyncJob,
@@ -38,7 +39,9 @@ type HistoryTabProps = {
   syncJob: SyncJob | null;
   syncHistory: SyncHistoryEntry[];
   liveInitJob: LiveInitJob | null;
+  fanzaTvJob?: FanzaTvCheckJobView | null;
   onResumeSync: () => void;
+  onResumeFanzaTv?: () => void;
   busy: boolean;
 };
 
@@ -64,7 +67,9 @@ export function WorksCmsHistoryTab({
   syncJob,
   syncHistory,
   liveInitJob,
+  fanzaTvJob = null,
   onResumeSync,
+  onResumeFanzaTv,
   busy,
 }: HistoryTabProps) {
   const [expanded, setExpanded] = useState(false);
@@ -152,21 +157,27 @@ export function WorksCmsHistoryTab({
     }
 
     list.push({
-      id: "fanza-tv-future",
+      id: fanzaTvJob?.jobId ?? "fanza-tv-check",
       name: "FANZA TV判定",
-      startedAt: overview?.fanzaTv.lastCheckedAt ?? null,
-      endedAt: overview?.fanzaTv.lastCheckedAt ?? null,
-      targetCount: null,
-      success: overview?.fanzaTv.activeCount ?? null,
-      updated: overview?.fanzaTv.becameActiveCount ?? null,
-      unchanged: null,
+      startedAt: fanzaTvJob?.startedAt ?? overview?.fanzaTv.lastCheckedAt ?? null,
+      endedAt:
+        fanzaTvJob?.completedAt ?? overview?.fanzaTv.lastCheckedAt ?? null,
+      targetCount: fanzaTvJob?.targetCount ?? null,
+      success: fanzaTvJob?.successCount ?? overview?.fanzaTv.activeCount ?? null,
+      updated: fanzaTvJob?.availableCount ?? null,
+      unchanged: fanzaTvJob?.unavailableCount ?? null,
       duplicate: null,
-      failed: overview?.fanzaTv.errorCount ?? null,
-      durationMs: null,
-      status: "準備中",
-      resumeCursor: String(overview?.fanzaTv.resumeCursor ?? ""),
-      errorSummary: "Playwright判定機能の実装後に履歴が記録されます",
-      canResume: false,
+      failed: fanzaTvJob?.failedCount ?? overview?.fanzaTv.errorCount ?? null,
+      durationMs: fanzaTvJob?.elapsedMs ?? null,
+      status: fanzaTvJob?.status ?? "未実行",
+      resumeCursor: fanzaTvJob
+        ? String(fanzaTvJob.pendingCount ?? 0)
+        : String(overview?.fanzaTv.resumeCursor ?? ""),
+      errorSummary: fanzaTvJob?.lastError ?? fanzaTvJob?.message ?? null,
+      canResume:
+        Boolean(onResumeFanzaTv) &&
+        (fanzaTvJob?.status === "stopped" || fanzaTvJob?.status === "failed") &&
+        (fanzaTvJob?.pendingCount ?? 0) > 0,
     });
 
     list.push({
@@ -238,7 +249,13 @@ export function WorksCmsHistoryTab({
                     <button
                       type="button"
                       disabled={!row.canResume || busy}
-                      onClick={onResumeSync}
+                      onClick={() => {
+                        if (row.name === "FANZA TV判定") {
+                          onResumeFanzaTv?.();
+                          return;
+                        }
+                        onResumeSync();
+                      }}
                       className="min-h-[32px] rounded-lg border px-2 font-semibold disabled:opacity-40"
                     >
                       再開

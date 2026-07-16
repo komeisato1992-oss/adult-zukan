@@ -140,6 +140,37 @@ export type LiveInitJob = {
   waitUntil: string | null;
 };
 
+export type FanzaTvCheckJobView = {
+  jobId: string;
+  status: string;
+  mode: string;
+  limit: 100 | 500 | 1000 | "all" | null;
+  targetCount: number;
+  processedCount: number;
+  successCount: number;
+  failedCount: number;
+  availableCount: number;
+  unavailableCount: number;
+  pendingCount: number;
+  currentCid: string | null;
+  startedAt: string;
+  completedAt?: string | null;
+  elapsedMs: number;
+  estimatedRemainingMs: number | null;
+  message: string;
+  lastError: string | null;
+  progressPercent: number;
+};
+
+export type FanzaTvCheckStatsView = {
+  totalCount: number;
+  availableCount: number;
+  unavailableCount: number;
+  uncheckedCount: number;
+  lastCheckedAt: string | null;
+  schemaReady: boolean;
+};
+
 export type CmsListItem = {
   cid: string;
   title: string;

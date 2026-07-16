@@ -47,6 +47,11 @@
     "verify:works-master-migration": "node scripts/verify-works-master-migration.mjs",
     "fanza-tv:collect": "node scripts/fanza-tv-collect.mjs",
     "fanza-tv:ingest": "node scripts/ingest-fanza-tv-status.mjs",
+    "fanza-tv:save-profile": "node scripts/fanza-tv-save-profile.mjs",
+    "fanza-tv:bootstrap-profile": "node scripts/fanza-tv-bootstrap-profile.mjs",
+    "fanza-tv:check": "node scripts/run-fanza-tv-check.mjs",
+    "fanza-tv:migrate-to-works": "node scripts/migrate-fanza-tv-to-works.mjs",
+    "fanza-tv:generate-migrate-sql": "node scripts/generate-fanza-tv-migrate-sql.mjs",
     "measure:vercel-cost-baseline": "node scripts/measure-vercel-cost-baseline.mjs",
     "measure:doujin-io": "node scripts/measure-doujin-io.mjs"
   },
@@ -70,6 +75,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "^15.5.20",
+    "playwright": "^1.61.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

@@ -108,7 +108,6 @@ export async function getWorksCmsOverview(): Promise<WorksCmsOverview> {
   const schemaV2 = await detectWorksCmsSchemaV2();
   const client = getSupabaseServiceClient();
   const overrides = listWorksCmsOverrides();
-  const overrideByCid = new Map(overrides.map((o) => [o.cid, o]));
 
   let publishedCount = 0;
   let unpublishedCount = 0;
@@ -156,40 +155,19 @@ export async function getWorksCmsOverview(): Promise<WorksCmsOverview> {
       .limit(1);
     lastWorkAddedAt = latest?.[0]?.created_at ?? null;
 
-    // FANZA TV counts（既存 fanza_tv_status + overrides）
-    const { data: tvRows } = await client
-      .from("work_live_status")
-      .select("cid,fanza_tv_status,checked_at")
-      .limit(20000);
-    const seen = new Set<string>();
-    for (const raw of tvRows ?? []) {
-      const cid = normalizeCatalogContentId(String((raw as { cid?: string }).cid ?? ""));
-      if (!cid) continue;
-      seen.add(cid);
-      const ov = overrideByCid.get(cid);
-      const status = normalizeFanzaTvStatus(
-        ov?.fanza_tv_status ?? (raw as { fanza_tv_status?: string }).fanza_tv_status,
-      );
-      const checked =
-        ov?.fanza_tv_checked_at ??
-        (raw as { checked_at?: string }).checked_at ??
-        null;
-      if (checked && (!lastCheckedAt || checked > lastCheckedAt)) {
-        lastCheckedAt = checked;
-      }
-      if (!status) uncheckedCount += 1;
-      else if (status === "active") activeCount += 1;
-      else if (status === "not_available") notAvailableCount += 1;
-      else unknownCount += 1;
-      if (ov?.fanza_tv_error) fanzaErrorCount += 1;
+    // FANZA TV counts（works.fanza_tv_* のみ）
+    const { getFanzaTvCheckStats } = await import(
+      "@/lib/admin/fanza-tv-check-db"
+    );
+    const tvStats = await getFanzaTvCheckStats();
+    if (tvStats.schemaReady) {
+      uncheckedCount = tvStats.uncheckedCount;
+      activeCount = tvStats.availableCount;
+      notAvailableCount = tvStats.unavailableCount;
+      unknownCount = 0;
+      lastCheckedAt = tvStats.lastCheckedAt;
     }
     for (const ov of overrides) {
-      if (seen.has(ov.cid)) continue;
-      const status = normalizeFanzaTvStatus(ov.fanza_tv_status);
-      if (!status) uncheckedCount += 1;
-      else if (status === "active") activeCount += 1;
-      else if (status === "not_available") notAvailableCount += 1;
-      else unknownCount += 1;
       if (ov.fanza_tv_error) fanzaErrorCount += 1;
     }
   }
@@ -311,6 +289,11 @@ export async function listWorksCmsItems(
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
+  const { detectWorksFanzaTvSchema } = await import(
+    "@/lib/admin/fanza-tv-check-db"
+  );
+  const fanzaSchemaReady = await detectWorksFanzaTvSchema();
+
   let query = client
     .from("works")
     .select(
@@ -350,6 +333,22 @@ export async function listWorksCmsItems(
   );
   const liveMap = await supabaseFetchLiveStatusByCids(cids);
 
+  const worksFanzaByCid = new Map<string, string | null>();
+  if (fanzaSchemaReady && cids.length > 0) {
+    const { data: fanzaRows } = await client
+      .from("works")
+      .select("cid,fanza_tv_status")
+      .in("cid", cids);
+    for (const raw of fanzaRows ?? []) {
+      const cid = normalizeCatalogContentId(
+        String((raw as { cid?: string }).cid ?? ""),
+      );
+      if (!cid) continue;
+      const st = (raw as { fanza_tv_status?: string | null }).fanza_tv_status;
+      worksFanzaByCid.set(cid, st == null ? null : String(st));
+    }
+  }
+
   let items: WorksCmsListItem[] = rows.map((raw) => {
     const cid = normalizeCatalogContentId(String(raw.cid ?? ""));
     const live = liveMap.get(cid);
@@ -375,7 +374,10 @@ export async function listWorksCmsItems(
       deleted_at: ov?.deleted_at ?? null,
       is_available: live?.is_available !== false,
       fanza_tv_status:
-        ov?.fanza_tv_status ?? live?.fanza_tv_status ?? null,
+        ov?.fanza_tv_status ??
+        worksFanzaByCid.get(cid) ??
+        live?.fanza_tv_status ??
+        null,
       price: live?.price ?? null,
       updated_at: String(raw.updated_at ?? ""),
     };
@@ -403,8 +405,12 @@ export async function listWorksCmsItems(
   if (filter.fanzaTv && filter.fanzaTv !== "all") {
     items = items.filter((i) => {
       const st = normalizeFanzaTvStatus(i.fanza_tv_status);
-      if (filter.fanzaTv === "unchecked") return !st;
-      return st === filter.fanzaTv;
+      if (filter.fanzaTv === "unchecked" || filter.fanzaTv === "unknown") {
+        return !st || st === "unknown";
+      }
+      if (filter.fanzaTv === "active") return st === "available";
+      if (filter.fanzaTv === "not_available") return st === "unavailable";
+      return false;
     });
   }
 
@@ -522,6 +528,19 @@ export async function patchWorksCmsPublish(input: {
           fanza_tv_error: null,
           fanza_tv_source: null,
         });
+        try {
+          await client
+            .from("works")
+            .update({
+              fanza_tv_status: "unknown",
+              fanza_tv_checked_at: null,
+              fanza_tv_url: null,
+              updated_at: now,
+            })
+            .eq("cid", cid);
+        } catch {
+          // schema v1 では列なし
+        }
         break;
       default:
         break;

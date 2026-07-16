@@ -4,7 +4,6 @@ import { normalizeCatalogContentId } from "@/lib/dmm/catalog-snapshot";
 import {
   getDmmItemActressNameList,
   getDmmItemGenreNameList,
-  getDmmItemImageUrl,
   getDmmItemLabelName,
   getDmmItemMakerName,
   getDmmItemSeriesName,
@@ -16,6 +15,10 @@ import type {
   WorkMasterRow,
   WorkMasterUpsertInput,
 } from "@/lib/dmm/works-master/types";
+import {
+  hasValidPackageImage,
+  resolvePackageImageUrl,
+} from "@/lib/works/package-image";
 
 function namedList(
   items: Array<{ id?: number; name?: string; ruby?: string }> | undefined,
@@ -61,7 +64,8 @@ export function dmmItemToWorkMasterRow(
       item.description?.trim() ||
       item.comment?.trim() ||
       null,
-    package_image: getDmmItemImageUrl(item) ?? item.imageURL?.large ?? item.imageURL?.list ?? null,
+    // 無効URLへのフォールバック禁止（now_printing 等を公開画像にしない）
+    package_image: resolvePackageImageUrl(item),
     sample_images: getDmmSampleImages(item),
     actresses,
     maker: getDmmItemMakerName(item) ?? null,
@@ -113,11 +117,11 @@ export function workMasterRowToDmmItem(row: WorkMasterRow): DmmItem {
     description: row.description ?? undefined,
     URL: row.affiliate_url || "",
     affiliateURL: row.affiliate_url || "",
-    imageURL: row.package_image
+    imageURL: hasValidPackageImage(row.package_image)
       ? {
-          list: row.package_image,
-          small: row.package_image,
-          large: row.package_image,
+          list: row.package_image as string,
+          small: row.package_image as string,
+          large: row.package_image as string,
         }
       : undefined,
     sampleImageURL:

@@ -197,8 +197,8 @@ export function WorksCmsAddTab({
           <Stat label="API取得" value={summary.apiFetchedCount} />
           <Stat label="既存作品" value={summary.publishedExcludedCount} />
           <Stat label="重複除外" value={summary.duplicateExcludedCount} />
+          <Stat label="画像なし除外" value={summary.imageMissingExcludedCount} />
           <Stat label="新規候補" value={summary.candidateCount} />
-          <Stat label="画像なし" value={summary.imageMissingExcludedCount} />
           <Stat label="エラー" value={summary.invalidExcludedCount} />
         </div>
       ) : null}

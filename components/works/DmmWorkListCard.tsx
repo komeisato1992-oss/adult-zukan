@@ -1,5 +1,7 @@
+"use client";
+
 import Link from "next/link";
-import { memo } from "react";
+import { memo, useState } from "react";
 import { FavoriteCardButton } from "@/components/user/FavoriteCardButton";
 import { CatalogWorkImage } from "@/components/ui/CatalogWorkImage";
 import { WorkCardCtaRow } from "@/components/works/WorkCardCtaRow";
@@ -22,8 +24,9 @@ function DmmWorkListCardInner({ item }: DmmWorkListCardProps) {
   const actressNames = getDmmItemActressNameList(item);
   const price = getDmmItemPrice(item);
   const fanzaUrl = getDmmFanzaUrl(item);
+  const [hidden, setHidden] = useState(false);
 
-  if (!hasValidImage(item) || !imageUrl) return null;
+  if (!hasValidImage(item) || !imageUrl || hidden) return null;
 
   return (
     <article className="group flex h-full max-w-full flex-col overflow-hidden rounded-lg border border-border/80 bg-white shadow-sm transition-all hover:-translate-y-0.5 hover:border-accent/20 hover:shadow-md">
@@ -34,6 +37,7 @@ function DmmWorkListCardInner({ item }: DmmWorkListCardProps) {
             alt={item.title}
             variant="landscape"
             sizes="(max-width: 389px) 50vw, (max-width: 768px) 33vw, 25vw"
+            onLoadError={() => setHidden(true)}
           />
           <div className="px-3 pt-3 pb-0 max-[768px]:px-1.5 max-[768px]:pt-1.5">
             <h2 className="line-clamp-2 text-sm font-semibold leading-snug text-foreground group-hover:text-accent max-[768px]:line-clamp-3 max-[768px]:text-[13px] max-[768px]:leading-[1.4]">

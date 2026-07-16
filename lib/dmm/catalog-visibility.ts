@@ -1,4 +1,5 @@
 import type { DmmItem } from "@/lib/dmm/types";
+import { hasValidPackageImage } from "@/lib/works/package-image";
 
 export const FANZA_UNAVAILABLE_HIDE_AFTER_MS = 24 * 60 * 60 * 1000;
 export const FANZA_NOT_FOUND_HIDE_THRESHOLD = 3;
@@ -36,6 +37,7 @@ export function getConsecutiveNotFoundCount(work: DmmItem): number {
 
 /** 一覧・検索・サイトマップ等の公開表示対象か */
 export function isWorkPubliclyVisible(work: DmmItem): boolean {
+  if (!hasValidPackageImage(work)) return false;
   return getWorkIsActive(work) && getAvailabilityStatus(work) !== "unavailable";
 }
 

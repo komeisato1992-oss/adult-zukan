@@ -37,6 +37,7 @@ import {
   type WorkMasterRow,
   type WorkMasterUpsertInput,
 } from "@/lib/dmm/works-master/types";
+import { hasValidPackageImage } from "@/lib/works/package-image";
 
 export const WORKS_MASTER_CACHE_TAG = "works-master";
 
@@ -73,20 +74,30 @@ export function getWorksMasterStorageLabel(
   return "既存JSON（フォールバック）";
 }
 
+function filterRowsWithValidPackageImage(
+  rows: WorkMasterRow[],
+): WorkMasterRow[] {
+  return rows.filter((row) => hasValidPackageImage(row));
+}
+
 async function fetchPublishedRowsUncached(): Promise<WorkMasterRow[]> {
   const backend = getConfiguredWorksMasterBackend();
   if (backend === "off") return [];
 
   if (backend === "supabase" || isWorksMasterSupabaseConfigured()) {
     try {
-      return await supabaseFetchAllPublishedWorkMasters();
+      return filterRowsWithValidPackageImage(
+        await supabaseFetchAllPublishedWorkMasters(),
+      );
     } catch (error) {
       console.warn(
         "[works-master] supabase published fetch failed; falling back to local JSON",
         error,
       );
       try {
-        return await localFetchAllPublishedWorkMasters();
+        return filterRowsWithValidPackageImage(
+          await localFetchAllPublishedWorkMasters(),
+        );
       } catch {
         return [];
       }
@@ -94,7 +105,9 @@ async function fetchPublishedRowsUncached(): Promise<WorkMasterRow[]> {
   }
 
   try {
-    return await localFetchAllPublishedWorkMasters();
+    return filterRowsWithValidPackageImage(
+      await localFetchAllPublishedWorkMasters(),
+    );
   } catch (error) {
     console.warn("[works-master] local published fetch failed", error);
     return [];
@@ -256,11 +269,16 @@ export async function upsertWorksMasterFromDmmItems(
   );
   const rows = works
     .map((work) => {
+      // サーバー側の再チェック: 画像なしはマスターへ載せない
+      if (!hasValidPackageImage(work)) return null;
+
       const row = dmmItemToWorkMasterRow(work, {
         published: options?.published ?? true,
         now,
       });
       if (!row) return null;
+      if (!hasValidPackageImage(row.package_image)) return null;
+
       // 明示 draft 指定時以外は公開ルールを適用
       if (options?.published !== false) {
         row.published = computeWorksPublished({
@@ -270,6 +288,10 @@ export async function upsertWorksMasterFromDmmItems(
             work.availabilityStatus !== "unavailable",
           manualHidden: work.hiddenReason === "manual",
         });
+      }
+      // 公開指定でも画像無効なら非公開（防御）
+      if (row.published && !hasValidPackageImage(row.package_image)) {
+        row.published = false;
       }
       return row;
     })

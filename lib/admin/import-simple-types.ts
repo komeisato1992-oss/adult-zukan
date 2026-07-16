@@ -89,6 +89,8 @@ export type AddSelectedWorksSummary = {
   catalogDuplicateCount: number;
   selectionDuplicateCount: number;
   invalidCount: number;
+  /** 画像なしで追加拒否した件数 */
+  imageMissingExcludedCount?: number;
   retried: boolean;
   catalogCountAfter?: number;
   updatedShardFiles?: string[];

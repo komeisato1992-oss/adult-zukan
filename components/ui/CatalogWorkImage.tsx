@@ -1,4 +1,7 @@
+"use client";
+
 import Image from "next/image";
+import { useState } from "react";
 import {
   imageCoverClassName,
   imageCoverStyle,
@@ -23,6 +26,8 @@ type CatalogWorkImageProps = {
   loading?: "lazy" | "eager";
   sizes?: string;
   frameClassName?: string;
+  /** 読み込み失敗時（DBは更新しない）。親カード非表示などに使う */
+  onLoadError?: () => void;
 };
 
 export function CatalogWorkImage({
@@ -33,8 +38,20 @@ export function CatalogWorkImage({
   loading = "lazy",
   sizes,
   frameClassName = "",
+  onLoadError,
 }: CatalogWorkImageProps) {
+  const [failed, setFailed] = useState(false);
   const config = VARIANTS[variant];
+
+  if (!src?.trim() || failed) {
+    return (
+      <div
+        className={`relative w-full max-w-full overflow-hidden bg-zinc-100 ${config.frameClass} ${frameClassName}`}
+        aria-hidden
+        data-image-status="failed"
+      />
+    );
+  }
 
   return (
     <div
@@ -50,6 +67,10 @@ export function CatalogWorkImage({
         loading={priority ? undefined : loading}
         priority={priority}
         unoptimized
+        onError={() => {
+          setFailed(true);
+          onLoadError?.();
+        }}
       />
     </div>
   );

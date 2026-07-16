@@ -37,7 +37,12 @@ import {
   type WorkMasterRow,
   type WorkMasterUpsertInput,
 } from "@/lib/dmm/works-master/types";
-import { hasValidPackageImage } from "@/lib/works/package-image";
+import {
+  detectAdultImageStatusMany,
+  hasDisplayableAdultImage,
+  isAdultImageStatusOk,
+} from "@/lib/works/image-status";
+import { pickPackageImageCandidate } from "@/lib/works/package-image";
 
 export const WORKS_MASTER_CACHE_TAG = "works-master";
 
@@ -77,7 +82,12 @@ export function getWorksMasterStorageLabel(
 function filterRowsWithValidPackageImage(
   rows: WorkMasterRow[],
 ): WorkMasterRow[] {
-  return rows.filter((row) => hasValidPackageImage(row));
+  return rows.filter((row) =>
+    hasDisplayableAdultImage({
+      imageStatus: row.image_status,
+      packageImage: row.package_image,
+    }),
+  );
 }
 
 async function fetchPublishedRowsUncached(): Promise<WorkMasterRow[]> {
@@ -267,30 +277,61 @@ export async function upsertWorksMasterFromDmmItems(
   const { computeWorksPublished } = await import(
     "@/lib/admin/works-cms-publish"
   );
-  const rows = works
-    .map((work) => {
-      // サーバー側の再チェック: 画像なしはマスターへ載せない
-      if (!hasValidPackageImage(work)) return null;
 
+  // 追加時: imageURL.large→list→small を URL 文字列判定し、必要な作品のみ GET
+  // （通常閲覧・検索・公開管理では再判定しない。DB の image_status を参照）
+  const draftRows = works
+    .map((work) => {
       const row = dmmItemToWorkMasterRow(work, {
         published: options?.published ?? true,
         now,
       });
       if (!row) return null;
-      if (!hasValidPackageImage(row.package_image)) return null;
+      // large → list → small 順の候補（now_printing / noimage URL も含む）
+      if (!pickPackageImageCandidate(work) && !row.package_image) return null;
+      return { work, row };
+    })
+    .filter((entry): entry is { work: DmmItem; row: WorkMasterUpsertInput } =>
+      Boolean(entry),
+    );
 
-      // 明示 draft 指定時以外は公開ルールを適用
+  const statusResults = await detectAdultImageStatusMany(
+    draftRows.map(
+      (entry) =>
+        pickPackageImageCandidate(entry.work) ?? entry.row.package_image,
+    ),
+    4,
+  );
+
+  const rows = draftRows
+    .map((entry, index) => {
+      const detected = statusResults[index];
+      const row = entry.row;
+      row.image_status = detected.status;
+      row.image_status_checked_at = detected.checkedAt;
+
+      // NOW PRINTING / 取得失敗はマスターへ載せない（追加除外）
+      if (!isAdultImageStatusOk(detected.status)) {
+        return null;
+      }
+
       if (options?.published !== false) {
         row.published = computeWorksPublished({
           packageImage: row.package_image,
+          imageStatus: row.image_status,
           isAvailable:
-            work.isActive !== false &&
-            work.availabilityStatus !== "unavailable",
-          manualHidden: work.hiddenReason === "manual",
+            entry.work.isActive !== false &&
+            entry.work.availabilityStatus !== "unavailable",
+          manualHidden: entry.work.hiddenReason === "manual",
         });
       }
-      // 公開指定でも画像無効なら非公開（防御）
-      if (row.published && !hasValidPackageImage(row.package_image)) {
+      if (
+        row.published &&
+        !hasDisplayableAdultImage({
+          imageStatus: row.image_status,
+          packageImage: row.package_image,
+        })
+      ) {
         row.published = false;
       }
       return row;

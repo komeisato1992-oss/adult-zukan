@@ -571,10 +571,28 @@ export async function processFanzaSyncBatch(options?: {
     };
   }
 
-  // 部分同期: Git / カタログJSON / デプロイなし。work_live_status のみ更新。
+  // 部分同期: Git / カタログJSON / デプロイなし。work_live_status + 画像ステータス更新。
   if (isAdultPartialSyncMode(mode)) {
     if (batchUpdatedCount > 0) {
       await upsertLiveStatusFromWorks(batchUpdatedWorks);
+    }
+
+    // 掲載情報更新時のみ image_status を保存（URL判定→必要時のみGET。通常閲覧では再判定しない）
+    try {
+      const { refreshWorksImageStatusFromDmmItems } = await import(
+        "@/lib/admin/refresh-works-image-status"
+      );
+      const imageStats = await refreshWorksImageStatusFromDmmItems(
+        results.map((result) => result.work),
+        { concurrency: 4 },
+      );
+      console.log("[fanza-sync] image_status refresh", imageStats);
+      const { revalidateWorksMasterAfterAdd } = await import(
+        "@/lib/dmm/works-master"
+      );
+      await revalidateWorksMasterAfterAdd();
+    } catch (error) {
+      console.warn("[fanza-sync] image_status refresh failed", error);
     }
 
     // ジョブ完了・停止時のみ公開キャッシュを無効化（ページ全体 revalidate はしない）

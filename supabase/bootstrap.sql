@@ -138,6 +138,39 @@ create index if not exists works_fanza_tv_checked_at_idx
   on public.works (fanza_tv_checked_at desc nulls last);
 
 -- -----------------------------------------------------------------------------
+-- 5/5  パッケージ画像ステータス（追加・掲載情報更新時のみ判定）
+-- -----------------------------------------------------------------------------
+alter table public.works
+  add column if not exists image_status text;
+alter table public.works
+  add column if not exists image_status_checked_at timestamptz;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'works_image_status_check'
+  ) then
+    alter table public.works
+      add constraint works_image_status_check
+      check (
+        image_status is null
+        or image_status in ('ok', 'now_printing', 'fetch_failed')
+      );
+  end if;
+end $$;
+
+create index if not exists works_image_status_idx
+  on public.works (image_status)
+  where image_status is distinct from 'ok';
+
+comment on column public.works.image_status is
+  'Package image check result set only on add/update: ok | now_printing | fetch_failed.';
+comment on column public.works.image_status_checked_at is
+  'When image_status was last determined (add or listing sync).';
+
+-- -----------------------------------------------------------------------------
 -- 確認用（実行結果で 2 行出ればOK）
 -- -----------------------------------------------------------------------------
 select

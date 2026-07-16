@@ -43,6 +43,7 @@ export function CatalogWorkImage({
   const [failed, setFailed] = useState(false);
   const config = VARIANTS[variant];
 
+  // 画像ステータス判定は追加・更新時のみ。閲覧時は渡された src を表示するだけ。
   if (!src?.trim() || failed) {
     return (
       <div

@@ -29,6 +29,14 @@ function asNamedList(raw: unknown): WorkMasterNamedEntity[] {
   return result;
 }
 
+function normalizeImageStatus(
+  raw: unknown,
+): WorkMasterRow["image_status"] {
+  const v = String(raw ?? "").trim();
+  if (v === "ok" || v === "now_printing" || v === "fetch_failed") return v;
+  return null;
+}
+
 function normalizeRow(raw: Record<string, unknown>): WorkMasterRow | null {
   const cid = normalizeCatalogContentId(String(raw.cid ?? ""));
   if (!cid) return null;
@@ -39,6 +47,11 @@ function normalizeRow(raw: Record<string, unknown>): WorkMasterRow | null {
     title: String(raw.title ?? cid).trim() || cid,
     description: raw.description == null ? null : String(raw.description),
     package_image: raw.package_image == null ? null : String(raw.package_image),
+    image_status: normalizeImageStatus(raw.image_status),
+    image_status_checked_at:
+      raw.image_status_checked_at == null
+        ? null
+        : String(raw.image_status_checked_at),
     sample_images: Array.isArray(raw.sample_images)
       ? raw.sample_images.filter((url): url is string => typeof url === "string")
       : [],

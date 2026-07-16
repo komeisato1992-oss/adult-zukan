@@ -1,7 +1,8 @@
 /**
- * パッケージ画像の有効判定（候補取得・追加・公開・一覧で共有）
+ * パッケージ画像の有効判定（候補取得・追加・公開・一覧・管理画面で共有）
  *
- * 「URLがある」だけでは不十分。DMMのダミー画像は画像なし扱い。
+ * URL文字列の軽量チェック。画像GETは行わない。
+ * NOW PRINTING の実体判定は追加・更新時の image_status（lib/works/image-status.ts）で行う。
  */
 
 const IMAGE_EXTENSIONS = /\.(jpe?g|webp|png|gif)(\?|#|$)/i;
@@ -22,65 +23,26 @@ const INVALID_LITERALS = new Set([
 ]);
 
 /**
- * URL全体に含まれるダミー / プレースホルダーキーワード。
- * now_printing・noimage・placeholder・dummy・blank・sampleなし 系を含む。
+ * FANZA の NOW PRINTING / プレースホルダー画像URLから確認した判定パターン。
+ *
+ * 確認済み実URL例:
+ * - https://pics.dmm.co.jp/digital/video/now_printing.jpg
+ * - https://pics.dmm.co.jp/digital/video/now_printing/now_printingpl.jpg
+ * - https://pics.dmm.co.jp/digital/video/now_printing/now_printingps.jpg
+ * - https://pics.dmm.co.jp/mono/movie/adult/now_printing.jpg
+ * - https://pics.dmm.co.jp/digital/now_printing.jpg
+ * - https://pics.dmm.com/mono/noimage/now_printing.jpg
+ * - https://imgsrc.dmm.com/pics/mono/movie/n/now_printing/now_printing.jpg
  */
-const INVALID_IMAGE_KEYWORDS = [
+export const KNOWN_MISSING_IMAGE_PATTERNS = [
   "now_printing",
   "nowprinting",
   "now-printing",
   "noimage",
   "no_image",
   "no-image",
-  "img_noimage",
-  "placeholder",
-  "dummy",
-  "blank",
-  "broken",
-  "missing",
-  "default_jacket",
-  "coming_soon",
-  "comingssoon",
-  "nosample",
-  "no_sample",
-  "no-sample",
-  "without_sample",
-  "sample_none",
-  "samplenone",
-  "no_jacket",
-  "nojacket",
-  "preparing",
-  "under_construction",
+  "image_not_found",
 ] as const;
-
-/** ファイル名（basename）がこれに一致/前方一致ならダミー */
-const INVALID_BASENAME_PATTERNS = [
-  /^now[_-]?printing/i,
-  /^no[_-]?image/i,
-  /^placeholder/i,
-  /^dummy/i,
-  /^blank/i,
-  /^empty/i,
-  /^default/i,
-  /^coming[_-]?soon/i,
-  /^no[_-]?sample/i,
-  /^nosample/i,
-  /^camera\.jpe?g$/i,
-  /^printing\.jpe?g$/i,
-] as const;
-
-/** パスのディレクトリ名がダミー用 */
-const INVALID_PATH_SEGMENTS = new Set([
-  "now_printing",
-  "nowprinting",
-  "noimage",
-  "no_image",
-  "placeholder",
-  "dummy",
-  "blank",
-  "nosample",
-  "no_sample",
-]);
 
 export type PackageImageSource =
   | string
@@ -97,53 +59,51 @@ export type PackageImageSource =
       } | null;
     };
 
-function normalizeCandidate(raw: string | null | undefined): string | null {
-  if (raw == null) return null;
-  const trimmed = String(raw).trim();
-  if (!trimmed) return null;
-  if (INVALID_LITERALS.has(trimmed.toLowerCase())) return null;
-  return trimmed;
+/**
+ * 追加・更新時の URL 文字列判定（GET 前の最優先）。
+ * URL に now_printing / noimage のどちらかが含まれていれば NOW PRINTING。
+ */
+export function urlIndicatesNowPrinting(url?: string | null): boolean {
+  if (url == null) return false;
+  const normalized = String(url).trim().toLowerCase();
+  if (!normalized) return false;
+  return (
+    normalized.includes("now_printing") || normalized.includes("noimage")
+  );
 }
 
-/** DMM/FANZA のダミーパッケージ画像URLか */
+/**
+ * アダルト図鑑の「画像なし」判定（公開・管理で共通）。
+ * null / undefined / 空 / 既知プレースホルダーURL を画像なしとする。
+ * ※ image_status 未判定の旧データ向けフォールバック。通常表示は image_status を優先。
+ */
+export function isMissingAdultImage(url?: string | null): boolean {
+  if (url == null) return true;
+
+  const normalized = String(url).trim().toLowerCase();
+  if (!normalized) return true;
+  if (INVALID_LITERALS.has(normalized)) return true;
+
+  return KNOWN_MISSING_IMAGE_PATTERNS.some((pattern) =>
+    normalized.includes(pattern),
+  );
+}
+
+/** @deprecated isMissingAdultImage を使う */
 export function isDmmDummyPackageImageUrl(url: string): boolean {
-  const lower = url.toLowerCase();
+  return isMissingAdultImage(url);
+}
 
-  if (INVALID_IMAGE_KEYWORDS.some((keyword) => lower.includes(keyword))) {
-    return true;
-  }
-
-  let pathname = lower;
-  try {
-    pathname = new URL(url).pathname.toLowerCase();
-  } catch {
-    // keep lower as pathname fallback
-  }
-
-  const segments = pathname.split("/").filter(Boolean);
-  if (segments.some((seg) => INVALID_PATH_SEGMENTS.has(seg))) {
-    return true;
-  }
-
-  const basename = segments[segments.length - 1] ?? "";
-  const file = basename.split("?")[0] ?? "";
-  if (INVALID_BASENAME_PATTERNS.some((re) => re.test(file))) {
-    return true;
-  }
-
-  // now_printingpl.jpg / noimageps.jpg などサイズ接尾辞付き
-  if (/^(now[_-]?printing|no[_-]?image|dummy|blank|placeholder)/i.test(file)) {
-    return true;
-  }
-
-  return false;
+function normalizeCandidate(raw: string | null | undefined): string | null {
+  if (isMissingAdultImage(raw)) return null;
+  return String(raw).trim();
 }
 
 /** 単一URLが実際のパッケージ画像として有効か */
 export function isValidImageUrl(url?: string | null): boolean {
-  const trimmed = normalizeCandidate(url);
-  if (!trimmed) return false;
+  if (isMissingAdultImage(url)) return false;
 
+  const trimmed = String(url).trim();
   let parsed: URL;
   try {
     parsed = new URL(trimmed);
@@ -152,10 +112,6 @@ export function isValidImageUrl(url?: string | null): boolean {
   }
 
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    return false;
-  }
-
-  if (isDmmDummyPackageImageUrl(trimmed)) {
     return false;
   }
 
@@ -212,10 +168,60 @@ export function resolvePackageImageUrl(
 
 /**
  * 実際の作品パッケージ画像があるかどうか。
- * - null / 空 / 空白のみ / "undefined"|"null"|"-" は無効
- * - http(s) 以外は無効
- * - now_printing / noimage / placeholder / dummy / blank / sampleなし 等のダミーは無効
+ * isMissingAdultImage() と同じプレースホルダー判定を使う。
  */
 export function hasValidPackageImage(work: PackageImageSource): boolean {
   return resolvePackageImageUrl(work) != null;
+}
+
+function isFetchableImageUrl(url?: string | null): boolean {
+  if (url == null) return false;
+  const trimmed = String(url).trim();
+  if (!trimmed) return false;
+  if (INVALID_LITERALS.has(trimmed.toLowerCase())) return false;
+  let parsed: URL;
+  try {
+    parsed = new URL(trimmed);
+  } catch {
+    return false;
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return false;
+  return (
+    IMAGE_EXTENSIONS.test(parsed.pathname) || IMAGE_EXTENSIONS.test(trimmed)
+  );
+}
+
+/**
+ * 追加・更新時の画像ステータス判定用URL。
+ * package_image 系のあと imageURL.large → list → small の順。
+ * now_printing / noimage を含むプレースホルダーURLも返す（GET 前の文字列判定用）。
+ * 表示可否の最終判定は image_status を使うこと。
+ */
+export function pickPackageImageCandidate(
+  work: PackageImageSource,
+  order: Array<"large" | "list" | "small"> = ["large", "list", "small"],
+): string | null {
+  if (work == null) return null;
+
+  if (typeof work === "string") {
+    return isFetchableImageUrl(work) ? work.trim() : null;
+  }
+
+  for (const candidate of [
+    work.package_image,
+    work.packageImage,
+    work.imageUrl,
+  ]) {
+    if (isFetchableImageUrl(candidate)) return String(candidate).trim();
+  }
+
+  const imageURL = work.imageURL;
+  if (imageURL) {
+    for (const key of order) {
+      const candidate = imageURL[key];
+      if (isFetchableImageUrl(candidate)) return String(candidate).trim();
+    }
+  }
+
+  return null;
 }

@@ -266,7 +266,7 @@ export function WorksCmsSyncTab({
           <div className="rounded-lg border border-amber-200 bg-white px-2.5 py-2">
             <p className="font-bold">画像なし作品を非公開化</p>
             <p className="mt-1 text-muted">
-              hasValidPackageImage で無効な作品を published=false /
+              image_status（追加・更新時の画像取得判定）で無効な作品を published=false /
               理由=no_package_image にします。Git・JSON・デプロイは発生しません。画像が後から取得できれば再公開候補になります。
             </p>
             <p className="mt-1">

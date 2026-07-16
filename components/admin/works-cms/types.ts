@@ -175,6 +175,7 @@ export type CmsListItem = {
   cid: string;
   title: string;
   package_image: string | null;
+  image_status?: string | null;
   maker: string | null;
   actresses: string[];
   release_date?: string | null;

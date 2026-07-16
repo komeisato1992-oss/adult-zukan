@@ -6,7 +6,9 @@ import {
 
 export {
   hasValidPackageImage,
+  isMissingAdultImage,
   isValidImageUrl,
+  KNOWN_MISSING_IMAGE_PATTERNS,
   resolvePackageImageUrl,
 } from "@/lib/works/package-image";
 

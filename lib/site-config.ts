@@ -52,6 +52,18 @@ export const navItems = [
   { href: "/search", label: "検索" },
 ] as const;
 
+/** スマホ固定フッター下部ナビ（同人図鑑 doujinMobileBottomNavItems と同構成） */
+export const mobileBottomNavItems = [
+  { href: "/", label: "TOP" },
+  { href: "/works", label: "作品" },
+  { href: "/favorites", label: "お気に入り" },
+  { href: "/ranking", label: "ランキング" },
+  { href: "/search", label: "検索" },
+] as const;
+
+/** 比較バー(42px) + 下部ナビ(56px) */
+export const MOBILE_FIXED_FOOTER_HEIGHT_PX = 98;
+
 export const legalLinks = [
   { href: "/about", label: "アダルト図鑑とは" },
   { href: "/faq", label: "FAQ" },

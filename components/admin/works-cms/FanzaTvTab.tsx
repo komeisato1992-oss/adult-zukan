@@ -324,11 +324,15 @@ export function WorksCmsFanzaTvTab({
           {`# 初回のみ: 年齢確認・ログイン状態を保存
 npm run fanza-tv:save-profile
 
-# 指定件数（例: 100件）
+# 指定件数（--limit が必ず反映されます）
 npm run fanza-tv:check -- --limit=100
+npm run fanza-tv:check -- --limit=500
+npm run fanza-tv:check -- --limit=1000
+npm run fanza-tv:check -- --limit=5000
+npm run fanza-tv:check -- --limit=all
 
-# 未確認のみ / 全件は管理画面（Macローカル）から実行
-# または CLI で limit を指定`}
+# 件数だけ確認（判定しない）
+npm run fanza-tv:check -- --limit=1000 --fetch-only`}
         </pre>
       </div>
     </section>

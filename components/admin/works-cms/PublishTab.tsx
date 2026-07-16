@@ -1,9 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { CmsListItem } from "@/components/admin/works-cms/types";
-import { isMissingAdultImage, isValidImageUrl } from "@/lib/works/package-image";
+import { hasDisplayableAdultImage } from "@/lib/works/image-status-shared";
 
 type PublishFilters = {
   cid: string;
@@ -75,6 +75,7 @@ export function WorksCmsPublishTab({
   fanzaReady,
 }: PublishTabProps) {
   const [showFilters, setShowFilters] = useState(false);
+  const filtersKeyRef = useRef<string | null>(null);
 
   const toggle = (cid: string) => {
     const next = new Set(selected);
@@ -82,6 +83,26 @@ export function WorksCmsPublishTab({
     else next.add(cid);
     setSelected(next);
   };
+
+  const selectAllFiltered = () => {
+    setSelected(new Set(items.map((item) => item.cid)));
+  };
+
+  const clearSelection = () => {
+    setSelected(new Set());
+  };
+
+  // フィルター変更時は選択を解除（初回マウントは対象外）
+  useEffect(() => {
+    const key = JSON.stringify(filters);
+    if (filtersKeyRef.current === null) {
+      filtersKeyRef.current = key;
+      return;
+    }
+    if (filtersKeyRef.current === key) return;
+    filtersKeyRef.current = key;
+    setSelected(new Set());
+  }, [filters, setSelected]);
 
   return (
     <section className="space-y-3">
@@ -169,12 +190,33 @@ export function WorksCmsPublishTab({
         </button>
       </div>
 
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={selectAllFiltered}
+          disabled={busy || items.length === 0}
+          className="min-h-[44px] flex-1 rounded-lg border border-border bg-white text-sm font-bold disabled:opacity-40"
+        >
+          全選択
+        </button>
+        <button
+          type="button"
+          onClick={clearSelection}
+          disabled={busy || selected.size === 0}
+          className="min-h-[44px] flex-1 rounded-lg border border-border bg-white text-sm font-bold disabled:opacity-40"
+        >
+          全解除
+        </button>
+      </div>
+
       <ul className="space-y-1.5">
         {items.map((item) => {
           const checked = selected.has(item.cid);
           const noImage =
-            isMissingAdultImage(item.package_image) ||
-            !isValidImageUrl(item.package_image);
+            !hasDisplayableAdultImage({
+              imageStatus: item.image_status,
+              packageImage: item.package_image,
+            });
           return (
             <li
               key={item.cid}
@@ -188,7 +230,7 @@ export function WorksCmsPublishTab({
                   className="mt-3"
                 />
                 <div className="relative h-14 w-10 shrink-0 overflow-hidden rounded bg-zinc-100">
-                  {item.package_image ? (
+                  {!noImage && item.package_image ? (
                     <Image
                       src={item.package_image}
                       alt=""

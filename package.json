@@ -10,6 +10,7 @@
     "dev:next": "next dev",
     "prebuild": "node scripts/verify-catalog-shards.mjs && (node scripts/fetch-catalog.mjs || true)",
     "build": "next build",
+    "vercel-build": "node scripts/verify-catalog-shards.mjs && next build",
     "start": "next start",
     "lint": "eslint",
     "fetch-catalog": "node scripts/fetch-catalog.mjs",

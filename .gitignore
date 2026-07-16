@@ -2,7 +2,10 @@
 
 # dependencies
 /node_modules
+# ローカル Node への symlink（scripts/fix-node-path.sh が作成。本番/Vercel に上げない）
 /.node
+# 誤って作られた空ファイル（`node` バイナリではない）。ルートのみ無視
+/node
 /.pnp
 .pnp.*
 .yarn/*

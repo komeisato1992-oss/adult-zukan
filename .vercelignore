@@ -1,0 +1,27 @@
+# ローカル専用の Node インストール参照（絶対パス symlink）。
+# CLI デプロイ時にアップロードされると /vercel/path0/.node で ENOENT になる。
+.node
+.node/**
+# 誤って作られた空ファイル（node バイナリではない）
+/node
+
+# エディタ・ローカルツール
+.vscode
+.cursor
+.playwright
+
+# 依存・ビルド成果物（Vercel 側で入れ直す）
+node_modules
+.next
+out
+build
+coverage
+
+# ローカル専用スクリプト成果物・実験ディレクトリ
+control-service
+php-knowledge-portal
+notion_trainer
+Makefile.slab_mitigate
+slab_freepage_mitigation.c
+tsconfig.tsbuildinfo
+next-env.d.ts

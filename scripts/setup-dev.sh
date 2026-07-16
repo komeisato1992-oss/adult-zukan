@@ -34,7 +34,8 @@ ensure_node() {
 
   # 2) Known existing install used by sibling project
   if prepend_node_bin "${HOME}/ai-keiba-labo/.node/bin"; then
-    if [ ! -e "${ROOT_DIR}/.node" ]; then
+    # CI / Vercel には絶対パス symlink を置かない
+    if [ -z "${VERCEL:-}" ] && [ -z "${CI:-}" ] && [ ! -e "${ROOT_DIR}/.node" ]; then
       ln -sfn "${HOME}/ai-keiba-labo/.node" "${ROOT_DIR}/.node"
     fi
     return 0

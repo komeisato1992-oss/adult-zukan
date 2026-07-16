@@ -13,6 +13,8 @@ export type WorkListCardItem = {
   };
   releaseDate?: string;
   fanzaUrl: string;
+  /** 見放題バッジ（activeのみ） */
+  fanzaTvActive?: boolean;
 };
 
 export type WorkListCardPriceDisplayMode = "default" | "sale";

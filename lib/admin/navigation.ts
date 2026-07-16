@@ -11,6 +11,12 @@ export const adminNavItems: AdminNavItem[] = [
   { id: "sns", label: "SNS管理", icon: "📢", href: "/admin/sns" },
   { id: "import", label: "作品管理", icon: "📥", href: "/admin/import" },
   {
+    id: "deploy",
+    label: "デプロイ",
+    icon: "🚀",
+    href: "/admin/deploy",
+  },
+  {
     id: "actress-images",
     label: "女優代表画像",
     icon: "🖼",

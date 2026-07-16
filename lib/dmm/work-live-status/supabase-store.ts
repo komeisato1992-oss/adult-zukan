@@ -22,6 +22,8 @@ function normalizeRow(raw: Record<string, unknown>): WorkLiveStatusRow | null {
         ? null
         : Number(raw.discount_rate),
     is_sale: Boolean(raw.is_sale),
+    sale_start_at:
+      raw.sale_start_at == null ? null : String(raw.sale_start_at),
     sale_end_at: raw.sale_end_at == null ? null : String(raw.sale_end_at),
     rating:
       raw.rating == null || raw.rating === "" ? null : Number(raw.rating),
@@ -38,8 +40,21 @@ function normalizeRow(raw: Record<string, unknown>): WorkLiveStatusRow | null {
         ? null
         : Number(raw.new_arrival_rank),
     is_available: raw.is_available === false ? false : true,
+    manual_hidden: raw.manual_hidden === true,
     fanza_tv_status:
       raw.fanza_tv_status == null ? null : String(raw.fanza_tv_status),
+    fanza_tv_checked_at:
+      raw.fanza_tv_checked_at == null
+        ? null
+        : String(raw.fanza_tv_checked_at),
+    fanza_tv_changed_at:
+      raw.fanza_tv_changed_at == null
+        ? null
+        : String(raw.fanza_tv_changed_at),
+    fanza_tv_source:
+      raw.fanza_tv_source == null ? null : String(raw.fanza_tv_source),
+    fanza_tv_error:
+      raw.fanza_tv_error == null ? null : String(raw.fanza_tv_error),
     checked_at: raw.checked_at == null ? null : String(raw.checked_at),
     updated_at:
       raw.updated_at == null
@@ -91,17 +106,29 @@ export async function supabaseUpsertLiveStatusRows(
   if (!client || rows.length === 0) return { upserted: 0 };
 
   const now = new Date().toISOString();
-  const payload: Array<WorkLiveStatusUpsertInput & { cid: string; updated_at: string }> =
-    [];
+  const { detectWorksCmsSchemaV2 } = await import(
+    "@/lib/admin/works-cms-overrides"
+  );
+  const schemaV2 = await detectWorksCmsSchemaV2();
+  const payload: Record<string, unknown>[] = [];
 
   for (const row of rows) {
     const cid = normalizeCatalogContentId(row.cid);
     if (!cid) continue;
-    payload.push({
+    const base: Record<string, unknown> = {
       ...row,
       cid,
       updated_at: row.updated_at ?? now,
-    });
+    };
+    if (!schemaV2) {
+      delete base.manual_hidden;
+      delete base.sale_start_at;
+      delete base.fanza_tv_checked_at;
+      delete base.fanza_tv_changed_at;
+      delete base.fanza_tv_source;
+      delete base.fanza_tv_error;
+    }
+    payload.push(base);
   }
 
   let upserted = 0;
@@ -121,15 +148,151 @@ export async function supabaseUpsertLiveStatusRows(
   return { upserted };
 }
 
-export async function supabaseCountLiveStatusRows(): Promise<number> {
+export type TableCountStatus =
+  | "ok"
+  | "connection_error"
+  | "table_missing"
+  | "fetch_failed";
+
+export type TableCountResult = {
+  count: number | null;
+  status: TableCountStatus;
+  message: string | null;
+};
+
+function classifySupabaseCountError(error: {
+  message?: string;
+  code?: string;
+}): TableCountResult {
+  const message = error.message ?? "件数取得に失敗しました";
+  const code = error.code ?? "";
+  const lowered = message.toLowerCase();
+  if (
+    code === "42P01" ||
+    code === "PGRST205" ||
+    lowered.includes("does not exist") ||
+    lowered.includes("schema cache")
+  ) {
+    return { count: null, status: "table_missing", message: "テーブル未作成" };
+  }
+  if (
+    code === "PGRST301" ||
+    lowered.includes("fetch failed") ||
+    lowered.includes("network") ||
+    lowered.includes("enotfound") ||
+    lowered.includes("econnrefused")
+  ) {
+    return { count: null, status: "connection_error", message: "接続エラー" };
+  }
+  return { count: null, status: "fetch_failed", message: "取得失敗" };
+}
+
+export async function supabaseCountLiveStatusRowsDetailed(): Promise<TableCountResult> {
   const client = getSupabaseServiceClient();
-  if (!client) return 0;
+  if (!client) {
+    return {
+      count: null,
+      status: "connection_error",
+      message: "接続エラー",
+    };
+  }
   const { count, error } = await client
     .from(TABLE)
     .select("cid", { count: "exact", head: true });
   if (error) {
     console.warn("[work-live-status] supabase count failed", error.message);
-    return 0;
+    return classifySupabaseCountError(error);
   }
-  return count ?? 0;
+  return { count: count ?? 0, status: "ok", message: null };
+}
+
+export async function supabaseCountLiveStatusRows(): Promise<number> {
+  const result = await supabaseCountLiveStatusRowsDetailed();
+  if (result.status !== "ok" || result.count == null) {
+    throw new Error(result.message ?? "work_live_status count failed");
+  }
+  return result.count;
+}
+
+export async function supabaseFetchAllLiveStatusCids(): Promise<string[]> {
+  const client = getSupabaseServiceClient();
+  if (!client) return [];
+
+  const PAGE = 1000;
+  const cids: string[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const to = from + PAGE - 1;
+    const { data, error } = await client
+      .from(TABLE)
+      .select("cid")
+      .order("cid", { ascending: true })
+      .range(from, to);
+    if (error) {
+      console.warn("[work-live-status] supabase cid list failed", error.message);
+      throw error;
+    }
+    const batch = data ?? [];
+    for (const raw of batch) {
+      const cid = normalizeCatalogContentId(
+        String((raw as { cid?: string }).cid ?? ""),
+      );
+      if (cid) cids.push(cid);
+    }
+    if (batch.length < PAGE) break;
+  }
+  return cids;
+}
+
+/** 既存レコードは上書きしない insert（ignoreDuplicates） */
+export async function supabaseInsertLiveStatusRowsIgnoreExisting(
+  rows: WorkLiveStatusUpsertInput[],
+): Promise<{ inserted: number }> {
+  const client = getSupabaseServiceClient();
+  if (!client || rows.length === 0) return { inserted: 0 };
+
+  const now = new Date().toISOString();
+  const { detectWorksCmsSchemaV2 } = await import(
+    "@/lib/admin/works-cms-overrides"
+  );
+  const schemaV2 = await detectWorksCmsSchemaV2();
+  const payload: Record<string, unknown>[] = [];
+
+  for (const row of rows) {
+    const cid = normalizeCatalogContentId(row.cid);
+    if (!cid) continue;
+    const base: Record<string, unknown> = {
+      ...row,
+      cid,
+      updated_at: row.updated_at ?? now,
+    };
+    if (!schemaV2) {
+      delete base.manual_hidden;
+      delete base.sale_start_at;
+      delete base.fanza_tv_checked_at;
+      delete base.fanza_tv_changed_at;
+      delete base.fanza_tv_source;
+      delete base.fanza_tv_error;
+    }
+    payload.push(base);
+  }
+
+  let inserted = 0;
+  for (let i = 0; i < payload.length; i += CHUNK) {
+    const slice = payload.slice(i, i + CHUNK);
+    const { error, count } = await client.from(TABLE).upsert(slice, {
+      onConflict: "cid",
+      ignoreDuplicates: true,
+      count: "exact",
+    });
+    if (error) {
+      console.warn(
+        "[work-live-status] supabase insert-ignore failed",
+        error.message,
+      );
+      throw error;
+    }
+    inserted += count ?? slice.length;
+  }
+
+  return { inserted };
 }

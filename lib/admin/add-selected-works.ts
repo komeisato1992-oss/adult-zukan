@@ -469,6 +469,17 @@ async function addSelectedWorksToWorksMaster(
     classified.preparedItems,
     { published: true },
   );
+
+  // 変動情報も同時に UPSERT（Git/JSONなし）
+  try {
+    const { upsertLiveStatusFromWorks } = await import(
+      "@/lib/dmm/work-live-status"
+    );
+    await upsertLiveStatusFromWorks(classified.preparedItems);
+  } catch (error) {
+    console.warn("[add-selected-api] live status upsert skipped", error);
+  }
+
   const {
     upserted,
     published,
@@ -482,6 +493,22 @@ async function addSelectedWorksToWorksMaster(
   // （JSON フォールバック時のみローカル works-master.json を更新）
   await revalidateWorksMasterAfterAdd();
 
+  try {
+    const { recordWorksAddOffset } = await import(
+      "@/lib/admin/works-add-offset-store"
+    );
+    recordWorksAddOffset({
+      sort: "new",
+      offset: 0,
+      addedCount: upserted,
+      duplicateCount: catalogDuplicateCount + selectionDuplicateCount,
+      errorCount: invalidCount,
+      lastAddedCid: classified.preparedItems[0]?.content_id ?? null,
+    });
+  } catch {
+    // offset は差分準備用。失敗しても追加自体は成功扱い
+  }
+
   const storageInfo = await getWorksMasterStorageInfo();
   const summary: AddSelectedWorksSummary = {
     selectedCount,
@@ -490,7 +517,7 @@ async function addSelectedWorksToWorksMaster(
     selectionDuplicateCount,
     invalidCount,
     retried: false,
-    catalogCountAfter: storageInfo.rowCount,
+    catalogCountAfter: storageInfo.rowCount ?? undefined,
     githubCommitSucceeded: false,
     storageTarget: writeBackend === "supabase" ? "supabase" : "local",
     storageLabel: getWorksMasterStorageLabel(writeBackend),

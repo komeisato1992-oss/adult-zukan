@@ -31,6 +31,9 @@ export type WorkMasterRow = {
   product_code: string | null;
   affiliate_url: string | null;
   published: boolean;
+  manual_hidden: boolean;
+  manual_hidden_reason: string | null;
+  deleted_at: string | null;
   created_at: string;
   updated_at: string;
 };

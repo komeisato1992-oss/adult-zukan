@@ -83,6 +83,9 @@ function normalizeRow(raw: Partial<WorkMasterRow> & { cid?: string }): WorkMaste
     product_code: raw.product_code?.trim() || null,
     affiliate_url: raw.affiliate_url?.trim() || null,
     published: raw.published !== false,
+    manual_hidden: raw.manual_hidden === true,
+    manual_hidden_reason: raw.manual_hidden_reason?.trim() || null,
+    deleted_at: raw.deleted_at || null,
     created_at: raw.created_at || now,
     updated_at: raw.updated_at || now,
   };

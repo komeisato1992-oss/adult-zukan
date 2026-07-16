@@ -8,13 +8,19 @@ export type WorkLiveStatusRow = {
   list_price: string | null;
   discount_rate: number | null;
   is_sale: boolean;
+  sale_start_at: string | null;
   sale_end_at: string | null;
   rating: number | null;
   review_count: number | null;
   popularity_rank: number | null;
   new_arrival_rank: number | null;
   is_available: boolean;
+  manual_hidden: boolean;
   fanza_tv_status: string | null;
+  fanza_tv_checked_at: string | null;
+  fanza_tv_changed_at: string | null;
+  fanza_tv_source: string | null;
+  fanza_tv_error: string | null;
   checked_at: string | null;
   updated_at: string;
 };
@@ -32,11 +38,22 @@ export function getWorkLiveStatusRevalidateSec(): number {
   return Math.min(900, Math.floor(n));
 }
 
-export function isWorkLiveStatusEnabled(): boolean {
-  const raw = process.env.WORK_LIVE_STATUS_ENABLED?.trim().toLowerCase();
-  if (raw === "0" || raw === "false" || raw === "off" || raw === "no") {
+function isTruthyEnv(raw: string | undefined): boolean | null {
+  if (raw === undefined || raw === "") return null;
+  const value = raw.trim().toLowerCase();
+  if (value === "1" || value === "true" || value === "yes" || value === "on") {
+    return true;
+  }
+  if (value === "0" || value === "false" || value === "no" || value === "off") {
     return false;
   }
+  return null;
+}
+
+/** WORK_LIVE_STATUS_ENABLED。未設定時は有効（明示的無効のみ false） */
+export function isWorkLiveStatusEnabled(): boolean {
+  const parsed = isTruthyEnv(process.env.WORK_LIVE_STATUS_ENABLED);
+  if (parsed === false) return false;
   return true;
 }
 
@@ -51,6 +68,40 @@ export function getConfiguredWorkLiveStatusBackend(): WorkLiveStatusBackend {
   // auto: Supabase 設定があれば優先、なければローカルJSON
   if (isSupabaseLiveStatusConfigured()) return "supabase";
   return "local";
+}
+
+export type WorkLiveStatusRuntimeStatus = {
+  enabled: boolean;
+  backend: WorkLiveStatusBackend;
+  hasSupabaseUrl: boolean;
+  hasServiceRoleKey: boolean;
+  /** テーブル疎通。未確認時は null */
+  tableAvailable: boolean | null;
+};
+
+/**
+ * 軽量同期・管理画面表示で共有する変動情報ランタイム状態。
+ * 秘密情報の値は含めない。
+ */
+export function getWorkLiveStatusRuntimeStatus(options?: {
+  tableAvailable?: boolean | null;
+}): WorkLiveStatusRuntimeStatus {
+  const hasSupabaseUrl = Boolean(getSupabaseUrl());
+  const hasServiceRoleKey = Boolean(getSupabaseServiceRoleKey());
+  const backend = getConfiguredWorkLiveStatusBackend();
+  const enabled =
+    isWorkLiveStatusEnabled() &&
+    backend !== "off" &&
+    (backend !== "supabase" || (hasSupabaseUrl && hasServiceRoleKey));
+
+  return {
+    enabled,
+    backend,
+    hasSupabaseUrl,
+    hasServiceRoleKey,
+    tableAvailable:
+      options?.tableAvailable === undefined ? null : options.tableAvailable,
+  };
 }
 
 export function isSupabaseLiveStatusConfigured(): boolean {

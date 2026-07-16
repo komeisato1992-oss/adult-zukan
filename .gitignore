@@ -2,6 +2,7 @@
 
 # dependencies
 /node_modules
+/.node
 /.pnp
 .pnp.*
 .yarn/*
@@ -48,9 +49,14 @@ yarn-error.log*
 # 変動データ（DB化）ローカル保存・同期ジョブ（Git差分を出さない）
 /data/dmm/work-live-status.json
 /data/dmm/works-master.json
+/data/dmm/works-master-migration-job.json
+/data/dmm/works-cms-overrides.json
+/data/dmm/works-add-offsets.json
+/data/dmm/fanza-tv-ingest-job.json
 /data/dmm/fanza-sync-job.json
 /data/dmm/fanza-light-overlay.json
 /data/dmm/fanza-sync-history.json
+/data/dmm/live-status-init-job.json
 
 # 同人図鑑: ジョブ/ログはローカルのみ。表示用カタログJSONは本番反映のため追跡する
 /data/doujin/import-jobs.json

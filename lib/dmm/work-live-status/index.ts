@@ -12,6 +12,7 @@ import {
 import {
   invalidateLocalLiveStatusCache,
   localCountLiveStatusRows,
+  localFetchAllLiveStatusCids,
   localFetchLiveStatusByCids,
   localUpsertLiveStatusRows,
   getLocalLiveStatusMtimeMs,
@@ -21,15 +22,19 @@ import {
   getWorkLiveStatusMetricsSummary,
 } from "@/lib/dmm/work-live-status/metrics";
 import {
-  supabaseCountLiveStatusRows,
+  supabaseCountLiveStatusRowsDetailed,
+  supabaseFetchAllLiveStatusCids,
   supabaseFetchLiveStatusByCids,
+  supabaseInsertLiveStatusRowsIgnoreExisting,
   supabaseUpsertLiveStatusRows,
 } from "@/lib/dmm/work-live-status/supabase-store";
 import {
   getConfiguredWorkLiveStatusBackend,
   getWorkLiveStatusRevalidateSec,
+  getWorkLiveStatusRuntimeStatus,
   type WorkLiveStatusBackend,
   type WorkLiveStatusRow,
+  type WorkLiveStatusRuntimeStatus,
   type WorkLiveStatusUpsertInput,
 } from "@/lib/dmm/work-live-status/types";
 
@@ -38,8 +43,11 @@ export const WORK_LIVE_STATUS_CACHE_TAG = "work-live-status";
 export type WorkLiveStatusStorageInfo = {
   backend: WorkLiveStatusBackend;
   label: string;
-  rowCount: number;
+  rowCount: number | null;
+  countStatus: "ok" | "connection_error" | "table_missing" | "fetch_failed";
+  countMessage: string | null;
   deployRequired: false;
+  runtime: WorkLiveStatusRuntimeStatus;
 };
 
 export type MergeLiveStatusResult = {
@@ -266,11 +274,25 @@ export async function upsertLiveStatusFromWorks(
   const changed: WorkLiveStatusUpsertInput[] = [];
   let unchanged = 0;
   for (const row of candidates) {
-    if (liveStatusRowsEqual(row, existing.get(row.cid))) {
+    const prev = existing.get(row.cid);
+    // FANZA APIに見放題APIはない。同期時に既存TV判定を潰さない。
+    const merged: WorkLiveStatusUpsertInput = {
+      ...row,
+      manual_hidden: prev?.manual_hidden ?? row.manual_hidden ?? false,
+      sale_start_at: row.sale_start_at ?? prev?.sale_start_at ?? null,
+      fanza_tv_status: prev?.fanza_tv_status ?? row.fanza_tv_status ?? null,
+      fanza_tv_checked_at:
+        prev?.fanza_tv_checked_at ?? row.fanza_tv_checked_at ?? null,
+      fanza_tv_changed_at:
+        prev?.fanza_tv_changed_at ?? row.fanza_tv_changed_at ?? null,
+      fanza_tv_source: prev?.fanza_tv_source ?? row.fanza_tv_source ?? null,
+      fanza_tv_error: prev?.fanza_tv_error ?? row.fanza_tv_error ?? null,
+    };
+    if (liveStatusRowsEqual(merged, prev)) {
       unchanged += 1;
       continue;
     }
-    changed.push(row);
+    changed.push(merged);
   }
 
   if (changed.length === 0) {
@@ -312,24 +334,247 @@ export async function getWorkLiveStatusStorageInfo(): Promise<
   }
 > {
   const backend = getConfiguredWorkLiveStatusBackend();
-  let rowCount = 0;
+  let rowCount: number | null = null;
+  let countStatus: WorkLiveStatusStorageInfo["countStatus"] = "ok";
+  let countMessage: string | null = null;
+  let tableAvailable: boolean | null = null;
+
   try {
     if (backend === "supabase") {
-      rowCount = await supabaseCountLiveStatusRows();
+      const detailed = await supabaseCountLiveStatusRowsDetailed();
+      rowCount = detailed.count;
+      countStatus = detailed.status;
+      countMessage = detailed.message;
+      tableAvailable = detailed.status === "ok" || detailed.status === "fetch_failed"
+        ? detailed.status === "ok" || detailed.count != null
+        : detailed.status !== "table_missing";
+      if (detailed.status === "ok") tableAvailable = true;
+      if (detailed.status === "table_missing") tableAvailable = false;
+      if (detailed.status === "connection_error") tableAvailable = null;
     } else if (backend === "local") {
       rowCount = await localCountLiveStatusRows();
+      countStatus = "ok";
+      tableAvailable = true;
+    } else {
+      rowCount = null;
+      countStatus = "fetch_failed";
+      countMessage = "変動情報が無効です";
+      tableAvailable = false;
     }
-  } catch {
-    rowCount = 0;
+  } catch (error) {
+    rowCount = null;
+    countStatus = "fetch_failed";
+    countMessage = "取得失敗";
+    tableAvailable = null;
+    console.warn("[work-live-status] storage info failed", error);
   }
+
+  const runtime = getWorkLiveStatusRuntimeStatus({ tableAvailable });
 
   return {
     backend,
     label: getWorkLiveStatusStorageLabel(backend),
     rowCount,
+    countStatus,
+    countMessage,
     deployRequired: false,
+    runtime,
     metrics: getWorkLiveStatusMetricsSummary(),
   };
+}
+
+/**
+ * works / work_live_status の差分件数だけ取得（書き込みなし）。
+ */
+export async function getLiveStatusInitCounts(): Promise<{
+  worksCount: number;
+  liveStatusCount: number;
+  missingCount: number;
+  backend: WorkLiveStatusBackend;
+}> {
+  const backend = getConfiguredWorkLiveStatusBackend();
+  if (backend === "off") {
+    throw new Error("work_live_status が無効です");
+  }
+
+  const { getPublishedWorksMasterContentIdSet } = await import(
+    "@/lib/dmm/works-master"
+  );
+  const publishedCids = await getPublishedWorksMasterContentIdSet();
+  const worksCount = publishedCids.size;
+
+  const existingList =
+    backend === "supabase"
+      ? await supabaseFetchAllLiveStatusCids()
+      : await localFetchAllLiveStatusCids();
+  const existingCids = new Set(existingList);
+  const liveStatusCount = existingCids.size;
+
+  let missingCount = 0;
+  for (const cid of publishedCids) {
+    if (!existingCids.has(cid)) missingCount += 1;
+  }
+
+  return { worksCount, liveStatusCount, missingCount, backend };
+}
+
+/**
+ * works にあるが work_live_status に無い CID を初期化（既存は上書きしない）。
+ * Git / JSON / デプロイは発生させない。
+ */
+export async function initializeMissingLiveStatus(options?: {
+  limit?: number;
+}): Promise<{
+  worksCount: number;
+  liveStatusCount: number;
+  missingBefore: number;
+  inserted: number;
+  remaining: number;
+  failed: number;
+  backend: WorkLiveStatusBackend;
+}> {
+  const limit = Math.max(1, Math.min(100, Math.floor(options?.limit ?? 100)));
+  const backend = getConfiguredWorkLiveStatusBackend();
+  if (backend === "off") {
+    throw new Error("work_live_status が無効です");
+  }
+
+  const { getPublishedWorksMasterContentIdSet, fetchWorkMasterByCids } =
+    await import("@/lib/dmm/works-master");
+  const { workMasterRowToDmmItem } = await import("@/lib/dmm/works-master/map");
+
+  const publishedCids = [...(await getPublishedWorksMasterContentIdSet())];
+  const worksCount = publishedCids.length;
+
+  const existingList =
+    backend === "supabase"
+      ? await supabaseFetchAllLiveStatusCids()
+      : await localFetchAllLiveStatusCids();
+  const existingCids = new Set(existingList);
+
+  const missingCids = publishedCids.filter((cid) => !existingCids.has(cid));
+  const missingBefore = missingCids.length;
+  const batchCids = missingCids.slice(0, limit);
+
+  if (batchCids.length === 0) {
+    return {
+      worksCount,
+      liveStatusCount: existingCids.size,
+      missingBefore,
+      inserted: 0,
+      remaining: 0,
+      failed: 0,
+      backend,
+    };
+  }
+
+  const rowsMap = await fetchWorkMasterByCids(batchCids);
+  const now = new Date().toISOString();
+  const rows: WorkLiveStatusUpsertInput[] = [];
+  let failed = 0;
+  for (const cid of batchCids) {
+    const master = rowsMap.get(cid);
+    if (!master) {
+      failed += 1;
+      continue;
+    }
+    const row = dmmItemToLiveStatusRow(workMasterRowToDmmItem(master), {
+      checkedAt: now,
+    });
+    if (!row) {
+      failed += 1;
+      continue;
+    }
+    rows.push(row);
+  }
+
+  let inserted = 0;
+  if (rows.length > 0) {
+    if (backend === "supabase") {
+      const result = await supabaseInsertLiveStatusRowsIgnoreExisting(rows);
+      inserted = result.inserted;
+    } else {
+      await localUpsertLiveStatusRows(rows);
+      inserted = rows.length;
+    }
+    invalidateLocalLiveStatusCache();
+    getProcessCache().clear();
+  }
+
+  return {
+    worksCount,
+    liveStatusCount: existingCids.size + inserted,
+    missingBefore,
+    inserted,
+    remaining: Math.max(0, missingBefore - inserted),
+    failed,
+    backend,
+  };
+}
+
+/** 指定 CID のみ初期化（既存は上書きしない）。ジョブの pending リスト向け。 */
+export async function initializeMissingLiveStatusByCids(
+  cids: string[],
+): Promise<{
+  inserted: number;
+  failed: number;
+  backend: WorkLiveStatusBackend;
+}> {
+  const backend = getConfiguredWorkLiveStatusBackend();
+  if (backend === "off") {
+    throw new Error("work_live_status が無効です");
+  }
+  if (cids.length === 0) {
+    return { inserted: 0, failed: 0, backend };
+  }
+
+  const { fetchWorkMasterByCids } = await import("@/lib/dmm/works-master");
+  const { workMasterRowToDmmItem } = await import("@/lib/dmm/works-master/map");
+
+  const existing =
+    backend === "supabase"
+      ? await supabaseFetchLiveStatusByCids(cids)
+      : await localFetchLiveStatusByCids(cids);
+
+  const targetCids = cids.filter((cid) => !existing.has(cid));
+  if (targetCids.length === 0) {
+    return { inserted: 0, failed: 0, backend };
+  }
+
+  const rowsMap = await fetchWorkMasterByCids(targetCids);
+  const now = new Date().toISOString();
+  const rows: WorkLiveStatusUpsertInput[] = [];
+  let failed = 0;
+  for (const cid of targetCids) {
+    const master = rowsMap.get(cid);
+    if (!master) {
+      failed += 1;
+      continue;
+    }
+    const row = dmmItemToLiveStatusRow(workMasterRowToDmmItem(master), {
+      checkedAt: now,
+    });
+    if (!row) {
+      failed += 1;
+      continue;
+    }
+    rows.push(row);
+  }
+
+  let inserted = 0;
+  if (rows.length > 0) {
+    if (backend === "supabase") {
+      const result = await supabaseInsertLiveStatusRowsIgnoreExisting(rows);
+      inserted = result.inserted;
+    } else {
+      await localUpsertLiveStatusRows(rows);
+      inserted = rows.length;
+    }
+    invalidateLocalLiveStatusCache();
+    getProcessCache().clear();
+  }
+
+  return { inserted, failed, backend };
 }
 
 export function invalidateWorkLiveStatusCaches(): void {
@@ -343,9 +588,11 @@ export {
 export type {
   WorkLiveStatusBackend,
   WorkLiveStatusRow,
+  WorkLiveStatusRuntimeStatus,
 } from "@/lib/dmm/work-live-status/types";
 export {
   getConfiguredWorkLiveStatusBackend,
+  getWorkLiveStatusRuntimeStatus,
   isWorkLiveStatusEnabled,
   isSupabaseLiveStatusConfigured,
 } from "@/lib/dmm/work-live-status/types";

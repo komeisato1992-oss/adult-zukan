@@ -22,8 +22,9 @@ import {
   recordWorksMasterWrite,
 } from "@/lib/dmm/works-master/metrics";
 import {
-  supabaseCountWorkMasterRows,
+  supabaseCountWorkMasterRowsDetailed,
   supabaseFetchAllPublishedWorkMasters,
+  supabaseFetchAllPublishedWorkMasterCids,
   supabaseFetchAllWorkMasterCids,
   supabaseFetchWorkMasterByCids,
   supabaseUpsertWorkMasterRows,
@@ -42,7 +43,9 @@ export const WORKS_MASTER_CACHE_TAG = "works-master";
 export type WorksMasterStorageInfo = {
   backend: WorksMasterBackend;
   label: string;
-  rowCount: number;
+  rowCount: number | null;
+  countStatus: "ok" | "connection_error" | "table_missing" | "fetch_failed";
+  countMessage: string | null;
   deployRequired: false;
   supabaseConfigured: boolean;
   metrics: ReturnType<typeof getWorksMasterMetricsSummary>;
@@ -196,6 +199,35 @@ export async function getWorksMasterContentIdSet(): Promise<Set<string>> {
   }
 }
 
+/** 公開対象 works の CID のみ */
+export async function getPublishedWorksMasterContentIdSet(): Promise<Set<string>> {
+  const backend = getConfiguredWorksMasterBackend();
+  if (backend === "off") return new Set();
+
+  if (backend === "supabase" || isWorksMasterSupabaseConfigured()) {
+    try {
+      return new Set(await supabaseFetchAllPublishedWorkMasterCids());
+    } catch (error) {
+      console.warn(
+        "[works-master] supabase published cid set failed; falling back",
+        error,
+      );
+    }
+  }
+
+  try {
+    const rows = await localFetchAllPublishedWorkMasters();
+    return new Set(
+      rows
+        .map((row) => normalizeCatalogContentId(row.cid))
+        .filter((cid): cid is string => Boolean(cid)),
+    );
+  } catch (error) {
+    console.warn("[works-master] published cid set failed", error);
+    return new Set();
+  }
+}
+
 /**
  * 作品マスターへ保存。
  * Supabase 接続時は必ず works へ UPSERT。障害時のみローカル JSON へフォールバック。
@@ -219,8 +251,28 @@ export async function upsertWorksMasterFromDmmItems(
   }
 
   const now = new Date().toISOString();
+  const { computeWorksPublished } = await import(
+    "@/lib/admin/works-cms-publish"
+  );
   const rows = works
-    .map((work) => dmmItemToWorkMasterRow(work, { published, now }))
+    .map((work) => {
+      const row = dmmItemToWorkMasterRow(work, {
+        published: options?.published ?? true,
+        now,
+      });
+      if (!row) return null;
+      // 明示 draft 指定時以外は公開ルールを適用
+      if (options?.published !== false) {
+        row.published = computeWorksPublished({
+          packageImage: row.package_image,
+          isAvailable:
+            work.isActive !== false &&
+            work.availabilityStatus !== "unavailable",
+          manualHidden: work.hiddenReason === "manual",
+        });
+      }
+      return row;
+    })
     .filter((row): row is WorkMasterUpsertInput => Boolean(row));
 
   if (rows.length === 0) {
@@ -315,25 +367,47 @@ export async function revalidateWorksMasterAfterAdd(): Promise<void> {
 export async function getWorksMasterStorageInfo(): Promise<WorksMasterStorageInfo> {
   const backend = getConfiguredWorksMasterBackend();
   const supabaseConfigured = isWorksMasterSupabaseConfigured();
-  let rowCount = 0;
+  let rowCount: number | null = null;
+  let countStatus: WorksMasterStorageInfo["countStatus"] = "ok";
+  let countMessage: string | null = null;
+
   try {
     if (backend === "supabase" || supabaseConfigured) {
-      try {
-        rowCount = await supabaseCountWorkMasterRows();
-      } catch {
-        rowCount = await localCountWorkMasterRows();
+      const detailed = await supabaseCountWorkMasterRowsDetailed();
+      if (detailed.status === "ok") {
+        rowCount = detailed.count;
+        countStatus = "ok";
+      } else {
+        try {
+          rowCount = await localCountWorkMasterRows();
+          countStatus = "ok";
+          countMessage = `${detailed.message ?? "取得失敗"}（ローカル件数を表示）`;
+        } catch {
+          rowCount = null;
+          countStatus = detailed.status;
+          countMessage = detailed.message;
+        }
       }
     } else if (backend === "local") {
       rowCount = await localCountWorkMasterRows();
+      countStatus = "ok";
+    } else {
+      rowCount = null;
+      countStatus = "fetch_failed";
+      countMessage = "作品マスターが無効です";
     }
   } catch {
-    rowCount = 0;
+    rowCount = null;
+    countStatus = "fetch_failed";
+    countMessage = "取得失敗";
   }
 
   return {
     backend,
     label: getWorksMasterStorageLabel(backend),
     rowCount,
+    countStatus,
+    countMessage,
     deployRequired: false,
     supabaseConfigured,
     metrics: getWorksMasterMetricsSummary(),

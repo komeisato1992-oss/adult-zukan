@@ -1,5 +1,6 @@
 import "server-only";
 
+import { unstable_cache } from "next/cache";
 import { getActressSummaries, getCatalogWorks } from "@/lib/catalog";
 import { getActressNamesFromItem } from "@/lib/dmm/actress-names";
 import type { CatalogActressEntity } from "@/lib/dmm/catalog-entities";
@@ -82,12 +83,27 @@ export function buildActressListItemsFromSummaries(
 }
 
 export async function getActressListItems(): Promise<ActressListItem[]> {
-  const [summaries, items] = await Promise.all([
-    getActressSummaries(),
-    getCatalogWorks(),
-  ]);
-
-  return buildActressListItemsFromSummaries(summaries, items);
+  // 要約配列だけを Data Cache（全カタログの再シリアライズはしない）
+  const cached = unstable_cache(
+    async () => {
+      const [summaries, items] = await Promise.all([
+        getActressSummaries(),
+        getCatalogWorks(),
+      ]);
+      return buildActressListItemsFromSummaries(summaries, items);
+    },
+    ["actress-list-items-v1"],
+    { revalidate: 21600, tags: ["actress-list"] },
+  );
+  try {
+    return await cached();
+  } catch {
+    const [summaries, items] = await Promise.all([
+      getActressSummaries(),
+      getCatalogWorks(),
+    ]);
+    return buildActressListItemsFromSummaries(summaries, items);
+  }
 }
 
 export async function getActressListPageData(params: {

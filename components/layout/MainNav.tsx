@@ -24,6 +24,16 @@ function isNavItemActive(
     );
   }
 
+  if (href.includes("?")) {
+    const [baseHref, query] = href.split("?");
+    if (pathname !== baseHref) return false;
+    const expected = new URLSearchParams(query);
+    for (const [key, value] of expected.entries()) {
+      if (searchParams.get(key) !== value) return false;
+    }
+    return true;
+  }
+
   const baseHref = href.split("?")[0];
   return pathname === baseHref || pathname.startsWith(`${baseHref}/`);
 }
@@ -59,6 +69,7 @@ export function MainNav({ compact = false }: { compact?: boolean }) {
           <Link
             key={item.href}
             href={item.href}
+            prefetch
             aria-current={active ? "page" : undefined}
             className={
               compact
@@ -90,6 +101,7 @@ export function SidebarNavLink({
   return (
     <Link
       href={href}
+      prefetch
       aria-current={active ? "page" : undefined}
       className={
         active

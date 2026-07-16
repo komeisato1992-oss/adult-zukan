@@ -8,8 +8,8 @@ import {
 const HOME_SORT_HREFS: Record<WorkSortKey, string> = {
   popular: "/works?sort=popular",
   added: "/works?sort=added",
-  new: "/works?sort=release-desc",
-  "release-desc": "/works?sort=release-desc",
+  new: "/works?sort=new",
+  "release-desc": "/works?sort=new",
   "price-desc": "/works?sort=price_desc",
   "price-asc": "/works?sort=price_asc",
   "discount-desc": "/works?sale=1",

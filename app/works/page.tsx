@@ -3,7 +3,6 @@ import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { WorksListSection } from "@/components/works/WorksListSection";
 import { PageIntro } from "@/components/ui/PageIntro";
-import { getCatalogWorks } from "@/lib/catalog";
 import {
   getWorksListPageData,
   parseWorksListQueryState,
@@ -22,6 +21,7 @@ import {
   parseWorkSortParam,
 } from "@/lib/works/sort";
 import { isWorksListSaleQuery } from "@/lib/dmm/sale-price";
+import { measureAsync } from "@/lib/perf/measure";
 
 export const revalidate = 600;
 
@@ -88,9 +88,11 @@ function getPageTitle(params: {
 export default async function WorksPage({ searchParams }: WorksPageProps) {
   const params = await searchParams;
   const pageTitle = getPageTitle(params);
-  const catalog = await getCatalogWorks();
   const queryState = parseWorksListQueryState(params);
-  const listData = await getWorksListPageData(catalog, queryState);
+  // catalog は DB パス失敗時のみ遅延ロード（全件取得を既定にしない）
+  const listData = await measureAsync("page.works", () =>
+    getWorksListPageData(null, queryState),
+  );
   const isSalePage = isSaleFilter(params);
   const introText = isSalePage
     ? "現在価格が元値より安いセール中の作品だけを表示しています。"

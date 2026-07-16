@@ -24,6 +24,16 @@ function isNavItemActive(
     );
   }
 
+  if (href.includes("?")) {
+    const [baseHref, query] = href.split("?");
+    if (pathname !== baseHref) return false;
+    const expected = new URLSearchParams(query);
+    for (const [key, value] of expected.entries()) {
+      if (searchParams.get(key) !== value) return false;
+    }
+    return true;
+  }
+
   const baseHref = href.split("?")[0];
   return pathname === baseHref || pathname.startsWith(`${baseHref}/`);
 }
@@ -82,6 +92,7 @@ export function MobileNav({ onOpenChange }: MobileNavProps) {
               <Link
                 key={item.href}
                 href={item.href}
+                prefetch
                 onClick={() => setMenuOpen(false)}
                 aria-current={active ? "page" : undefined}
                 className={

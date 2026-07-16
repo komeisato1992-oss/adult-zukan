@@ -101,8 +101,21 @@ async function mergeWorksMasterPreferringDb(snapshot: DmmItem[]): Promise<DmmIte
       fetchPublishedWorksMasterAsDmmItems,
       mergeWorksMasterIntoCatalog,
       getConfiguredWorksMasterBackend,
+      isWorksMasterSupabaseConfigured,
     } = await import("@/lib/dmm/works-master");
     if (getConfiguredWorksMasterBackend() === "off") return snapshot;
+
+    // Supabase 利用時、公開一覧は DB を直接ページングする。
+    // ここで全公開作品をマージするとコールドスタートが数十秒になるため既定でスキップ。
+    // 明示的に ADULT_MERGE_WORKS_MASTER=true のときだけ全件マージする。
+    const forceMerge =
+      process.env.ADULT_MERGE_WORKS_MASTER?.trim().toLowerCase() === "true" ||
+      process.env.ADULT_MERGE_WORKS_MASTER?.trim() === "1";
+    if (isWorksMasterSupabaseConfigured() && !forceMerge) {
+      incrPerfCounter("adult.public.catalog.skip_master_merge");
+      return snapshot;
+    }
+
     const masterItems = await fetchPublishedWorksMasterAsDmmItems();
     if (masterItems.length === 0) return snapshot;
     return mergeWorksMasterIntoCatalog(snapshot, masterItems);

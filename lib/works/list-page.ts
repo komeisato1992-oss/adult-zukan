@@ -4,6 +4,7 @@ import { filterDisplayableItems } from "@/lib/dmm/filter";
 import { isWorkOnSale, isWorksListSaleQuery } from "@/lib/dmm/sale-price";
 import type { DmmItem } from "@/lib/dmm/types";
 import { paginateItems, parsePageParam, WORKS_LIST_PAGE_SIZE } from "@/lib/pagination";
+import { measureAsync, resetPerfCounters, getPerfSnapshot } from "@/lib/perf/measure";
 import { mapPageItemsToWorkCards } from "@/lib/works/paginated-work-list";
 import type { WorkListCardItem } from "@/lib/works/work-list-card-item";
 import {
@@ -21,6 +22,7 @@ import {
   sortWorks,
   type WorkSortOption,
 } from "@/lib/works/sort";
+import { tryGetWorksListPageDataFromDb } from "@/lib/works/public-list-query";
 
 export type WorksListPageData = {
   pageItems: WorkListCardItem[];
@@ -71,7 +73,7 @@ export function parseWorksListQueryState(params: {
   };
 }
 
-export async function getWorksListPageData(
+async function getWorksListPageDataFromCatalog(
   catalog: DmmItem[],
   query: WorksListQueryState,
 ): Promise<WorksListPageData> {
@@ -90,7 +92,6 @@ export async function getWorksListPageData(
   const currentPage = parsePageParam(query.page);
   const pagination = paginateItems(sorted, currentPage, WORKS_LIST_PAGE_SIZE);
 
-  // 一覧1画面分だけ DB の変動情報を一括取得してマージ
   const { mergeLiveStatusIntoItems } = await import(
     "@/lib/dmm/work-live-status"
   );
@@ -109,4 +110,36 @@ export async function getWorksListPageData(
       includeDiscountSort: isSalePage,
     }),
   };
+}
+
+export async function getWorksListPageData(
+  catalog: DmmItem[] | null,
+  query: WorksListQueryState,
+): Promise<WorksListPageData> {
+  return measureAsync("works.list_page", async () => {
+    if (process.env.PERFORMANCE_DEBUG === "true") {
+      resetPerfCounters();
+    }
+
+    const fromDb = await tryGetWorksListPageDataFromDb(query);
+    if (fromDb) {
+      if (process.env.PERFORMANCE_DEBUG === "true") {
+        console.info("[perf] works.list_page.source=db", getPerfSnapshot());
+      }
+      return fromDb;
+    }
+
+    const items: DmmItem[] =
+      catalog ??
+      (await import("@/lib/catalog").then((m) => m.getCatalogWorks()));
+    const result = await getWorksListPageDataFromCatalog(items, query);
+    if (process.env.PERFORMANCE_DEBUG === "true") {
+      console.info("[perf] works.list_page.source=catalog", {
+        catalogSize: items.length,
+        pageItems: result.pageItems.length,
+        ...getPerfSnapshot(),
+      });
+    }
+    return result;
+  });
 }

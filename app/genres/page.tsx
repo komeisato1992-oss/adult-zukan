@@ -3,10 +3,6 @@ import { GenreListSection } from "@/components/genres/GenreListSection";
 import { PageLayout } from "@/components/layout/PageLayout";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
 import { JsonLd } from "@/components/seo/JsonLd";
-import {
-  getCatalogGenres,
-  getCatalogItems,
-} from "@/lib/dmm/catalog-entities";
 import { getGenreReading } from "@/lib/genres/readings";
 import { siteConfig, pageIntros } from "@/lib/site-config";
 import { PageIntro } from "@/components/ui/PageIntro";
@@ -17,6 +13,7 @@ import {
   createBreadcrumbJsonLd,
   createCollectionPageJsonLd,
 } from "@/lib/seo/json-ld";
+import { getCachedGenreSummaries } from "@/lib/catalog/cached-entity-summaries";
 
 export const revalidate = 86400;
 
@@ -46,8 +43,7 @@ function GenreListFallback() {
 }
 
 export default async function GenresPage() {
-  const items = await getCatalogItems();
-  const genres = getCatalogGenres(items).map((genre) => ({
+  const genres = (await getCachedGenreSummaries()).map((genre) => ({
     ...genre,
     reading: getGenreReading(genre.name),
   }));

@@ -1,4 +1,4 @@
-export const WORKS_LIST_PAGE_SIZE = 24;
+export const WORKS_LIST_PAGE_SIZE = 20;
 export const CATALOG_DETAIL_PAGE_SIZE = 24;
 export const HOME_SECTION_DISPLAY_LIMIT = 6;
 export const RELATED_WORKS_DISPLAY_LIMIT = 8;

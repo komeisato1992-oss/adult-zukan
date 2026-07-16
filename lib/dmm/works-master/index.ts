@@ -278,7 +278,8 @@ export async function upsertWorksMasterFromDmmItems(
     "@/lib/admin/works-cms-publish"
   );
 
-  // 追加時: 画像を1回ずつ取得して image_status を確定（閲覧時は再判定しない）
+  // 追加時: imageURL.large→list→small を URL 文字列判定し、必要な作品のみ GET
+  // （通常閲覧・検索・公開管理では再判定しない。DB の image_status を参照）
   const draftRows = works
     .map((work) => {
       const row = dmmItemToWorkMasterRow(work, {
@@ -286,6 +287,7 @@ export async function upsertWorksMasterFromDmmItems(
         now,
       });
       if (!row) return null;
+      // large → list → small 順の候補（now_printing / noimage URL も含む）
       if (!pickPackageImageCandidate(work) && !row.package_image) return null;
       return { work, row };
     })
@@ -294,7 +296,10 @@ export async function upsertWorksMasterFromDmmItems(
     );
 
   const statusResults = await detectAdultImageStatusMany(
-    draftRows.map((entry) => entry.row.package_image),
+    draftRows.map(
+      (entry) =>
+        pickPackageImageCandidate(entry.work) ?? entry.row.package_image,
+    ),
     4,
   );
 

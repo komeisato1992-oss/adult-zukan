@@ -60,8 +60,22 @@ export type PackageImageSource =
     };
 
 /**
+ * 追加・更新時の URL 文字列判定（GET 前の最優先）。
+ * URL に now_printing / noimage のどちらかが含まれていれば NOW PRINTING。
+ */
+export function urlIndicatesNowPrinting(url?: string | null): boolean {
+  if (url == null) return false;
+  const normalized = String(url).trim().toLowerCase();
+  if (!normalized) return false;
+  return (
+    normalized.includes("now_printing") || normalized.includes("noimage")
+  );
+}
+
+/**
  * アダルト図鑑の「画像なし」判定（公開・管理で共通）。
  * null / undefined / 空 / 既知プレースホルダーURL を画像なしとする。
+ * ※ image_status 未判定の旧データ向けフォールバック。通常表示は image_status を優先。
  */
 export function isMissingAdultImage(url?: string | null): boolean {
   if (url == null) return true;
@@ -178,7 +192,9 @@ function isFetchableImageUrl(url?: string | null): boolean {
 }
 
 /**
- * 追加・更新時の取得対象URL（プレースホルダーURLも含めて返す）。
+ * 追加・更新時の画像ステータス判定用URL。
+ * package_image 系のあと imageURL.large → list → small の順。
+ * now_printing / noimage を含むプレースホルダーURLも返す（GET 前の文字列判定用）。
  * 表示可否の最終判定は image_status を使うこと。
  */
 export function pickPackageImageCandidate(

@@ -577,7 +577,7 @@ export async function processFanzaSyncBatch(options?: {
       await upsertLiveStatusFromWorks(batchUpdatedWorks);
     }
 
-    // 掲載情報更新時のみ画像を1回取得して image_status を保存（通常閲覧では再判定しない）
+    // 掲載情報更新時のみ image_status を保存（URL判定→必要時のみGET。通常閲覧では再判定しない）
     try {
       const { refreshWorksImageStatusFromDmmItems } = await import(
         "@/lib/admin/refresh-works-image-status"

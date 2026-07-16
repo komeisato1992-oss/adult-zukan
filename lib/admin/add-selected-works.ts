@@ -233,7 +233,7 @@ function classifySelectedWorks(
       continue;
     }
 
-    // URL有無のみ。NOW PRINTING 実体判定は upsert 時に1回 GET する
+    // URL有無のみ。NOW PRINTING 判定は upsert 時（URL文字列→必要時のみGET）
     if (!pickPackageImageCandidate(work.item)) {
       imageMissingContentIds.push(normalizedId || work.contentId);
       continue;

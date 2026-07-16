@@ -1,8 +1,10 @@
 /**
  * パッケージ画像ステータス判定。
  *
- * 追加・掲載情報更新時のみ呼び出す（通常閲覧では使わない）。
- * 画像を最大1回 GET し、正常 / NOW PRINTING / 取得失敗 を返す。
+ * 追加・掲載情報更新時のみ呼び出す（通常閲覧・検索・公開管理では使わない）。
+ *
+ * ① URL 文字列に now_printing / noimage があれば GET せず now_printing
+ * ② それ以外のみ画像を最大1回 GET し、最終URL / 画像内容で判定
  */
 import "server-only";
 
@@ -11,7 +13,7 @@ import {
   ADULT_IMAGE_STATUS,
   type AdultImageStatus,
 } from "@/lib/works/image-status-shared";
-import { isMissingAdultImage } from "@/lib/works/package-image";
+import { urlIndicatesNowPrinting } from "@/lib/works/package-image";
 
 export {
   ADULT_IMAGE_STATUS,
@@ -26,65 +28,29 @@ export type AdultImageStatusResult = {
   checkedAt: string;
   finalUrl?: string | null;
   bytes?: number;
+  /** true のとき画像 GET を実行した */
+  fetched?: boolean;
 };
 
-/** 実測済み NOW PRINTING 本体の SHA-1（追加・更新時の比較用） */
+/**
+ * 実測済み NOW PRINTING 本体の SHA-1（追加・更新時の画像内容比較用）。
+ * 参照URLの追加取得は行わない（通信量を抑える）。
+ */
 const KNOWN_NOW_PRINTING_SHA1 = new Set<string>([
   // pics.dmm.co.jp/digital/video/now_printing.jpg → imgsrc.../now_printing.jpg
   "97d573a5b0cc474eb1e95265960b4a066f3aa4b7",
 ]);
 
-const REFERENCE_NOW_PRINTING_URLS = [
-  "https://pics.dmm.co.jp/digital/video/now_printing.jpg",
-  "https://pics.dmm.co.jp/digital/video/now_printing/now_printingpl.jpg",
-  "https://pics.dmm.co.jp/digital/video/now_printing/now_printingps.jpg",
-  "https://pics.dmm.co.jp/digital/now_printing.jpg",
-  "https://pics.dmm.com/mono/noimage/now_printing.jpg",
-] as const;
-
 const FETCH_TIMEOUT_MS = 12_000;
 const MAX_BYTES = 8 * 1024 * 1024;
-
-let referenceHashesReady: Promise<void> | null = null;
 
 function sha1Hex(buf: Buffer): string {
   return createHash("sha1").update(buf).digest("hex");
 }
 
-function looksLikeNowPrintingUrl(url: string | null | undefined): boolean {
-  return isMissingAdultImage(url) && Boolean(url?.trim());
-}
-
-async function loadReferenceHashes(): Promise<void> {
-  await Promise.all(
-    REFERENCE_NOW_PRINTING_URLS.map(async (url) => {
-      try {
-        const res = await fetch(url, {
-          redirect: "follow",
-          signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-        });
-        if (!res.ok) return;
-        const buf = Buffer.from(await res.arrayBuffer());
-        if (buf.length > 0 && buf.length < 200_000) {
-          KNOWN_NOW_PRINTING_SHA1.add(sha1Hex(buf));
-        }
-      } catch {
-        // 参照取得失敗は既知ハッシュだけで継続
-      }
-    }),
-  );
-}
-
-function ensureReferenceHashes(): Promise<void> {
-  if (!referenceHashesReady) {
-    referenceHashesReady = loadReferenceHashes().catch(() => undefined);
-  }
-  return referenceHashesReady;
-}
-
 /**
- * 追加・更新時専用。URL へ GET して image_status を決める。
- * 通常のページ表示からは呼ばないこと。
+ * 追加・更新時専用。
+ * URL だけで判定できる場合は GET しない。通常のページ表示からは呼ばないこと。
  */
 export async function detectAdultImageStatus(
   url?: string | null,
@@ -92,19 +58,26 @@ export async function detectAdultImageStatus(
   const checkedAt = new Date().toISOString();
   const trimmed = url?.trim() || null;
 
-  if (!trimmed || isMissingAdultImage(trimmed)) {
-    if (!trimmed) {
-      return { status: ADULT_IMAGE_STATUS.fetchFailed, checkedAt, finalUrl: null };
-    }
+  if (!trimmed) {
+    return {
+      status: ADULT_IMAGE_STATUS.fetchFailed,
+      checkedAt,
+      finalUrl: null,
+      fetched: false,
+    };
+  }
+
+  // ① 最優先: URL 文字列のみ（now_printing / noimage）。GET しない
+  if (urlIndicatesNowPrinting(trimmed)) {
     return {
       status: ADULT_IMAGE_STATUS.nowPrinting,
       checkedAt,
       finalUrl: trimmed,
+      fetched: false,
     };
   }
 
-  await ensureReferenceHashes();
-
+  // ② URL だけでは判定できない作品のみ GET
   try {
     const res = await fetch(trimmed, {
       redirect: "follow",
@@ -117,14 +90,17 @@ export async function detectAdultImageStatus(
         status: ADULT_IMAGE_STATUS.fetchFailed,
         checkedAt,
         finalUrl,
+        fetched: true,
       };
     }
 
-    if (looksLikeNowPrintingUrl(finalUrl)) {
+    // リダイレクト後の最終URL
+    if (urlIndicatesNowPrinting(finalUrl)) {
       return {
         status: ADULT_IMAGE_STATUS.nowPrinting,
         checkedAt,
         finalUrl,
+        fetched: true,
       };
     }
 
@@ -134,6 +110,7 @@ export async function detectAdultImageStatus(
         status: ADULT_IMAGE_STATUS.fetchFailed,
         checkedAt,
         finalUrl,
+        fetched: true,
       };
     }
 
@@ -144,9 +121,11 @@ export async function detectAdultImageStatus(
         checkedAt,
         finalUrl,
         bytes: buf.length,
+        fetched: true,
       };
     }
 
+    // 取得した画像（既知 NOW PRINTING ハッシュ）
     const hash = sha1Hex(buf);
     if (KNOWN_NOW_PRINTING_SHA1.has(hash)) {
       return {
@@ -154,6 +133,7 @@ export async function detectAdultImageStatus(
         checkedAt,
         finalUrl,
         bytes: buf.length,
+        fetched: true,
       };
     }
 
@@ -162,12 +142,14 @@ export async function detectAdultImageStatus(
       checkedAt,
       finalUrl,
       bytes: buf.length,
+      fetched: true,
     };
   } catch {
     return {
       status: ADULT_IMAGE_STATUS.fetchFailed,
       checkedAt,
       finalUrl: trimmed,
+      fetched: true,
     };
   }
 }

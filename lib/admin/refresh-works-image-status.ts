@@ -17,7 +17,8 @@ import { pickPackageImageCandidate } from "@/lib/works/package-image";
 
 /**
  * 掲載情報更新バッチ後に works.package_image / image_status を更新する。
- * 各作品の画像を最大1回 GET する（通常閲覧では呼ばない）。
+ * URL に now_printing / noimage があれば GET せず判定。それ以外のみ最大1回 GET。
+ * 通常閲覧・検索・公開管理では呼ばない。
  */
 export async function refreshWorksImageStatusFromDmmItems(
   works: DmmItem[],

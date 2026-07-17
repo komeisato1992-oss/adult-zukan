@@ -6,7 +6,7 @@ import { CompareSingleWorkSuggestions } from "@/components/compare/CompareSingle
 import { PageLayout } from "@/components/layout/PageLayout";
 import { JsonLd } from "@/components/seo/JsonLd";
 import { Breadcrumb } from "@/components/ui/Breadcrumb";
-import { getCatalogWorkByContentId } from "@/lib/catalog";
+import { getDmmWorkByContentId } from "@/lib/dmm/get-work";
 import {
   buildCompareCanonicalPath,
   buildComparePageHref,
@@ -28,8 +28,8 @@ export async function generateMetadata({ searchParams }: ComparePageProps) {
 
   if (canonicalIds.length >= 2) {
     const [workA, workB] = await Promise.all([
-      getCatalogWorkByContentId(canonicalIds[0]),
-      getCatalogWorkByContentId(canonicalIds[1]),
+      getDmmWorkByContentId(canonicalIds[0]),
+      getDmmWorkByContentId(canonicalIds[1]),
     ]);
     const titleA = workA?.title?.trim() || canonicalIds[0];
     const titleB = workB?.title?.trim() || canonicalIds[1];
@@ -66,11 +66,11 @@ export default async function ComparePage({ searchParams }: ComparePageProps) {
   const [workA, workB] =
     relatedIds.length >= 2
       ? await Promise.all([
-          getCatalogWorkByContentId(relatedIds[0]),
-          getCatalogWorkByContentId(relatedIds[1]),
+          getDmmWorkByContentId(relatedIds[0]),
+          getDmmWorkByContentId(relatedIds[1]),
         ])
       : relatedIds.length === 1
-        ? [await getCatalogWorkByContentId(relatedIds[0]), null]
+        ? [await getDmmWorkByContentId(relatedIds[0]), null]
         : [null, null];
 
   const breadcrumbItems = [

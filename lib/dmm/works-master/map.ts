@@ -105,6 +105,35 @@ export function dmmItemToWorkMasterRow(
   };
 }
 
+/**
+ * works.affiliate_url を DmmItem の URL / affiliateURL に振り分ける。
+ * アフィリエイト計測URLなら lurl を商品URLとして分離（二重ラップ防止の土台）。
+ */
+function splitStoredAffiliateUrl(stored: string | null | undefined): {
+  URL: string;
+  affiliateURL: string;
+} {
+  const raw = stored?.trim() || "";
+  if (!raw) return { URL: "", affiliateURL: "" };
+
+  try {
+    const parsed = new URL(raw);
+    const host = parsed.hostname.toLowerCase();
+    if (host === "al.dmm.co.jp" || host === "al.fanza.co.jp") {
+      const lurl = parsed.searchParams.get("lurl")?.trim() || "";
+      return {
+        URL: lurl,
+        affiliateURL: raw,
+      };
+    }
+  } catch {
+    // fall through
+  }
+
+  // 商品直リンク（またはその他）は両方に同じ値を入れ、getDmmFanzaUrl 側で判定
+  return { URL: raw, affiliateURL: raw };
+}
+
 /** works 行 → DmmItem（公開表示用）。image_status で画像有無を決める */
 export function workMasterRowToDmmItem(row: WorkMasterRow): DmmItem {
   const actresses = (row.actresses ?? []).map((entry, index) => ({
@@ -135,13 +164,15 @@ export function workMasterRowToDmmItem(row: WorkMasterRow): DmmItem {
     packageImage: row.package_image,
   });
 
+  const urls = splitStoredAffiliateUrl(row.affiliate_url);
+
   return {
     content_id: row.cid,
     product_id: row.product_code ?? row.cid,
     title: row.title,
     description: row.description ?? undefined,
-    URL: row.affiliate_url || "",
-    affiliateURL: row.affiliate_url || "",
+    URL: urls.URL,
+    affiliateURL: urls.affiliateURL,
     imageURL:
       showImage && row.package_image
         ? {

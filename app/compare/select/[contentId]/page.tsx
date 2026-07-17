@@ -14,7 +14,6 @@ import {
   SIMILARITY_SORT_LABELS,
 } from "@/lib/compare/similarity";
 import { buildCompareSelectHref } from "@/lib/compare/urls";
-import { getCatalogWorkByContentId } from "@/lib/catalog";
 import {
   getDmmItemActressNameList,
   getDmmItemImageUrl,
@@ -22,7 +21,7 @@ import {
   getDmmItemPrice,
   getDmmListItemImageUrl,
 } from "@/lib/dmm/display";
-import { isWorkPubliclyVisible } from "@/lib/dmm/catalog-visibility";
+import { getDmmWorkByContentId } from "@/lib/dmm/get-work";
 import { paginateItems, parsePageParam } from "@/lib/pagination";
 import { createPageMetadata } from "@/lib/seo/metadata";
 
@@ -37,7 +36,7 @@ export async function generateMetadata({
 }: CompareSelectPageProps) {
   const { contentId } = await params;
   await searchParams;
-  const work = await getCatalogWorkByContentId(contentId);
+  const work = await getDmmWorkByContentId(contentId);
   const titleBase = work?.title
     ? `${work.title}の比較候補`
     : "比較候補の選択";
@@ -65,8 +64,8 @@ export default async function CompareSelectPage({
   const sort = parseSimilaritySort(query.sort);
   const page = parsePageParam(query.page);
 
-  const anchor = await getCatalogWorkByContentId(contentId);
-  if (!anchor || !isWorkPubliclyVisible(anchor)) {
+  const anchor = await getDmmWorkByContentId(contentId);
+  if (!anchor) {
     notFound();
   }
 

@@ -36,6 +36,8 @@ import { isValidImageUrl } from "@/lib/works";
 
 export const revalidate = 86400;
 
+export const dynamic = "force-dynamic";
+
 export const dynamicParams = true;
 
 type ActressDetailPageProps = {

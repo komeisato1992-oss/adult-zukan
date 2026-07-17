@@ -15,6 +15,7 @@ import {
   OpsPeriodButtons,
   OpsSectionCard,
 } from "@/components/admin/ops/OpsUi";
+import { TruncatedUrlButton } from "@/components/admin/ops/TruncatedUrlButton";
 import {
   deriveSeoDataStatus,
   metricsFromDaily,
@@ -22,6 +23,28 @@ import {
 } from "@/components/admin/ops/ops-dashboard-utils";
 import { formatSeoDateTime } from "@/components/admin/seo/format";
 import type { OpsDashboardPayload, OpsGscPeriod } from "@/lib/admin/ops-types";
+
+function formatNullableCount(value: number | null | undefined): string {
+  if (value == null) return "取得不可";
+  return formatSeoNumber(value);
+}
+
+function IndexMetricCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex h-full min-h-[104px] min-w-0 flex-col justify-between rounded-xl border border-border bg-white p-3 shadow-sm sm:p-4">
+      <p className="truncate text-xs font-medium text-muted sm:text-sm">{label}</p>
+      <p className="mt-2 truncate text-2xl font-bold tracking-tight text-foreground sm:text-[1.75rem]">
+        {value}
+      </p>
+    </div>
+  );
+}
 
 const GSC_PERIODS: Array<{ id: OpsGscPeriod; label: string }> = [
   { id: "1", label: "24時間" },
@@ -70,6 +93,42 @@ export function OpsSearchConsoleTab({
   const chartLabels = data.seo.dailyStats.map((row) => row.date.slice(5));
   const showMetrics =
     status.kind === "ok" || status.kind === "stale" || status.kind === "refreshing";
+
+  const searchVisiblePages28 = useMemo(() => {
+    const pages28 = data.seo.periods[28]?.pages ?? [];
+    return pages28.filter((page) => page.impressions > 0).length;
+  }, [data.seo.periods]);
+
+  const unregisteredReasonRows = useMemo(() => {
+    const crawlByType = new Map(
+      data.seo.crawlErrors.map((row) => [row.type, row] as const),
+    );
+    const notIndexed = data.seo.index.notIndexedPages;
+    const excluded = data.seo.index.excludedPages;
+    const detectedUnregistered =
+      notIndexed == null
+        ? null
+        : Math.max(0, notIndexed - (excluded ?? 0));
+
+    return [
+      {
+        label: "404",
+        value: formatSeoNumber(crawlByType.get("404")?.count ?? 0),
+      },
+      {
+        label: "Redirect",
+        value: formatSeoNumber(crawlByType.get("redirect")?.count ?? 0),
+      },
+      {
+        label: "クロール済未登録",
+        value: formatSeoNumber(excluded ?? 0),
+      },
+      {
+        label: "検出済未登録",
+        value: formatNullableCount(detectedUnregistered),
+      },
+    ];
+  }, [data.seo.crawlErrors, data.seo.index.excludedPages, data.seo.index.notIndexedPages]);
 
   return (
     <div className="space-y-6">
@@ -242,62 +301,64 @@ export function OpsSearchConsoleTab({
           </div>
 
           <OpsSectionCard title="インデックス">
-            <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 xl:grid-cols-3">
-              <OpsKpiCard
+            <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+              <IndexMetricCard
                 label="Google登録ページ数"
                 value={
                   data.seo.index.indexedPages == null
-                    ? "—"
+                    ? "取得不可"
                     : formatSeoNumber(data.seo.index.indexedPages)
                 }
               />
-              <OpsKpiCard
+              <IndexMetricCard
                 label="インデックス対象URL数"
                 value={
                   data.top.indexableUrlCount == null
-                    ? "—"
+                    ? "取得不可"
                     : formatSeoNumber(data.top.indexableUrlCount)
                 }
               />
-              <OpsKpiCard
+              <IndexMetricCard
                 label="インデックス率"
                 value={
                   data.top.indexRate == null
-                    ? "—"
+                    ? "取得不可"
                     : formatSeoPercent(data.top.indexRate)
                 }
               />
-              <OpsKpiCard
-                label="未登録理由"
-                value={
-                  data.seo.crawlErrors.length > 0
-                    ? data.seo.crawlErrors
-                        .slice(0, 2)
-                        .map((row) => `${row.label}(${row.count})`)
-                        .join(" / ")
-                    : data.seo.index.indexedSource === "sitemap"
-                      ? "サイトマップ推定（詳細理由は未取得）"
-                      : "未取得"
-                }
+              <IndexMetricCard
+                label="Google検索表示ページ数（28日）"
+                value={formatSeoNumber(searchVisiblePages28)}
               />
-              <OpsKpiCard
-                label="クロール済み未登録"
-                value={formatSeoNumber(data.seo.index.excludedPages ?? 0)}
-              />
-              <OpsKpiCard
-                label="検出済み未登録"
-                value={
-                  data.seo.index.notIndexedPages == null
-                    ? "—"
-                    : formatSeoNumber(
-                        Math.max(
-                          0,
-                          (data.seo.index.notIndexedPages ?? 0) -
-                            (data.seo.index.excludedPages ?? 0),
-                        ),
-                      )
-                }
-              />
+            </div>
+
+            <div className="mt-3 grid grid-cols-1 gap-3 min-[420px]:grid-cols-2">
+              <div className="flex h-full min-h-[140px] min-w-0 flex-col rounded-xl border border-border bg-white p-3 shadow-sm sm:p-4">
+                <p className="truncate text-xs font-medium text-muted sm:text-sm">
+                  未登録理由
+                </p>
+                <ul className="mt-3 space-y-2">
+                  {unregisteredReasonRows.map((row) => (
+                    <li
+                      key={row.label}
+                      className="flex items-center justify-between gap-3 whitespace-nowrap text-sm"
+                    >
+                      <span className="min-w-0 truncate text-foreground">
+                        {row.label}
+                      </span>
+                      <span
+                        className={`shrink-0 font-bold tabular-nums ${
+                          row.value === "取得不可"
+                            ? "text-muted"
+                            : "text-foreground"
+                        }`}
+                      >
+                        {row.value}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             </div>
           </OpsSectionCard>
 
@@ -310,50 +371,113 @@ export function OpsSearchConsoleTab({
                 }
               />
             ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-left text-sm">
-                  <thead className="bg-surface/50 text-muted">
-                    <tr>
-                      <th className="px-3 py-2">サイトマップURL</th>
-                      <th className="px-3 py-2">送信日時</th>
-                      <th className="px-3 py-2">最終取得日時</th>
-                      <th className="px-3 py-2">状態</th>
-                      <th className="px-3 py-2">警告数</th>
-                      <th className="px-3 py-2">エラー数</th>
-                      <th className="px-3 py-2">検出URL数</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.seo.sitemaps.map((row) => (
-                      <tr key={row.path} className="border-t border-border">
-                        <td className="max-w-[240px] truncate px-3 py-2" title={row.path}>
-                          {row.path}
-                        </td>
-                        <td className="px-3 py-2">
-                          {formatSeoDateTime(row.lastSubmitted ?? null)}
-                        </td>
-                        <td className="px-3 py-2">
-                          {formatSeoDateTime(row.lastDownloaded ?? null)}
-                        </td>
-                        <td className="px-3 py-2">
-                          {row.errors > 0
-                            ? "エラーあり"
-                            : row.isPending
-                              ? "処理中"
-                              : row.warnings > 0
-                                ? "警告あり"
-                                : "正常"}
-                        </td>
-                        <td className="px-3 py-2">{formatSeoNumber(row.warnings)}</td>
-                        <td className="px-3 py-2">{formatSeoNumber(row.errors)}</td>
-                        <td className="px-3 py-2">
-                          {formatSeoNumber(row.contentsCount)}
-                        </td>
+              <>
+                {/* スマホ: カード */}
+                <ul className="space-y-3 md:hidden">
+                  {data.seo.sitemaps.map((row) => (
+                    <li
+                      key={row.path}
+                      className="rounded-xl border border-border bg-surface/30 p-3"
+                    >
+                      <TruncatedUrlButton url={row.path} />
+                      <dl className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                        <div>
+                          <dt className="text-muted">送信日時</dt>
+                          <dd className="truncate font-medium text-foreground">
+                            {formatSeoDateTime(row.lastSubmitted ?? null)}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted">最終取得</dt>
+                          <dd className="truncate font-medium text-foreground">
+                            {formatSeoDateTime(row.lastDownloaded ?? null)}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted">状態</dt>
+                          <dd className="truncate font-medium text-foreground">
+                            {row.errors > 0
+                              ? "エラーあり"
+                              : row.isPending
+                                ? "処理中"
+                                : row.warnings > 0
+                                  ? "警告あり"
+                                  : "正常"}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted">検出URL数</dt>
+                          <dd className="truncate font-medium text-foreground">
+                            {formatSeoNumber(row.contentsCount)}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted">警告</dt>
+                          <dd className="font-medium text-foreground">
+                            {formatSeoNumber(row.warnings)}
+                          </dd>
+                        </div>
+                        <div>
+                          <dt className="text-muted">エラー</dt>
+                          <dd className="font-medium text-foreground">
+                            {formatSeoNumber(row.errors)}
+                          </dd>
+                        </div>
+                      </dl>
+                    </li>
+                  ))}
+                </ul>
+
+                {/* PC: テーブル */}
+                <div className="hidden overflow-x-auto md:block">
+                  <table className="min-w-full text-left text-sm">
+                    <thead className="bg-surface/50 text-muted">
+                      <tr>
+                        <th className="px-3 py-2">サイトマップURL</th>
+                        <th className="px-3 py-2">送信日時</th>
+                        <th className="px-3 py-2">最終取得日時</th>
+                        <th className="px-3 py-2">状態</th>
+                        <th className="px-3 py-2">警告数</th>
+                        <th className="px-3 py-2">エラー数</th>
+                        <th className="px-3 py-2">検出URL数</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {data.seo.sitemaps.map((row) => (
+                        <tr key={row.path} className="border-t border-border align-top">
+                          <td className="max-w-[280px] px-3 py-2">
+                            <TruncatedUrlButton url={row.path} />
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-2">
+                            {formatSeoDateTime(row.lastSubmitted ?? null)}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-2">
+                            {formatSeoDateTime(row.lastDownloaded ?? null)}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-2">
+                            {row.errors > 0
+                              ? "エラーあり"
+                              : row.isPending
+                                ? "処理中"
+                                : row.warnings > 0
+                                  ? "警告あり"
+                                  : "正常"}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-2">
+                            {formatSeoNumber(row.warnings)}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-2">
+                            {formatSeoNumber(row.errors)}
+                          </td>
+                          <td className="whitespace-nowrap px-3 py-2">
+                            {formatSeoNumber(row.contentsCount)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
             )}
           </OpsSectionCard>
         </>

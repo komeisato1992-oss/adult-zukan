@@ -31,26 +31,43 @@ export function normalizeCompareIds(ids: string[]): string[] {
   return [...sanitizeCompareIds(ids)].sort((a, b) => a.localeCompare(b));
 }
 
+/**
+ * ids クエリを配列へ。`%2C` / 二重エンコードにも耐える。
+ */
 export function parseCompareIdsParam(
   value: string | null | undefined,
   max = COMPARE_URL_MAX_ITEMS,
 ): string[] {
   if (!value?.trim()) return [];
-  return sanitizeCompareIds(value.split(","), max);
+  let decoded = value.trim();
+  for (let i = 0; i < 2; i++) {
+    if (!/%[0-9A-Fa-f]{2}/.test(decoded)) break;
+    try {
+      const next = decodeURIComponent(decoded);
+      if (next === decoded) break;
+      decoded = next;
+    } catch {
+      break;
+    }
+  }
+  return sanitizeCompareIds(decoded.split(","), max);
 }
 
-/** 表示・遷移用（追加順を維持） */
+/**
+ * 表示・遷移用（追加順を維持）。
+ * カンマはエンコードしない（Next.js Link による二重エンコードを避ける）。
+ */
 export function buildComparePageHref(ids: string[]): string {
   const ordered = sanitizeCompareIds(ids);
   if (ordered.length === 0) return "/compare";
-  return `/compare?ids=${encodeURIComponent(ordered.join(","))}`;
+  return `/compare?ids=${ordered.join(",")}`;
 }
 
 /** SEO canonical 用（ソート済み） */
 export function buildCompareCanonicalPath(ids: string[]): string {
   const sorted = normalizeCompareIds(ids);
   if (sorted.length === 0) return "/compare";
-  return `/compare?ids=${encodeURIComponent(sorted.join(","))}`;
+  return `/compare?ids=${sorted.join(",")}`;
 }
 
 export function buildCompareSelectHref(

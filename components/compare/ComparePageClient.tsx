@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { CompareMobileView } from "@/components/compare/CompareMobileView";
 import type { CompareItem } from "@/components/compare/compare-item-types";
 import {
@@ -54,17 +54,21 @@ function DesktopPrice({ item }: { item: CompareItem }) {
 }
 
 /**
- * 比較ページの正は URL の ids。
- * localStorage は URL に同期する（表示件数・クリア対象と一致させる）。
+ * 比較対象の決定順:
+ * 1. URL の ids
+ * 2. URL が空なら比較ストア（localStorage）
+ * URL が空でもストアにあれば 0 件画面にせず、URL へ同期する。
+ * 開いただけでストアを消さない。
  */
 export function ComparePageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [urlIds, setUrlIds] = useState<string[]>([]);
+  const [activeIds, setActiveIds] = useState<string[]>([]);
   const [items, setItems] = useState<CompareItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [isNarrow, setIsNarrow] = useState<boolean | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const syncingUrlRef = useRef(false);
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 768px)");
@@ -77,29 +81,34 @@ export function ComparePageClient() {
   useEffect(() => {
     const fromUrl = parseCompareIdsParam(searchParams.get("ids"));
     if (fromUrl.length > 0) {
-      setUrlIds(fromUrl);
+      syncingUrlRef.current = false;
+      setActiveIds(fromUrl);
+      // URL を正としてストアへ反映（開いただけでは空にしない）
       setCompareIds(fromUrl);
       setHydrated(true);
       return;
     }
 
-    // URL が空のときのみ、store → URL へ一度同期して正を URL に寄せる
-    if (!hydrated) {
-      const stored = readCompareIds();
-      if (stored.length > 0) {
-        setHydrated(true);
-        router.replace(buildComparePageHref(stored), { scroll: false });
-        return;
+    // URL 空 → ストアを正にする（空配列で上書きしない）
+    const stored = readCompareIds();
+    if (stored.length > 0) {
+      setActiveIds(stored);
+      setHydrated(true);
+      const href = buildComparePageHref(stored);
+      if (!syncingUrlRef.current) {
+        syncingUrlRef.current = true;
+        router.replace(href, { scroll: false });
       }
+      return;
     }
 
-    setUrlIds([]);
+    setActiveIds([]);
     setHydrated(true);
-  }, [searchParams, router, hydrated]);
+  }, [searchParams, router]);
 
   useEffect(() => {
     if (!hydrated) return;
-    if (urlIds.length === 0) {
+    if (activeIds.length === 0) {
       setItems([]);
       setLoading(false);
       return;
@@ -109,13 +118,12 @@ export function ComparePageClient() {
     setLoading(true);
     const fetchItems = async () => {
       const response = await fetch(
-        `/api/compare?ids=${encodeURIComponent(urlIds.join(","))}`,
+        `/api/compare?ids=${encodeURIComponent(activeIds.join(","))}`,
       );
       const json = (await response.json()) as { items: CompareItem[] };
       if (cancelled) return;
-      // URL 順を維持し、取得できた作品だけを同一配列として使う
       const byId = new Map(json.items.map((item) => [item.contentId, item]));
-      const ordered = urlIds
+      const ordered = activeIds
         .map((id) => byId.get(id))
         .filter((item): item is CompareItem => Boolean(item));
       setItems(ordered);
@@ -130,14 +138,14 @@ export function ComparePageClient() {
     return () => {
       cancelled = true;
     };
-  }, [urlIds, hydrated]);
+  }, [activeIds, hydrated]);
 
   const displayCount = items.length;
   const clearable = displayCount > 0;
 
   function handleClear() {
     clearCompareIds();
-    setUrlIds([]);
+    setActiveIds([]);
     setItems([]);
     router.replace("/compare", { scroll: false });
   }
@@ -147,6 +155,7 @@ export function ComparePageClient() {
       .map((item) => item.contentId)
       .filter((id) => id !== contentId);
     setCompareIds(next);
+    setActiveIds(next);
     router.replace(buildComparePageHref(next), { scroll: false });
   }
 
@@ -178,7 +187,7 @@ export function ComparePageClient() {
     );
   }
 
-  if (urlIds.length === 0) {
+  if (activeIds.length === 0) {
     return emptyMessage;
   }
 

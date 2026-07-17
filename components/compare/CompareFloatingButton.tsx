@@ -199,13 +199,17 @@ export function CompareFloatingButton() {
               {showGoCompare ? (
                 <Link
                   href={compareHref}
-                  onClick={() =>
+                  onClick={(event) => {
                     trackCompareEvent(COMPARE_GA_EVENTS.floatingGoCompareClick, {
                       page_path: pathname,
                       compare_count: count,
                       device_type: "desktop",
-                    })
-                  }
+                    });
+                    const latest = readCompareIds().slice(0, COMPARE_MAX_ITEMS);
+                    if (latest.length === 0) return;
+                    event.preventDefault();
+                    router.push(buildComparePageHref(latest));
+                  }}
                   className="flex min-h-11 w-full items-center justify-center gap-1 rounded-md bg-accent px-4 py-3 text-sm font-bold text-white transition-colors hover:bg-accent-hover"
                 >
                   比較ページへ

@@ -172,13 +172,18 @@ export function CompareMobileFooterBar() {
           {showGoCompare ? (
             <Link
               href={compareHref}
-              onClick={() =>
+              onClick={(event) => {
                 trackCompareEvent(COMPARE_GA_EVENTS.floatingGoCompareClick, {
                   page_path: pathname,
                   compare_count: count,
                   device_type: "mobile",
-                })
-              }
+                });
+                // 最新のストア状態を必ず URL に載せる（stale な href を避ける）
+                const latest = readCompareIds().slice(0, COMPARE_MAX_ITEMS);
+                if (latest.length === 0) return;
+                event.preventDefault();
+                router.push(buildComparePageHref(latest));
+              }}
               className="flex flex-1 items-center justify-center gap-1 bg-accent px-2 text-[13px] font-bold text-white hover:bg-accent-hover"
             >
               比較ページへ

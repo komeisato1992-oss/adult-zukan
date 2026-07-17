@@ -196,7 +196,7 @@ export function Header() {
           </>
         ) : (
           <>
-            <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 overflow-hidden px-3">
+            <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 px-3">
               <Link
                 href="/"
                 className="flex h-10 max-w-[min(58vw,200px)] shrink items-center overflow-hidden"

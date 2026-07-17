@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { FavoriteNavLabel } from "@/components/user/FavoriteNavLabel";
 import { navItems } from "@/lib/site-config";
 
@@ -46,20 +46,47 @@ export function MobileNav({ onOpenChange }: MobileNavProps) {
   const [open, setOpen] = useState(false);
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const titleId = useId();
 
   function setMenuOpen(next: boolean) {
     setOpen(next);
     onOpenChange?.(next);
   }
 
+  useEffect(() => {
+    setOpen(false);
+    onOpenChange?.(false);
+    // Close drawer on route change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setMenuOpen(false);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
   return (
-    <div className="relative min-[769px]:hidden">
+    <div className="min-[769px]:hidden">
       <button
         type="button"
         onClick={() => setMenuOpen(!open)}
         aria-expanded={open}
-        aria-controls="mobile-nav-menu"
-        aria-label="メニューを開く"
+        aria-controls="mobile-nav-drawer"
+        aria-label={open ? "メニューを閉じる" : "メニューを開く"}
         className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border text-foreground"
       >
         <svg
@@ -72,41 +99,106 @@ export function MobileNav({ onOpenChange }: MobileNavProps) {
           aria-hidden="true"
         >
           {open ? (
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M6 18L18 6M6 6l12 12"
+            />
           ) : (
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"
+            />
           )}
         </svg>
       </button>
 
-      {open && (
-        <nav
-          id="mobile-nav-menu"
-          aria-label="モバイルナビゲーション"
-          className="absolute right-0 top-full z-50 mt-2 w-48 rounded border border-border bg-white py-2 shadow-lg"
-        >
-          {navItems.map((item) => {
-            const active = isNavItemActive(item.href, pathname, searchParams);
-
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                prefetch
-                onClick={() => setMenuOpen(false)}
-                aria-current={active ? "page" : undefined}
-                className={
-                  active
-                    ? "block bg-accent-light px-4 py-2.5 text-sm font-medium text-accent"
-                    : "block px-4 py-2.5 text-sm text-foreground hover:bg-accent-light hover:text-accent"
-                }
+      {open ? (
+        <>
+          <button
+            type="button"
+            aria-label="メニューを閉じる"
+            className="fixed inset-0 z-[60] bg-black/40"
+            onClick={() => setMenuOpen(false)}
+          />
+          <nav
+            id="mobile-nav-drawer"
+            aria-labelledby={titleId}
+            className="fixed inset-y-0 right-0 z-[70] flex w-[min(88vw,360px)] max-w-[100vw] flex-col border-l border-border bg-white shadow-xl"
+            style={{
+              paddingTop: "env(safe-area-inset-top, 0px)",
+              paddingBottom: "env(safe-area-inset-bottom, 0px)",
+              maxHeight: "100dvh",
+            }}
+          >
+            <div className="flex shrink-0 items-center justify-between border-b border-border px-4 py-3">
+              <p
+                id={titleId}
+                className="text-sm font-bold text-foreground"
               >
-                {item.href === "/favorites" ? <FavoriteNavLabel /> : item.label}
-              </Link>
-            );
-          })}
-        </nav>
-      )}
+                メニュー
+              </p>
+              <button
+                type="button"
+                onClick={() => setMenuOpen(false)}
+                aria-label="メニューを閉じる"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border text-foreground"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  strokeWidth={2}
+                  stroke="currentColor"
+                  className="h-5 w-5"
+                  aria-hidden="true"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </div>
+
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch]">
+              <ul className="flex flex-col py-1">
+                {navItems.map((item) => {
+                  const active = isNavItemActive(
+                    item.href,
+                    pathname,
+                    searchParams,
+                  );
+
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        prefetch
+                        onClick={() => setMenuOpen(false)}
+                        aria-current={active ? "page" : undefined}
+                        className={
+                          active
+                            ? "flex min-h-12 items-center bg-accent-light px-4 py-3 text-base font-medium text-accent"
+                            : "flex min-h-12 items-center px-4 py-3 text-base text-foreground hover:bg-accent-light hover:text-accent"
+                        }
+                      >
+                        {item.href === "/favorites" ? (
+                          <FavoriteNavLabel />
+                        ) : (
+                          item.label
+                        )}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </nav>
+        </>
+      ) : null}
     </div>
   );
 }

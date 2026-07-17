@@ -83,7 +83,10 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
           <PageIntro text={pageIntros.search} />
         </header>
 
-        <SearchBar defaultValue={trimmed ?? ""} className="mb-8 max-w-2xl" />
+        <SearchBar
+          defaultValue={trimmed ?? ""}
+          className="mb-8 w-full max-w-2xl max-[768px]:mb-6"
+        />
 
         {results ? (
           results.total > 0 ? (

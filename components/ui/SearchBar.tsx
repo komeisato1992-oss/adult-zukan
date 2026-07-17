@@ -37,7 +37,9 @@ export function SearchBar({
     <form
       role="search"
       onSubmit={handleSubmit}
-      className={`flex items-center ${compact ? "gap-1" : "gap-2"} ${className}`}
+      className={`box-border flex w-full max-w-full items-center ${
+        compact ? "gap-1 max-[768px]:gap-2" : "gap-2"
+      } ${className}`}
     >
       <label htmlFor={inputId} className="sr-only">
         作品検索
@@ -51,16 +53,18 @@ export function SearchBar({
         placeholder={placeholder}
         autoComplete="off"
         autoFocus={autoFocus}
-        className={`w-full rounded border border-border bg-white text-foreground placeholder:text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 ${
-          compact ? "h-9 px-3 text-sm max-[768px]:h-10 max-[768px]:text-[15px]" : "h-10 px-4 text-sm"
+        className={`box-border min-w-0 flex-1 rounded border border-border bg-white text-foreground placeholder:text-muted focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20 ${
+          compact
+            ? "h-9 px-3 text-sm max-[768px]:h-10 max-[768px]:text-[15px]"
+            : "h-10 px-4 text-sm"
         }`}
       />
       <button
         type="submit"
-        className={`inline-flex shrink-0 items-center justify-center rounded bg-accent font-medium text-white transition-colors hover:bg-accent-hover ${
+        className={`box-border inline-flex shrink-0 items-center justify-center rounded bg-accent font-medium text-white transition-colors hover:bg-accent-hover max-[768px]:min-w-[72px] ${
           compact
             ? "h-9 px-3 text-sm max-[768px]:h-10 max-[768px]:px-3.5"
-            : "h-10 px-5 text-sm"
+            : "h-10 px-5 text-sm max-[768px]:px-4"
         }`}
       >
         検索

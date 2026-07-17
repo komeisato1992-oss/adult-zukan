@@ -32,18 +32,47 @@ function formatNullableCount(value: number | null | undefined): string {
 function IndexMetricCard({
   label,
   value,
+  change,
 }: {
   label: string;
   value: string;
+  change?: string | null;
 }) {
+  const changeTone =
+    change == null
+      ? null
+      : change.startsWith("+")
+        ? "text-green-600"
+        : change.startsWith("-")
+          ? "text-red-600"
+          : "text-muted";
+
   return (
     <div className="flex h-full min-h-[104px] min-w-0 flex-col justify-between rounded-xl border border-border bg-white p-3 shadow-sm sm:p-4">
       <p className="truncate text-xs font-medium text-muted sm:text-sm">{label}</p>
-      <p className="mt-2 truncate text-2xl font-bold tracking-tight text-foreground sm:text-[1.75rem]">
-        {value}
-      </p>
+      <div className="mt-2 min-w-0">
+        <p className="truncate text-2xl font-bold tracking-tight text-foreground sm:text-[1.75rem]">
+          {value}
+        </p>
+        {change ? (
+          <p className={`mt-1 truncate text-xs font-medium tabular-nums ${changeTone}`}>
+            {change}
+          </p>
+        ) : null}
+      </div>
     </div>
   );
+}
+
+function formatIndexedPagesDelta(
+  current: number | null | undefined,
+  previous: number | null | undefined,
+): string | null {
+  if (current == null || previous == null) return null;
+  const delta = current - previous;
+  if (delta === 0) return "±0";
+  const formatted = formatSeoNumber(Math.abs(delta));
+  return delta > 0 ? `+${formatted}` : `-${formatted}`;
 }
 
 const GSC_PERIODS: Array<{ id: OpsGscPeriod; label: string }> = [
@@ -309,6 +338,10 @@ export function OpsSearchConsoleTab({
                     ? "取得不可"
                     : formatSeoNumber(data.seo.index.indexedPages)
                 }
+                change={formatIndexedPagesDelta(
+                  data.seo.index.indexedPages,
+                  data.seo.index.previousIndexedPages,
+                )}
               />
               <IndexMetricCard
                 label="インデックス対象URL数"

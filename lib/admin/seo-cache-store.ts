@@ -30,6 +30,14 @@ const SEO_CACHE_LEGACY_FILE = path.join(
 const SEO_CACHE_GITHUB_PATH = "data/admin/seo-cache.json";
 const GITHUB_API_VERSION = "2022-11-28";
 
+export type SeoCacheSaveResult = {
+  backend: "github" | "local";
+  absolutePath: string;
+  updatedAt: string | null;
+  pages28: number;
+  indexedPages: number | null;
+};
+
 type SeoMemoryStore = typeof globalThis & {
   __seoMemoryCache?: SeoCachePayload | null;
   __seoMemoryCacheSha?: string | null;
@@ -43,18 +51,33 @@ function hasPersistedSeoData(payload: SeoCachePayload | null | undefined): boole
   return Boolean(payload?.updatedAt);
 }
 
+function isReadOnlyFsError(error: unknown): boolean {
+  const code =
+    error && typeof error === "object" && "code" in error
+      ? String((error as { code?: unknown }).code)
+      : "";
+  return (
+    code === "EROFS" ||
+    code === "EACCES" ||
+    code === "EPERM" ||
+    /read-only|erofs|permission denied/i.test(
+      error instanceof Error ? error.message : String(error),
+    )
+  );
+}
+
+export function getSeoCacheAbsolutePath(): string {
+  return SEO_CACHE_FILE;
+}
+
 export function getSeoCacheBackend(): "github" | "local" | "memory" {
   if (isGitHubProductionConfigured()) return "github";
   return "local";
 }
 
-function writeLocalSafe(payload: SeoCachePayload): void {
-  try {
-    mkdirSync(ADMIN_DATA_DIR, { recursive: true });
-    writeFileSync(SEO_CACHE_FILE, serializeSeoCache(payload), "utf-8");
-  } catch {
-    // Vercel 等の読み取り専用 FS では無視（メモリ / GitHub が正）
-  }
+function writeLocal(payload: SeoCachePayload): void {
+  mkdirSync(ADMIN_DATA_DIR, { recursive: true });
+  writeFileSync(SEO_CACHE_FILE, serializeSeoCache(payload), "utf-8");
 }
 
 function readLocalFile(filePath: string): SeoCachePayload | null {
@@ -95,7 +118,10 @@ async function githubRequest<T>(
       (error as Error & { status: number }).status = 404;
       throw error;
     }
-    throw new Error(`GitHub SEO cache error: HTTP ${response.status}`);
+    const body = await response.text().catch(() => "");
+    throw new Error(
+      `GitHub SEO cache error: HTTP ${response.status}${body ? ` ${body.slice(0, 300)}` : ""}`,
+    );
   }
 
   if (response.status === 204) return {} as T;
@@ -143,36 +169,84 @@ export async function loadSeoCache(): Promise<SeoCachePayload> {
   return empty;
 }
 
-/** 更新ボタン / Cron 成功後にメモリ + ローカル + GitHub へ保存 */
-export async function saveSeoCache(payload: SeoCachePayload): Promise<void> {
+/**
+ * 更新成功時のみ呼ぶ。永続化に失敗したら例外を投げ、呼び出し元は成功扱いにしないこと。
+ */
+export async function saveSeoCache(
+  payload: SeoCachePayload,
+): Promise<SeoCacheSaveResult> {
   const store = getMemoryStore();
   store.__seoMemoryCache = payload;
-  writeLocalSafe(payload);
 
-  if (!isGitHubProductionConfigured()) return;
+  const githubConfigured = isGitHubProductionConfigured();
+  let localOk = false;
 
   try {
-    const config = getGitHubProductionConfig()!;
-    const body: Record<string, string> = {
-      message: `Update Search Console cache (${payload.updatedAt ?? "partial"})`,
-      content: Buffer.from(serializeSeoCache(payload), "utf-8").toString("base64"),
-      branch: config.branch,
-    };
-    if (store.__seoMemoryCacheSha) body.sha = store.__seoMemoryCacheSha;
-
-    await githubRequest(
-      `https://api.github.com/repos/${config.owner}/${config.repo}/contents/${SEO_CACHE_GITHUB_PATH}`,
-      { method: "PUT", body: JSON.stringify(body) },
-    );
-    store.__seoMemoryCacheSha = null;
+    writeLocal(payload);
+    localOk = true;
   } catch (error) {
-    // Keep memory/local even if GitHub commit fails
-    console.error("[seo-cache] GitHub save failed; memory/local kept", {
-      message: error instanceof Error ? error.message : String(error),
-      updatedAt: payload.updatedAt,
-      pages28: payload.periods?.[28]?.pages?.length ?? 0,
-    });
+    if (githubConfigured && isReadOnlyFsError(error)) {
+      console.warn("[seo-cache] local FS is read-only; relying on GitHub", {
+        path: SEO_CACHE_FILE,
+        message: error instanceof Error ? error.message : String(error),
+      });
+    } else if (!githubConfigured) {
+      throw new Error(
+        `SEOキャッシュのローカル保存に失敗しました: ${
+          error instanceof Error ? error.message : String(error)
+        } (${SEO_CACHE_FILE})`,
+      );
+    } else {
+      throw new Error(
+        `SEOキャッシュのローカル保存に失敗しました: ${
+          error instanceof Error ? error.message : String(error)
+        } (${SEO_CACHE_FILE})`,
+      );
+    }
   }
+
+  if (githubConfigured) {
+    try {
+      const config = getGitHubProductionConfig()!;
+      const body: Record<string, string> = {
+        message: `Update Search Console cache (${payload.updatedAt ?? "partial"})`,
+        content: Buffer.from(serializeSeoCache(payload), "utf-8").toString(
+          "base64",
+        ),
+        branch: config.branch,
+      };
+      if (store.__seoMemoryCacheSha) body.sha = store.__seoMemoryCacheSha;
+
+      await githubRequest(
+        `https://api.github.com/repos/${config.owner}/${config.repo}/contents/${SEO_CACHE_GITHUB_PATH}`,
+        { method: "PUT", body: JSON.stringify(body) },
+      );
+      store.__seoMemoryCacheSha = null;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("[seo-cache] GitHub save failed", {
+        message,
+        updatedAt: payload.updatedAt,
+        pages28: payload.periods?.[28]?.pages?.length ?? 0,
+        indexedPages: payload.index?.indexedPages ?? null,
+      });
+      throw new Error(`SEOキャッシュのGitHub保存に失敗しました: ${message}`);
+    }
+  } else if (!localOk) {
+    throw new Error(
+      `SEOキャッシュを永続化できませんでした (${SEO_CACHE_FILE})`,
+    );
+  }
+
+  const result: SeoCacheSaveResult = {
+    backend: githubConfigured ? "github" : "local",
+    absolutePath: SEO_CACHE_FILE,
+    updatedAt: payload.updatedAt,
+    pages28: payload.periods?.[28]?.pages?.length ?? 0,
+    indexedPages: payload.index?.indexedPages ?? null,
+  };
+  console.info("[seo-cache] save succeeded", result);
+  return result;
 }
 
 export function getSeoMemoryCache(): SeoCachePayload | null {

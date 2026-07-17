@@ -68,6 +68,8 @@ export type SeoIndexSource = "sitemap" | "search_impressions" | "estimated" | "u
 
 export type SeoIndexSnapshot = {
   indexedPages: number | null;
+  /** 直前に成功保存されていた登録ページ数（差分表示用） */
+  previousIndexedPages?: number | null;
   notIndexedPages: number | null;
   excludedPages: number;
   totalSitePages: number;

@@ -15,7 +15,7 @@ export type OpsRefreshJobStatus =
   | "timeout";
 
 export const OPS_REFRESH_TIMEOUT_MS: Record<OpsRefreshJobKey, number> = {
-  seo: 30_000,
+  seo: 240_000,
   ga4: 30_000,
   dmm: 20_000,
   score: 30_000,

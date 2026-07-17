@@ -150,6 +150,8 @@ function enrichPageRows(
 
 /** 比較用の previous* は件数を抑えてキャッシュ肥大・GitHub保存失敗を防ぐ */
 const PREVIOUS_ROWS_LIMIT = 500;
+/** 7日/90日の pages は表示上位のみ保持（28日は全件＝検索表示ページ数の正） */
+const AUX_PERIOD_PAGES_LIMIT = 1000;
 
 function limitRowsByClicks<T extends { clicks: number }>(
   rows: T[],
@@ -159,6 +161,16 @@ function limitRowsByClicks<T extends { clicks: number }>(
   return [...rows]
     .sort((a, b) => b.clicks - a.clicks)
     .slice(0, limit);
+}
+
+function limitPagesForAuxPeriod(pages: SeoPageRow[]): SeoPageRow[] {
+  if (pages.length <= AUX_PERIOD_PAGES_LIMIT) return pages;
+  return [...pages]
+    .sort(
+      (a, b) =>
+        b.impressions - a.impressions || b.clicks - a.clicks,
+    )
+    .slice(0, AUX_PERIOD_PAGES_LIMIT);
 }
 
 function aggregateDailySlice(
@@ -635,7 +647,12 @@ export async function refreshSeoDashboardData(): Promise<SeoCachePayload> {
         entityPageCounts,
         entityWorkCounts,
       };
-      await saveSeoCache(preserved);
+      await saveSeoCache(preserved).catch((error) => {
+        console.warn(
+          "[seo-gsc] failed to persist unconfigured status; returning in-memory only",
+          error instanceof Error ? error.message : String(error),
+        );
+      });
       return preserved;
     }
 
@@ -663,6 +680,8 @@ export async function refreshSeoDashboardData(): Promise<SeoCachePayload> {
 
   const resolvedSiteUrl = getSearchConsoleSiteUrl();
   const workTitles = buildWorkTitleMap(catalogWorks);
+  const previousCache = await loadSeoCache();
+  const previousIndexedPages = previousCache.index.indexedPages;
 
   try {
     console.info("[seo-gsc] starting Search Console refresh", {
@@ -711,6 +730,16 @@ export async function refreshSeoDashboardData(): Promise<SeoCachePayload> {
           dailyMapped,
           workTitles,
         );
+        // 28日の pages は検索表示ページ数の正として全件保持。7/90 は上位のみ。
+        if (days !== 28) {
+          return [
+            days,
+            {
+              ...bundle,
+              pages: limitPagesForAuxPeriod(bundle.pages),
+            },
+          ] as const;
+        }
         return [days, bundle] as const;
       }),
     );
@@ -792,6 +821,7 @@ export async function refreshSeoDashboardData(): Promise<SeoCachePayload> {
       pages: bundle28.pages,
       index: {
         indexedPages: indexCounts.indexedPages,
+        previousIndexedPages,
         notIndexedPages: indexCounts.notIndexedPages,
         excludedPages,
         totalSitePages,
@@ -819,7 +849,8 @@ export async function refreshSeoDashboardData(): Promise<SeoCachePayload> {
       },
     });
 
-    await saveSeoCache(payload);
+    const saveResult = await saveSeoCache(payload);
+    console.info("[seo-gsc] cache persisted", saveResult);
     return payload;
   } catch (error) {
     const message =
@@ -834,38 +865,8 @@ export async function refreshSeoDashboardData(): Promise<SeoCachePayload> {
       siteUrl: resolvedSiteUrl,
     });
 
-    const previous = await loadSeoCache();
-    if (previous.updatedAt) {
-      // 失敗時は旧キャッシュを表示用に返すだけ。成功データを stale フラグで上書き再保存しない
-      // （再保存すると GitHub/local の成功世代を error 状態で固定してしまう）
-      return {
-        ...previous,
-        connectionStatus: "error",
-        stale: true,
-        fetchError: message,
-        configMessage: `${previous.updatedAt}時点のキャッシュを表示しています`,
-      };
-    }
-
-    const empty: SeoCachePayload = {
-      ...createEmptySeoCache(resolvedSiteUrl),
-      configured: true,
-      connectionStatus: "error",
-      fetchError: message,
-      configMessage: message,
-      overview: {
-        ...createEmptySeoCache(resolvedSiteUrl).overview,
-        totalWorks,
-      },
-      index: {
-        ...createEmptySeoCache(resolvedSiteUrl).index,
-        totalSitePages,
-      },
-      entityPageCounts,
-      entityWorkCounts,
-    };
-    await saveSeoCache(empty);
-    throw error;
+    // 失敗を成功扱いにしない（stale キャッシュを success で返さない）
+    throw error instanceof Error ? error : new Error(message);
   }
 }
 

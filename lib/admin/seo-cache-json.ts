@@ -139,6 +139,7 @@ function parseIndex(raw: unknown): SeoCachePayload["index"] {
   if (!isRecord(raw)) {
     return {
       indexedPages: null,
+      previousIndexedPages: null,
       notIndexedPages: null,
       excludedPages: 0,
       totalSitePages: 0,
@@ -158,6 +159,7 @@ function parseIndex(raw: unknown): SeoCachePayload["index"] {
 
   return {
     indexedPages,
+    previousIndexedPages: readNullableNumber(raw.previousIndexedPages),
     notIndexedPages: readNullableNumber(raw.notIndexedPages),
     excludedPages: readNumber(raw.excludedPages),
     totalSitePages,
@@ -483,6 +485,7 @@ export function createEmptySeoCache(siteUrl: string): SeoCachePayload {
     pages: [],
     index: {
       indexedPages: null,
+      previousIndexedPages: null,
       notIndexedPages: null,
       excludedPages: 0,
       totalSitePages: 0,

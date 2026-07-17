@@ -187,13 +187,34 @@ async function attachRefreshErrors(
 
 /** Search Console / サイトマップのみ更新してダッシュボードを再構築 */
 export async function refreshOpsSeoSource(): Promise<OpsDashboardPayload> {
-  const errors: string[] = [];
   try {
     await refreshSeoDashboardData();
+    return buildOpsPayload(false);
   } catch (error) {
-    errors.push(errorMessage(error));
+    const message = errorMessage(error);
+    const payload = await buildOpsPayload(false);
+    return {
+      ...payload,
+      seo: {
+        ...payload.seo,
+        connectionStatus: "error",
+        stale: Boolean(payload.seo.updatedAt),
+        fetchError: message,
+        configMessage: payload.seo.updatedAt
+          ? `${payload.seo.updatedAt}時点のキャッシュを表示しています（今回の保存/取得は失敗）`
+          : message,
+      },
+      alerts: [
+        {
+          id: "refresh-partial-fail",
+          title: "Search Console更新失敗",
+          detail: message,
+          severity: "critical",
+        },
+        ...payload.alerts.filter((alert) => alert.id !== "refresh-partial-fail"),
+      ],
+    };
   }
-  return attachRefreshErrors(await buildOpsPayload(false), errors);
 }
 
 /** GA4のみ更新してダッシュボードを再構築 */

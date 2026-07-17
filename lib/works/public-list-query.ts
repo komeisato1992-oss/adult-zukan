@@ -56,6 +56,7 @@ const LIST_SELECT =
 
 let priceAmountColumnAvailable: boolean | null = null;
 let durationMinutesColumnAvailable: boolean | null = null;
+let fanzaNewRankColumnAvailable: boolean | null = null;
 let listRpcAvailable: boolean | null = null;
 
 /**
@@ -180,6 +181,7 @@ function normalizeWorkMasterRowFromStore(
 
 async function fetchWorksByCidsOrdered(
   cids: string[],
+  options?: { allowUnreleased?: boolean },
 ): Promise<WorkMasterRow[]> {
   const client = getSupabaseServiceClient();
   if (!client || cids.length === 0) return [];
@@ -197,12 +199,13 @@ async function fetchWorksByCidsOrdered(
   }
 
   const today = getTokyoDateString();
+  const allowUnreleased = options?.allowUnreleased === true;
   const map = new Map<string, WorkMasterRow>();
   for (const row of parseWorkRows(data)) {
     if (row.image_status === "now_printing" || row.image_status === "fetch_failed") {
       continue;
     }
-    if (!isReleasedOnOrBefore(row.release_date, today)) {
+    if (!allowUnreleased && !isReleasedOnOrBefore(row.release_date, today)) {
       continue;
     }
     map.set(row.cid, row);
@@ -240,6 +243,21 @@ async function detectDurationMinutesColumn(): Promise<boolean> {
     .limit(1);
   durationMinutesColumnAvailable = !error;
   return durationMinutesColumnAvailable;
+}
+
+async function detectFanzaNewRankColumn(): Promise<boolean> {
+  if (fanzaNewRankColumnAvailable != null) return fanzaNewRankColumnAvailable;
+  const client = getSupabaseServiceClient();
+  if (!client) {
+    fanzaNewRankColumnAvailable = false;
+    return false;
+  }
+  const { error } = await client
+    .from(LIVE_TABLE)
+    .select("fanza_new_rank")
+    .limit(1);
+  fanzaNewRankColumnAvailable = !error;
+  return fanzaNewRankColumnAvailable;
 }
 
 async function tryFetchViaRpc(options: {
@@ -287,7 +305,9 @@ async function tryFetchViaRpc(options: {
     .filter((cid): cid is string => Boolean(cid));
   const totalItems =
     rows.length > 0 ? Number(rows[0]?.total_count ?? cids.length) : 0;
-  const workRows = await fetchWorksByCidsOrdered(cids);
+  const workRows = await fetchWorksByCidsOrdered(cids, {
+    allowUnreleased: options.sort === "fanza-new",
+  });
   const items = await rowsToLiveItems(workRows);
   return { items, totalItems };
 }
@@ -334,6 +354,7 @@ async function fetchPublicWorksPageLegacy(options: {
 
   const liveSorts = new Set<WorkSortKey>([
     "popular",
+    "fanza-new",
     "price-asc",
     "price-desc",
     "discount",
@@ -341,6 +362,15 @@ async function fetchPublicWorksPageLegacy(options: {
   ]);
 
   if (options.saleOnly || liveSorts.has(options.sort)) {
+    const hasFanzaNewRank =
+      options.sort === "fanza-new" ? await detectFanzaNewRankColumn() : false;
+    if (options.sort === "fanza-new" && !hasFanzaNewRank) {
+      console.warn(
+        "[public-list] fanza_new_rank column missing; empty fanza-new page",
+      );
+      return { items: [], totalItems: 0 };
+    }
+
     let liveQuery = client
       .from(LIVE_TABLE)
       .select("cid", { count: "exact" })
@@ -360,6 +390,11 @@ async function fetchPublicWorksPageLegacy(options: {
         .order("popularity_rank", { ascending: true, nullsFirst: false })
         .order("review_count", { ascending: false, nullsFirst: false })
         .order("rating", { ascending: false, nullsFirst: false });
+    } else if (options.sort === "fanza-new") {
+      // 0/null は末尾。発売前除外はしない（FANZA 新着結果に従う）
+      liveQuery = liveQuery
+        .or("fanza_new_rank.gt.0,fanza_new_rank.is.null")
+        .order("fanza_new_rank", { ascending: true, nullsFirst: false });
     } else if (options.sort === "discount") {
       const priceCol = hasPriceAmount
         ? "price_amount"
@@ -414,8 +449,12 @@ async function fetchPublicWorksPageLegacy(options: {
       .select(LIST_SELECT)
       .in("cid", cids)
       .eq("published", true)
-      .or("image_status.eq.ok,image_status.is.null")
-      .or(releaseOnOrBeforeFilter);
+      .or("image_status.eq.ok,image_status.is.null");
+
+    // FANZA 新着順は発売前も一覧に含める（API 取得結果に従う）
+    if (options.sort !== "fanza-new") {
+      workQuery = workQuery.or(releaseOnOrBeforeFilter);
+    }
 
     if (singleMaker) {
       workQuery = workQuery.eq("maker", singleMaker);
@@ -710,8 +749,8 @@ function buildListCacheKey(parts: {
   date: string;
 }): string {
   return [
-    "works-list-v3",
-    parts.sort,
+    "works-list-v4",
+    `sort=${parts.sort}`,
     parts.isSalePage ? "sale" : "all",
     String(parts.page),
     String(WORKS_LIST_PAGE_SIZE),
@@ -804,11 +843,13 @@ export async function tryGetWorksListPageDataFromDb(
     {
       revalidate: isSalePage
         ? 300
-        : sort === "release-new"
+        : sort === "fanza-new"
           ? 600
-          : sort === "random"
-            ? 120
-            : 900,
+          : sort === "release-new"
+            ? 600
+            : sort === "random"
+              ? 120
+              : 900,
       tags: [WORKS_MASTER_CACHE_TAG, PUBLIC_WORKS_LIST_TAG, cacheKey],
     },
   );

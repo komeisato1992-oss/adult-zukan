@@ -86,6 +86,14 @@ function getFanzaRank(item: DmmItem): number | null {
   return rank;
 }
 
+function getFanzaNewRank(item: DmmItem): number | null {
+  const rank = item.fanzaNewRank;
+  if (typeof rank !== "number" || !Number.isFinite(rank) || rank <= 0) {
+    return null;
+  }
+  return rank;
+}
+
 function getItemPriceAmount(item: DmmItem): number | null {
   return parseComparablePrice(item.prices?.price);
 }
@@ -248,6 +256,10 @@ export function parseWorkSortParam(value?: string | null): WorkSortKey {
     case "added":
     case "added-desc":
       return "added";
+    case "fanza-new":
+    case "fanza_new":
+    case "source-new":
+      return "fanza-new";
     case "new":
     case "latest":
     case "release-new":
@@ -299,18 +311,20 @@ export function getWorksSortOptions(
     ? [
         "discount",
         "popular",
+        "fanza-new",
         "added",
         "release-new",
-        "price-asc",
         "price-desc",
+        "price-asc",
         "rating",
       ]
     : [
         "popular",
+        "fanza-new",
         "added",
         "release-new",
-        "price-asc",
         "price-desc",
+        "price-asc",
         "rating",
       ];
 
@@ -348,6 +362,29 @@ export function sortWorks(
   switch (sort) {
     case "popular":
       return sorted.sort(comparePopularSort);
+    case "fanza-new":
+      return sorted.sort((a, b) => {
+        const rankDiff = compareNullableNumber(
+          getFanzaNewRank(a),
+          getFanzaNewRank(b),
+          "asc",
+          true,
+        );
+        if (rankDiff !== 0) return rankDiff;
+        const releaseDiff = compareNullableNumber(
+          parseReleaseTimestamp(a),
+          parseReleaseTimestamp(b),
+          "desc",
+          true,
+        );
+        if (releaseDiff !== 0) return releaseDiff;
+        return compareNullableNumber(
+          parseAddedTimestamp(a),
+          parseAddedTimestamp(b),
+          "desc",
+          true,
+        );
+      });
     case "added":
       return sorted.sort((a, b) => {
         const addedDiff = compareNullableNumber(
@@ -451,6 +488,8 @@ export function getWorksSortPageTitle(sort: WorkSortKey): string | null {
   switch (sort) {
     case "added":
       return "追加順 作品一覧";
+    case "fanza-new":
+      return "新着順 作品一覧";
     case "release-new":
       return "発売日が新しい順 作品一覧";
     case "price-desc":

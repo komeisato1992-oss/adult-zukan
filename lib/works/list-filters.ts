@@ -446,6 +446,10 @@ function normalizeSortForUrl(value?: string): string | undefined {
     case "added":
     case "added-desc":
       return "added";
+    case "fanza-new":
+    case "fanza_new":
+    case "source-new":
+      return "fanza-new";
     case "new":
     case "latest":
     case "release-new":

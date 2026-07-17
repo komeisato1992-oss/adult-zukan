@@ -7,7 +7,13 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 function parseSource(value: unknown): OpsRefreshSource {
-  if (value === "seo" || value === "ga4" || value === "dmm" || value === "all") {
+  if (
+    value === "seo" ||
+    value === "ga4" ||
+    value === "dmm" ||
+    value === "score" ||
+    value === "all"
+  ) {
     return value;
   }
   return "all";

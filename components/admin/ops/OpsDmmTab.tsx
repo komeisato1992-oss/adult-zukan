@@ -84,7 +84,7 @@ export function OpsDmmTab({
           disabled={refreshing || uploadPending}
           className="min-h-11 shrink-0 rounded-lg border border-border bg-white px-4 py-2.5 text-sm font-semibold text-foreground hover:bg-red-50 disabled:opacity-60"
         >
-          {refreshing ? "更新中…" : "表示を再読込"}
+          {refreshing ? "更新中…" : "DMMを更新"}
         </button>
       </div>
 

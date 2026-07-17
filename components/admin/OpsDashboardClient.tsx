@@ -1,12 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { OpsOverviewTab } from "@/components/admin/ops/OpsOverviewTab";
 import { OpsSearchConsoleTab } from "@/components/admin/ops/OpsSearchConsoleTab";
 import { OpsGa4Tab } from "@/components/admin/ops/OpsGa4Tab";
 import { OpsDmmTab } from "@/components/admin/ops/OpsDmmTab";
 import { OpsTabNav } from "@/components/admin/ops/OpsTabNav";
+import {
+  OpsRefreshProgress,
+  type OpsRefreshJobView,
+} from "@/components/admin/ops/OpsRefreshProgress";
 import { formatSeoDateTime } from "@/components/admin/seo/format";
 import {
   opsTabHref,
@@ -17,12 +21,22 @@ import {
   mergeOpsDashboardPayload,
   isOpsPayloadStaleOverall,
 } from "@/lib/admin/ops-payload-merge";
+import {
+  OPS_REFRESH_JOB_KEYS,
+  OPS_REFRESH_JOB_LABELS,
+  OPS_REFRESH_TIMEOUT_MS,
+  OpsRefreshTimeoutError,
+  evaluateSourceRefresh,
+  humanizeOpsRefreshError,
+  postOpsRefresh,
+  type OpsRefreshJobKey,
+  type OpsRefreshJobStatus,
+} from "@/lib/admin/ops-refresh-client";
 import type {
   OpsDashboardPayload,
   OpsDmmPeriod,
   OpsGscPeriod,
   OpsGa4Period,
-  OpsRefreshSource,
   OpsTask,
 } from "@/lib/admin/ops-types";
 
@@ -31,109 +45,19 @@ type OpsDashboardClientProps = {
   initialTab?: string | null;
 };
 
-type RefreshStepResult = {
-  label: string;
-  ok: boolean;
-  detail: string;
-};
+type JobMap = Record<OpsRefreshJobKey, OpsRefreshJobView>;
 
-const OPS_FETCH_INIT: RequestInit = {
-  cache: "no-store",
-  headers: {
-    "Cache-Control": "no-store",
-  },
-};
-
-function summarizeError(detail: string, max = 180): string {
-  const compact = detail.replace(/\s+/g, " ").trim();
-  if (compact.length <= max) return compact;
-  return `${compact.slice(0, max)}…`;
-}
-
-function evaluateSourceRefresh(
-  source: OpsRefreshSource,
-  payload: OpsDashboardPayload,
-): { ok: boolean; detail: string } {
-  if (source === "ga4") {
-    if (payload.ga4.fetchError || payload.ga4.connectionStatus === "error") {
-      return {
-        ok: false,
-        detail: summarizeError(
-          payload.ga4.authDiagnostics?.errorCode
-            ? `${payload.ga4.authDiagnostics.errorCode}: ${payload.ga4.fetchError ?? "取得失敗"}`
-            : payload.ga4.fetchError ?? "GA4取得に失敗しました。",
-        ),
-      };
-    }
-    if (!payload.ga4.lastSuccessfulAt && payload.ga4.connectionStatus !== "connected") {
-      return { ok: false, detail: "GA4データを取得できませんでした。" };
-    }
-    return { ok: true, detail: "成功" };
-  }
-
-  if (source === "seo") {
-    if (payload.seo.fetchError || payload.seo.connectionStatus === "error") {
-      return {
-        ok: false,
-        detail: summarizeError(
-          payload.seo.fetchError ?? "Search Console取得に失敗しました。",
-        ),
-      };
-    }
-    if (!payload.seo.updatedAt && payload.seo.connectionStatus !== "connected") {
-      return { ok: false, detail: "Search Consoleデータを取得できませんでした。" };
-    }
-    return { ok: true, detail: "成功" };
-  }
-
-  if (source === "dmm") {
-    if (payload.dmm.fetchError || payload.dmm.connectionStatus === "error") {
-      return {
-        ok: false,
-        detail: summarizeError(
-          payload.dmm.fetchError ?? "DMM成果の取得に失敗しました。",
-        ),
-      };
-    }
-    if (payload.dmm.rowCount <= 0 && payload.dmm.connectionStatus === "unconfigured") {
-      return {
-        ok: false,
-        detail: "DMM成果データが未取込です。CSVをアップロードしてください。",
-      };
-    }
-    return { ok: true, detail: "成功" };
-  }
-
-  return { ok: true, detail: "成功" };
-}
-
-async function postOpsRefresh(source: OpsRefreshSource): Promise<OpsDashboardPayload> {
-  const response = await fetch("/api/admin/ops/refresh", {
-    method: "POST",
-    ...OPS_FETCH_INIT,
-    headers: {
-      ...OPS_FETCH_INIT.headers,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ source }),
-  });
-  const json = (await response.json()) as {
-    success?: boolean;
-    data?: OpsDashboardPayload;
-    error?: string;
+function createIdleJobs(): JobMap {
+  return {
+    seo: { status: "idle", detail: "" },
+    ga4: { status: "idle", detail: "" },
+    dmm: { status: "idle", detail: "" },
+    score: { status: "idle", detail: "" },
   };
-  if (!response.ok || !json.data) {
-    throw new Error(json.error ?? "更新に失敗しました。");
-  }
-  return json.data;
 }
 
-async function fetchOpsData(): Promise<OpsDashboardPayload | null> {
-  const response = await fetch("/api/admin/ops/data", OPS_FETCH_INIT);
-  const json = (await response.json()) as {
-    data?: OpsDashboardPayload;
-  };
-  return json.data ?? null;
+function pendingDetail(key: OpsRefreshJobKey): string {
+  return key === "score" ? "処理中" : "取得中";
 }
 
 export function OpsDashboardClient({
@@ -151,17 +75,30 @@ export function OpsDashboardClient({
   const [dmmPeriod, setDmmPeriod] = useState<OpsDmmPeriod>("7d");
   const [tasks, setTasks] = useState<OpsTask[]>(initialData.tasks);
   const [message, setMessage] = useState<string | null>(null);
-  const [refreshProgress, setRefreshProgress] = useState<string | null>(null);
-  const [refreshResults, setRefreshResults] = useState<RefreshStepResult[]>([]);
-  const [refreshingSource, setRefreshingSource] = useState<OpsRefreshSource | null>(
-    null,
-  );
-  const [isPending, startTransition] = useTransition();
+  const [jobs, setJobs] = useState<JobMap>(createIdleJobs);
+  const [refreshStartedAt, setRefreshStartedAt] = useState<number | null>(null);
+  const [elapsedMs, setElapsedMs] = useState(0);
   const [uploadPending, startUploadTransition] = useTransition();
+  const runningKeysRef = useRef<Set<OpsRefreshJobKey>>(new Set());
+  const progressRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setActiveTab(tabFromUrl);
   }, [tabFromUrl]);
+
+  useEffect(() => {
+    if (!refreshStartedAt) return;
+    const hasPending = OPS_REFRESH_JOB_KEYS.some(
+      (key) => jobs[key].status === "pending",
+    );
+    if (!hasPending) return;
+
+    setElapsedMs(Date.now() - refreshStartedAt);
+    const timer = window.setInterval(() => {
+      setElapsedMs(Date.now() - refreshStartedAt);
+    }, 500);
+    return () => window.clearInterval(timer);
+  }, [refreshStartedAt, jobs]);
 
   const applyPayload = useCallback((payload: OpsDashboardPayload) => {
     setData((current) => {
@@ -173,6 +110,20 @@ export function OpsDashboardClient({
       return merged;
     });
   }, []);
+
+  const setJobStatus = useCallback(
+    (
+      key: OpsRefreshJobKey,
+      status: OpsRefreshJobStatus,
+      detail: string,
+    ) => {
+      setJobs((current) => ({
+        ...current,
+        [key]: { status, detail },
+      }));
+    },
+    [],
+  );
 
   function changeTab(tab: OpsTabId) {
     setActiveTab(tab);
@@ -191,117 +142,118 @@ export function OpsDashboardClient({
     );
   }
 
-  function refreshSource(source: OpsRefreshSource, label: string) {
-    startTransition(async () => {
-      setMessage(null);
-      setRefreshResults([]);
-      setRefreshingSource(source);
-      setRefreshProgress(`${label}中`);
-      try {
-        const payload = await postOpsRefresh(source);
+  function scrollToProgress() {
+    progressRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  const anyJobPending = OPS_REFRESH_JOB_KEYS.some(
+    (key) => jobs[key].status === "pending",
+  );
+
+  async function runRefreshJob(
+    key: OpsRefreshJobKey,
+  ): Promise<{ status: OpsRefreshJobStatus; detail: string }> {
+    if (runningKeysRef.current.has(key)) {
+      return { status: "error", detail: "すでに実行中です" };
+    }
+    runningKeysRef.current.add(key);
+    setJobStatus(key, "pending", pendingDetail(key));
+
+    try {
+      const payload = await postOpsRefresh(
+        key,
+        OPS_REFRESH_TIMEOUT_MS[key],
+        OPS_REFRESH_JOB_LABELS[key],
+      );
+      const outcome = evaluateSourceRefresh(key, payload);
+      if (outcome.ok) {
+        // 成功時のみ差し替え。失敗・タイムアウト時は既存表示を維持する。
         applyPayload(payload);
-        const outcome = evaluateSourceRefresh(source, payload);
-        setRefreshResults([{ label, ok: outcome.ok, detail: outcome.detail }]);
-        setMessage(
-          outcome.ok
-            ? `${label}が完了しました。`
-            : `${label}に失敗しました。${outcome.detail}`,
-        );
-      } catch (error) {
-        const detail = summarizeError(
-          error instanceof Error ? error.message : "更新に失敗しました。",
-        );
-        setMessage(`${label}に失敗しました。${detail}`);
-        setRefreshResults([{ label, ok: false, detail }]);
-        try {
-          const response = await fetch("/api/admin/ops/data", OPS_FETCH_INIT);
-          const json = (await response.json()) as {
-            data?: OpsDashboardPayload;
-          };
-          if (json.data) applyPayload(json.data);
-        } catch {
-          // keep current view
-        }
-      } finally {
-        setRefreshingSource(null);
-        setRefreshProgress(null);
+        setJobStatus(key, "success", "成功");
+        return { status: "success", detail: "成功" };
       }
+      setJobStatus(key, "error", outcome.detail);
+      return { status: "error", detail: outcome.detail };
+    } catch (error) {
+      if (error instanceof OpsRefreshTimeoutError) {
+        setJobStatus(key, "timeout", "タイムアウト");
+        return { status: "timeout", detail: "タイムアウト" };
+      }
+      const detail = humanizeOpsRefreshError(error);
+      setJobStatus(key, "error", detail);
+      return { status: "error", detail };
+    } finally {
+      runningKeysRef.current.delete(key);
+    }
+  }
+
+  async function refreshJobs(keys: OpsRefreshJobKey[], startedMessage: string) {
+    const blocked = keys.some((key) => runningKeysRef.current.has(key));
+    if (blocked) {
+      setMessage("すでに更新処理が実行中です。");
+      scrollToProgress();
+      return;
+    }
+
+    const startedAt = Date.now();
+    setRefreshStartedAt(startedAt);
+    setElapsedMs(0);
+    setMessage(startedMessage);
+
+    setJobs((current) => {
+      const next: JobMap = { ...current };
+      for (const key of OPS_REFRESH_JOB_KEYS) {
+        if (keys.includes(key)) {
+          next[key] = { status: "pending", detail: pendingDetail(key) };
+        } else if (keys.length > 1) {
+          next[key] = { status: "idle", detail: "" };
+        }
+      }
+      return next;
     });
+
+    const settled = await Promise.all(
+      keys.map(async (key) => ({
+        key,
+        result: await runRefreshJob(key),
+      })),
+    );
+
+    const successCount = settled.filter(
+      (row) => row.result.status === "success",
+    ).length;
+    const failCount = settled.filter(
+      (row) =>
+        row.result.status === "error" || row.result.status === "timeout",
+    ).length;
+
+    setElapsedMs(Date.now() - startedAt);
+    setMessage(
+      failCount === 0
+        ? keys.length === 1
+          ? `${OPS_REFRESH_JOB_LABELS[keys[0]]}の更新が完了しました。`
+          : "すべての更新が完了しました。"
+        : `更新完了（成功 ${successCount} / 失敗 ${failCount}）。成功したデータのみ表示を更新しています。`,
+    );
   }
 
   function refreshAll() {
-    startTransition(async () => {
-      setMessage(null);
-      setRefreshResults([]);
-      const steps: Array<{ source: OpsRefreshSource; label: string }> = [
-        { source: "seo", label: "Search Console更新" },
-        { source: "ga4", label: "GA4更新" },
-        { source: "dmm", label: "DMM更新" },
-      ];
-      const results: RefreshStepResult[] = [];
+    if (anyJobPending) {
+      scrollToProgress();
+      return;
+    }
+    void refreshJobs([...OPS_REFRESH_JOB_KEYS], "更新を開始しました");
+  }
 
-      for (const step of steps) {
-        setRefreshingSource(step.source);
-        setRefreshProgress(`${step.label}中`);
-        try {
-          const payload = await postOpsRefresh(step.source);
-          applyPayload(payload);
-          const outcome = evaluateSourceRefresh(step.source, payload);
-          results.push({
-            label: step.label,
-            ok: outcome.ok,
-            detail: outcome.detail,
-          });
-        } catch (error) {
-          results.push({
-            label: step.label,
-            ok: false,
-            detail: summarizeError(
-              error instanceof Error ? error.message : "更新に失敗しました。",
-            ),
-          });
-        }
-      }
-
-      setRefreshingSource(null);
-      // 最終 GET はスコア再計算用だが、古いキャッシュで上書きしないよう merge 適用
-      setRefreshProgress("SEOスコア計算中");
-      try {
-        const dataPayload = await fetchOpsData();
-        if (dataPayload) {
-          applyPayload(dataPayload);
-          results.push({
-            label: "SEOスコア・改善提案再生成",
-            ok: true,
-            detail: "成功",
-          });
-        } else {
-          results.push({
-            label: "SEOスコア・改善提案再生成",
-            ok: false,
-            detail: "再計算に失敗しました。",
-          });
-        }
-      } catch (error) {
-        results.push({
-          label: "SEOスコア・改善提案再生成",
-          ok: false,
-          detail:
-            error instanceof Error ? error.message : "再計算に失敗しました。",
-        });
-      }
-
-      setRefreshProgress("完了");
-      setRefreshResults(results);
-      const failed = results.filter((row) => !row.ok).length;
-      setMessage(
-        failed === 0
-          ? "すべての更新が完了しました。"
-          : `更新完了（成功 ${results.length - failed} / 失敗 ${failed}）。成功したデータは表示を更新しています。`,
-      );
-      setRefreshingSource(null);
-      setTimeout(() => setRefreshProgress(null), 1200);
-    });
+  function refreshSource(key: OpsRefreshJobKey) {
+    if (runningKeysRef.current.has(key) || jobs[key].status === "pending") {
+      scrollToProgress();
+      return;
+    }
+    void refreshJobs(
+      [key],
+      `${OPS_REFRESH_JOB_LABELS[key]}の更新を開始しました`,
+    );
   }
 
   function uploadDmm(file: File, type: "category" | "direct") {
@@ -315,39 +267,45 @@ export function OpsDashboardClient({
           method: "POST",
           body,
         });
-        const json = (await response.json()) as {
+        const text = await response.text();
+        let json: {
           success?: boolean;
           error?: string;
           inserted?: number;
           updated?: number;
           total?: number;
-          type?: string;
           data?: OpsDashboardPayload;
-        };
+        } = {};
+        try {
+          json = text ? (JSON.parse(text) as typeof json) : {};
+        } catch {
+          throw new Error(
+            humanizeOpsRefreshError(
+              text.includes("<")
+                ? "APIがHTMLを返しました"
+                : "アップロード応答の解析に失敗しました。",
+            ),
+          );
+        }
         if (!response.ok || !json.success) {
-          throw new Error(json.error ?? "アップロードに失敗しました。");
+          throw new Error(
+            humanizeOpsRefreshError(
+              json.error ?? "アップロードに失敗しました。",
+            ),
+          );
         }
         if (json.data) {
           applyPayload(json.data);
-        } else {
-          const dataPayload = await fetchOpsData();
-          if (dataPayload) applyPayload(dataPayload);
         }
         const typeLabel = type === "category" ? "カテゴリ" : "ダイレクト";
         setMessage(
           `${typeLabel}CSV取込完了: 新規 ${json.inserted ?? 0} / 更新 ${json.updated ?? 0} / 合計 ${json.total ?? 0} 件`,
         );
       } catch (error) {
-        setMessage(
-          error instanceof Error
-            ? error.message
-            : "アップロードに失敗しました。",
-        );
+        setMessage(humanizeOpsRefreshError(error));
       }
     });
   }
-
-  const busy = isPending || uploadPending;
 
   return (
     <div className="space-y-6">
@@ -366,39 +324,27 @@ export function OpsDashboardClient({
         <button
           type="button"
           onClick={refreshAll}
-          disabled={busy}
-          className="min-h-11 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
+          className="min-h-11 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white"
         >
-          {isPending && !refreshingSource ? "更新中…" : "手動更新"}
+          {anyJobPending ? "状態を確認" : "手動更新"}
         </button>
       </section>
 
       <OpsTabNav activeTab={activeTab} onChange={changeTab} />
 
-      {refreshProgress ? (
-        <p className="rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-medium text-sky-900">
-          {refreshProgress}
-        </p>
-      ) : null}
+      <div ref={progressRef}>
+        <OpsRefreshProgress
+          jobs={jobs}
+          startedAt={refreshStartedAt}
+          elapsedMs={elapsedMs}
+          message={message}
+        />
+      </div>
 
-      {message ? (
+      {!refreshStartedAt && message ? (
         <p className="rounded-lg border border-border bg-white px-4 py-3 text-sm text-foreground dark:border-zinc-700 dark:bg-zinc-900">
           {message}
         </p>
-      ) : null}
-
-      {refreshResults.length > 0 ? (
-        <ul className="rounded-lg border border-border bg-white px-4 py-3 text-sm dark:border-zinc-700 dark:bg-zinc-900">
-          {refreshResults.map((result) => (
-            <li key={result.label} className="flex flex-wrap gap-2 py-1">
-              <span className={result.ok ? "text-green-700" : "text-red-700"}>
-                {result.ok ? "成功" : "失敗"}
-              </span>
-              <span className="font-medium text-foreground">{result.label}</span>
-              <span className="text-muted">{result.detail}</span>
-            </li>
-          ))}
-        </ul>
       ) : null}
 
       {activeTab === "overview" ? (
@@ -415,8 +361,8 @@ export function OpsDashboardClient({
           data={data}
           period={gscPeriod}
           onPeriodChange={setGscPeriod}
-          refreshing={refreshingSource === "seo" || refreshingSource === "all"}
-          onRefresh={() => refreshSource("seo", "Search Console更新")}
+          refreshing={jobs.seo.status === "pending"}
+          onRefresh={() => refreshSource("seo")}
         />
       ) : null}
 
@@ -425,8 +371,8 @@ export function OpsDashboardClient({
           data={data}
           period={ga4Period}
           onPeriodChange={setGa4Period}
-          refreshing={refreshingSource === "ga4" || refreshingSource === "all"}
-          onRefresh={() => refreshSource("ga4", "GA4更新")}
+          refreshing={jobs.ga4.status === "pending"}
+          onRefresh={() => refreshSource("ga4")}
         />
       ) : null}
 
@@ -435,8 +381,8 @@ export function OpsDashboardClient({
           data={data}
           period={dmmPeriod}
           onPeriodChange={setDmmPeriod}
-          refreshing={refreshingSource === "dmm" || refreshingSource === "all"}
-          onRefresh={() => refreshSource("dmm", "DMM更新")}
+          refreshing={jobs.dmm.status === "pending"}
+          onRefresh={() => refreshSource("dmm")}
           uploadPending={uploadPending}
           onUpload={uploadDmm}
         />

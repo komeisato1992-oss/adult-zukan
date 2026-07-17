@@ -185,15 +185,14 @@ async function attachRefreshErrors(
   };
 }
 
-/** Search Console / サイトマップ / SEO監査を更新してダッシュボードを再構築 */
+/** Search Console / サイトマップのみ更新してダッシュボードを再構築 */
 export async function refreshOpsSeoSource(): Promise<OpsDashboardPayload> {
-  const results = await Promise.allSettled([
-    refreshSeoDashboardData(),
-    refreshSeoAudits(),
-  ]);
-  const errors = results
-    .filter((result): result is PromiseRejectedResult => result.status === "rejected")
-    .map((result) => errorMessage(result.reason));
+  const errors: string[] = [];
+  try {
+    await refreshSeoDashboardData();
+  } catch (error) {
+    errors.push(errorMessage(error));
+  }
   return attachRefreshErrors(await buildOpsPayload(false), errors);
 }
 
@@ -219,6 +218,17 @@ export async function refreshOpsDmmSource(): Promise<OpsDashboardPayload> {
   return attachRefreshErrors(await buildOpsPayload(false), errors);
 }
 
+/** SEO監査・スコア・改善提案を再生成してダッシュボードを再構築 */
+export async function refreshOpsScoreSource(): Promise<OpsDashboardPayload> {
+  const errors: string[] = [];
+  try {
+    await refreshSeoAudits();
+  } catch (error) {
+    errors.push(errorMessage(error));
+  }
+  return attachRefreshErrors(await buildOpsPayload(false), errors);
+}
+
 export async function refreshOpsSource(
   source: OpsRefreshSource,
 ): Promise<OpsDashboardPayload> {
@@ -229,6 +239,8 @@ export async function refreshOpsSource(
       return refreshOpsGa4Source();
     case "dmm":
       return refreshOpsDmmSource();
+    case "score":
+      return refreshOpsScoreSource();
     case "all":
     default:
       return refreshOpsDashboardData();

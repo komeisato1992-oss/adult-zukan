@@ -19,4 +19,6 @@ export type CompareItem = {
   description: string;
   sampleImages: string[];
   fanzaUrl: string;
+  fanzaTvStatus?: string | null;
+  workFormat?: string | null;
 };

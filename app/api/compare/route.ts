@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCatalogWorks } from "@/lib/catalog";
 import {
+  getDmmDeliveryFormats,
   getDmmItemActressNameList,
   getDmmItemGenreNameList,
   getDmmItemImageUrl,
@@ -58,6 +59,10 @@ export async function GET(request: Request) {
   const items = liveItems.map((item) => {
       const release = getDmmReleaseDateInfo(item);
       const sale = getSalePriceInfo(item);
+      const deliveryFormats = getDmmDeliveryFormats(item);
+      const workFormat =
+        deliveryFormats ??
+        (item.product_id?.includes("videoa") ? "動画" : null);
       return {
         contentId: item.content_id,
         title: item.title,
@@ -80,6 +85,8 @@ export async function GET(request: Request) {
         description: pickDescription(item),
         sampleImages: getDmmSampleImages(item).slice(0, 5),
         fanzaUrl: getDmmFanzaUrl(item),
+        fanzaTvStatus: item.fanzaTvStatus ?? null,
+        workFormat,
       };
     });
 

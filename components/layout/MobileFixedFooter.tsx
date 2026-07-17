@@ -30,13 +30,15 @@ function isNavItemActive(
 export function MobileFixedFooter() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  // 比較ページ本体では通常用の固定比較バーを出さず、グローバルナビのみ残す
+  const hideCompareBar = pathname === "/compare";
 
   return (
     <footer
       className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-white/95 backdrop-blur min-[769px]:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
     >
-      <CompareMobileFooterBar />
+      {hideCompareBar ? null : <CompareMobileFooterBar />}
       <MobileBottomNavBar
         ariaLabel="アダルト図鑑下部ナビゲーション"
         items={mobileBottomNavItems}

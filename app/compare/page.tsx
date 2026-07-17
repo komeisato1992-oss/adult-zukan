@@ -85,7 +85,7 @@ export default async function ComparePage({ searchParams }: ComparePageProps) {
 
   return (
     <PageLayout>
-      <div className="max-[768px]:pb-[calc(80px+env(safe-area-inset-bottom))]">
+      <div className="max-[768px]:pb-[calc(8px+env(safe-area-inset-bottom))]">
       <JsonLd data={breadcrumbJsonLd} />
       <Breadcrumb items={breadcrumbItems} />
       <header className="mt-4 mb-4 max-[768px]:mb-2 max-[768px]:mt-3">
@@ -119,6 +119,7 @@ export default async function ComparePage({ searchParams }: ComparePageProps) {
           <CompareSingleWorkSuggestions
             contentId={relatedIds[0]}
             title={workA?.title}
+            excludeIds={displayIds}
           />
         </Suspense>
       ) : null}
@@ -130,6 +131,7 @@ export default async function ComparePage({ searchParams }: ComparePageProps) {
             contentIdB={relatedIds[1]}
             titleA={workA?.title}
             titleB={workB?.title}
+            excludeIds={displayIds}
           />
         </Suspense>
       ) : null}

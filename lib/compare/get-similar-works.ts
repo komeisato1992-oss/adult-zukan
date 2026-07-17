@@ -23,6 +23,7 @@ import {
   getDmmItemMakerName,
   getDmmItemPrice,
   getDmmItemSeriesName,
+  getDmmItemVolumeLabel,
   getDmmListItemImageUrl,
 } from "@/lib/dmm/display";
 import { filterDisplayableItems } from "@/lib/dmm/filter";
@@ -229,6 +230,7 @@ function toCardData(
     priceDiffYen: result.priceDiffYen,
     rating: reviewAverage || undefined,
     releaseDate: getDmmReleaseDateInfo(item)?.value,
+    duration: getDmmItemVolumeLabel(item),
     similarityScore: result.score,
     reasons: result.reasons,
     fanzaUrl: getDmmFanzaUrl(item) ?? "",

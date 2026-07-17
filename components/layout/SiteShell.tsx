@@ -23,6 +23,7 @@ type SiteShellProps = {
 export function SiteShell({ children }: SiteShellProps) {
   const pathname = usePathname();
   const isBare = isBarePath(pathname);
+  const isCompareRoot = pathname === "/compare";
 
   if (isBare) {
     return <>{children}</>;
@@ -31,10 +32,16 @@ export function SiteShell({ children }: SiteShellProps) {
   return (
     <>
       <Header />
-      <main className="flex-1 max-[768px]:pb-[calc(98px+env(safe-area-inset-bottom,0px))]">
+      <main
+        className={
+          isCompareRoot
+            ? "flex-1 max-[768px]:pb-[calc(56px+env(safe-area-inset-bottom,0px))]"
+            : "flex-1 max-[768px]:pb-[calc(98px+env(safe-area-inset-bottom,0px))]"
+        }
+      >
         {children}
       </main>
-      <CompareFloatingButton />
+      {isCompareRoot ? null : <CompareFloatingButton />}
       <CompareCandidateGuide />
       <Footer />
       <Suspense fallback={null}>

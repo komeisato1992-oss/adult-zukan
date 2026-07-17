@@ -3,15 +3,17 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { CompareMobileView } from "@/components/compare/CompareMobileView";
-import { CompareToggleButton } from "@/components/compare/CompareToggleButton";
 import type { CompareItem } from "@/components/compare/compare-item-types";
+import {
+  ClampExpandable,
+  CompareEntityNameLink,
+} from "@/components/compare/compare-table-cells";
 import {
   clearCompareIds,
   readCompareIds,
   setCompareIds,
-  subscribeCompareStore,
 } from "@/components/compare/compare-store";
 import {
   WORK_CARD_VIEW_LABEL,
@@ -19,56 +21,50 @@ import {
 } from "@/components/works/work-card-cta-styles";
 import { ActressNameLinks } from "@/components/ui/ActressNameLinks";
 import { GenreNameLinks } from "@/components/ui/GenreNameLinks";
-import { imageCoverClassName } from "@/components/ui/image-cover";
-import { ImageLightboxModal } from "@/components/works/ImageLightboxModal";
 import {
   COMPARE_GA_EVENTS,
   trackCompareEvent,
 } from "@/lib/compare/analytics";
-import { buildComparePageHref } from "@/lib/compare/urls";
+import { formatPriceYen } from "@/lib/compare/types";
+import {
+  buildComparePageHref,
+  parseCompareIdsParam,
+} from "@/lib/compare/urls";
 
-function CompareDescription({
-  contentId,
-  description,
-}: {
-  contentId: string;
-  description: string;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  if (!description) return <p className="text-sm text-muted">説明なし</p>;
+function DesktopPrice({ item }: { item: CompareItem }) {
+  const saleLabel =
+    item.currentPrice != null ? formatPriceYen(item.currentPrice) : item.price;
+  const regularLabel =
+    item.regularPrice != null &&
+    item.currentPrice != null &&
+    item.regularPrice > item.currentPrice
+      ? formatPriceYen(item.regularPrice)
+      : undefined;
+
+  if (!saleLabel) return <span className="text-muted">—</span>;
 
   return (
-    <div>
-      <p
-        className={`text-sm leading-relaxed text-foreground ${expanded ? "" : "line-clamp-5"}`}
-      >
-        {description}
-      </p>
-      {description.length > 120 ? (
-        <button
-          type="button"
-          onClick={() => setExpanded((prev) => !prev)}
-          className="mt-2 text-xs text-accent hover:underline"
-          aria-expanded={expanded}
-          aria-controls={`compare-desc-${contentId}`}
-        >
-          {expanded ? "閉じる" : "全文を見る"}
-        </button>
+    <p className="flex flex-col gap-0.5">
+      <span className="font-bold text-price">{saleLabel}</span>
+      {regularLabel ? (
+        <span className="text-xs text-muted line-through">{regularLabel}</span>
       ) : null}
-    </div>
+    </p>
   );
 }
 
+/**
+ * 比較ページの正は URL の ids。
+ * localStorage は URL に同期する（表示件数・クリア対象と一致させる）。
+ */
 export function ComparePageClient() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [ids, setIds] = useState<string[]>([]);
+  const [urlIds, setUrlIds] = useState<string[]>([]);
   const [items, setItems] = useState<CompareItem[]>([]);
-  const [activeImage, setActiveImage] = useState<{
-    src: string;
-    alt: string;
-  } | null>(null);
+  const [loading, setLoading] = useState(false);
   const [isNarrow, setIsNarrow] = useState<boolean | null>(null);
+  const [hydrated, setHydrated] = useState(false);
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 768px)");
@@ -79,68 +75,90 @@ export function ComparePageClient() {
   }, []);
 
   useEffect(() => {
-    const idsParam = searchParams.get("ids");
-    if (idsParam) {
-      const urlIds = idsParam
-        .split(",")
-        .map((id) => id.trim())
-        .filter(Boolean)
-        .slice(0, 4);
-      if (urlIds.length > 0) {
-        setCompareIds(urlIds);
+    const fromUrl = parseCompareIdsParam(searchParams.get("ids"));
+    if (fromUrl.length > 0) {
+      setUrlIds(fromUrl);
+      setCompareIds(fromUrl);
+      setHydrated(true);
+      return;
+    }
+
+    // URL が空のときのみ、store → URL へ一度同期して正を URL に寄せる
+    if (!hydrated) {
+      const stored = readCompareIds();
+      if (stored.length > 0) {
+        setHydrated(true);
+        router.replace(buildComparePageHref(stored), { scroll: false });
+        return;
       }
     }
 
-    const sync = () => setIds(readCompareIds().slice(0, 4));
-    sync();
-    return subscribeCompareStore(sync);
-  }, [searchParams]);
+    setUrlIds([]);
+    setHydrated(true);
+  }, [searchParams, router, hydrated]);
 
   useEffect(() => {
-    if (ids.length < 2) return;
-    const href = buildComparePageHref(ids);
-    const currentIds = searchParams.get("ids") ?? "";
-    const currentOrdered = currentIds
-      .split(",")
-      .map((id) => id.trim())
-      .filter(Boolean)
-      .slice(0, 4);
-    if (currentOrdered.join(",") !== ids.join(",")) {
-      router.replace(href, { scroll: false });
-    }
-  }, [ids, router, searchParams]);
-
-  useEffect(() => {
-    if (ids.length === 0) {
+    if (!hydrated) return;
+    if (urlIds.length === 0) {
       setItems([]);
+      setLoading(false);
       return;
     }
 
     let cancelled = false;
+    setLoading(true);
     const fetchItems = async () => {
       const response = await fetch(
-        `/api/compare?ids=${encodeURIComponent(ids.join(","))}`,
+        `/api/compare?ids=${encodeURIComponent(urlIds.join(","))}`,
       );
       const json = (await response.json()) as { items: CompareItem[] };
-      if (!cancelled) setItems(json.items);
+      if (cancelled) return;
+      // URL 順を維持し、取得できた作品だけを同一配列として使う
+      const byId = new Map(json.items.map((item) => [item.contentId, item]));
+      const ordered = urlIds
+        .map((id) => byId.get(id))
+        .filter((item): item is CompareItem => Boolean(item));
+      setItems(ordered);
+      setLoading(false);
     };
     fetchItems().catch(() => {
-      if (!cancelled) setItems([]);
+      if (!cancelled) {
+        setItems([]);
+        setLoading(false);
+      }
     });
     return () => {
       cancelled = true;
     };
-  }, [ids]);
+  }, [urlIds, hydrated]);
 
-  const isEmpty = ids.length === 0;
-  const clearable = useMemo(() => items.length > 0, [items.length]);
+  const displayCount = items.length;
+  const clearable = displayCount > 0;
 
-  if (isEmpty) {
-    return (
+  function handleClear() {
+    clearCompareIds();
+    setUrlIds([]);
+    setItems([]);
+    router.replace("/compare", { scroll: false });
+  }
+
+  function handleRemove(contentId: string) {
+    const next = items
+      .map((item) => item.contentId)
+      .filter((id) => id !== contentId);
+    setCompareIds(next);
+    router.replace(buildComparePageHref(next), { scroll: false });
+  }
+
+  const emptyMessage = useMemo(
+    () => (
       <section className="mt-8 rounded border border-border bg-surface p-8 text-center max-[768px]:pb-2">
         <h2 className="text-lg font-bold text-foreground">
-          比較する作品がありません
+          比較する作品が選択されていません
         </h2>
+        <p className="mt-2 text-sm text-muted">
+          作品一覧から比較したい作品を選んでください
+        </p>
         <Link
           href="/works"
           className="mt-4 inline-flex rounded bg-accent px-4 py-2 text-sm font-bold text-white hover:bg-accent-hover"
@@ -148,10 +166,11 @@ export function ComparePageClient() {
           作品一覧へ
         </Link>
       </section>
-    );
-  }
+    ),
+    [],
+  );
 
-  if (isNarrow === null) {
+  if (!hydrated || isNarrow === null) {
     return (
       <section className="mt-6 rounded border border-border bg-surface p-6 text-center text-sm text-muted">
         比較作品を表示しています…
@@ -159,172 +178,254 @@ export function ComparePageClient() {
     );
   }
 
+  if (urlIds.length === 0) {
+    return emptyMessage;
+  }
+
+  if (loading && items.length === 0) {
+    return (
+      <section className="mt-6 rounded border border-border bg-surface p-6 text-center text-sm text-muted">
+        比較作品を読み込み中...
+      </section>
+    );
+  }
+
+  if (items.length === 0) {
+    return emptyMessage;
+  }
+
   if (isNarrow) {
     return <CompareMobileView items={items} />;
   }
 
-  return (
-      /* PC (≥769px): 既存レイアウトを維持 */
-      <section className="mt-6">
-          <div className="mb-4 flex items-center justify-between">
-            <p className="text-sm text-muted">
-              最大4作品を比較できます（現在 {items.length} 件）
-            </p>
-            {clearable ? (
-              <button
-                type="button"
-                onClick={() => clearCompareIds()}
-                className="text-sm text-accent hover:underline"
-              >
-                比較をクリア
-              </button>
-            ) : null}
-          </div>
-
-          <div
-            className={`-mx-4 px-4 sm:mx-0 sm:px-0 ${
-              items.length >= 3 ? "overflow-x-auto" : "overflow-x-hidden"
-            }`}
+  const rows: Array<{
+    key: string;
+    label: string;
+    render: (item: CompareItem) => ReactNode;
+  }> = [
+    {
+      key: "image",
+      label: "画像",
+      render: (item) => (
+        <Link href={`/works/${item.contentId}`} className="block">
+          {item.imageUrl ? (
+            <div className="mx-auto flex h-[200px] w-full max-w-[220px] items-center justify-center overflow-hidden rounded bg-surface">
+              <Image
+                src={item.imageUrl}
+                alt={item.title}
+                width={220}
+                height={200}
+                className="h-auto max-h-full w-auto max-w-full object-contain"
+                loading="lazy"
+                unoptimized
+              />
+            </div>
+          ) : (
+            <div className="flex h-[200px] items-center justify-center rounded bg-surface text-sm text-muted">
+              画像なし
+            </div>
+          )}
+        </Link>
+      ),
+    },
+    {
+      key: "title",
+      label: "タイトル",
+      render: (item) => (
+        <ClampExpandable
+          text={item.title}
+          href={`/works/${item.contentId}`}
+          textClassName="font-bold text-foreground"
+          toggleClassName="mt-1 text-xs font-medium text-accent hover:underline"
+        />
+      ),
+    },
+    {
+      key: "price",
+      label: "価格",
+      render: (item) => <DesktopPrice item={item} />,
+    },
+    {
+      key: "actress",
+      label: "女優",
+      render: (item) =>
+        item.actressNames.length > 0 ? (
+          <ActressNameLinks names={item.actressNames} />
+        ) : (
+          "—"
+        ),
+    },
+    {
+      key: "duration",
+      label: "再生時間",
+      render: (item) => item.duration ?? "—",
+    },
+    {
+      key: "release",
+      label: "発売日",
+      render: (item) => item.releaseDate ?? "—",
+    },
+    {
+      key: "genre",
+      label: "ジャンル",
+      render: (item) =>
+        item.genres.length > 0 ? <GenreNameLinks names={item.genres} /> : "—",
+    },
+    {
+      key: "maker",
+      label: "メーカー",
+      render: (item) => (
+        <CompareEntityNameLink name={item.makerName} kind="maker" />
+      ),
+    },
+    {
+      key: "label",
+      label: "レーベル",
+      render: (item) => (
+        <CompareEntityNameLink name={item.labelName} kind="label" />
+      ),
+    },
+    {
+      key: "series",
+      label: "シリーズ",
+      render: (item) => (
+        <CompareEntityNameLink name={item.series} kind="series" />
+      ),
+    },
+    {
+      key: "rating",
+      label: "評価",
+      render: (item) => item.rating ?? "—",
+    },
+    {
+      key: "reviews",
+      label: "お気に入り数",
+      render: (item) =>
+        item.reviewCount != null ? `${item.reviewCount}` : "—",
+    },
+    {
+      key: "format",
+      label: "作品形式",
+      render: (item) => item.workFormat ?? "—",
+    },
+    {
+      key: "description",
+      label: "説明",
+      render: (item) => (
+        <ClampExpandable
+          text={item.description}
+          textClassName="text-sm leading-relaxed text-foreground"
+          toggleClassName="mt-1 text-xs font-medium text-accent hover:underline"
+        />
+      ),
+    },
+    {
+      key: "actions",
+      label: "操作",
+      render: (item) => (
+        <div className="flex flex-col gap-2">
+          <Link
+            href={`/works/${item.contentId}`}
+            className="flex h-11 w-full items-center justify-center rounded-md border border-accent text-sm font-bold text-accent hover:bg-accent-light"
           >
-            <div
-              className={`grid gap-4 ${
-                items.length >= 4
-                  ? "min-w-[860px] md:grid-cols-4"
-                  : items.length === 3
-                    ? "min-w-[660px] md:grid-cols-3"
-                    : "grid-cols-1 sm:grid-cols-2"
-              }`}
+            作品詳細
+          </Link>
+          {item.fanzaUrl ? (
+            <a
+              href={item.fanzaUrl}
+              target="_blank"
+              rel="nofollow sponsored noopener noreferrer"
+              onClick={() =>
+                trackCompareEvent(COMPARE_GA_EVENTS.fanzaClick, {
+                  content_id: item.contentId,
+                  source: "compare_page",
+                })
+              }
+              className={`${workCardCtaBaseClassName} h-11 min-h-11 bg-accent text-white hover:bg-accent-hover`}
             >
+              {WORK_CARD_VIEW_LABEL}
+            </a>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => handleRemove(item.contentId)}
+            className="w-full py-3 text-center text-sm font-medium text-accent hover:underline"
+          >
+            比較から外す
+          </button>
+        </div>
+      ),
+    },
+  ];
+
+  const gridTemplate = `120px repeat(${items.length}, minmax(0, 1fr))`;
+
+  return (
+    <section className="mt-6">
+      <div className="mb-4 flex items-center justify-between">
+        <p className="text-sm text-muted">
+          最大4作品を比較できます（現在 {displayCount} 件）
+        </p>
+        {clearable ? (
+          <button
+            type="button"
+            onClick={handleClear}
+            className="text-sm text-accent hover:underline"
+          >
+            比較をクリア
+          </button>
+        ) : null}
+      </div>
+
+      <div className="overflow-x-auto">
+        <div
+          className="min-w-0 w-full"
+          style={{
+            display: "grid",
+            gridTemplateColumns: gridTemplate,
+          }}
+        >
+          <div className="border-b border-r border-border bg-gray-50 px-3 py-3 text-sm font-bold text-muted">
+            項目
+          </div>
+          {items.map((item, index) => (
+            <div
+              key={`head-${item.contentId}`}
+              className="border-b border-border bg-white px-3 py-3 text-center text-sm font-bold text-foreground"
+            >
+              作品{index + 1}
+            </div>
+          ))}
+
+          {rows.map((row, rowIndex) => (
+            <div key={row.key} className="contents">
+              <div
+                className={`border-r border-border px-3 py-3 text-sm font-medium text-muted ${
+                  rowIndex % 2 === 0 ? "bg-gray-50" : "bg-gray-100"
+                }`}
+              >
+                {row.label}
+              </div>
               {items.map((item) => (
-                <article
-                  key={item.contentId}
-                  className="rounded-lg border border-border bg-white p-4 shadow-sm"
+                <div
+                  key={`${row.key}-${item.contentId}`}
+                  className={`border-b border-border px-3 py-3 text-sm break-words text-foreground ${
+                    rowIndex % 2 === 0 ? "bg-white" : "bg-[#FAFAFA]"
+                  }`}
                 >
-                  <Link href={`/works/${item.contentId}`} className="block">
-                    {item.imageUrl ? (
-                      <Image
-                        src={item.imageUrl}
-                        alt={item.title}
-                        width={320}
-                        height={180}
-                        className={`h-auto w-full rounded ${imageCoverClassName}`}
-                        loading="lazy"
-                        unoptimized
-                      />
-                    ) : (
-                      <div className="aspect-[16/9] rounded bg-surface" />
-                    )}
-                    <h2 className="mt-3 line-clamp-2 min-h-[2.75rem] text-base font-bold leading-snug text-foreground">
-                      {item.title}
-                    </h2>
-                  </Link>
-
-                  <a
-                    href={item.fanzaUrl}
-                    target="_blank"
-                    rel="nofollow sponsored noopener noreferrer"
-                    onClick={() =>
-                      trackCompareEvent(COMPARE_GA_EVENTS.fanzaClick, {
-                        content_id: item.contentId,
-                        source: "compare_page",
-                      })
-                    }
-                    className={`${workCardCtaBaseClassName} mt-3 bg-accent text-white hover:bg-accent-hover`}
-                  >
-                    {WORK_CARD_VIEW_LABEL}
-                  </a>
-
-                  <div className="mt-3 space-y-2 text-sm">
-                    <p>
-                      <span className="text-muted">女優:</span>{" "}
-                      <ActressNameLinks names={item.actressNames} />
-                    </p>
-                    <p>
-                      <span className="text-muted">価格:</span>{" "}
-                      {item.price ? (
-                        <span className="font-bold text-price">{item.price}</span>
-                      ) : (
-                        "-"
-                      )}
-                    </p>
-                    <p>
-                      <span className="text-muted">再生時間:</span>{" "}
-                      {item.duration ?? "-"}
-                    </p>
-                    <p>
-                      <span className="text-muted">発売日:</span>{" "}
-                      {item.releaseDate ?? "-"}
-                    </p>
-                    <p>
-                      <span className="text-muted">シリーズ:</span>{" "}
-                      {item.series ?? "-"}
-                    </p>
-                    <p>
-                      <span className="text-muted">ジャンル:</span>{" "}
-                      <GenreNameLinks names={item.genres} />
-                    </p>
-                  </div>
-
-                  <div className="mt-4">
-                    <p className="mb-1 text-xs font-medium text-muted">作品説明</p>
-                    <CompareDescription
-                      contentId={item.contentId}
-                      description={item.description}
-                    />
-                  </div>
-
-                  {item.sampleImages.length > 0 ? (
-                    <div className="mt-4">
-                      <p className="mb-2 text-xs font-medium text-muted">
-                        サンプル画像
-                      </p>
-                      <div className="grid grid-cols-3 gap-2">
-                        {item.sampleImages.map((src, index) => (
-                          <button
-                            key={src}
-                            type="button"
-                            onClick={() =>
-                              setActiveImage({
-                                src,
-                                alt: `${item.title} サンプル${index + 1}`,
-                              })
-                            }
-                            className="overflow-hidden rounded border border-border"
-                          >
-                            <Image
-                              src={src}
-                              alt={`${item.title} サンプル${index + 1}`}
-                              width={120}
-                              height={80}
-                              className="h-auto w-full object-cover"
-                              loading="lazy"
-                              unoptimized
-                            />
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-
-                  <div className="mt-4">
-                    <CompareToggleButton
-                      contentId={item.contentId}
-                      title={item.title}
-                      disableAutoNavigate
-                    />
-                  </div>
-                </article>
+                  {row.render(item)}
+                </div>
               ))}
             </div>
-          </div>
+          ))}
+        </div>
+      </div>
 
-          {activeImage ? (
-            <ImageLightboxModal
-              src={activeImage.src}
-              alt={activeImage.alt}
-              onClose={() => setActiveImage(null)}
-            />
-          ) : null}
-        </section>
+      {items.length === 1 ? (
+        <p className="mt-4 text-sm text-muted">
+          もう1作品追加すると比較できます
+        </p>
+      ) : null}
+    </section>
   );
 }

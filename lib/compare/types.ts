@@ -15,6 +15,7 @@ export type SimilarWorkCardData = {
   priceDiffYen?: number | null;
   rating?: string;
   releaseDate?: string;
+  duration?: string;
   similarityScore: number;
   reasons: SimilarityReason[];
   fanzaUrl: string;

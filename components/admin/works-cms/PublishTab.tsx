@@ -47,6 +47,11 @@ type PublishTabProps = {
   onSaveEdit: () => void;
   onCancelEdit: () => void;
   fanzaReady: boolean;
+  /** 運用状況「うち公開中」= 公開中 now_printing 想定件数 */
+  publishedNowPrintingCount?: number;
+  onUnpublishPublishedNowPrinting?: () => void;
+  unpublishPublishedNowPrintingBusy?: boolean;
+  unpublishPublishedNowPrintingResult?: string | null;
 };
 
 const STATUS_OPTIONS: Array<{ id: PublishFilters["status"]; label: string }> = [
@@ -79,9 +84,18 @@ export function WorksCmsPublishTab({
   onSaveEdit,
   onCancelEdit,
   fanzaReady,
+  publishedNowPrintingCount = 0,
+  onUnpublishPublishedNowPrinting,
+  unpublishPublishedNowPrintingBusy = false,
+  unpublishPublishedNowPrintingResult = null,
 }: PublishTabProps) {
   const [showFilters, setShowFilters] = useState(false);
   const filtersKeyRef = useRef<string | null>(null);
+  const bulkUnpublishDisabled =
+    busy ||
+    unpublishPublishedNowPrintingBusy ||
+    publishedNowPrintingCount <= 0 ||
+    !onUnpublishPublishedNowPrinting;
 
   const toggle = (cid: string) => {
     const next = new Set(selected);
@@ -187,6 +201,35 @@ export function WorksCmsPublishTab({
         >
           検索
         </button>
+
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-2 space-y-1.5">
+          <p className="text-xs font-bold text-amber-950">
+            公開中の画像なしを一括非公開
+          </p>
+          <p className="text-[11px] text-amber-900/90 leading-snug">
+            検索結果や選択状態には依存しません。Supabase の{" "}
+            <span className="font-mono">image_status = now_printing</span> かつ{" "}
+            <span className="font-mono">published = true</span>{" "}
+            のみを直接非公開にします（削除なし・デプロイ不要）。
+          </p>
+          <button
+            type="button"
+            disabled={bulkUnpublishDisabled}
+            onClick={onUnpublishPublishedNowPrinting}
+            className="min-h-[40px] w-full rounded-lg bg-amber-700 px-3 text-sm font-bold text-white disabled:opacity-50"
+          >
+            {unpublishPublishedNowPrintingBusy
+              ? "処理中…"
+              : publishedNowPrintingCount > 0
+                ? `公開中の画像なし${publishedNowPrintingCount}件を一括非公開`
+                : "公開中の画像なし0件を一括非公開"}
+          </button>
+          {unpublishPublishedNowPrintingResult ? (
+            <pre className="whitespace-pre-wrap text-[11px] text-emerald-900">
+              {unpublishPublishedNowPrintingResult}
+            </pre>
+          ) : null}
+        </div>
       </div>
 
       <div className="flex gap-2">

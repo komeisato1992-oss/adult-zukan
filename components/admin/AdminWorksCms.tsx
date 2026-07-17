@@ -110,6 +110,39 @@ export function AdminWorksCms() {
   const [unpublishNoImageResult, setUnpublishNoImageResult] = useState<
     string | null
   >(null);
+  const [unpublishPublishedNowPrintingBusy, setUnpublishPublishedNowPrintingBusy] =
+    useState(false);
+  const [unpublishPublishedNowPrintingResult, setUnpublishPublishedNowPrintingResult] =
+    useState<string | null>(null);
+  const [publishedNowPrintingCount, setPublishedNowPrintingCount] = useState(0);
+  const unpublishPublishedNowPrintingLockRef = useRef(false);
+
+  const refreshPublishedNowPrintingCount = useCallback(async () => {
+    try {
+      const res = await fetch(
+        "/api/admin/works-cms/unpublish-published-now-printing",
+        { cache: "no-store" },
+      );
+      const data = (await res.json()) as {
+        success?: boolean;
+        count?: number;
+      };
+      if (res.ok && data.success && typeof data.count === "number") {
+        setPublishedNowPrintingCount(data.count);
+        return data.count;
+      }
+    } catch {
+      // overview にフォールバック
+    }
+    const fallback = overview?.publishedNoImageCount ?? 0;
+    setPublishedNowPrintingCount(fallback);
+    return fallback;
+  }, [overview?.publishedNoImageCount]);
+
+  useEffect(() => {
+    if (tab !== "publish") return;
+    void refreshPublishedNowPrintingCount();
+  }, [tab, overview?.publishedNoImageCount, refreshPublishedNowPrintingCount]);
 
   // fanza tv check
   const [fanzaTvJob, setFanzaTvJob] = useState<FanzaTvCheckJobView | null>(
@@ -737,6 +770,96 @@ export function AdminWorksCms() {
     }
   };
 
+  const handleUnpublishPublishedNowPrinting = async () => {
+    if (unpublishPublishedNowPrintingLockRef.current) return;
+    if (busy || unpublishPublishedNowPrintingBusy) return;
+
+    const targetCount = await refreshPublishedNowPrintingCount();
+
+    if (targetCount <= 0) {
+      setMessage("公開中の画像なし（now_printing）作品はありません");
+      setUnpublishPublishedNowPrintingResult(null);
+      await refreshWorksCmsOverview();
+      return;
+    }
+
+    const confirmed =
+      typeof window === "undefined" ||
+      window.confirm(
+        [
+          `公開中の画像なし作品${targetCount}件を非公開にします。`,
+          "対象：image_status = now_printing",
+          "NOW PRINTING作品だけが対象です（fetch_failed / null / 通常画像は含みません）。",
+          "公開状態を非公開へ変更します。",
+          "作品は削除されません。",
+          "Supabaseへ即時反映されます（デプロイ不要）。",
+          "",
+          `「OK」で${targetCount}件を非公開にします。`,
+        ].join("\n"),
+      );
+    if (!confirmed) return;
+
+    unpublishPublishedNowPrintingLockRef.current = true;
+    setUnpublishPublishedNowPrintingBusy(true);
+    setBusy(true);
+    setUnpublishPublishedNowPrintingResult(null);
+    setMessage(null);
+    try {
+      const res = await fetch(
+        "/api/admin/works-cms/unpublish-published-now-printing",
+        { method: "POST", cache: "no-store" },
+      );
+      const data = (await res.json()) as {
+        success?: boolean;
+        error?: string;
+        message?: string;
+        targetCount?: number;
+        successCount?: number;
+        failureCount?: number;
+        failures?: Array<{ cid: string; reason: string }>;
+        after?: { publishedNoImageCount?: number };
+      };
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "一括非公開に失敗しました");
+      }
+
+      let msg =
+        data.message ||
+        [
+          "画像なし作品の一括非公開が完了しました。",
+          `対象：${data.targetCount ?? targetCount}件`,
+          `成功：${data.successCount ?? 0}件`,
+          `失敗：${data.failureCount ?? 0}件`,
+          `公開中の画像なし：${data.after?.publishedNoImageCount ?? "—"}件`,
+        ].join("\n");
+
+      const failures = Array.isArray(data.failures) ? data.failures : [];
+      if (failures.length > 0) {
+        const lines = failures
+          .slice(0, 30)
+          .map((f) => `・${f.cid}: ${f.reason}`)
+          .join("\n");
+        msg += `\n\n失敗明細:\n${lines}`;
+        if (failures.length > 30) {
+          msg += `\n…他 ${failures.length - 30}件`;
+        }
+      }
+
+      setUnpublishPublishedNowPrintingResult(msg);
+      setMessage(msg);
+      await refreshWorksCmsOverview();
+      await refreshPublishedNowPrintingCount();
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      setMessage(errMsg);
+      setUnpublishPublishedNowPrintingResult(errMsg);
+    } finally {
+      unpublishPublishedNowPrintingLockRef.current = false;
+      setUnpublishPublishedNowPrintingBusy(false);
+      setBusy(false);
+    }
+  };
+
   const mutatePublish = async (
     action: string,
     cids: string[],
@@ -1111,6 +1234,14 @@ export function AdminWorksCms() {
           onSaveEdit={() => void handleSaveEdit()}
           onCancelEdit={() => setEditCid(null)}
           fanzaReady={fanzaReady}
+          publishedNowPrintingCount={publishedNowPrintingCount}
+          onUnpublishPublishedNowPrinting={() =>
+            void handleUnpublishPublishedNowPrinting()
+          }
+          unpublishPublishedNowPrintingBusy={unpublishPublishedNowPrintingBusy}
+          unpublishPublishedNowPrintingResult={
+            unpublishPublishedNowPrintingResult
+          }
         />
       ) : null}
 

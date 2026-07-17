@@ -4,7 +4,7 @@ import { refreshOpsSource } from "@/lib/admin/ops-service";
 import type { OpsRefreshSource } from "@/lib/admin/ops-types";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 function parseSource(value: unknown): OpsRefreshSource {
   if (

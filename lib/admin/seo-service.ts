@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getCatalogWorkByContentId, getCatalogWorks } from "@/lib/catalog";
+import { getCatalogWorks } from "@/lib/catalog";
 import { getSiteUrl } from "@/lib/constants";
 import { createEmptySeoCache } from "@/lib/admin/seo-cache-json";
 import {
@@ -94,11 +94,26 @@ function extractPathname(url: string): string {
   }
 }
 
-async function resolvePageTitle(url: string, pathname: string): Promise<string> {
+/** refresh 時は getCatalogWorkByContentId（1件ごと hydrate）を避け、メモリ上のタイトル辞書を使う */
+function buildWorkTitleMap(works: DmmItem[]): Map<string, string> {
+  const map = new Map<string, string>();
+  for (const work of works) {
+    const id = work.content_id?.trim();
+    const title = work.title?.trim();
+    if (id && title) map.set(id, title);
+  }
+  return map;
+}
+
+function resolvePageTitle(
+  url: string,
+  pathname: string,
+  workTitles: Map<string, string>,
+): string {
   if (pathname.startsWith("/works/")) {
     const contentId = decodeURIComponent(pathname.replace("/works/", ""));
-    const work = await getCatalogWorkByContentId(contentId);
-    if (work?.title) return work.title;
+    const title = workTitles.get(contentId);
+    if (title) return title;
   }
 
   const segments = pathname.split("/").filter(Boolean);
@@ -113,7 +128,7 @@ async function resolvePageTitle(url: string, pathname: string): Promise<string> 
   return decoded;
 }
 
-async function enrichPageRows(
+function enrichPageRows(
   rows: Array<{
     url: string;
     clicks: number;
@@ -121,20 +136,29 @@ async function enrichPageRows(
     ctr: number;
     position: number;
   }>,
-): Promise<SeoPageRow[]> {
-  const enriched: SeoPageRow[] = [];
-
-  for (const row of rows) {
+  workTitles: Map<string, string>,
+): SeoPageRow[] {
+  return rows.map((row) => {
     const pathname = extractPathname(row.url);
-    const title = await resolvePageTitle(row.url, pathname);
-    enriched.push({
+    return {
       ...row,
-      title,
+      title: resolvePageTitle(row.url, pathname, workTitles),
       pageType: classifyPageType(pathname),
-    });
-  }
+    };
+  });
+}
 
-  return enriched;
+/** 比較用の previous* は件数を抑えてキャッシュ肥大・GitHub保存失敗を防ぐ */
+const PREVIOUS_ROWS_LIMIT = 500;
+
+function limitRowsByClicks<T extends { clicks: number }>(
+  rows: T[],
+  limit = PREVIOUS_ROWS_LIMIT,
+): T[] {
+  if (rows.length <= limit) return rows;
+  return [...rows]
+    .sort((a, b) => b.clicks - a.clicks)
+    .slice(0, limit);
 }
 
 function aggregateDailySlice(
@@ -183,6 +207,7 @@ async function fetchPeriodBundlePart(
   siteUrl: string,
   days: SeoPeriodDays,
   dailyStats: SeoCachePayload["dailyStats"],
+  workTitles: Map<string, string>,
 ): Promise<SeoPeriodBundle> {
   const currentRange = getCurrentPeriodRange(days);
   const previousRange = getPreviousPeriodRange(days);
@@ -219,16 +244,17 @@ async function fetchPeriodBundlePart(
       ),
     ]);
 
-  const [pages, previousPages] = await Promise.all([
-    enrichPageRows(mapPageRows(currentPageRows)),
-    enrichPageRows(mapPageRows(previousPageRows)),
-  ]);
+  // current pages は件数指標（検索表示ページ数）に使うため全件保持
+  const pages = enrichPageRows(mapPageRows(currentPageRows), workTitles);
+  const previousPages = limitRowsByClicks(
+    enrichPageRows(mapPageRows(previousPageRows), workTitles),
+  );
 
   return {
     current: metricsFromDailyPeriod(dailyStats, days, "current"),
     previous: metricsFromDailyPeriod(dailyStats, days, "previous"),
     queries: mapQueryRows(currentQueryRows),
-    previousQueries: mapQueryRows(previousQueryRows),
+    previousQueries: limitRowsByClicks(mapQueryRows(previousQueryRows)),
     pages,
     previousPages,
   };
@@ -587,6 +613,32 @@ export async function refreshSeoDashboardData(): Promise<SeoCachePayload> {
       error: config.configMessage ?? "認証情報が未設定です",
     });
 
+    // 認証未設定でも、既存の成功キャッシュを空データで上書きしない
+    const previous = await loadSeoCache();
+    if (previous.updatedAt) {
+      const preserved: SeoCachePayload = {
+        ...previous,
+        configured: false,
+        connectionStatus: "unconfigured",
+        configMessage: config.configMessage,
+        overview: {
+          ...previous.overview,
+          totalWorks,
+        },
+        index: {
+          ...previous.index,
+          totalSitePages:
+            previous.index.totalSitePages > 0
+              ? previous.index.totalSitePages
+              : totalSitePages,
+        },
+        entityPageCounts,
+        entityWorkCounts,
+      };
+      await saveSeoCache(preserved);
+      return preserved;
+    }
+
     const payload: SeoCachePayload = {
       ...base,
       configured: false,
@@ -610,6 +662,7 @@ export async function refreshSeoDashboardData(): Promise<SeoCachePayload> {
   }
 
   const resolvedSiteUrl = getSearchConsoleSiteUrl();
+  const workTitles = buildWorkTitleMap(catalogWorks);
 
   try {
     console.info("[seo-gsc] starting Search Console refresh", {
@@ -648,13 +701,15 @@ export async function refreshSeoDashboardData(): Promise<SeoCachePayload> {
     ]);
 
     const dailyStats = mapDailyRows(daily180Rows).slice(-90);
+    const dailyMapped = mapDailyRows(daily180Rows);
 
     const periodsEntries = await Promise.all(
       PERIOD_OPTIONS.map(async (days) => {
         const bundle = await fetchPeriodBundlePart(
           resolvedSiteUrl,
           days,
-          mapDailyRows(daily180Rows),
+          dailyMapped,
+          workTitles,
         );
         return [days, bundle] as const;
       }),
@@ -781,15 +836,15 @@ export async function refreshSeoDashboardData(): Promise<SeoCachePayload> {
 
     const previous = await loadSeoCache();
     if (previous.updatedAt) {
-      const stale: SeoCachePayload = {
+      // 失敗時は旧キャッシュを表示用に返すだけ。成功データを stale フラグで上書き再保存しない
+      // （再保存すると GitHub/local の成功世代を error 状態で固定してしまう）
+      return {
         ...previous,
         connectionStatus: "error",
         stale: true,
         fetchError: message,
         configMessage: `${previous.updatedAt}時点のキャッシュを表示しています`,
       };
-      await saveSeoCache(stale);
-      return stale;
     }
 
     const empty: SeoCachePayload = {

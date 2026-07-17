@@ -165,8 +165,13 @@ export async function saveSeoCache(payload: SeoCachePayload): Promise<void> {
       { method: "PUT", body: JSON.stringify(body) },
     );
     store.__seoMemoryCacheSha = null;
-  } catch {
+  } catch (error) {
     // Keep memory/local even if GitHub commit fails
+    console.error("[seo-cache] GitHub save failed; memory/local kept", {
+      message: error instanceof Error ? error.message : String(error),
+      updatedAt: payload.updatedAt,
+      pages28: payload.periods?.[28]?.pages?.length ?? 0,
+    });
   }
 }
 

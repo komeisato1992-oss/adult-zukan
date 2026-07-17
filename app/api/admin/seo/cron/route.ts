@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { refreshOpsDashboardData } from "@/lib/admin/ops-service";
 
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 /** @deprecated Prefer /api/admin/ops/cron — kept for backward compatibility */
 export async function GET(request: Request) {

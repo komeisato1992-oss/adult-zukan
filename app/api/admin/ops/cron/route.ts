@@ -6,7 +6,7 @@ import {
 
 export const dynamic = "force-dynamic";
 /** SEO / GA4 を交互に短いジョブとして実行 */
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 /**
  * ?source=seo|ga4 で分割実行。

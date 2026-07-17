@@ -10,6 +10,7 @@ import { refreshSeoDashboardData } from "@/lib/admin/seo-service";
 import { getSeoConfigStatus } from "@/lib/admin/seo-config";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 async function buildDiagnosticsWithProbe() {
   const config = getSeoConfigStatus();

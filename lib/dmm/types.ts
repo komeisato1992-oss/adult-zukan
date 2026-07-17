@@ -107,6 +107,10 @@ export type DmmItem = {
   sourcePopularityRank?: number;
   /** sourcePopularityRank の最終更新日時 */
   popularityUpdatedAt?: string;
+  /** FANZA新着順（ItemList sort=date）の取得順位（1が先頭） */
+  fanzaNewRank?: number;
+  /** fanzaNewRank の最終更新日時 */
+  fanzaNewRankUpdatedAt?: string;
   /** サイトカタログへ追加した日時 */
   addedAt?: string;
   /** DMM API の campaign（セール期間等） */

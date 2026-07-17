@@ -16,6 +16,8 @@ type DmmCatalogWorksGridProps = {
   pageSize?: number;
   paginationBasePath?: string;
   paginationQuery?: Record<string, string | undefined>;
+  /** false のとき一覧用の再フィルタを行わない（お気に入りなど） */
+  applyDisplayableFilter?: boolean;
 };
 
 export function DmmCatalogWorksGrid({
@@ -25,8 +27,11 @@ export function DmmCatalogWorksGrid({
   pageSize = CATALOG_DETAIL_PAGE_SIZE,
   paginationBasePath,
   paginationQuery,
+  applyDisplayableFilter = true,
 }: DmmCatalogWorksGridProps) {
-  const displayableItems = filterDisplayableItems(items);
+  const displayableItems = applyDisplayableFilter
+    ? filterDisplayableItems(items)
+    : items;
   const shouldPaginate = Boolean(paginationBasePath);
   const pagination = shouldPaginate
     ? paginateItems(displayableItems, parsePageParam(currentPage), pageSize)

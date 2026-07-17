@@ -14,16 +14,20 @@ import type { DmmItem } from "@/lib/dmm/types";
 
 type FavoritesWorksResponse = {
   items: DmmItem[];
+  requestedCount?: number;
+  missingIds?: string[];
 };
 
 export function FavoritesClient() {
   const [items, setItems] = useState<DmmItem[]>([]);
+  const [savedCount, setSavedCount] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [favoriteCount, setFavoriteCount] = useState(0);
+  const [hydrated, setHydrated] = useState(false);
 
   const load = useCallback(async () => {
     const ids = getFavoriteIds();
-    setFavoriteCount(ids.length);
+    setSavedCount(ids.length);
+    setHydrated(true);
 
     if (ids.length === 0) {
       setItems([]);
@@ -45,7 +49,36 @@ export function FavoritesClient() {
       }
 
       const data = (await response.json()) as FavoritesWorksResponse;
-      setItems(data.items ?? []);
+      const nextItems = data.items ?? [];
+      // LocalStorage の順を維持（API も順維持だが念のため content_id で並べ替え）
+      const byId = new Map(
+        nextItems.map((item) => [item.content_id.trim().toLowerCase(), item]),
+      );
+      const ordered: DmmItem[] = [];
+      const used = new Set<string>();
+      for (const id of ids) {
+        const key = id.trim().toLowerCase();
+        const hit =
+          byId.get(key) ??
+          nextItems.find(
+            (item) =>
+              item.content_id.trim().toLowerCase() === key ||
+              item.product_id?.trim().toLowerCase() === key,
+          );
+        if (!hit) continue;
+        const contentKey = hit.content_id.trim().toLowerCase();
+        if (used.has(contentKey)) continue;
+        used.add(contentKey);
+        ordered.push(hit);
+      }
+      // API 側で解決できたが ID 照合できなかった分も末尾に足す
+      for (const item of nextItems) {
+        const contentKey = item.content_id.trim().toLowerCase();
+        if (used.has(contentKey)) continue;
+        used.add(contentKey);
+        ordered.push(item);
+      }
+      setItems(ordered);
     } catch {
       setItems([]);
     } finally {
@@ -74,8 +107,21 @@ export function FavoritesClient() {
     };
   }, [load]);
 
+  const displayCount = items.length;
   const pageTitle =
-    favoriteCount > 0 ? `お気に入り作品一覧（${favoriteCount}）` : "お気に入り作品一覧";
+    !hydrated || loading
+      ? savedCount > 0
+        ? `お気に入り作品一覧（${savedCount}）`
+        : "お気に入り作品一覧"
+      : displayCount > 0
+        ? `お気に入り作品一覧（${displayCount}）`
+        : "お気に入り作品一覧";
+
+  const showPartialNotice =
+    hydrated &&
+    !loading &&
+    savedCount > displayCount &&
+    displayCount > 0;
 
   return (
     <PageLayout>
@@ -92,14 +138,22 @@ export function FavoritesClient() {
         <p className="mt-3 text-sm text-muted">
           お気に入りに登録した作品一覧です。データはブラウザのLocalStorageに保存されます。
         </p>
+        {showPartialNotice ? (
+          <p className="mt-2 text-xs text-muted">
+            {savedCount}件中{displayCount}件を表示
+          </p>
+        ) : null}
       </header>
 
-      {loading ? (
+      {loading || !hydrated ? (
         <p className="rounded border border-border bg-surface p-8 text-center text-sm text-muted">
           読み込み中…
         </p>
       ) : items.length > 0 ? (
-        <DmmCatalogWorksGrid items={items} />
+        <DmmCatalogWorksGrid
+          items={items}
+          applyDisplayableFilter={false}
+        />
       ) : (
         <div className="rounded-lg border border-accent/20 bg-accent-light/40 p-8 text-center">
           <p className="text-sm text-muted">お気に入り作品がありません</p>

@@ -24,13 +24,6 @@ function readRaw(): unknown[] {
   }
 }
 
-function writeIds(ids: string[]): void {
-  if (typeof window === "undefined") return;
-  favoriteIdsCache = ids;
-  localStorage.setItem(FAVORITES_KEY, JSON.stringify(ids));
-  window.dispatchEvent(new Event(FAVORITES_CHANGED_EVENT));
-}
-
 function normalizeId(entry: unknown): string | null {
   if (typeof entry === "string") {
     const id = entry.trim();
@@ -39,8 +32,18 @@ function normalizeId(entry: unknown): string | null {
 
   if (!entry || typeof entry !== "object") return null;
   const record = entry as Record<string, unknown>;
-  const id = String(record.content_id ?? record.slug ?? "").trim();
+  const id = String(
+    record.content_id ?? record.contentId ?? record.cid ?? record.slug ?? "",
+  ).trim();
   return id || null;
+}
+
+function writeIds(ids: string[]): void {
+  if (typeof window === "undefined") return;
+  // 保存時は trim 済みの並びを維持（大小は既存互換のため変換しない）
+  favoriteIdsCache = ids;
+  localStorage.setItem(FAVORITES_KEY, JSON.stringify(ids));
+  window.dispatchEvent(new Event(FAVORITES_CHANGED_EVENT));
 }
 
 function migrateLegacyIfNeeded(): string[] {
@@ -69,19 +72,31 @@ function migrateLegacyIfNeeded(): string[] {
   }
 }
 
+function idsEqual(a: string, b: string): boolean {
+  return a.trim().toLowerCase() === b.trim().toLowerCase();
+}
+
 /** Returns favorite content_id list. Persists as string[] only. */
 export function getFavoriteIds(): string[] {
-  if (favoriteIdsCache) return favoriteIdsCache;
+  if (favoriteIdsCache !== null) return favoriteIdsCache;
 
   const raw = readRaw();
-  const ids = [
-    ...new Set(
-      raw.map(normalizeId).filter((id): id is string => Boolean(id)),
-    ),
-  ];
+  const ids: string[] = [];
+  const seen = new Set<string>();
+  for (const entry of raw) {
+    const id = normalizeId(entry);
+    if (!id) continue;
+    const key = id.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    ids.push(id);
+  }
 
   if (ids.length > 0) {
-    if (raw.length !== ids.length || raw.some((entry) => typeof entry !== "string")) {
+    if (
+      raw.length !== ids.length ||
+      raw.some((entry) => typeof entry !== "string")
+    ) {
       writeIds(ids);
     } else {
       favoriteIdsCache = ids;
@@ -97,7 +112,7 @@ export function getFavoriteIds(): string[] {
 export function isFavorite(contentId: string): boolean {
   const id = contentId.trim();
   if (!id) return false;
-  return getFavoriteIds().includes(id);
+  return getFavoriteIds().some((entry) => idsEqual(entry, id));
 }
 
 export function addFavorite(contentId: string): string[] {
@@ -105,7 +120,7 @@ export function addFavorite(contentId: string): string[] {
   if (!id) return getFavoriteIds();
 
   const current = getFavoriteIds();
-  if (current.includes(id)) return current;
+  if (current.some((entry) => idsEqual(entry, id))) return current;
 
   const next = [id, ...current];
   writeIds(next);
@@ -116,7 +131,7 @@ export function removeFavorite(contentId: string): string[] {
   const id = contentId.trim();
   if (!id) return getFavoriteIds();
 
-  const next = getFavoriteIds().filter((entry) => entry !== id);
+  const next = getFavoriteIds().filter((entry) => !idsEqual(entry, id));
   writeIds(next);
   return next;
 }

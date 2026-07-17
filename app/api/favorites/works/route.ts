@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
-import { getCatalogWorks } from "@/lib/catalog";
+import { getCatalogWorkById } from "@/lib/dmm/catalog-shards";
+import { hydrateAdultWorkMedia } from "@/lib/dmm/catalog-media";
 import { normalizeCatalogContentId } from "@/lib/dmm/catalog-snapshot";
-import { isDisplayableListItem } from "@/lib/dmm/filter";
+import { getDmmListItemImageUrl } from "@/lib/dmm/display";
 import type { DmmItem } from "@/lib/dmm/types";
 import { mergeLiveStatusIntoItems } from "@/lib/dmm/work-live-status";
+import {
+  fetchWorkMasterByCids,
+  workMasterRowToDmmItem,
+} from "@/lib/dmm/works-master";
+import { hasValidImage } from "@/lib/works";
 
 const MAX_IDS = 200;
 
@@ -15,13 +21,54 @@ function parseIds(body: unknown): string[] {
   const seen = new Set<string>();
   const ids: string[] = [];
   for (const entry of raw) {
-    const id = normalizeCatalogContentId(String(entry));
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
+    const id = String(entry ?? "").trim();
+    if (!id) continue;
+    const key = normalizeCatalogContentId(id);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
     ids.push(id);
     if (ids.length >= MAX_IDS) break;
   }
   return ids;
+}
+
+function canShowFavoriteCard(item: DmmItem): boolean {
+  if (!item.content_id?.trim() || !item.title?.trim()) return false;
+  return hasValidImage(item) || Boolean(getDmmListItemImageUrl(item));
+}
+
+async function resolveOne(id: string): Promise<DmmItem | null> {
+  try {
+    const fromCatalog = getCatalogWorkById(id);
+    if (fromCatalog && canShowFavoriteCard(fromCatalog)) {
+      return hydrateAdultWorkMedia(fromCatalog);
+    }
+
+    const cid = normalizeCatalogContentId(id);
+    if (!cid) return null;
+
+    const masterMap = await fetchWorkMasterByCids([cid]);
+    const row = masterMap.get(cid);
+    if (!row) {
+      if (fromCatalog) {
+        // 画像判定に落ちてもカタログにあれば返す（お気に入りはユーザー意図を優先）
+        return hydrateAdultWorkMedia(fromCatalog);
+      }
+      console.warn("[favorites/works] unresolved id", id);
+      return null;
+    }
+
+    const fromMaster = workMasterRowToDmmItem(row);
+    if (!canShowFavoriteCard(fromMaster) && !fromCatalog) {
+      console.warn("[favorites/works] unresolved id (no card media)", id);
+      return null;
+    }
+
+    return hydrateAdultWorkMedia(fromMaster);
+  } catch (error) {
+    console.warn("[favorites/works] resolve failed", id, error);
+    return null;
+  }
 }
 
 export async function POST(request: Request) {
@@ -34,20 +81,41 @@ export async function POST(request: Request) {
 
   const ids = parseIds(body);
   if (ids.length === 0) {
-    return NextResponse.json({ items: [] as DmmItem[] });
+    return NextResponse.json({
+      items: [] as DmmItem[],
+      requestedCount: 0,
+      missingIds: [] as string[],
+    });
   }
 
-  const catalog = await getCatalogWorks();
-  const byId = new Map(
-    catalog.map((item) => [normalizeCatalogContentId(item.content_id), item]),
-  );
-  const resolved = ids
-    .map((id) => byId.get(id))
-    .filter(
-      (item): item is DmmItem => Boolean(item && isDisplayableListItem(item)),
-    );
+  const settled = await Promise.allSettled(ids.map((id) => resolveOne(id)));
+  const resolved: DmmItem[] = [];
+  const missingIds: string[] = [];
+  const seenContentIds = new Set<string>();
+
+  for (let index = 0; index < ids.length; index++) {
+    const id = ids[index];
+    const result = settled[index];
+    if (result.status !== "fulfilled" || !result.value) {
+      missingIds.push(id);
+      continue;
+    }
+
+    const item = result.value;
+    const key = normalizeCatalogContentId(item.content_id);
+    if (!key || seenContentIds.has(key)) {
+      // 別IDが同一作品に解決された場合は件数として欠落扱いにしない
+      continue;
+    }
+    seenContentIds.add(key);
+    resolved.push(item);
+  }
 
   const items = await mergeLiveStatusIntoItems(resolved);
 
-  return NextResponse.json({ items });
+  return NextResponse.json({
+    items,
+    requestedCount: ids.length,
+    missingIds,
+  });
 }

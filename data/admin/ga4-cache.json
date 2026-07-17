@@ -3,19 +3,20 @@
   "updatedAt": "2026-07-16T10:04:54.991Z",
   "lastSuccessfulAt": "2026-07-16T10:04:54.991Z",
   "configured": true,
+  "configMessage": "2026-07-16T10:04:54.991Z時点のキャッシュを表示しています",
   "propertyId": "544245702",
-  "connectionStatus": "connected",
+  "connectionStatus": "stale",
   "authDiagnostics": {
-    "clientEmail": "adult-zukan-search-console@adult-zukan-seo.iam.gserviceaccount.com",
-    "projectId": "adult-zukan-seo",
+    "clientEmail": "adult-zukan-search-console@adult-zukan-seo-502016.iam.gserviceaccount.com",
+    "projectId": "adult-zukan-seo-502016",
     "propertyId": "544245702",
     "property": "properties/544245702",
     "credentialSource": "GOOGLE_SERVICE_ACCOUNT_JSON",
     "sharedWithSearchConsole": true,
     "runtimeEnvironment": "production",
     "expectedClientEmail": "adult-zukan-search-console@adult-zukan-seo-502016.iam.gserviceaccount.com",
-    "clientEmailMatchesExpected": false,
-    "errorCode": null
+    "clientEmailMatchesExpected": true,
+    "errorCode": "PERMISSION_DENIED (7)"
   },
   "periods": {
     "1": {
@@ -344,5 +345,6 @@
       "sessions": 4,
       "users": 4
     }
-  ]
+  ],
+  "fetchError": "403 PERMISSION_DENIED: {\n  \"name\": \"Error\",\n  \"message\": \"7 PERMISSION_DENIED: Google Analytics Data API has not been used in project 451899340423 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/analyticsdata.googleapis.com/overview?project=451899340423 then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry.\",\n  \"code\": 7,\n  \"details\": \"Google Analytics Data API has not been used in project 451899340423 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/analyticsdata.googleapis.com/overview?project=451899340423 then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry.\",\n  \"statusDetails\": [\n    {\n      \"reason\": \"SERVICE_DISABLED\",\n      \"domain\": \"googleapis.com\",\n      \"metadata\": {\n        \"serviceTitle\": \"Google Analytics Data API\",\n        \"consumer\": \"projects/451899340423\",\n        \"activationUrl\": \"https://console.developers.google.com/apis/api/analyticsdata.googleapis.com/overview?project=451899340423\",\n        \"containerInfo\": \"451899340423\",\n        \"service\": \"analyticsdata.googleapis.com\"\n      }\n    },\n    {\n      \"locale\": \"en-US\",\n      \"message\": \"Google Analytics Data API has not been used in project 451899340423 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/analyticsdata.googleapis.com/overview?project=451899340423 then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry.\"\n    },\n    {\n      \"links\": [\n        {\n          \"description\": \"Google developers console API activation\",\n          \"url\": \"https://console.developers.google.com/apis/api/analyticsdata.googleapis.com/overview?project=451899340423\"\n        }\n      ]\n    }\n  ]\n}"
 }

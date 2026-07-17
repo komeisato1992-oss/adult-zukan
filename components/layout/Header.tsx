@@ -10,6 +10,9 @@ import { MobileNav } from "@/components/layout/MobileNav";
 import { MainNav } from "@/components/layout/MainNav";
 import { useCompactHeaderOnScroll } from "@/hooks/useCompactHeaderOnScroll";
 
+/** スマホTOP展開ヘッダーの占有高（py-3 + 行40 + mt-3 + 検索40）。縮小時も外側は維持 */
+export const MOBILE_HOME_HEADER_SHELL_HEIGHT_PX = 116;
+
 function SearchIcon({ className = "h-[22px] w-[22px]" }: { className?: string }) {
   return (
     <svg
@@ -29,6 +32,9 @@ function SearchIcon({ className = "h-[22px] w-[22px]" }: { className?: string })
     </svg>
   );
 }
+
+const fadeTransitionClassName =
+  "transition-[opacity,transform] duration-200 ease-out";
 
 export function Header() {
   const pathname = usePathname();
@@ -86,82 +92,158 @@ export function Header() {
 
       {/* スマートフォン (≤768px) */}
       <div className="min-[769px]:hidden">
-        {showExpandedMobile ? (
-          <div className="mx-auto max-w-7xl px-3 py-3">
-            <div className="flex min-h-10 items-center gap-2">
-              <Link
-                href="/"
-                className="shrink-0"
-                aria-label={`${siteConfig.name} トップページ`}
+        {isHome ? (
+          <>
+            {/* 外側高さ固定：縮小時も本文が跳ねない */}
+            <div
+              className="relative overflow-hidden"
+              style={{ height: MOBILE_HOME_HEADER_SHELL_HEIGHT_PX }}
+            >
+              {/* 展開レイヤー */}
+              <div
+                className={`absolute inset-x-0 top-0 mx-auto max-w-7xl px-3 py-3 pr-14 ${fadeTransitionClassName} ${
+                  showExpandedMobile
+                    ? "translate-y-0 opacity-100"
+                    : "pointer-events-none -translate-y-1 opacity-0"
+                }`}
+                aria-hidden={!showExpandedMobile}
               >
-                <Image
-                  src={siteConfig.logo}
-                  alt={siteConfig.name}
-                  width={240}
-                  height={64}
-                  className="h-8 w-auto max-w-[160px]"
-                  priority
-                  sizes="160px"
-                />
-              </Link>
-              <div className="ml-auto flex shrink-0 items-center">
+                <div className="flex min-h-10 items-center gap-2">
+                  <Link
+                    href="/"
+                    className="shrink-0"
+                    aria-label={`${siteConfig.name} トップページ`}
+                    tabIndex={showExpandedMobile ? undefined : -1}
+                  >
+                    <Image
+                      src={siteConfig.logo}
+                      alt={siteConfig.name}
+                      width={240}
+                      height={64}
+                      className="h-8 w-auto max-w-[160px]"
+                      priority
+                      sizes="160px"
+                    />
+                  </Link>
+                </div>
+                <div className="mt-3">
+                  <SearchBar compact inputId="site-search-mobile-expanded" />
+                </div>
+              </div>
+
+              {/* コンパクトレイヤー（外側高さは変えず内部だけ切替） */}
+              <div
+                className={`absolute inset-x-0 top-0 mx-auto flex h-14 max-w-7xl items-center gap-2 overflow-hidden px-3 pr-[5.5rem] ${fadeTransitionClassName} ${
+                  showExpandedMobile
+                    ? "pointer-events-none translate-y-1 opacity-0"
+                    : "translate-y-0 opacity-100"
+                }`}
+                aria-hidden={showExpandedMobile}
+              >
+                <Link
+                  href="/"
+                  className="flex h-10 max-w-[min(58vw,200px)] shrink items-center overflow-hidden"
+                  aria-label={`${siteConfig.name} トップページ`}
+                  tabIndex={showExpandedMobile ? -1 : undefined}
+                >
+                  <Image
+                    src={siteConfig.logoCompact}
+                    alt={siteConfig.name}
+                    width={1024}
+                    height={396}
+                    className="h-9 max-h-9 w-auto max-w-full object-contain object-left"
+                    priority
+                    sizes="(max-width: 390px) 140px, 200px"
+                  />
+                </Link>
+              </div>
+
+              {/* 右上操作は1系統のみ（縮小時だけ検索アイコン表示） */}
+              <div className="absolute right-3 top-3 z-10 flex h-10 items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setSearchOpen((open) => !open)}
+                  aria-expanded={searchOpen}
+                  aria-controls="mobile-header-search"
+                  aria-label={searchOpen ? "検索を閉じる" : "検索を開く"}
+                  className={`inline-flex h-10 w-10 items-center justify-center rounded-md border border-border text-foreground ${fadeTransitionClassName} ${
+                    showExpandedMobile
+                      ? "pointer-events-none scale-95 opacity-0"
+                      : "scale-100 opacity-100"
+                  }`}
+                  tabIndex={showExpandedMobile ? -1 : undefined}
+                >
+                  <SearchIcon />
+                </button>
                 <Suspense fallback={null}>
                   <MobileNav onOpenChange={setMenuOpen} />
                 </Suspense>
               </div>
             </div>
-            <div className="mt-3">
-              <SearchBar compact inputId="site-search-mobile-expanded" />
-            </div>
-          </div>
-        ) : (
-          <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 overflow-hidden px-3">
-            <Link
-              href="/"
-              className="flex h-10 max-w-[min(58vw,200px)] shrink items-center overflow-hidden"
-              aria-label={`${siteConfig.name} トップページ`}
-            >
-              <Image
-                src={siteConfig.logoCompact}
-                alt={siteConfig.name}
-                width={1024}
-                height={396}
-                className="h-9 max-h-9 w-auto max-w-full object-contain object-left"
-                priority
-                sizes="(max-width: 390px) 140px, 200px"
-              />
-            </Link>
 
-            <div className="ml-auto flex shrink-0 items-center gap-1">
-              <button
-                type="button"
-                onClick={() => setSearchOpen((open) => !open)}
-                aria-expanded={searchOpen}
-                aria-controls="mobile-header-search"
-                aria-label={searchOpen ? "検索を閉じる" : "検索を開く"}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border text-foreground"
+            {!showExpandedMobile && searchOpen ? (
+              <div
+                id="mobile-header-search"
+                className="border-t border-border bg-white px-3 py-2"
               >
-                <SearchIcon />
-              </button>
-              <Suspense fallback={null}>
-                <MobileNav onOpenChange={setMenuOpen} />
-              </Suspense>
-            </div>
-          </div>
-        )}
+                <SearchBar
+                  compact
+                  autoFocus
+                  inputId="site-search-mobile-compact"
+                />
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <div className="mx-auto flex h-14 max-w-7xl items-center gap-2 overflow-hidden px-3">
+              <Link
+                href="/"
+                className="flex h-10 max-w-[min(58vw,200px)] shrink items-center overflow-hidden"
+                aria-label={`${siteConfig.name} トップページ`}
+              >
+                <Image
+                  src={siteConfig.logoCompact}
+                  alt={siteConfig.name}
+                  width={1024}
+                  height={396}
+                  className="h-9 max-h-9 w-auto max-w-full object-contain object-left"
+                  priority
+                  sizes="(max-width: 390px) 140px, 200px"
+                />
+              </Link>
 
-        {!showExpandedMobile && searchOpen ? (
-          <div
-            id="mobile-header-search"
-            className="border-t border-border bg-white px-3 py-2"
-          >
-            <SearchBar
-              compact
-              autoFocus
-              inputId="site-search-mobile-compact"
-            />
-          </div>
-        ) : null}
+              <div className="ml-auto flex shrink-0 items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setSearchOpen((open) => !open)}
+                  aria-expanded={searchOpen}
+                  aria-controls="mobile-header-search"
+                  aria-label={searchOpen ? "検索を閉じる" : "検索を開く"}
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-border text-foreground"
+                >
+                  <SearchIcon />
+                </button>
+                <Suspense fallback={null}>
+                  <MobileNav onOpenChange={setMenuOpen} />
+                </Suspense>
+              </div>
+            </div>
+
+            {searchOpen ? (
+              <div
+                id="mobile-header-search"
+                className="border-t border-border bg-white px-3 py-2"
+              >
+                <SearchBar
+                  compact
+                  autoFocus
+                  inputId="site-search-mobile-compact"
+                />
+              </div>
+            ) : null}
+          </>
+        )}
       </div>
     </header>
   );

@@ -21,6 +21,8 @@ type DmmWorkCardProps = {
   className?: string;
   size?: "default" | "large";
   releaseDate?: string;
+  /** トップ横スクロール向け（スマホ約2/3サイズ） */
+  compact?: boolean;
 };
 
 function getDmmCardPrice(item: DmmItem) {
@@ -45,21 +47,25 @@ export function DmmWorkCard({
   className = "",
   size = "default",
   releaseDate,
+  compact = false,
 }: DmmWorkCardProps) {
   const imageUrl = getDmmListItemImageUrl(item);
   const actressNames = getDmmItemActressNameList(item);
   const { current, original, isOnSale } = getDmmCardPrice(item);
 
-  const paddingX =
-    size === "large"
+  const paddingX = compact
+    ? "px-4 max-[768px]:px-1"
+    : size === "large"
       ? "px-4 max-[768px]:px-1.5"
       : "px-3 max-[768px]:px-1.5";
-  const titleSize =
-    size === "large"
+  const titleSize = compact
+    ? "text-base max-[768px]:text-[11px]"
+    : size === "large"
       ? "text-base max-[768px]:text-[13px]"
       : "text-sm max-[768px]:text-[13px]";
-  const priceSize =
-    size === "large"
+  const priceSize = compact
+    ? "text-base max-[768px]:text-[11px]"
+    : size === "large"
       ? "text-base max-[768px]:text-[13px]"
       : "text-sm max-[768px]:text-[13px]";
 
@@ -77,7 +83,11 @@ export function DmmWorkCard({
               src={imageUrl}
               alt={item.title}
               variant="portrait"
-              sizes="(max-width: 389px) 50vw, (max-width: 768px) 33vw, 25vw"
+              sizes={
+                compact
+                  ? "(max-width: 768px) 112px, 216px"
+                  : "(max-width: 389px) 50vw, (max-width: 768px) 33vw, 25vw"
+              }
               onLoadError={() => setHidden(true)}
             />
             {isOnSale && (
@@ -86,9 +96,11 @@ export function DmmWorkCard({
               </span>
             )}
           </div>
-          <div className={`${paddingX} pt-3 pb-0 max-[768px]:pt-1.5`}>
+          <div
+            className={`${paddingX} pt-3 pb-0 ${compact ? "max-[768px]:pt-1" : "max-[768px]:pt-1.5"}`}
+          >
             <h3
-              className={`line-clamp-2 font-semibold leading-snug text-foreground transition-colors group-hover:text-accent max-[768px]:line-clamp-3 max-[768px]:leading-[1.4] ${titleSize}`}
+              className={`line-clamp-2 font-semibold leading-snug text-foreground transition-colors group-hover:text-accent max-[768px]:leading-[1.35] ${compact ? "" : "max-[768px]:line-clamp-3 max-[768px]:leading-[1.4]"} ${titleSize}`}
             >
               {item.title}
             </h3>
@@ -104,13 +116,17 @@ export function DmmWorkCard({
       <div className={`flex flex-1 flex-col ${paddingX} pt-1.5 max-[768px]:pt-0.5`}>
         <CompactNameList
           names={actressNames}
-          className="max-[768px]:text-[11px]"
+          className={compact ? "max-[768px]:text-[10px]" : "max-[768px]:text-[11px]"}
         />
         {current && (
-          <div className="mt-2.5 flex items-baseline gap-2 max-[768px]:mt-1">
+          <div
+            className={`mt-2.5 flex items-baseline gap-2 ${compact ? "max-[768px]:mt-0.5" : "max-[768px]:mt-1"}`}
+          >
             <span className={`font-bold text-price ${priceSize}`}>{current}</span>
             {original && (
-              <span className="text-xs text-muted line-through max-[768px]:text-[10px]">
+              <span
+                className={`text-xs text-muted line-through ${compact ? "max-[768px]:text-[9px]" : "max-[768px]:text-[10px]"}`}
+              >
                 {original}
               </span>
             )}
@@ -119,11 +135,14 @@ export function DmmWorkCard({
         <p className="mt-1 truncate text-[11px] text-muted/90 max-[768px]:hidden">
           {item.content_id}
         </p>
-        <div className="mt-auto pb-3 pt-2 max-[768px]:pb-1.5 max-[768px]:pt-1.5">
+        <div
+          className={`mt-auto pb-3 pt-2 ${compact ? "max-[768px]:pb-1 max-[768px]:pt-1" : "max-[768px]:pb-1.5 max-[768px]:pt-1.5"}`}
+        >
           <WorkCardCtaRow
             contentId={item.content_id}
             title={item.title}
             fanzaUrl={getDmmFanzaUrl(item)}
+            compact={compact}
           />
         </div>
       </div>

@@ -2,9 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 
-/** トップでコンパクトへ入る / 戻るスクロールしきい値（チャタリング防止） */
-export const SCROLL_ENTER_COMPACT = 56;
-export const SCROLL_EXIT_COMPACT = 20;
+/**
+ * トップでコンパクトへ入る / 戻るスクロールしきい値（ヒステリシス）。
+ * 同一閾値での往復切替を避ける。
+ */
+export const SCROLL_ENTER_COMPACT = 120;
+export const SCROLL_EXIT_COMPACT = 60;
 
 type UseCompactHeaderOnScrollOptions = {
   /** トップページのときだけスクロールで展開/コンパクト切替。それ以外は常にコンパクト */
@@ -16,7 +19,10 @@ type UseCompactHeaderOnScrollOptions = {
 /**
  * アダルト図鑑 / 同人図鑑共通のモバイルヘッダー用スクロール判定。
  * - トップ以外: 常に compact
- * - トップ: scrollY >= 56 で compact、<= 20 で展開へ復帰
+ * - トップ: scrollY >= 120 で compact、<= 60 で展開へ復帰（60〜119 は現状維持）
+ * - 判定は固定 scrollY のみ（ヒーロー位置の毎フレーム計測なし）
+ * - scroll は rAF 間引き + passive
+ * - 状態が変わったときだけ setState
  */
 export function useCompactHeaderOnScroll({
   isHome,
@@ -25,6 +31,7 @@ export function useCompactHeaderOnScroll({
   const [isCompact, setIsCompact] = useState(() => !isHome);
   const compactRef = useRef(!isHome);
   const lockRef = useRef(lockCompactToggle);
+  const rafRef = useRef<number | null>(null);
 
   useEffect(() => {
     lockRef.current = lockCompactToggle;
@@ -37,8 +44,6 @@ export function useCompactHeaderOnScroll({
       return;
     }
 
-    let ticking = false;
-
     const applyCompact = (next: boolean) => {
       if (next === compactRef.current) return;
       compactRef.current = next;
@@ -46,7 +51,7 @@ export function useCompactHeaderOnScroll({
     };
 
     const readScroll = () => {
-      ticking = false;
+      rafRef.current = null;
       if (lockRef.current) return;
       const y = window.scrollY;
       if (compactRef.current) {
@@ -57,9 +62,8 @@ export function useCompactHeaderOnScroll({
     };
 
     const onScroll = () => {
-      if (ticking) return;
-      ticking = true;
-      requestAnimationFrame(readScroll);
+      if (rafRef.current != null) return;
+      rafRef.current = window.requestAnimationFrame(readScroll);
     };
 
     const initialY = window.scrollY;
@@ -68,7 +72,13 @@ export function useCompactHeaderOnScroll({
     setIsCompact(initialCompact);
 
     window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      if (rafRef.current != null) {
+        window.cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+    };
   }, [isHome]);
 
   return { isCompact, setIsCompact };

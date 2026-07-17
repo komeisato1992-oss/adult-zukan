@@ -4,6 +4,10 @@ import { DmmActressCarousel } from "@/components/home/DmmActressCarousel";
 import { DmmMakerRankingSection } from "@/components/home/DmmMakerRankingSection";
 import { DmmSeriesRankingSection } from "@/components/home/DmmSeriesRankingSection";
 import { DmmPopularGenreSection } from "@/components/home/DmmPopularGenreSection";
+import {
+  HOME_GENRE_DISPLAY_LIMIT,
+  HomeGenreDiscoverSection,
+} from "@/components/home/HomeGenreDiscoverSection";
 import { RandomCompareSection } from "@/components/home/RandomCompareSection";
 import { SiteIntroSection } from "@/components/home/SiteIntroSection";
 import { WorksDiscoverSection } from "@/components/home/WorksDiscoverSection";
@@ -16,7 +20,6 @@ import { truncateDescription } from "@/lib/seo/descriptions";
 import { createPageMetadata } from "@/lib/seo/metadata";
 import {
   HOME_SECTION_LIMIT,
-  getRankedGenres,
   getSharedCatalogWorks,
 } from "@/lib/works/catalog";
 import {
@@ -33,6 +36,7 @@ import {
   getPopularWorks,
   getSaleWorks,
 } from "@/lib/dmm/home-sections";
+import { getCachedGenreSummaries } from "@/lib/catalog/cached-entity-summaries";
 import { mergeLiveStatusIntoItems } from "@/lib/dmm/work-live-status";
 import { filterDisplayableItems } from "@/lib/dmm/filter";
 import type { DmmItem } from "@/lib/dmm/types";
@@ -71,6 +75,7 @@ export default async function HomePage() {
       actressesResult,
       makersResult,
       seriesResult,
+      genreSummaries,
     ] = await Promise.all([
       useDb
         ? safeSlice(
@@ -85,16 +90,21 @@ export default async function HomePage() {
           )
         : Promise.resolve([] as DmmItem[]),
       useDb
-        ? safeSlice(
-            () =>
-              fetchCachedPublicWorksSlice({
-                sort: "release-new",
-                limit: HOME_SECTION_LIMIT,
-                revalidateSec: 600,
-                cacheKey: "home-new",
-              }),
-            "new",
-          )
+        ? safeSlice(async () => {
+            const fanzaNew = await fetchCachedPublicWorksSlice({
+              sort: "fanza-new",
+              limit: HOME_SECTION_LIMIT,
+              revalidateSec: 600,
+              cacheKey: "home-fanza-new",
+            });
+            if (fanzaNew.length > 0) return fanzaNew;
+            return fetchCachedPublicWorksSlice({
+              sort: "release-new",
+              limit: HOME_SECTION_LIMIT,
+              revalidateSec: 600,
+              cacheKey: "home-new",
+            });
+          }, "new")
         : Promise.resolve([] as DmmItem[]),
       useDb
         ? safeSlice(
@@ -112,6 +122,10 @@ export default async function HomePage() {
       getPopularActresses(HOME_SECTION_LIMIT),
       getPopularMakers(8),
       getPopularSeries(8),
+      getCachedGenreSummaries().catch((error) => {
+        console.warn("[home] genre summaries failed", error);
+        return [] as Awaited<ReturnType<typeof getCachedGenreSummaries>>;
+      }),
     ]);
 
     let popularWorks = popularFromDb;
@@ -171,17 +185,20 @@ export default async function HomePage() {
       workCount: series.workCount,
     }));
 
-    const rankedGenres =
-      catalogFallback != null
-        ? getRankedGenres(catalogFallback, HOME_SECTION_LIMIT)
-        : [
-            { name: "ドラマ", slug: "ドラマ", workCount: 0 },
-            { name: "恋愛", slug: "恋愛", workCount: 0 },
-            { name: "ドキュメンタリー", slug: "ドキュメンタリー", workCount: 0 },
-            { name: "企画", slug: "企画", workCount: 0 },
-            { name: "熟女", slug: "熟女", workCount: 0 },
-            { name: "新人", slug: "新人", workCount: 0 },
-          ];
+    const rankedGenres = genreSummaries
+      .slice(0, HOME_SECTION_LIMIT)
+      .map((genre) => ({
+        name: genre.name,
+        slug: genre.slug,
+        workCount: genre.workCount,
+      }));
+    const homeGenres = genreSummaries
+      .slice(0, HOME_GENRE_DISPLAY_LIMIT)
+      .map((genre) => ({
+        name: genre.name,
+        slug: genre.slug,
+        workCount: genre.workCount,
+      }));
 
     const updatedDate = new Date().toISOString().split("T")[0];
     const quickCompare = getQuickCompareItems({
@@ -215,39 +232,48 @@ export default async function HomePage() {
             title="🔥 人気作品"
             items={popularMerged}
             href="/works?sort=popular"
+            moreLabel="人気作品"
           />
 
-          <LazySection minHeight={320}>
+          <LazySection minHeight={240}>
             <DmmWorkScrollSection
               id="new-works"
               title="🆕 新着作品"
               items={newMerged}
-              href="/works?sort=new"
+              href="/works?sort=fanza-new"
+              moreLabel="新着作品"
             />
           </LazySection>
 
-          <LazySection minHeight={320}>
+          <LazySection minHeight={240}>
             <DmmWorkScrollSection
               id="sale-works"
               title="💰 セール作品"
               items={saleMerged}
-              href="/works?sale=true"
-            />
-          </LazySection>
-
-          <LazySection minHeight={280}>
-            <DmmActressCarousel
-              actresses={rankedActresses}
-              id="popular-actresses"
-              title="🏆 人気女優"
+              href="/sale"
+              moreLabel="セール作品"
             />
           </LazySection>
 
           <LazySection minHeight={200}>
-            <DmmMakerRankingSection makers={rankedMakers} id="popular-makers" />
-            <DmmSeriesRankingSection series={rankedSeries} id="popular-series" />
-            <DmmPopularGenreSection genres={rankedGenres} id="popular-genres" />
+            <DmmActressCarousel
+              actresses={rankedActresses}
+              id="popular-actresses"
+              title="🏆 人気女優"
+              href="/actresses?sort=works"
+            />
           </LazySection>
+
+          <HomeGenreDiscoverSection genres={homeGenres} id="home-genres" />
+
+          {/* 人気メーカー・シリーズ・ジャンルは PC のみ（スマホTOPでは非表示） */}
+          <div className="hidden min-[769px]:block">
+            <LazySection minHeight={200}>
+              <DmmMakerRankingSection makers={rankedMakers} id="popular-makers" />
+              <DmmSeriesRankingSection series={rankedSeries} id="popular-series" />
+              <DmmPopularGenreSection genres={rankedGenres} id="popular-genres" />
+            </LazySection>
+          </div>
         </PageLayout>
       </>
     );

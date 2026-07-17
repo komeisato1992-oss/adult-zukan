@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { QuickCompareHeroLink } from "@/components/home/QuickCompareHeroLink";
-import { ZukanCrossLinkCard } from "@/components/home/ZukanCrossLinkCard";
+import { DoujinGuideCrossLinkCard } from "@/components/home/DoujinGuideCrossLinkCard";
 import type { QuickCompareResult } from "@/lib/compare/quick-compare-types";
 
 type SiteIntroSectionProps = {
@@ -18,16 +18,16 @@ export function SiteIntroSection({ quickCompare }: SiteIntroSectionProps) {
       aria-labelledby="site-intro-heading"
       className="border-b border-border bg-white"
     >
-      <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16 lg:py-20">
+      <div className="mx-auto max-w-7xl px-4 py-4 sm:px-6 sm:py-16 lg:py-20">
         <div className="mx-auto max-w-3xl text-center">
           <h1
             id="site-intro-heading"
-            className="text-2xl font-bold leading-tight text-foreground sm:text-3xl lg:text-4xl"
+            className="text-[1.15rem] font-bold leading-tight text-foreground sm:text-3xl sm:leading-tight lg:text-4xl"
           >
             作品選びを、もっと便利に。
           </h1>
 
-          <div className="mt-6 space-y-4 text-base leading-relaxed text-muted sm:text-lg">
+          <div className="mt-2.5 space-y-1.5 text-xs leading-tight text-muted sm:mt-6 sm:space-y-4 sm:text-lg sm:leading-relaxed">
             <p>
               アダルト図鑑では、
               <strong className="font-semibold text-foreground">
@@ -49,12 +49,12 @@ export function SiteIntroSection({ quickCompare }: SiteIntroSectionProps) {
             </p>
           </div>
 
-          <div className="mt-8 flex flex-col items-center">
-            <div className="flex w-full flex-wrap items-center justify-center gap-3 sm:gap-4">
+          <div className="mt-3.5 flex flex-col items-center sm:mt-8">
+            <div className="flex w-full flex-wrap items-center justify-center gap-2 sm:gap-4">
               <Link
                 href="/works"
                 prefetch
-                className="inline-flex h-11 min-w-[160px] flex-1 items-center justify-center rounded-lg bg-accent px-6 text-sm font-semibold text-white transition-colors hover:bg-accent-hover sm:flex-none"
+                className="inline-flex h-9 min-w-[130px] flex-1 items-center justify-center rounded-lg bg-accent px-4 text-sm font-semibold text-white transition-colors hover:bg-accent-hover sm:h-11 sm:min-w-[160px] sm:flex-none sm:px-6"
               >
                 作品を探す
               </Link>
@@ -63,22 +63,13 @@ export function SiteIntroSection({ quickCompare }: SiteIntroSectionProps) {
                 selectionType={selectionType}
                 workId1={workId1}
                 workId2={workId2}
-                className="inline-flex h-11 min-w-[160px] flex-1 items-center justify-center rounded-lg border border-accent bg-white px-6 text-sm font-semibold text-accent transition-colors hover:bg-[#FFF2F2] sm:flex-none"
+                className="inline-flex h-9 min-w-[130px] flex-1 items-center justify-center rounded-lg border border-accent bg-white px-4 text-sm font-semibold text-accent transition-colors hover:bg-[#FFF2F2] sm:h-11 sm:min-w-[160px] sm:flex-none sm:px-6"
               >
                 比較機能を見る
               </QuickCompareHeroLink>
             </div>
 
-            <ZukanCrossLinkCard
-              title="同人作品を探している方へ"
-              description="同人作品を、サークル・作者・シリーズ・ジャンルから検索・比較できます。"
-              label="同人図鑑を見る →"
-              href="/doujin"
-              variant="doujin"
-              fromSite="adult"
-              toSite="doujin"
-              placement="top_hero_card"
-            />
+            <DoujinGuideCrossLinkCard placement="top_hero_card" />
           </div>
         </div>
       </div>

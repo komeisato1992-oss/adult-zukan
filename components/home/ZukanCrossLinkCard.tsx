@@ -15,6 +15,7 @@ export type ZukanCrossLinkCardProps = {
   fromSite: ZukanSwitchSite;
   toSite: ZukanSwitchSite;
   placement?: string;
+  className?: string;
 };
 
 const cardFrameClassName: Record<ZukanSwitchSite, string> = {
@@ -25,7 +26,7 @@ const cardFrameClassName: Record<ZukanSwitchSite, string> = {
 };
 
 /**
- * TOPヒーロー用の相互導線カード。
+ * TOPヒーロー／フッター用の相互導線カード。
  * 主要CTAより一段控えめに見せる案内ブロック。
  */
 export function ZukanCrossLinkCard({
@@ -37,16 +38,17 @@ export function ZukanCrossLinkCard({
   fromSite,
   toSite,
   placement = "top_hero_card",
+  className = "",
 }: ZukanCrossLinkCardProps) {
   return (
     <aside
-      className={`mx-auto mt-7 w-full max-w-[580px] rounded-xl border bg-white px-5 py-5 text-center sm:mt-8 sm:px-6 sm:py-6 ${cardFrameClassName[variant]}`}
+      className={`mx-auto w-full max-w-[580px] rounded-xl border bg-white px-4 py-2 text-center sm:px-6 sm:py-6 ${cardFrameClassName[variant]} ${className || "mt-3 sm:mt-8"}`}
       aria-label={title}
     >
-      <p className="text-base font-bold leading-snug text-[#1a1a1a] sm:text-lg">
+      <p className="text-[13px] font-bold leading-snug text-[#1a1a1a] sm:text-lg">
         {title}
       </p>
-      <p className="mt-2 text-[13px] leading-[1.7] text-[#737373] sm:text-sm">
+      <p className="mt-0.5 text-[10px] leading-tight text-[#737373] sm:mt-2 sm:text-sm sm:leading-[1.7]">
         {description}
       </p>
       <ZukanSwitchButton
@@ -56,7 +58,7 @@ export function ZukanCrossLinkCard({
         fromSite={fromSite}
         toSite={toSite}
         placement={placement}
-        className={`mt-4 inline-flex h-11 w-full max-w-none items-center justify-center rounded-lg px-6 text-sm font-semibold transition-colors sm:w-[220px] sm:max-w-[240px] ${zukanSwitchVariantClassName(variant)}`}
+        className={`mt-2 inline-flex h-9 w-full max-w-none items-center justify-center rounded-lg px-5 text-xs font-semibold transition-colors sm:mt-4 sm:h-11 sm:w-[220px] sm:max-w-[240px] sm:px-6 sm:text-sm ${zukanSwitchVariantClassName(variant)}`}
       />
     </aside>
   );

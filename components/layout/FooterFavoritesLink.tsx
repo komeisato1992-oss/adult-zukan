@@ -3,9 +3,15 @@
 import Link from "next/link";
 import { FavoriteNavLabel } from "@/components/user/FavoriteNavLabel";
 
-export function FooterFavoritesLink() {
+type FooterFavoritesLinkProps = {
+  className?: string;
+};
+
+export function FooterFavoritesLink({
+  className = "text-sm text-muted hover:text-accent",
+}: FooterFavoritesLinkProps) {
   return (
-    <Link href="/favorites" className="text-sm text-muted hover:text-accent">
+    <Link href="/favorites" className={className}>
       <FavoriteNavLabel />
     </Link>
   );

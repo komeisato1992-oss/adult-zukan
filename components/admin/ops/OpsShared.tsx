@@ -40,8 +40,11 @@ export function ChangeBadge({
         ? "text-red-600"
         : "text-muted";
 
+  const symbol = tone === "up" ? "↑" : tone === "down" ? "↓" : "→";
+
   return (
     <p className={`text-xs font-medium ${toneClass}`}>
+      <span aria-hidden>{symbol} </span>
       {label}: {formatSeoChangePercent(change)}
     </p>
   );

@@ -1,17 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { OpsOverviewTab } from "@/components/admin/ops/OpsOverviewTab";
 import { OpsSearchConsoleTab } from "@/components/admin/ops/OpsSearchConsoleTab";
 import { OpsGa4Tab } from "@/components/admin/ops/OpsGa4Tab";
 import { OpsDmmTab } from "@/components/admin/ops/OpsDmmTab";
-import { OpsTabNav } from "@/components/admin/ops/OpsTabNav";
+import { AdminDashboardHeader } from "@/components/admin/ops/AdminDashboardHeader";
 import {
   OpsRefreshProgress,
   type OpsRefreshJobView,
 } from "@/components/admin/ops/OpsRefreshProgress";
-import { formatSeoDateTime } from "@/components/admin/seo/format";
 import {
   opsTabHref,
   parseOpsTab,
@@ -150,6 +149,14 @@ export function OpsDashboardClient({
     (key) => jobs[key].status === "pending",
   );
 
+  const refreshingLabel = useMemo(() => {
+    const pending = OPS_REFRESH_JOB_KEYS.filter(
+      (key) => jobs[key].status === "pending",
+    );
+    if (pending.length === 0) return null;
+    return `更新中: ${pending.map((key) => OPS_REFRESH_JOB_LABELS[key]).join(" / ")}`;
+  }, [jobs]);
+
   async function runRefreshJob(
     key: OpsRefreshJobKey,
   ): Promise<{ status: OpsRefreshJobStatus; detail: string }> {
@@ -167,7 +174,6 @@ export function OpsDashboardClient({
       );
       const outcome = evaluateSourceRefresh(key, payload);
       if (outcome.ok) {
-        // 成功時のみ差し替え。失敗・タイムアウト時は既存表示を維持する。
         applyPayload(payload);
         setJobStatus(key, "success", "成功");
         return { status: "success", detail: "成功" };
@@ -308,29 +314,14 @@ export function OpsDashboardClient({
   }
 
   return (
-    <div className="space-y-6">
-      <section className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="border-l-4 border-accent pl-3 text-2xl font-bold text-foreground">
-            運営ダッシュボード
-          </h1>
-          <p className="mt-2 text-sm text-muted">
-            Search Console / GA4 / DMM成果をタブで確認
-          </p>
-          <p className="mt-1 text-xs text-muted">
-            最終更新: {formatSeoDateTime(data.top.updatedAt)}
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={refreshAll}
-          className="min-h-11 rounded-lg bg-accent px-4 py-2.5 text-sm font-semibold text-white"
-        >
-          {anyJobPending ? "状態を確認" : "手動更新"}
-        </button>
-      </section>
-
-      <OpsTabNav activeTab={activeTab} onChange={changeTab} />
+    <div className="space-y-3 sm:space-y-4">
+      <AdminDashboardHeader
+        updatedAt={data.top.updatedAt}
+        refreshing={anyJobPending}
+        refreshingLabel={refreshingLabel}
+        onRefreshAll={refreshAll}
+        onNavigateTab={changeTab}
+      />
 
       <div ref={progressRef}>
         <OpsRefreshProgress
@@ -342,7 +333,7 @@ export function OpsDashboardClient({
       </div>
 
       {!refreshStartedAt && message ? (
-        <p className="rounded-lg border border-border bg-white px-4 py-3 text-sm text-foreground dark:border-zinc-700 dark:bg-zinc-900">
+        <p className="rounded-lg border border-border bg-white px-3 py-3 text-sm text-foreground sm:px-4">
           {message}
         </p>
       ) : null}
@@ -357,35 +348,41 @@ export function OpsDashboardClient({
       ) : null}
 
       {activeTab === "search-console" ? (
-        <OpsSearchConsoleTab
-          data={data}
-          period={gscPeriod}
-          onPeriodChange={setGscPeriod}
-          refreshing={jobs.seo.status === "pending"}
-          onRefresh={() => refreshSource("seo")}
-        />
+        <div className="mx-auto max-w-[1400px]">
+          <OpsSearchConsoleTab
+            data={data}
+            period={gscPeriod}
+            onPeriodChange={setGscPeriod}
+            refreshing={jobs.seo.status === "pending"}
+            onRefresh={() => refreshSource("seo")}
+          />
+        </div>
       ) : null}
 
       {activeTab === "ga4" ? (
-        <OpsGa4Tab
-          data={data}
-          period={ga4Period}
-          onPeriodChange={setGa4Period}
-          refreshing={jobs.ga4.status === "pending"}
-          onRefresh={() => refreshSource("ga4")}
-        />
+        <div className="mx-auto max-w-[1400px]">
+          <OpsGa4Tab
+            data={data}
+            period={ga4Period}
+            onPeriodChange={setGa4Period}
+            refreshing={jobs.ga4.status === "pending"}
+            onRefresh={() => refreshSource("ga4")}
+          />
+        </div>
       ) : null}
 
       {activeTab === "dmm" ? (
-        <OpsDmmTab
-          data={data}
-          period={dmmPeriod}
-          onPeriodChange={setDmmPeriod}
-          refreshing={jobs.dmm.status === "pending"}
-          onRefresh={() => refreshSource("dmm")}
-          uploadPending={uploadPending}
-          onUpload={uploadDmm}
-        />
+        <div className="mx-auto max-w-[1400px]">
+          <OpsDmmTab
+            data={data}
+            period={dmmPeriod}
+            onPeriodChange={setDmmPeriod}
+            refreshing={jobs.dmm.status === "pending"}
+            onRefresh={() => refreshSource("dmm")}
+            uploadPending={uploadPending}
+            onUpload={uploadDmm}
+          />
+        </div>
       ) : null}
 
       <p className="text-xs text-muted">

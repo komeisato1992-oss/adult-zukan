@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { isAdminAuthenticated } from "@/lib/admin/auth";
 import { AdminShell } from "@/components/admin/AdminShell";
@@ -12,5 +13,15 @@ export default async function ProtectedAdminLayout({
     redirect("/admin/login");
   }
 
-  return <AdminShell>{children}</AdminShell>;
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-surface p-4 text-sm text-muted">
+          管理画面を読み込み中…
+        </div>
+      }
+    >
+      <AdminShell>{children}</AdminShell>
+    </Suspense>
+  );
 }

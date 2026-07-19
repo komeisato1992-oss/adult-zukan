@@ -19,6 +19,11 @@ export type FanzaSyncProgressEntry = {
 
 export type FanzaSyncProgressState = {
   scopes: Record<FanzaSyncTargetScope, FanzaSyncProgressEntry>;
+  /**
+   * works.updated_at 差分取得のウォーターマーク（ISO）。
+   * 未設定時は全件マスター取得をせず、CID 一覧 + ローカル JSON + バッチ列取得のみ行う。
+   */
+  worksMasterUpdatedAtWatermark: string | null;
 };
 
 export const FANZA_SYNC_PROGRESS_RELATIVE_PATH =
@@ -46,6 +51,7 @@ export function createEmptyFanzaSyncProgress(): FanzaSyncProgressState {
       all: emptyEntry(),
       unchecked: emptyEntry(),
     },
+    worksMasterUpdatedAtWatermark: null,
   };
 }
 
@@ -72,11 +78,18 @@ export function parseFanzaSyncProgress(raw: unknown): FanzaSyncProgressState {
   const scopes = (raw as { scopes?: unknown }).scopes;
   if (!scopes || typeof scopes !== "object") return empty;
   const s = scopes as Record<string, unknown>;
+  const watermarkRaw = (raw as { worksMasterUpdatedAtWatermark?: unknown })
+    .worksMasterUpdatedAtWatermark;
+  const watermark =
+    typeof watermarkRaw === "string" && watermarkRaw.trim()
+      ? watermarkRaw.trim()
+      : null;
   return {
     scopes: {
       all: normalizeEntry(s.all),
       unchecked: normalizeEntry(s.unchecked),
     },
+    worksMasterUpdatedAtWatermark: watermark,
   };
 }
 
@@ -169,4 +182,32 @@ export function isFanzaSyncTargetScope(
   value: unknown,
 ): value is FanzaSyncTargetScope {
   return value === "all" || value === "unchecked";
+}
+
+export function getWorksMasterUpdatedAtWatermark(): string | null {
+  return loadFanzaSyncProgress().worksMasterUpdatedAtWatermark;
+}
+
+/**
+ * 差分取得で観測した最大 updated_at までウォーターマークを進める。
+ * 現在値より古い値では進めない。
+ */
+export function advanceWorksMasterUpdatedAtWatermark(
+  observedMaxUpdatedAt: string | null | undefined,
+): string | null {
+  const next = observedMaxUpdatedAt?.trim();
+  if (!next) return getWorksMasterUpdatedAtWatermark();
+
+  const state = loadFanzaSyncProgress();
+  const current = state.worksMasterUpdatedAtWatermark;
+  const currentMs = current ? Date.parse(current) : NaN;
+  const nextMs = Date.parse(next);
+  if (!Number.isFinite(nextMs)) return current;
+  if (Number.isFinite(currentMs) && nextMs <= currentMs) {
+    return current;
+  }
+
+  state.worksMasterUpdatedAtWatermark = next;
+  saveFanzaSyncProgress(state);
+  return next;
 }

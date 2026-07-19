@@ -10,6 +10,7 @@ import type {
 const TABLE = "work_live_status";
 const CHUNK = 200;
 let priceAmountColumnAvailable: boolean | null = null;
+let fanzaNewRankColumnAvailable: boolean | null = null;
 
 function normalizeRow(raw: Record<string, unknown>): WorkLiveStatusRow | null {
   const cid = normalizeCatalogContentId(String(raw.cid ?? ""));
@@ -44,6 +45,14 @@ function normalizeRow(raw: Record<string, unknown>): WorkLiveStatusRow | null {
       raw.new_arrival_rank == null || raw.new_arrival_rank === ""
         ? null
         : Number(raw.new_arrival_rank),
+    fanza_new_rank:
+      raw.fanza_new_rank == null || raw.fanza_new_rank === ""
+        ? null
+        : Number(raw.fanza_new_rank),
+    fanza_new_rank_updated_at:
+      raw.fanza_new_rank_updated_at == null
+        ? null
+        : String(raw.fanza_new_rank_updated_at),
     is_available: raw.is_available === false ? false : true,
     manual_hidden: raw.manual_hidden === true,
     fanza_tv_status:
@@ -116,6 +125,18 @@ async function detectPriceAmountColumn(): Promise<boolean> {
   return priceAmountColumnAvailable;
 }
 
+async function detectFanzaNewRankColumn(): Promise<boolean> {
+  if (fanzaNewRankColumnAvailable != null) return fanzaNewRankColumnAvailable;
+  const client = getSupabaseServiceClient();
+  if (!client) {
+    fanzaNewRankColumnAvailable = false;
+    return false;
+  }
+  const { error } = await client.from(TABLE).select("fanza_new_rank").limit(1);
+  fanzaNewRankColumnAvailable = !error;
+  return fanzaNewRankColumnAvailable;
+}
+
 export async function supabaseUpsertLiveStatusRows(
   rows: WorkLiveStatusUpsertInput[],
 ): Promise<{ upserted: number }> {
@@ -128,6 +149,7 @@ export async function supabaseUpsertLiveStatusRows(
   );
   const schemaV2 = await detectWorksCmsSchemaV2();
   const hasPriceAmount = await detectPriceAmountColumn();
+  const hasFanzaNewRank = await detectFanzaNewRankColumn();
   const payload: Record<string, unknown>[] = [];
 
   for (const row of rows) {
@@ -148,6 +170,10 @@ export async function supabaseUpsertLiveStatusRows(
     }
     if (!hasPriceAmount) {
       delete base.price_amount;
+    }
+    if (!hasFanzaNewRank) {
+      delete base.fanza_new_rank;
+      delete base.fanza_new_rank_updated_at;
     }
     payload.push(base);
   }

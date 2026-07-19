@@ -11,6 +11,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { WorksCmsAddTab } from "@/components/admin/works-cms/AddTab";
+import { WorksCmsExpandTab } from "@/components/admin/works-cms/ExpandTab";
 import { WorksCmsFanzaTvTab } from "@/components/admin/works-cms/FanzaTvTab";
 import { WorksCmsHistoryTab } from "@/components/admin/works-cms/HistoryTab";
 import { WorksCmsOverviewPanel } from "@/components/admin/works-cms/OverviewPanel";
@@ -1186,6 +1187,8 @@ export function AdminWorksCms() {
           step={addStep}
         />
       ) : null}
+
+      {tab === "expand" ? <WorksCmsExpandTab /> : null}
 
       {tab === "sync" ? (
         <WorksCmsSyncTab

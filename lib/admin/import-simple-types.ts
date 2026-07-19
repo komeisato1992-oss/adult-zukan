@@ -126,6 +126,8 @@ export type AddSelectedWorkInput = {
   contentId: string;
   item: DmmItem;
   sourcePopularityRank?: number | null;
+  /** FANZA新着順（sort=date）の取得順位 */
+  fanzaNewRank?: number | null;
   /** 候補取得時の判定結果。あれば追加時に画像GETしない */
   imageStatus?: AdultImageStatus | null;
   imageStatusCheckedAt?: string | null;

@@ -47,7 +47,8 @@ export const ADULT_SYNC_PRICE_FIELDS = [
 
 export const ADULT_SYNC_RANK_FIELDS = ["sourcePopularityRank"] as const;
 
-export const ADULT_SYNC_DATE_FIELDS = ["date"] as const;
+/** 発売日 + FANZA新着順位（fanzaNewRank） */
+export const ADULT_SYNC_DATE_FIELDS = ["date", "fanzaNewRank"] as const;
 
 export type AdultSyncLightField = (typeof ADULT_SYNC_LIGHT_FIELDS)[number];
 

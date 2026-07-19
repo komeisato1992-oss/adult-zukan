@@ -3,6 +3,8 @@ import type { DmmItem } from "@/lib/dmm/types";
 export type CatalogItemMetadataInput = {
   sourcePopularityRank?: number | null;
   popularityUpdatedAt?: string;
+  fanzaNewRank?: number | null;
+  fanzaNewRankUpdatedAt?: string;
   addedAt?: string;
 };
 
@@ -28,6 +30,20 @@ export function enrichCatalogItemMetadata(
     next.sourcePopularityRank = rank;
     next.popularityUpdatedAt =
       metadata.popularityUpdatedAt ?? item.popularityUpdatedAt ?? now;
+  }
+
+  const newRank =
+    metadata.fanzaNewRank ??
+    (typeof item.fanzaNewRank === "number" &&
+    Number.isFinite(item.fanzaNewRank) &&
+    item.fanzaNewRank > 0
+      ? item.fanzaNewRank
+      : undefined);
+
+  if (typeof newRank === "number" && newRank > 0) {
+    next.fanzaNewRank = newRank;
+    next.fanzaNewRankUpdatedAt =
+      metadata.fanzaNewRankUpdatedAt ?? item.fanzaNewRankUpdatedAt ?? now;
   }
 
   return next;

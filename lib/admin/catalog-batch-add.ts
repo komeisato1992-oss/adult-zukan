@@ -54,7 +54,10 @@ export type CatalogBatchAddResult = {
 function prepareCatalogItem(
   item: DmmItem,
   contentId: string,
-  metadata?: { sourcePopularityRank?: number | null },
+  metadata?: {
+    sourcePopularityRank?: number | null;
+    fanzaNewRank?: number | null;
+  },
 ): DmmItem {
   const normalizedId = normalizeCatalogContentId(contentId);
 
@@ -78,6 +81,7 @@ function prepareCatalogItem(
     },
     {
       sourcePopularityRank: metadata?.sourcePopularityRank,
+      fanzaNewRank: metadata?.fanzaNewRank,
     },
   );
 }
@@ -210,6 +214,7 @@ export async function addWorksToCatalogInBatches(input: {
     contentId: string;
     item: DmmItem;
     sourcePopularityRank?: number | null;
+    fanzaNewRank?: number | null;
   }>;
   startOffset: number;
   processId: string;
@@ -251,6 +256,7 @@ export async function addWorksToCatalogInBatches(input: {
     try {
       const prepared = prepareCatalogItem(work.item, work.contentId, {
         sourcePopularityRank: work.sourcePopularityRank,
+        fanzaNewRank: work.fanzaNewRank,
       });
       preparedItems.push(prepared);
       statusEntry.status = "ready";

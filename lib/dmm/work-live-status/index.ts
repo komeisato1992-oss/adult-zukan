@@ -276,10 +276,22 @@ export async function upsertLiveStatusFromWorks(
   for (const row of candidates) {
     const prev = existing.get(row.cid);
     // FANZA APIに見放題APIはない。同期時に既存TV判定を潰さない。
+    const incomingNewRank =
+      row.fanza_new_rank != null && row.fanza_new_rank > 0
+        ? row.fanza_new_rank
+        : null;
     const merged: WorkLiveStatusUpsertInput = {
       ...row,
       manual_hidden: prev?.manual_hidden ?? row.manual_hidden ?? false,
       sale_start_at: row.sale_start_at ?? prev?.sale_start_at ?? null,
+      // cid 同期では新着順位が取れないため、未指定時は既存値を維持
+      fanza_new_rank: incomingNewRank ?? prev?.fanza_new_rank ?? null,
+      fanza_new_rank_updated_at:
+        incomingNewRank != null
+          ? (row.fanza_new_rank_updated_at ?? new Date().toISOString())
+          : (prev?.fanza_new_rank_updated_at ??
+            row.fanza_new_rank_updated_at ??
+            null),
       fanza_tv_status: prev?.fanza_tv_status ?? row.fanza_tv_status ?? null,
       fanza_tv_checked_at:
         prev?.fanza_tv_checked_at ?? row.fanza_tv_checked_at ?? null,

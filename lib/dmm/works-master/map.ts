@@ -134,6 +134,50 @@ function splitStoredAffiliateUrl(stored: string | null | undefined): {
   return { URL: raw, affiliateURL: raw };
 }
 
+/**
+ * 同期用: works マスター行を既存 DmmItem（JSON カタログ等）へ重ねる。
+ * 価格・レビュー等の変動フィールドは既存を優先し、Egress 削減のため
+ * マスターに無い description/sample も既存を残す。
+ */
+export function mergeSyncMasterRowIntoDmmItem(
+  existing: DmmItem | undefined,
+  row: WorkMasterRow,
+): DmmItem {
+  const master = workMasterRowToDmmItem(row);
+  if (!existing) return master;
+
+  return {
+    ...master,
+    prices: existing.prices ?? master.prices,
+    campaign: existing.campaign ?? master.campaign,
+    review: existing.review ?? master.review,
+    sourcePopularityRank:
+      existing.sourcePopularityRank ?? master.sourcePopularityRank,
+    saleStatus: existing.saleStatus ?? master.saleStatus,
+    salePrice: existing.salePrice ?? master.salePrice,
+    regularPrice: existing.regularPrice ?? master.regularPrice,
+    discountRate: existing.discountRate ?? master.discountRate,
+    saleEndAt: existing.saleEndAt ?? master.saleEndAt,
+    fanzaNewRank: existing.fanzaNewRank ?? master.fanzaNewRank,
+    fanzaTvStatus: existing.fanzaTvStatus ?? master.fanzaTvStatus,
+    lastSyncedAt: existing.lastSyncedAt,
+    lastSyncAttemptAt: existing.lastSyncAttemptAt,
+    lastRefreshedAt: existing.lastRefreshedAt,
+    priceUpdatedAt: existing.priceUpdatedAt,
+    saleUpdatedAt: existing.saleUpdatedAt,
+    popularityUpdatedAt: existing.popularityUpdatedAt,
+    consecutiveNotFoundCount: existing.consecutiveNotFoundCount,
+    consecutiveFetchFailures: existing.consecutiveFetchFailures,
+    unavailableDetectedAt: existing.unavailableDetectedAt,
+    unavailableCheckedAt: existing.unavailableCheckedAt,
+    syncErrorMessage: existing.syncErrorMessage,
+    description: master.description ?? existing.description,
+    comment: existing.comment ?? master.comment,
+    sampleImageURL: master.sampleImageURL ?? existing.sampleImageURL,
+    sampleMovieURL: existing.sampleMovieURL ?? master.sampleMovieURL,
+  };
+}
+
 /** works 行 → DmmItem（公開表示用）。image_status で画像有無を決める */
 export function workMasterRowToDmmItem(row: WorkMasterRow): DmmItem {
   const actresses = (row.actresses ?? []).map((entry, index) => ({

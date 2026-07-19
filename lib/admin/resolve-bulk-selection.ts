@@ -194,11 +194,23 @@ async function resolveAllMatchingWorks(
 
   logImportCandidatePipelineStages("[bulk-add allMatching]", filtered.stages);
 
-  const works = filtered.candidates.map((candidate) => ({
-    contentId: candidate.contentId,
-    item: candidate.item,
-    sourcePopularityRank: candidate.rankPosition ?? null,
-  }));
+  const works = filtered.candidates.map((candidate) => {
+    const position = candidate.rankPosition ?? null;
+    const source = String(candidate.source ?? "").toLowerCase();
+    const mode = String(
+      (candidate as { collectionMode?: string }).collectionMode ?? "",
+    ).toLowerCase();
+    const isNew =
+      mode === "new" ||
+      source === "new" ||
+      source.startsWith("fanza-new");
+    return {
+      contentId: candidate.contentId,
+      item: candidate.item,
+      sourcePopularityRank: isNew ? null : position,
+      fanzaNewRank: isNew ? position : null,
+    };
+  });
 
   return { works, stages: filtered.stages };
 }

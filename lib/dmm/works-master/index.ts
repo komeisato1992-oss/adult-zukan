@@ -6,6 +6,7 @@ import { normalizeCatalogContentId } from "@/lib/dmm/catalog-snapshot";
 import type { DmmItem } from "@/lib/dmm/types";
 import {
   dmmItemToWorkMasterRow,
+  mergeSyncMasterRowIntoDmmItem,
   workMasterRowToDmmItem,
 } from "@/lib/dmm/works-master/map";
 import {
@@ -27,6 +28,10 @@ import {
   supabaseFetchAllPublishedWorkMasterCids,
   supabaseFetchAllWorkMasterCids,
   supabaseFetchWorkMasterByCids,
+  supabaseFetchWorkMastersForSyncByCids,
+  supabaseFetchWorkMastersUpdatedSince,
+  supabaseFetchExistingCidsByCids,
+  supabaseCountWorkMasterRows,
   supabaseUpsertWorkMasterRows,
 } from "@/lib/dmm/works-master/supabase-store";
 import {
@@ -196,6 +201,143 @@ export async function fetchWorkMasterByCids(
     console.warn("[works-master] fetch by cid failed", error);
     return new Map();
   }
+}
+
+/**
+ * 候補 CID が works に既にあるか（cid 列のみ・.in 照合）。
+ * 全件取得はしない。
+ */
+export async function fetchExistingWorkMasterCids(
+  cids: string[],
+): Promise<Set<string>> {
+  const backend = getConfiguredWorksMasterBackend();
+  if (backend === "off" || cids.length === 0) return new Set();
+
+  if (backend === "supabase" || isWorksMasterSupabaseConfigured()) {
+    try {
+      return await supabaseFetchExistingCidsByCids(cids);
+    } catch (error) {
+      console.warn(
+        "[works-master] existing cid lookup failed; falling back to local",
+        error,
+      );
+      const local = await localFetchWorkMasterByCids(cids);
+      return new Set(local.keys());
+    }
+  }
+
+  try {
+    const local = await localFetchWorkMasterByCids(cids);
+    return new Set(local.keys());
+  } catch {
+    return new Set();
+  }
+}
+
+/** works テーブルの件数のみ（行データなし） */
+export async function countWorkMasterRows(): Promise<number | null> {
+  const backend = getConfiguredWorksMasterBackend();
+  if (backend === "off") return null;
+
+  if (backend === "supabase" || isWorksMasterSupabaseConfigured()) {
+    try {
+      return await supabaseCountWorkMasterRows();
+    } catch (error) {
+      console.warn("[works-master] count failed", error);
+      try {
+        return await localCountWorkMasterRows();
+      } catch {
+        return null;
+      }
+    }
+  }
+
+  try {
+    return await localCountWorkMasterRows();
+  } catch {
+    return null;
+  }
+}
+
+/** FANZA 同期バッチ用: 必要列のみ */
+export async function fetchWorkMastersForSyncByCids(
+  cids: string[],
+): Promise<Map<string, WorkMasterRow>> {
+  const backend = getConfiguredWorksMasterBackend();
+  if (backend === "off" || cids.length === 0) return new Map();
+
+  if (backend === "supabase" || isWorksMasterSupabaseConfigured()) {
+    try {
+      return await supabaseFetchWorkMastersForSyncByCids(cids);
+    } catch (error) {
+      console.warn(
+        "[works-master] supabase sync fetch by cid failed; falling back to local",
+        error,
+      );
+      return await localFetchWorkMasterByCids(cids);
+    }
+  }
+
+  try {
+    return await localFetchWorkMasterByCids(cids);
+  } catch (error) {
+    console.warn("[works-master] sync fetch by cid failed", error);
+    return new Map();
+  }
+}
+
+/**
+ * updated_at 差分でマスターを取得（同期用）。
+ * sinceIso 未設定時は空（全件 select は行わない）。
+ */
+export async function fetchWorkMastersUpdatedSince(
+  sinceIso: string | null | undefined,
+  options?: { publishedOnly?: boolean; maxRows?: number },
+): Promise<WorkMasterRow[]> {
+  const backend = getConfiguredWorksMasterBackend();
+  if (backend === "off") return [];
+
+  if (backend === "supabase" || isWorksMasterSupabaseConfigured()) {
+    try {
+      return await supabaseFetchWorkMastersUpdatedSince(sinceIso, options);
+    } catch (error) {
+      console.warn(
+        "[works-master] supabase updated_since fetch failed",
+        error,
+      );
+      return [];
+    }
+  }
+
+  // local: updated_at フィルタで差分相当
+  const sinceMs = sinceIso?.trim() ? Date.parse(sinceIso) : NaN;
+  if (!Number.isFinite(sinceMs)) return [];
+  try {
+    const rows = await localFetchAllPublishedWorkMasters();
+    return rows.filter((row) => {
+      const ts = Date.parse(row.updated_at);
+      return Number.isFinite(ts) && ts > sinceMs;
+    });
+  } catch {
+    return [];
+  }
+}
+
+/** 同期バッチの DmmItem を works マスター（狭い列）で上書きマージ */
+export async function enrichDmmItemsForSync(
+  items: DmmItem[],
+): Promise<DmmItem[]> {
+  if (items.length === 0) return items;
+  const cids = items.map((item) => item.content_id);
+  const masterMap = await fetchWorkMastersForSyncByCids(cids);
+  if (masterMap.size === 0) return items;
+
+  return items.map((item) => {
+    const cid = normalizeCatalogContentId(item.content_id);
+    const row = cid ? masterMap.get(cid) : undefined;
+    if (!row) return item;
+    return mergeSyncMasterRowIntoDmmItem(item, row);
+  });
 }
 
 export async function getWorksMasterContentIdSet(): Promise<Set<string>> {
@@ -526,6 +668,7 @@ export async function getWorksMasterStorageInfo(): Promise<WorksMasterStorageInf
 
 export {
   dmmItemToWorkMasterRow,
+  mergeSyncMasterRowIntoDmmItem,
   workMasterRowToDmmItem,
 } from "@/lib/dmm/works-master/map";
 export type {
@@ -538,3 +681,7 @@ export {
   isWorksMasterSupabaseConfigured,
 } from "@/lib/dmm/works-master/types";
 export { getWorksMasterMetricsSummary } from "@/lib/dmm/works-master/metrics";
+export {
+  WORK_MASTER_DETAIL_SELECT,
+  WORK_MASTER_SYNC_SELECT,
+} from "@/lib/dmm/works-master/supabase-store";

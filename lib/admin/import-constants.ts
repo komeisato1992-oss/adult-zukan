@@ -11,7 +11,7 @@ export const IMPORT_COLLECT_REQUEST_MAX = 1000;
 export const IMPORT_COLLECT_REQUEST_OPTIONS = [10, 50, 200, 300, 500] as const;
 
 /** 人気順収集のデフォルト設定 */
-export const IMPORT_POPULAR_TARGET_COUNT = 10000;
+export const IMPORT_POPULAR_TARGET_COUNT = 30000;
 export const IMPORT_POPULAR_REQUEST_COUNT = 500;
 export const IMPORT_POPULAR_ADD_LIMIT = 500;
 export const IMPORT_POPULAR_MAX_BATCHES = 1;

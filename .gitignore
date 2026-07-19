@@ -60,6 +60,7 @@ yarn-error.log*
 /data/dmm/works-add-offsets.json
 /data/dmm/fanza-tv-ingest-job.json
 /data/dmm/fanza-sync-job.json
+/data/dmm/fanza-expand-job.json
 /data/dmm/fanza-sync-progress.json
 /data/dmm/fanza-light-overlay.json
 /data/dmm/fanza-sync-history.json

@@ -118,7 +118,10 @@ function isGithubPayloadTooLarge(error: unknown): boolean {
 function prepareCatalogItem(
   item: DmmItem,
   contentId: string,
-  metadata?: { sourcePopularityRank?: number | null },
+  metadata?: {
+    sourcePopularityRank?: number | null;
+    fanzaNewRank?: number | null;
+  },
 ): DmmItem {
   const normalizedId = normalizeCatalogContentId(contentId);
 
@@ -145,6 +148,7 @@ function prepareCatalogItem(
     },
     {
       sourcePopularityRank: metadata?.sourcePopularityRank,
+      fanzaNewRank: metadata?.fanzaNewRank,
     },
   );
 }
@@ -163,6 +167,7 @@ function parseWorkEntries(entries: unknown): AddSelectedWorkInput[] {
       contentId?: string;
       item?: DmmItem;
       sourcePopularityRank?: number | null;
+      fanzaNewRank?: number | null;
       imageStatus?: string | null;
       imageStatusCheckedAt?: string | null;
       packageImage?: string | null;
@@ -187,6 +192,7 @@ function parseWorkEntries(entries: unknown): AddSelectedWorkInput[] {
       contentId,
       item,
       sourcePopularityRank: record.sourcePopularityRank ?? null,
+      fanzaNewRank: record.fanzaNewRank ?? null,
       imageStatus,
       imageStatusCheckedAt:
         typeof record.imageStatusCheckedAt === "string"
@@ -267,6 +273,7 @@ function classifySelectedWorks(
     try {
       const prepared = prepareCatalogItem(work.item, work.contentId, {
         sourcePopularityRank: work.sourcePopularityRank,
+        fanzaNewRank: work.fanzaNewRank,
       });
 
       if (!pickPackageImageCandidate(prepared) && !hasPrechecked) {

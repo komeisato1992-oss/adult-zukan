@@ -18,6 +18,8 @@ create table if not exists public.work_live_status (
   review_count integer,
   popularity_rank integer,
   new_arrival_rank integer,
+  fanza_new_rank integer,
+  fanza_new_rank_updated_at timestamptz,
   is_available boolean not null default true,
   fanza_tv_status text,
   checked_at timestamptz,
@@ -34,6 +36,10 @@ create index if not exists work_live_status_is_sale_idx
 create index if not exists work_live_status_popularity_rank_idx
   on public.work_live_status (popularity_rank)
   where popularity_rank is not null;
+
+create index if not exists work_live_status_fanza_new_rank_idx
+  on public.work_live_status (fanza_new_rank asc nulls last)
+  where is_available = true and fanza_new_rank is not null and fanza_new_rank > 0;
 
 alter table public.work_live_status enable row level security;
 

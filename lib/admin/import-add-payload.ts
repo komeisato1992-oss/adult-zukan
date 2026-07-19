@@ -23,6 +23,8 @@ export function slimWorkItemForAdd(item: DmmItem): DmmItem {
     review: item.review,
     sourcePopularityRank: item.sourcePopularityRank,
     popularityUpdatedAt: item.popularityUpdatedAt,
+    fanzaNewRank: item.fanzaNewRank,
+    fanzaNewRankUpdatedAt: item.fanzaNewRankUpdatedAt,
     addedAt: item.addedAt,
   };
 }
@@ -34,25 +36,32 @@ export function buildAddSelectedWorksPayload(
     contentId: string;
     item: DmmItem;
     sourcePopularityRank: number | null;
+    fanzaNewRank: number | null;
     imageStatus: string | null;
     imageStatusCheckedAt: string | null;
     packageImage: string | null;
   }>;
 } {
   return {
-    works: candidates.map((candidate) => ({
-      contentId: getCandidateSelectionId(candidate),
-      item: slimWorkItemForAdd(candidate.item),
-      sourcePopularityRank:
+    works: candidates.map((candidate) => {
+      const position =
         candidate.candidateMeta?.absolutePopularityPosition ??
         candidate.rankPosition ??
-        null,
-      imageStatus: candidate.imageStatus ?? null,
-      imageStatusCheckedAt: candidate.imageStatusCheckedAt ?? null,
-      packageImage:
-        candidate.packageImage !== undefined
-          ? candidate.packageImage
-          : pickPackageImageCandidate(candidate.item),
-    })),
+        null;
+      const isNewSort = candidate.candidateMeta?.sourceSort === "new";
+      return {
+        contentId: getCandidateSelectionId(candidate),
+        item: slimWorkItemForAdd(candidate.item),
+        // 人気順取得時のみ popularity。新着順の位置は fanzaNewRank へ。
+        sourcePopularityRank: isNewSort ? null : position,
+        fanzaNewRank: isNewSort ? position : null,
+        imageStatus: candidate.imageStatus ?? null,
+        imageStatusCheckedAt: candidate.imageStatusCheckedAt ?? null,
+        packageImage:
+          candidate.packageImage !== undefined
+            ? candidate.packageImage
+            : pickPackageImageCandidate(candidate.item),
+      };
+    }),
   };
 }

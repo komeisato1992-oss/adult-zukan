@@ -16,6 +16,8 @@ import {
 } from "@/lib/admin/fanza-sync-job";
 import {
   advanceFanzaSyncProgress,
+  advanceWorksMasterUpdatedAtWatermark,
+  getWorksMasterUpdatedAtWatermark,
   isFanzaSyncTargetScope,
   loadFanzaSyncProgress,
   type FanzaSyncTargetScope,
@@ -97,49 +99,130 @@ async function mapWithConcurrency<T, R>(
   return results;
 }
 
+function minimalSyncStub(cid: string): DmmItem {
+  return {
+    content_id: cid,
+    product_id: cid,
+    title: cid,
+    URL: "",
+    affiliateURL: "",
+  };
+}
+
+type SyncUniverseCache = {
+  jobId: string;
+  scope: FanzaSyncTargetScope;
+  mode: AdultSyncMode;
+  items: DmmItem[];
+  expiresAt: number;
+};
+
+type SyncUniverseCacheHolder = typeof globalThis & {
+  __fanzaSyncUniverseCache?: SyncUniverseCache | null;
+};
+
+function getSyncUniverseCache(): SyncUniverseCache | null {
+  return (globalThis as SyncUniverseCacheHolder).__fanzaSyncUniverseCache ?? null;
+}
+
+function setSyncUniverseCache(cache: SyncUniverseCache | null): void {
+  (globalThis as SyncUniverseCacheHolder).__fanzaSyncUniverseCache = cache;
+}
+
+function buildCatalogByCid(items: DmmItem[]): Map<string, DmmItem> {
+  const byCid = new Map<string, DmmItem>();
+  for (const item of items) {
+    const cid = normalizeCatalogContentId(item.content_id);
+    if (!cid) continue;
+    byCid.set(cid, { ...item, content_id: cid });
+  }
+  return byCid;
+}
+
+/**
+ * 部分同期用カタログ構築（Egress 最小化）。
+ * - 全件 select("*") は行わない
+ * - CID 一覧（cid 列のみ）+ ローカル JSON
+ * - updated_at ウォーターマーク以降の差分のみ狭い列で取得して重ねる
+ */
+async function loadPartialSyncCatalogItems(options?: {
+  applyEnvLimit?: boolean;
+}): Promise<DmmItem[]> {
+  const {
+    getWorksMasterContentIdSet,
+    fetchWorkMastersUpdatedSince,
+    mergeSyncMasterRowIntoDmmItem,
+  } = await import("@/lib/dmm/works-master");
+
+  const json = readCatalogSnapshot();
+  const byCid = buildCatalogByCid(json);
+
+  // updated_at 差分（狭い列）。初回ウォーターマーク未設定時は全件取得せず、
+  // ベースラインを「現在時刻」に置いて以降の差分のみ取る。
+  const watermark = getWorksMasterUpdatedAtWatermark();
+  if (!watermark) {
+    const bootstrapped = advanceWorksMasterUpdatedAtWatermark(
+      new Date().toISOString(),
+    );
+    console.log("[fanza-sync] works-master watermark bootstrapped", {
+      watermark: bootstrapped,
+    });
+  } else {
+    let maxUpdatedAt: string | null = watermark;
+    try {
+      const deltaRows = await fetchWorkMastersUpdatedSince(watermark, {
+        publishedOnly: false,
+        maxRows: 5_000,
+      });
+      for (const row of deltaRows) {
+        const existing = byCid.get(row.cid);
+        byCid.set(row.cid, mergeSyncMasterRowIntoDmmItem(existing, row));
+        if (
+          !maxUpdatedAt ||
+          Date.parse(row.updated_at) > Date.parse(maxUpdatedAt)
+        ) {
+          maxUpdatedAt = row.updated_at;
+        }
+      }
+      if (deltaRows.length > 0) {
+        advanceWorksMasterUpdatedAtWatermark(maxUpdatedAt);
+        console.log("[fanza-sync] works-master delta applied", {
+          count: deltaRows.length,
+          watermarkFrom: watermark,
+          watermarkTo: maxUpdatedAt,
+        });
+      }
+    } catch (error) {
+      console.warn("[fanza-sync] works-master delta fetch skipped", error);
+    }
+  }
+
+  // 非公開含む同期対象宇宙: CID のみ（全列取得しない）
+  const allCids = [...(await getWorksMasterContentIdSet())].sort((a, b) =>
+    a.localeCompare(b),
+  );
+  let items = allCids.map((cid) => byCid.get(cid) ?? minimalSyncStub(cid));
+
+  if (options?.applyEnvLimit) {
+    const limit = getAdultLightSyncTargetLimit();
+    if (limit > 0) {
+      items = items.slice(0, limit);
+    }
+  }
+
+  return items;
+}
+
 async function loadCatalogForSync(
   mode?: AdultSyncMode,
   options?: { applyEnvLimit?: boolean },
 ): Promise<CatalogSnapshotHandle> {
-  // 部分同期は works マスター（Supabase）を優先。Git/JSON書き換えはしない。
+  // 部分同期: 全件マスター select を廃止し、CID + JSON + updated_at 差分のみ
   if (mode && isAdultPartialSyncMode(mode)) {
     try {
-      const { fetchPublishedWorksMasterAsDmmItems, mergeWorksMasterIntoCatalog } =
-        await import("@/lib/dmm/works-master");
-      const master = await fetchPublishedWorksMasterAsDmmItems();
-      const json = readCatalogSnapshot();
-      // 非公開含めて同期対象にしたいので CID 全集を取得
-      const { getWorksMasterContentIdSet, fetchWorkMasterByCids } = await import(
-        "@/lib/dmm/works-master"
-      );
-      const allCids = [...(await getWorksMasterContentIdSet())];
-      let items =
-        master.length > 0
-          ? mergeWorksMasterIntoCatalog(json, master)
-          : json;
-      if (allCids.length > master.length) {
-        const missing = allCids.filter(
-          (cid) =>
-            !items.some(
-              (it) => normalizeCatalogContentId(it.content_id) === cid,
-            ),
-        );
-        if (missing.length > 0) {
-          const rows = await fetchWorkMasterByCids(missing);
-          const { workMasterRowToDmmItem } = await import(
-            "@/lib/dmm/works-master/map"
-          );
-          const extra = [...rows.values()].map(workMasterRowToDmmItem);
-          items = mergeWorksMasterIntoCatalog(items, extra);
-        }
-      }
-      // UIの処理件数で制御する。環境変数上限は applyEnvLimit 時のみ（自動cron等）
-      if (options?.applyEnvLimit !== false) {
-        const limit = getAdultLightSyncTargetLimit();
-        if (limit > 0 && options?.applyEnvLimit) {
-          items = items.slice(0, limit);
-        }
-      }
+      const items = await loadPartialSyncCatalogItems({
+        applyEnvLimit: options?.applyEnvLimit === true,
+      });
       return {
         items,
         sha: null,
@@ -149,7 +232,7 @@ async function loadCatalogForSync(
       };
     } catch (error) {
       console.warn(
-        "[fanza-sync] works-master catalog load failed; using JSON",
+        "[fanza-sync] partial catalog load failed; using JSON",
         error,
       );
     }
@@ -196,17 +279,14 @@ async function loadCatalogForSync(
 /**
  * 掲載情報更新の対象宇宙を安定順で返す。
  * all: 全作品 / unchecked: image_status IS NULL
+ * マスター全件 select は行わない。バッチ処理直前に必要列のみ取得する。
  */
 async function loadSyncUniverse(
   mode: AdultSyncMode,
   scope: FanzaSyncTargetScope,
 ): Promise<DmmItem[]> {
   const { items } = await loadCatalogForSync(mode, { applyEnvLimit: false });
-  const byCid = new Map<string, DmmItem>();
-  for (const item of items) {
-    const cid = normalizeCatalogContentId(item.content_id);
-    if (cid) byCid.set(cid, { ...item, content_id: cid });
-  }
+  const byCid = buildCatalogByCid(items);
 
   if (scope === "unchecked") {
     const { supabaseFetchUncheckedImageStatusCids } = await import(
@@ -215,13 +295,65 @@ async function loadSyncUniverse(
     const uncheckedCids = await supabaseFetchUncheckedImageStatusCids();
     const ordered: DmmItem[] = [];
     for (const cid of uncheckedCids) {
-      const item = byCid.get(cid);
-      if (item) ordered.push(item);
+      ordered.push(byCid.get(cid) ?? minimalSyncStub(cid));
     }
     return ordered;
   }
 
   return sortWorksForFanzaSyncStable([...byCid.values()]);
+}
+
+/** 同一ジョブ内で宇宙の再構築（CID 全列挙）を繰り返さない */
+async function loadSyncUniverseForJob(
+  jobId: string,
+  mode: AdultSyncMode,
+  scope: FanzaSyncTargetScope,
+): Promise<DmmItem[]> {
+  const cached = getSyncUniverseCache();
+  if (
+    cached &&
+    cached.jobId === jobId &&
+    cached.mode === mode &&
+    cached.scope === scope &&
+    Date.now() < cached.expiresAt
+  ) {
+    return cached.items;
+  }
+
+  const items = await loadSyncUniverse(mode, scope);
+  setSyncUniverseCache({
+    jobId,
+    mode,
+    scope,
+    items,
+    expiresAt: Date.now() + 45 * 60 * 1000,
+  });
+  return items;
+}
+
+/** バッチ分だけ同期用の狭い列でマスターを重ねる */
+async function enrichSyncBatch(batch: DmmItem[]): Promise<DmmItem[]> {
+  if (batch.length === 0) return batch;
+  try {
+    const { enrichDmmItemsForSync } = await import("@/lib/dmm/works-master");
+    const enriched = await enrichDmmItemsForSync(batch);
+    // バッチで観測した updated_at でもウォーターマークを進める
+    let maxUpdated: string | null = null;
+    for (const item of enriched) {
+      const ts = item.updatedAt?.trim();
+      if (!ts) continue;
+      if (!maxUpdated || Date.parse(ts) > Date.parse(maxUpdated)) {
+        maxUpdated = ts;
+      }
+    }
+    if (maxUpdated) {
+      advanceWorksMasterUpdatedAtWatermark(maxUpdated);
+    }
+    return enriched;
+  } catch (error) {
+    console.warn("[fanza-sync] batch enrich skipped", error);
+    return batch;
+  }
 }
 
 const DEFAULT_RUN_LIMIT = 300;
@@ -442,6 +574,7 @@ export async function startFanzaSyncJob(input: {
   let job: FanzaSyncJob;
 
   if (isAdultPartialSyncMode(mode)) {
+    // 仮 jobId 前に宇宙を構築し、作成後にキャッシュキーを付け替える
     const universe = await loadSyncUniverse(mode, targetScope);
     const universeCount = universe.length;
     if (universeCount === 0) {
@@ -490,6 +623,13 @@ export async function startFanzaSyncJob(input: {
       ...job,
       message: `同期開始: ${startOffset}〜${endInclusive}（${runCount}件 / 総数 ${universeCount.toLocaleString()}）`,
     };
+    setSyncUniverseCache({
+      jobId: job.jobId,
+      mode,
+      scope: targetScope,
+      items: universe,
+      expiresAt: Date.now() + 45 * 60 * 1000,
+    });
   } else {
     const { items } = await loadCatalogForSync(mode, { applyEnvLimit: false });
     job = createFanzaSyncJob({
@@ -634,15 +774,19 @@ export async function processFanzaSyncBatch(options?: {
 
   // 部分同期は安定順＋絶対カーソル。フルは従来の優先度順。
   const sorted = isAdultPartialSyncMode(mode)
-    ? await loadSyncUniverse(mode, targetScope)
+    ? await loadSyncUniverseForJob(job.jobId, mode, targetScope)
     : sortWorksForFanzaSync(
         (await loadCatalogForSync(mode, { applyEnvLimit: false })).items,
       );
 
   const remainingInRun = Math.max(0, job.targetCount - job.processedCount);
   const batchTake = Math.min(job.batchSize, remainingInRun);
-  const batch =
+  const rawBatch =
     batchTake > 0 ? selectFanzaSyncBatch(sorted, job.cursor, batchTake) : [];
+  // 部分同期: バッチ CID 分だけ狭い列でマスターを取得（全件 select 禁止）
+  const batch = isAdultPartialSyncMode(mode)
+    ? await enrichSyncBatch(rawBatch)
+    : rawBatch;
 
   if (batch.length === 0) {
     const completedJob: FanzaSyncJob = {

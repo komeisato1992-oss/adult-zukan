@@ -52,6 +52,9 @@ export function dmmItemToLiveStatusRow(
 
   const priceText = asPriceText(item.prices?.price ?? item.salePrice);
   const priceAmount = asPriceAmount(priceText ?? item.salePrice);
+  const fanzaNewRank = asInteger(item.fanzaNewRank);
+  const normalizedNewRank =
+    fanzaNewRank != null && fanzaNewRank > 0 ? fanzaNewRank : null;
   return {
     cid,
     price: priceText,
@@ -66,6 +69,11 @@ export function dmmItemToLiveStatusRow(
     popularity_rank: asInteger(item.sourcePopularityRank),
     // price_amount 未適用環境の数値ソート用（円）。適用後は price_amount を優先。
     new_arrival_rank: priceAmount,
+    fanza_new_rank: normalizedNewRank,
+    fanza_new_rank_updated_at:
+      normalizedNewRank != null
+        ? (item.fanzaNewRankUpdatedAt ?? now)
+        : (item.fanzaNewRankUpdatedAt ?? null),
     is_available: isAvailable,
     manual_hidden: item.hiddenReason === "manual",
     fanza_tv_status: null,
@@ -130,6 +138,13 @@ export function applyLiveStatusToItem(
     next.sourcePopularityRank = row.popularity_rank;
   }
 
+  if (row.fanza_new_rank != null && row.fanza_new_rank > 0) {
+    next.fanzaNewRank = row.fanza_new_rank;
+  }
+  if (row.fanza_new_rank_updated_at) {
+    next.fanzaNewRankUpdatedAt = row.fanza_new_rank_updated_at;
+  }
+
   if (!row.is_available || row.manual_hidden) {
     next.isActive = false;
     next.availabilityStatus = "unavailable";
@@ -174,6 +189,7 @@ export function liveStatusRowsEqual(
     a.review_count === b.review_count &&
     a.popularity_rank === b.popularity_rank &&
     a.new_arrival_rank === b.new_arrival_rank &&
+    (a.fanza_new_rank ?? null) === (b.fanza_new_rank ?? null) &&
     a.is_available === b.is_available &&
     Boolean(a.manual_hidden) === Boolean(b.manual_hidden) &&
     a.fanza_tv_status === b.fanza_tv_status

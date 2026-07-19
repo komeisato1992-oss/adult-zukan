@@ -14,6 +14,7 @@
     "start": "next start",
     "lint": "eslint",
     "fetch-catalog": "node scripts/fetch-catalog.mjs",
+    "fanza:expand": "node scripts/fanza-expand.mjs",
     "migrate-catalog-shards": "node scripts/migrate-catalog-to-shards.mjs --dry-run",
     "migrate-catalog-shards:apply": "node scripts/migrate-catalog-to-shards.mjs --apply",
     "verify-catalog-shards": "node scripts/verify-catalog-shards.mjs",

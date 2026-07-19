@@ -7,6 +7,7 @@ import type { AdultSyncMode } from "@/lib/dmm/sync-mode";
 
 export type WorksCmsTabId =
   | "add"
+  | "expand"
   | "sync"
   | "publish"
   | "fanza-tv"
@@ -226,6 +227,7 @@ export type { AdultImportSortMode, FetchedImportCandidate, FetchImportCandidates
 
 export const WORKS_CMS_TABS: Array<{ id: WorksCmsTabId; label: string }> = [
   { id: "add", label: "作品追加" },
+  { id: "expand", label: "30k拡張" },
   { id: "sync", label: "掲載情報更新" },
   { id: "publish", label: "公開管理" },
   { id: "fanza-tv", label: "見放題管理" },

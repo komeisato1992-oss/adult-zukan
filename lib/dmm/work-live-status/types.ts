@@ -16,6 +16,9 @@ export type WorkLiveStatusRow = {
   review_count: number | null;
   popularity_rank: number | null;
   new_arrival_rank: number | null;
+  /** FANZA ItemList sort=date の順位。未適用環境では undefined */
+  fanza_new_rank?: number | null;
+  fanza_new_rank_updated_at?: string | null;
   is_available: boolean;
   manual_hidden: boolean;
   fanza_tv_status: string | null;

@@ -12,6 +12,17 @@ const TABLE = "works";
 const CHUNK = 100;
 const PAGE = 1000;
 
+/**
+ * FANZA 同期・差分マージ用（Egress 最小化）。
+ * description / sample_images は同期に不要なため含めない。
+ */
+export const WORK_MASTER_SYNC_SELECT =
+  "cid,slug,title,package_image,image_status,image_status_checked_at,actresses,maker,label,series,genres,release_date,duration,product_code,affiliate_url,published,manual_hidden,manual_hidden_reason,deleted_at,created_at,updated_at";
+
+/** 詳細表示用（description / sample_images を含む明示列。select("*") は使わない） */
+export const WORK_MASTER_DETAIL_SELECT =
+  "cid,slug,title,description,package_image,image_status,image_status_checked_at,sample_images,actresses,maker,label,series,genres,release_date,duration,product_code,affiliate_url,published,manual_hidden,manual_hidden_reason,deleted_at,created_at,updated_at";
+
 function asNamedList(raw: unknown): WorkMasterNamedEntity[] {
   if (!Array.isArray(raw)) return [];
   const result: WorkMasterNamedEntity[] = [];
@@ -93,7 +104,10 @@ export async function supabaseFetchWorkMasterByCids(
 
   for (let i = 0; i < normalized.length; i += CHUNK) {
     const slice = normalized.slice(i, i + CHUNK);
-    const { data, error } = await client.from(TABLE).select("*").in("cid", slice);
+    const { data, error } = await client
+      .from(TABLE)
+      .select(WORK_MASTER_DETAIL_SELECT)
+      .in("cid", slice);
     if (error) {
       console.warn("[works-master] supabase fetch failed", error.message);
       throw error;
@@ -107,7 +121,106 @@ export async function supabaseFetchWorkMasterByCids(
   return map;
 }
 
-export async function supabaseFetchAllPublishedWorkMasters(): Promise<WorkMasterRow[]> {
+/** FANZA 同期バッチ用: 必要列のみ CID 指定取得 */
+export async function supabaseFetchWorkMastersForSyncByCids(
+  cids: string[],
+): Promise<Map<string, WorkMasterRow>> {
+  const client = getSupabaseServiceClient();
+  const map = new Map<string, WorkMasterRow>();
+  if (!client || cids.length === 0) return map;
+
+  const normalized = [
+    ...new Set(
+      cids
+        .map((cid) => normalizeCatalogContentId(cid))
+        .filter((cid): cid is string => Boolean(cid)),
+    ),
+  ];
+
+  for (let i = 0; i < normalized.length; i += CHUNK) {
+    const slice = normalized.slice(i, i + CHUNK);
+    const { data, error } = await client
+      .from(TABLE)
+      .select(WORK_MASTER_SYNC_SELECT)
+      .in("cid", slice);
+    if (error) {
+      console.warn(
+        "[works-master] supabase sync fetch by cid failed",
+        error.message,
+      );
+      throw error;
+    }
+    for (const raw of data ?? []) {
+      const row = normalizeRow(raw as Record<string, unknown>);
+      if (row) map.set(row.cid, row);
+    }
+  }
+
+  return map;
+}
+
+/**
+ * updated_at 差分でマスターを取得（同期用・狭い列）。
+ * sinceIso が null/空のときは全件を取得せず空配列を返す（Egress 爆発防止）。
+ */
+export async function supabaseFetchWorkMastersUpdatedSince(
+  sinceIso: string | null | undefined,
+  options?: { publishedOnly?: boolean; maxRows?: number },
+): Promise<WorkMasterRow[]> {
+  const client = getSupabaseServiceClient();
+  if (!client) return [];
+
+  const since = sinceIso?.trim();
+  if (!since) return [];
+
+  const publishedOnly = options?.publishedOnly !== false;
+  const maxRows =
+    typeof options?.maxRows === "number" && options.maxRows > 0
+      ? Math.floor(options.maxRows)
+      : Number.POSITIVE_INFINITY;
+
+  const rows: WorkMasterRow[] = [];
+  for (let from = 0; rows.length < maxRows; from += PAGE) {
+    const pageSize = Math.min(PAGE, maxRows - rows.length);
+    const to = from + pageSize - 1;
+    let query = client
+      .from(TABLE)
+      .select(WORK_MASTER_SYNC_SELECT)
+      .gt("updated_at", since)
+      .order("updated_at", { ascending: true })
+      .order("cid", { ascending: true })
+      .range(from, to);
+    if (publishedOnly) {
+      query = query.eq("published", true);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.warn(
+        "[works-master] supabase updated_since fetch failed",
+        error.message,
+      );
+      throw error;
+    }
+
+    const batch = data ?? [];
+    for (const raw of batch) {
+      const row = normalizeRow(raw as Record<string, unknown>);
+      if (row) rows.push(row);
+    }
+    if (batch.length < pageSize) break;
+  }
+
+  return rows;
+}
+
+/**
+ * @deprecated 全件 select("*") は廃止。稀な強制マージ用に狭い列のみ全件取得する。
+ * FANZA 同期では使わないこと（updated_at 差分 + CID バッチ取得を使う）。
+ */
+export async function supabaseFetchAllPublishedWorkMasters(): Promise<
+  WorkMasterRow[]
+> {
   const client = getSupabaseServiceClient();
   if (!client) return [];
 
@@ -116,7 +229,7 @@ export async function supabaseFetchAllPublishedWorkMasters(): Promise<WorkMaster
     const to = from + PAGE - 1;
     const { data, error } = await client
       .from(TABLE)
-      .select("*")
+      .select(WORK_MASTER_SYNC_SELECT)
       .eq("published", true)
       .order("cid", { ascending: true })
       .range(from, to);
@@ -135,6 +248,49 @@ export async function supabaseFetchAllPublishedWorkMasters(): Promise<WorkMaster
   }
 
   return rows;
+}
+
+/**
+ * 候補 CID のみで既存判定（Egress 最小化）。
+ * select は cid 列のみ。全件取得はしない。
+ */
+export async function supabaseFetchExistingCidsByCids(
+  cids: string[],
+): Promise<Set<string>> {
+  const client = getSupabaseServiceClient();
+  const existing = new Set<string>();
+  if (!client || cids.length === 0) return existing;
+
+  const normalized = [
+    ...new Set(
+      cids
+        .map((cid) => normalizeCatalogContentId(cid))
+        .filter((cid): cid is string => Boolean(cid)),
+    ),
+  ];
+
+  for (let i = 0; i < normalized.length; i += CHUNK) {
+    const slice = normalized.slice(i, i + CHUNK);
+    const { data, error } = await client
+      .from(TABLE)
+      .select("cid")
+      .in("cid", slice);
+    if (error) {
+      console.warn(
+        "[works-master] supabase existing cid lookup failed",
+        error.message,
+      );
+      throw error;
+    }
+    for (const raw of data ?? []) {
+      const cid = normalizeCatalogContentId(
+        String((raw as { cid?: string }).cid ?? ""),
+      );
+      if (cid) existing.add(cid);
+    }
+  }
+
+  return existing;
 }
 
 export async function supabaseFetchAllWorkMasterCids(): Promise<string[]> {

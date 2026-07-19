@@ -15,13 +15,14 @@ const PAGE = 1000;
 /**
  * FANZA 同期・差分マージ用（Egress 最小化）。
  * description / sample_images は同期に不要なため含めない。
+ * manual_hidden 系は環境により未適用のため select に含めない（normalize 側でデフォルト）。
  */
 export const WORK_MASTER_SYNC_SELECT =
-  "cid,slug,title,package_image,image_status,image_status_checked_at,actresses,maker,label,series,genres,release_date,duration,product_code,affiliate_url,published,manual_hidden,manual_hidden_reason,deleted_at,created_at,updated_at";
+  "cid,slug,title,package_image,image_status,image_status_checked_at,actresses,maker,label,series,genres,release_date,duration,product_code,affiliate_url,published,created_at,updated_at";
 
 /** 詳細表示用（description / sample_images を含む明示列。select("*") は使わない） */
 export const WORK_MASTER_DETAIL_SELECT =
-  "cid,slug,title,description,package_image,image_status,image_status_checked_at,sample_images,actresses,maker,label,series,genres,release_date,duration,product_code,affiliate_url,published,manual_hidden,manual_hidden_reason,deleted_at,created_at,updated_at";
+  "cid,slug,title,description,package_image,image_status,image_status_checked_at,sample_images,actresses,maker,label,series,genres,release_date,duration,product_code,affiliate_url,published,created_at,updated_at";
 
 function asNamedList(raw: unknown): WorkMasterNamedEntity[] {
   if (!Array.isArray(raw)) return [];

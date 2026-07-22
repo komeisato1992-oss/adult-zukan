@@ -55,6 +55,8 @@ export async function getStaticSitemapEntries(): Promise<SitemapEntry[]> {
     "/labels",
     "/series",
     "/genres",
+    "/ranking",
+    "/compare",
     "/search",
     "/articles",
     "/about",

@@ -13,15 +13,21 @@ export function isWwwVariantHost(host: string, canonicalHost: string): boolean {
   return host === `www.${canonicalHost}`;
 }
 
-/** 正規 URL から www を除去（Search Console 登録ドメインと一致させる） */
+/**
+ * 正規 URL から www を除去する（パス・クエリ・ハッシュは保持）。
+ * ルート（`/`）はオリジンのみ（末尾スラッシュなし）を返す。
+ */
 export function normalizeSiteUrl(url: string): string {
-  const parsed = new URL(url.replace(/\/$/, ""));
+  const parsed = new URL(url);
 
   if (parsed.hostname.startsWith("www.")) {
     parsed.hostname = parsed.hostname.slice(4);
   }
 
-  return parsed.origin;
+  const pathname =
+    parsed.pathname === "/" ? "" : parsed.pathname.replace(/\/$/, "");
+
+  return `${parsed.origin}${pathname}${parsed.search}${parsed.hash}`;
 }
 
 /**
